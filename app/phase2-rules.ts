@@ -1,0 +1,127 @@
+/** Small, framework-free rules used by the sheet and regression tests. */
+
+export function explicitFocusSkillChoices(focusName: string) {
+  if (focusName === "Close Combatant") return ["Punch", "Shoot", "Stab"];
+  if (focusName === "Shocking Assault") return ["Punch", "Stab"];
+  return [];
+}
+
+export function focusIsRepeatable(focusName: string) {
+  return ["Developed Attribute", "Specialist", "Spirit Familiar"].includes(focusName);
+}
+
+export function armorRestrictsMagic(armorRule: string) {
+  return /cannot .*armor|do not function .*armor|require freedom from armor|same armor and shield restrictions/i.test(armorRule);
+}
+
+/**
+ * Maps repeatable Spirit Familiar Focus rows to distinct companion records.
+ * A legacy familiar without a slot is adopted only by the first Focus row.
+ */
+export function reconcileFamiliarSlots<T extends { focusSlot?: number }>(
+  active: readonly T[],
+  archived: readonly T[],
+  focusSlots: readonly number[],
+  create: (focusSlot: number, familiarIndex: number) => T,
+) {
+  const available = [...active, ...archived];
+  return focusSlots.map((focusSlot, familiarIndex) =>
+    available.find(companion => companion.focusSlot === focusSlot)
+    || (familiarIndex === 0 ? available.find(companion => companion.focusSlot === undefined) : undefined)
+    || create(focusSlot, familiarIndex),
+  );
+}
+
+export type FocusChoice = { name: string; choice?: string };
+
+export function focusTargetAvailable(
+  picks: readonly FocusChoice[],
+  focusName: "Developed Attribute" | "Specialist",
+  target: string,
+  slotIndex: number,
+) {
+  return !picks.some((pick, index) => index !== slotIndex && pick.name === focusName && pick.choice === target);
+}
+
+export type SkillProfileInput = {
+  purchased: number;
+  sourceCount: number;
+  polymathFloor?: number;
+};
+
+export function deriveSkillProfile({ purchased, sourceCount, polymathFloor = -1 }: SkillProfileInput) {
+  const requestedPurchased = Number(purchased);
+  const normalizedPurchased = Number.isFinite(requestedPurchased)
+    ? Math.max(-1, Math.min(4, requestedPurchased))
+    : -1;
+  const granted = Math.min(4, normalizedPurchased + Math.max(0, sourceCount));
+  return {
+    purchased: normalizedPurchased,
+    sourceCount: Math.max(0, sourceCount),
+    sourceFloor: sourceCount > 0 ? Math.min(4, sourceCount - 1) : -1,
+    granted,
+    polymathFloor,
+    effective: Math.max(granted, polymathFloor),
+  };
+}
+
+/**
+ * Converts the rank selected in the player-facing Skills control back to the
+ * stored rank that excludes rule-granted acquisitions. A background grant is
+ * therefore visible immediately as +0 (or +1 for a second acquisition), while
+ * later increases remain reversible when that grant changes or is removed.
+ */
+export function storedRankForDisplayedSkillRank(displayed: number, sourceCount: number) {
+  const rank = Number.isFinite(Number(displayed)) ? Number(displayed) : -1;
+  return Math.max(-1, Math.min(4, rank - Math.max(0, Number(sourceCount) || 0)));
+}
+
+export type VowedUnarmedProgression = { hit: number; damage: string; shock: string };
+export type UnarmedAttackInput = {
+  baseAttack: number;
+  punchSkill: number;
+  physicalModifier: number;
+  warriorDamage: number;
+  shockingAssaultBonus: number;
+  shockThreshold: number;
+  unarmedCombatantLevel: number;
+  vowedProgression?: VowedUnarmedProgression;
+  magicalVowedAttack?: boolean;
+};
+
+const withBonus = (dice: string, bonus: number) => `${dice}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ""}`;
+
+export function deriveUnarmedAttack(input: UnarmedAttackInput) {
+  const punch = Math.max(-1, Math.min(4, input.punchSkill));
+  const punchRank = Math.max(0, punch);
+  const punchPenalty = punch < 0 ? -2 : 0;
+  if (input.vowedProgression) {
+    const shock = input.vowedProgression.shock.match(/^(\d+)\/(?:AC\s*)?(\d+)$/i);
+    const shockDamage = (shock ? Number(shock[1]) : 0) + input.physicalModifier + input.warriorDamage + input.shockingAssaultBonus;
+    return {
+      hit: Math.max(input.baseAttack, input.vowedProgression.hit) + input.physicalModifier + punchRank + punchPenalty,
+      damage: withBonus(input.vowedProgression.damage, input.physicalModifier + punchRank + input.warriorDamage),
+      shock: `${Math.max(0, shockDamage)}/AC ${input.shockThreshold}`,
+      note: `Vowed Unarmed Might${input.magicalVowedAttack ? " · magical attack" : ""}`,
+    };
+  }
+  if (input.unarmedCombatantLevel) {
+    const damage = ["1d6", "1d8", "1d10", "1d12", "1d12+1"][punchRank];
+    const hasShock = punch >= 1;
+    const shockDamage = punch + input.physicalModifier + input.warriorDamage + input.shockingAssaultBonus;
+    return {
+      hit: input.baseAttack + input.physicalModifier + punchRank + punchPenalty,
+      damage: withBonus(damage, input.physicalModifier + input.warriorDamage),
+      shock: hasShock ? `${Math.max(0, shockDamage)}/AC ${input.shockThreshold}` : "None",
+      note: input.unarmedCombatantLevel >= 2
+        ? "On a miss: unmodified 1d6 damage + any applicable Shock."
+        : "Unarmed Combatant progression",
+    };
+  }
+  return {
+    hit: input.baseAttack + input.physicalModifier + punchRank + punchPenalty,
+    damage: withBonus("1d2", input.physicalModifier + punchRank + input.warriorDamage),
+    shock: "None",
+    note: "Permanent unarmed attack",
+  };
+}

@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
-const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
+const CLOUDFLARE_D1_DATABASE_ID =
   "8e2bf197-e20f-4ea7-a86f-cab4e1a74699";
 
 const { d1, r2 } = hostingConfig;

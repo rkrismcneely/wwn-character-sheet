@@ -2,7 +2,7 @@ import { additionalClassData } from "./additional-class-data.ts";
 
 export type ClassKind = "warrior" | "expert" | "mage";
 export type AdditionalTraditionName = keyof typeof additionalClassData;
-export type TraditionName = "High Mage" | "Elementalist" | "Necromancer" | "Healer" | "Vowed" | AdditionalTraditionName;
+export type TraditionName = "High Mage" | "Elementalist" | "Necromancer" | "Healer" | "Vowed" | "Invoker" | AdditionalTraditionName;
 
 export const fullClasses = ["Warrior", "Expert", "High Mage", "Elementalist", "Necromancer", "Invoker"] as const;
 export const partialClasses = [
@@ -49,7 +49,7 @@ const partialMage = [
   { max: 3, casts: 4, prepared: 9, arts: 5 },
 ] as const;
 
-export const traditionArtProgression: Record<TraditionName, readonly number[]> = {
+export const traditionArtProgression = {
   "High Mage": [2, 3, 3, 4, 4, 5, 5, 6, 6, 7],
   Elementalist: [3, 4, 4, 5, 5, 6, 6, 7, 7, 8],
   Necromancer: [1, 2, 2, 3, 3, 4, 4, 5, 5, 6],
@@ -57,9 +57,9 @@ export const traditionArtProgression: Record<TraditionName, readonly number[]> =
   Vowed: [4, 5, 5, 6, 7, 8, 8, 9, 9, 10],
   Invoker: [0,0,0,0,0,0,0,0,0,0],
   ...Object.fromEntries(Object.entries(additionalClassData).map(([name, data]) => [name, data.progression])),
-};
+} as unknown as Record<TraditionName, readonly number[]>;
 
-export const partialTraditionArtProgression: Record<TraditionName, readonly number[]> = {
+export const partialTraditionArtProgression = {
   "High Mage": [1, 2, 3, 3, 3, 4, 4, 4, 5, 5],
   Elementalist: [3, 3, 4, 4, 4, 5, 5, 5, 6, 6],
   Necromancer: [1, 1, 2, 2, 2, 3, 3, 3, 4, 4],
@@ -67,7 +67,7 @@ export const partialTraditionArtProgression: Record<TraditionName, readonly numb
   Vowed: traditionArtProgression.Vowed,
   Invoker: traditionArtProgression.Invoker,
   ...Object.fromEntries(Object.entries(additionalClassData).map(([name, data]) => [name, data.progression])),
-};
+} as unknown as Record<TraditionName, readonly number[]>;
 
 export function artSlots(tradition: TraditionName, level: number, partial: boolean) {
   const index = Math.min(10, Math.max(1, level)) - 1;
@@ -152,10 +152,7 @@ export function classRules(mode: "full" | "adventurer", first: string, second: s
   return { attack, hitDice, focusPicks: picks + bonusFoci, summary: notes };
 }
 
-export const traditionInfo: Record<TraditionName, {
-  spells: boolean; effortSkill: string; effortBase: number; effortAttributes?: readonly string[];
-  usesEffort?: boolean; armor: string; arts: readonly {name:string;text:string;minLevel?:number}[];
-}> = {
+export const traditionInfo = {
   "High Mage": {
     spells: true, effortSkill: "Magic", effortBase: 1,
     armor: "Cannot cast spells or use arts in armor, bulky clothing, or with a shield unless Armored Magic permits it.",
@@ -257,7 +254,10 @@ export const traditionInfo: Record<TraditionName, {
       arts: data.arts,
     },
   ])),
-};
+} as unknown as Record<TraditionName, {
+  spells: boolean; effortSkill: string; effortBase: number; effortAttributes?: readonly string[];
+  usesEffort?: boolean; armor: string; arts: readonly {name:string;text:string;minLevel?:number}[];
+}>;
 
 export const vowedProgression = [
   {hit:0,damage:"1d6",shock:"1/15",arts:4},{hit:1,damage:"1d6",shock:"2/15",arts:5},

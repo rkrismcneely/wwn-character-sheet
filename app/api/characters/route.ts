@@ -1,36 +1,76 @@
-import { characterSummary, getD1, parseCharacter } from "./db";
+import { getSessionActor } from "@/lib/auth-session";
+import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
+import {
+  createOwnedCharacter,
+  getD1,
+  listCharacters,
+} from "./db";
 
-export async function GET() {
+export async function GET(request: Request): Promise<Response> {
   try {
-    const db = await getD1();
-    const result = await db.prepare(
-      `SELECT id, name, player, class_label AS classLabel, level, version,
-              created_at AS createdAt, updated_at AS updatedAt
-       FROM characters ORDER BY updated_at DESC`
-    ).all();
-    return Response.json({ characters: result.results });
+    const url = new URL(request.url);
+    const requestedScope = url.searchParams.get("scope") ?? "public";
+    if (requestedScope !== "mine" && requestedScope !== "public") {
+      return Response.json({ error: "Invalid library scope." }, { status: 400 });
+    }
+
+    const actor = await getSessionActor(request);
+    if (requestedScope === "mine" && !actor) {
+      return Response.json({ error: "Sign in is required." }, { status: 401 });
+    }
+
+    const rows = await listCharacters(await getD1(), {
+      actor,
+      scope: requestedScope,
+      query: url.searchParams.get("q") ?? undefined,
+    });
+    return Response.json({
+      characters: rows.map(({ ownerUserId, publicId, ...row }) => ({
+        id: publicId,
+        ...row,
+        permissions: { canEdit: actor?.userId === ownerUserId },
+      })),
+    });
   } catch {
-    return Response.json({ error: "The shared library is temporarily unavailable." }, { status: 503 });
+    return Response.json(
+      { error: "The character library is temporarily unavailable." },
+      { status: 503 },
+    );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
+  const actor = await getSessionActor(request);
+  if (!actor) {
+    return Response.json({ error: "Sign in is required." }, { status: 401 });
+  }
+
   try {
-    const body = await request.json() as { character?: unknown };
-    const character = parseCharacter(body.character);
-    if (!character) return Response.json({ error: "Invalid character data." }, { status: 400 });
-    const db = await getD1();
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const summary = characterSummary(character);
-    const data = JSON.stringify(character);
-    await db.prepare(
-      `INSERT INTO characters
-        (id, name, player, class_label, level, data, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
-    ).bind(id, summary.name, summary.player, summary.classLabel, summary.level, data, now, now).run();
-    return Response.json({ id, version: 1, updatedAt: now }, { status: 201 });
-  } catch {
-    return Response.json({ error: "The character could not be added." }, { status: 500 });
+    const body = (await readBoundedJson(request)) as { character?: unknown };
+    const created = await createOwnedCharacter(
+      await getD1(),
+      actor.userId,
+      body?.character,
+    );
+    return Response.json(
+      {
+        id: created.publicId,
+        version: created.version,
+        visibility: "private",
+        updatedAt: created.updatedAt,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof TypeError) {
+      return Response.json({ error: "Invalid character data." }, { status: 400 });
+    }
+    return Response.json(
+      { error: "The character could not be created." },
+      { status: 500 },
+    );
   }
 }

@@ -8,6 +8,20 @@
       "when": 1785207559788,
       "tag": "0000_brainy_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785861532987,
+      "tag": "0001_better_auth_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785861568060,
+      "tag": "0002_character_ownership_and_claims",
+      "breakpoints": true
     }
   ]
 }

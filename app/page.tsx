@@ -27,6 +27,9 @@ import {
 import { searchRules, type RuleEntry } from "./rules-search";
 import { rollDice, rollDie, type DiceRoll } from "./dice";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { authClient } from "@/lib/auth-client";
+import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
+import type { CharacterVisibility } from "@/lib/characters/authorization";
 
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
 type Theme = "light" | "dark";
@@ -70,7 +73,8 @@ type Companion = {
 };
 type LibraryCharacter = {
   id: string; name: string; player: string; classLabel: string; level: number;
-  version: number; createdAt: string; updatedAt: string;
+  visibility: CharacterVisibility; version: number; createdAt: string; updatedAt: string;
+  permissions: { canEdit: boolean };
 };
 
 const skills = ["Administer","Connect","Convince","Craft","Exert","Heal","Know","Lead","Magic","Notice","Perform","Pray","Punch","Ride","Sail","Shoot","Sneak","Stab","Survive","Trade","Work"];
@@ -108,7 +112,7 @@ const initialSkillRanks = Object.fromEntries(skills.map(s => [s,
 // Existing Cecil data predates distinct purchased/granted values. These
 // purchased ranks preserve its previous displayed skills once background and
 // class grants are derived separately.
-const initialPurchasedSkillRanks = {
+const initialPurchasedSkillRanks: Record<string, number> = {
   ...initialSkillRanks,
   Administer: -1,
   Heal: -1,
@@ -259,6 +263,16 @@ const initial = {
 };
 
 type Sheet = typeof initial;
+
+export type InitialCharacterPayload = {
+  id: string;
+  character: Partial<Sheet>;
+  version: number;
+  visibility: CharacterVisibility;
+  createdAt: string;
+  updatedAt: string;
+  permissions: { canEdit: boolean };
+};
 
 const blankCharacter: Sheet = {
   ...initial,
@@ -583,6 +597,74 @@ function newCompanion(kind: CompanionKind, index: number, level: number, focusSl
   };
 }
 
+function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
+  const rulesState = normalizedBackgroundRules(incoming);
+  return {
+    ...initial,
+    ...incoming,
+    ...migratedAttributeState(incoming),
+    ...rulesState,
+    profession: incoming.profession || incoming.employer || "",
+    skills: { ...initial.skills, ...(incoming.skills || {}) },
+    skillPurchases: migratedSkillPurchases(incoming),
+    hpRolls: Array.isArray(incoming.hpRolls) ? incoming.hpRolls.map(Number) : [],
+    spellPicks: Array.isArray(incoming.spellPicks)
+      ? incoming.spellPicks.map((pick) => ({
+          name: pick.name || "",
+          prepared: Boolean(pick.prepared),
+          cast: Boolean(pick.cast),
+          casts: Math.max(0, Number(pick.casts) || 0),
+        }))
+      : initial.spellPicks,
+    artEffort: Array.isArray(incoming.artEffort)
+      ? (incoming.artPicks || initial.artPicks).map((_, index) =>
+          Boolean(incoming.artEffort?.[index]),
+        )
+      : (incoming.artPicks || initial.artPicks).map(() => false),
+    languages: normalizeLanguages(incoming.languages),
+    companions: Array.isArray(incoming.companions)
+      ? incoming.companions.map((companion, index) => ({
+          ...newCompanion(
+            companion.kind === "familiar" ? "familiar" : "henchman",
+            index,
+            incoming.level || 1,
+          ),
+          ...companion,
+          archetype:
+            companion.kind === "familiar"
+              ? ""
+              : npcArchetypeNames.includes(
+                    companion.archetype as (typeof npcArchetypeNames)[number],
+                  )
+                ? companion.archetype
+                : "Student",
+          readied: Array.isArray(companion.readied) ? companion.readied : [],
+          stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
+        }))
+      : [],
+    archivedCompanions: Array.isArray(incoming.archivedCompanions)
+      ? incoming.archivedCompanions.map((companion, index) => ({
+          ...newCompanion(
+            companion.kind === "familiar" ? "familiar" : "henchman",
+            index,
+            incoming.level || 1,
+          ),
+          ...companion,
+          archetype:
+            companion.kind === "familiar"
+              ? ""
+              : npcArchetypeNames.includes(
+                    companion.archetype as (typeof npcArchetypeNames)[number],
+                  )
+                ? companion.archetype
+                : "Student",
+          readied: Array.isArray(companion.readied) ? companion.readied : [],
+          stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
+        }))
+      : [],
+  } as Sheet;
+}
+
 function Tip({ title, children }: { title: string; children: React.ReactNode }) {
   return <span className="tip" tabIndex={0}>{title}<span className="tipbox">{children}</span></span>;
 }
@@ -794,6 +876,7 @@ function DiceControl({
   return <button
     type="button"
     className="dice-control"
+    data-readonly-interactive="true"
     aria-label={accessibleName}
     title={roll && roll.count > 1 ? detail : undefined}
     onClick={onRoll}
@@ -807,20 +890,42 @@ function DiceControl({
   </button>;
 }
 
-export default function Home() {
+export default function Home({
+  initialCharacter,
+}: {
+  initialCharacter?: InitialCharacterPayload;
+}) {
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const signedIn = Boolean(session?.user?.id);
   const [tab, setTab] = useState<Tab>("core");
   const [theme, setTheme] = useState<Theme>("light");
-  const [sheet, setSheet] = useState<Sheet>(initial);
-  const [saved, setSaved] = useState("Saved");
+  const [sheet, setSheet] = useState<Sheet>(() =>
+    initialCharacter
+      ? normalizeIncomingSheet(initialCharacter.character)
+      : initial,
+  );
+  const [saved, setSaved] = useState(
+    initialCharacter ? "Loaded online" : "Saved",
+  );
   const [transferMessage, setTransferMessage] = useState("");
   const [dragging, setDragging] = useState<{ kind: "spell" | "art"; index: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [libraryOpen, setLibraryOpen] = useState(!initialCharacter);
+  const [libraryScope, setLibraryScope] = useState<"mine" | "public">("public");
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [library, setLibrary] = useState<LibraryCharacter[]>([]);
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [libraryError, setLibraryError] = useState("");
-  const [cloudId, setCloudId] = useState<string | null>(null);
-  const [cloudVersion, setCloudVersion] = useState<number | null>(null);
+  const [cloudId, setCloudId] = useState<string | null>(initialCharacter?.id ?? null);
+  const [cloudVersion, setCloudVersion] = useState<number | null>(initialCharacter?.version ?? null);
+  const [cloudVisibility, setCloudVisibility] = useState<CharacterVisibility>(
+    initialCharacter?.visibility ?? "private",
+  );
+  const [cloudCanEdit, setCloudCanEdit] = useState(
+    initialCharacter?.permissions.canEdit ?? false,
+  );
+  const [claimToken, setClaimToken] = useState("");
+  const [claimBusy, setClaimBusy] = useState(false);
   const [otherStowedIndex, setOtherStowedIndex] = useState<number | null>(null);
   const [companionOtherStowed, setCompanionOtherStowed] = useState<Record<string, number | null>>({});
   const [rulesQuestion, setRulesQuestion] = useState("");
@@ -836,7 +941,12 @@ export default function Home() {
   const portraitInput = useRef<HTMLInputElement>(null);
   const rulesAssistant = useRef<HTMLFormElement>(null);
   const characterNameInput = useRef<HTMLTextAreaElement>(null);
-  const lastCloudData = useRef("");
+  const editableSurface = useRef<HTMLDivElement>(null);
+  const authIntentHandled = useRef(false);
+  const lastCloudData = useRef(
+    initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
+  );
+  const canEdit = signedIn && (!cloudId || cloudCanEdit);
 
   useEffect(() => {
     const input = characterNameInput.current;
@@ -859,6 +969,55 @@ export default function Home() {
     localStorage.setItem("wwn-display-theme", nextTheme);
     document.documentElement.dataset.theme = nextTheme;
   }
+
+  function canonicalCallbackURL(): string {
+    if (typeof window === "undefined") return CANONICAL_ORIGIN;
+    const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    return window.location.hostname === FALLBACK_WORKER_HOST
+      ? `${CANONICAL_ORIGIN}${path}`
+      : window.location.href;
+  }
+
+  async function signInWithGoogle() {
+    if (window.location.hostname === FALLBACK_WORKER_HOST) {
+      const canonical = new URL(canonicalCallbackURL());
+      canonical.searchParams.set("auth", "google");
+      window.location.assign(canonical);
+      return;
+    }
+    setTransferMessage("Opening Google sign-in…");
+    await authClient.signIn.social({
+      provider: "google",
+      callbackURL: canonicalCallbackURL(),
+    });
+  }
+
+  async function signOut() {
+    await authClient.signOut();
+    setCloudCanEdit(false);
+    setLibraryScope("public");
+    setSaved(cloudId ? "Read-only" : "Sign in to edit");
+    setTransferMessage("Signed out. Owner-only controls have been disabled.");
+    void refreshLibrary("public");
+  }
+
+  function requireSignIn(action: string): false {
+    setTransferMessage(`Sign in with Google to ${action}. Your current browser copy has not been discarded.`);
+    return false;
+  }
+
+  useEffect(() => {
+    if (sessionPending || signedIn || authIntentHandled.current) return;
+    const url = new URL(window.location.href);
+    if (url.hostname !== new URL(CANONICAL_ORIGIN).hostname || url.searchParams.get("auth") !== "google") return;
+    authIntentHandled.current = true;
+    url.searchParams.delete("auth");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    void authClient.signIn.social({
+      provider: "google",
+      callbackURL: url.toString(),
+    });
+  }, [sessionPending, signedIn]);
 
   function askRules(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -946,83 +1105,103 @@ export default function Home() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      const raw = localStorage.getItem("wwn-cecil-sheet");
-      if (raw) try {
-        const stored = JSON.parse(raw);
-        const rulesState = normalizedBackgroundRules(stored);
-        setSheet({
-          ...initial,
-          ...stored,
-          ...migratedAttributeState(stored),
-          ...rulesState,
-          classMode: stored.classMode || (stored.className === "Adventurer" ? "adventurer" : "full"),
-          classOne: stored.classOne || (fullClasses.includes(stored.className) ? stored.className : "High Mage"),
-          profession: stored.profession || stored.employer || "",
-          skills: { ...initial.skills, ...(stored.skills || {}) },
-          skillPurchases: migratedSkillPurchases(stored),
-          hpRolls: Array.isArray(stored.hpRolls) ? stored.hpRolls.map(Number) : [],
-          spellPicks: Array.isArray(stored.spellPicks)
-            ? stored.spellPicks.map((pick: Partial<SpellPick>) => ({
-                name: pick.name || "",
-                prepared: Boolean(pick.prepared),
-                cast: Boolean(pick.cast),
-              }))
-            : initial.spellPicks,
-          artEffort: Array.isArray(stored.artEffort)
-            ? (stored.artPicks || initial.artPicks).map((_: string, index: number) => Boolean(stored.artEffort[index]))
-            : (stored.artPicks || initial.artPicks).map(() => false),
-          languages: normalizeLanguages(stored.languages),
-          companions: Array.isArray(stored.companions)
-            ? stored.companions.map((companion: Partial<Companion>) => ({
-                ...newCompanion(companion.kind === "familiar" ? "familiar" : "henchman", 0, stored.level || 1),
-                ...companion,
-                archetype: companion.kind === "familiar" ? "" : (npcArchetypeNames.includes(companion.archetype as typeof npcArchetypeNames[number]) ? companion.archetype : "Student"),
-                readied: Array.isArray(companion.readied) ? companion.readied : [],
-                stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
-              }))
-            : [],
-          archivedCompanions: Array.isArray(stored.archivedCompanions)
-            ? stored.archivedCompanions.map((companion: Partial<Companion>) => ({
-                ...newCompanion(companion.kind === "familiar" ? "familiar" : "henchman", 0, stored.level || 1),
-                ...companion,
-                archetype: companion.kind === "familiar" ? "" : (npcArchetypeNames.includes(companion.archetype as typeof npcArchetypeNames[number]) ? companion.archetype : "Student"),
-                readied: Array.isArray(companion.readied) ? companion.readied : [],
-                stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
-              }))
-            : [],
-        });
-      } catch {}
+      if (!initialCharacter) {
+        const raw = localStorage.getItem("wwn-cecil-sheet");
+        if (raw) try {
+          setSheet(normalizeIncomingSheet(JSON.parse(raw)));
+        } catch {}
+      }
       setHydrated(true);
     }, 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [initialCharacter]);
+
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !canEdit) return;
     const t = setTimeout(() => {
       localStorage.setItem("wwn-cecil-sheet", JSON.stringify(sheet));
       if (!cloudId) setSaved("Saved on this device");
     }, 250);
     return () => clearTimeout(t);
-  }, [sheet, hydrated, cloudId]);
-
-  useEffect(() => { void refreshLibrary(); }, []);
+  }, [sheet, hydrated, cloudId, canEdit]);
 
   useEffect(() => {
-    if (!hydrated || !cloudId || cloudVersion === null) return;
+    if (sessionPending) return;
+    const scope = signedIn ? "mine" : "public";
+    const timeout = window.setTimeout(() => {
+      setLibraryScope(scope);
+      void refreshLibrary(scope);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  // `refreshLibrary` is intentionally a page-local command, not reactive state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionPending, signedIn]);
+
+  useEffect(() => {
+    if (!hydrated || !canEdit || !cloudId || cloudVersion === null) return;
     const serialized = JSON.stringify(sheet);
     if (serialized === lastCloudData.current) return;
     setSaved("Unsaved changes");
     const t = setTimeout(() => { void saveToCloud(); }, 1200);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheet, hydrated, cloudId]);
+  }, [sheet, hydrated, cloudId, canEdit]);
 
-  const patch = <K extends keyof Sheet>(key: K, value: Sheet[K]) => setSheet(s => ({ ...s, [key]: value }));
+  useEffect(() => {
+    const surface = editableSurface.current;
+    if (!surface) return;
+    const controls = Array.from(
+      surface.querySelectorAll("input, select, textarea, button"),
+    ) as unknown as Array<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement
+    >;
+    controls.forEach(control => {
+      const staysInteractive = Boolean(
+        control.closest('[data-readonly-interactive="true"]'),
+      );
+      if (!canEdit && !staysInteractive && !control.disabled) {
+        control.dataset.phase4bDisabled = "true";
+        control.disabled = true;
+      } else if (canEdit && control.dataset.phase4bDisabled === "true") {
+        control.disabled = false;
+        delete control.dataset.phase4bDisabled;
+      }
+    });
+  }, [canEdit, sheet, tab]);
+
+  useEffect(() => {
+    function handleHistoryNavigation() {
+      const match = window.location.pathname.match(/^\/character\/(chr_[A-Za-z0-9_-]+)$/u);
+      if (match) {
+        void openCloudCharacter(match[1], { updateHistory: false });
+        return;
+      }
+      if (window.location.pathname === "/") {
+        const raw = localStorage.getItem("wwn-cecil-sheet");
+        if (raw) try {
+          setSheet(normalizeIncomingSheet(JSON.parse(raw)));
+        } catch {}
+        setCloudId(null);
+        setCloudVersion(null);
+        setCloudVisibility("private");
+        setCloudCanEdit(false);
+        lastCloudData.current = "";
+        setSaved(signedIn ? "Saved on this device" : "Sign in to edit");
+      }
+    }
+    window.addEventListener("popstate", handleHistoryNavigation);
+    return () => window.removeEventListener("popstate", handleHistoryNavigation);
+  }, [signedIn]);
+
+  const patch = <K extends keyof Sheet>(key: K, value: Sheet[K]) => {
+    if (!canEdit) return;
+    setSheet(s => ({ ...s, [key]: value }));
+  };
   const patchCompanion = <K extends keyof Companion>(id: string, key: K, value: Companion[K]) =>
-    setSheet(current => ({
-      ...current,
-      companions: current.companions.map(companion => companion.id === id ? { ...companion, [key]: value } : companion),
-    }));
+    canEdit && setSheet(current => ({
+        ...current,
+        companions: current.companions.map(companion => companion.id === id ? { ...companion, [key]: value } : companion),
+      }));
 
   function selectAttributeMethod(method: AttributeMethod) {
     setSheet(current => {
@@ -1153,8 +1332,20 @@ export default function Home() {
 
   async function uploadPortrait(file?: File) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    if (!signedIn) {
+      requireSignIn("upload a portrait");
+      return;
+    }
+    if (!canEdit) {
+      setTransferMessage("Only this character’s owner can replace its portrait.");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
       setTransferMessage("Choose an image file for the character portrait.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setTransferMessage("Portrait images must be smaller than 5 MB.");
       return;
     }
     try {
@@ -1168,9 +1359,19 @@ export default function Home() {
       source.close();
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/jpeg", 0.82));
       if (!blob) throw new Error("Portrait conversion failed.");
-      const portrait = await uploadPortraitBlob(blob);
-      patch("portrait", portrait);
-      setTransferMessage("Character portrait added and shared online.");
+      if (!cloudId || cloudVersion === null) {
+        const portrait = await blobToDataURL(blob);
+        patch("portrait", portrait);
+        setTransferMessage("Portrait added to this browser copy. It will upload after the character is added to My Characters.");
+      } else {
+        const uploaded = await uploadPortraitBlob(blob, cloudId, cloudVersion);
+        const nextSheet = { ...sheet, portrait: uploaded.url };
+        setSheet(nextSheet);
+        setCloudVersion(uploaded.version);
+        lastCloudData.current = JSON.stringify(nextSheet);
+        setSaved("Saved online");
+        setTransferMessage("Character portrait updated.");
+      }
     } catch {
       setTransferMessage("That image could not be used. Try a JPG, PNG, or WebP file.");
     } finally {
@@ -1178,24 +1379,59 @@ export default function Home() {
     }
   }
 
-  async function uploadPortraitBlob(blob: Blob) {
-    const response = await fetch("/api/portraits", {
-      method: "POST",
-      headers: { "content-type": blob.type || "image/jpeg" },
-      body: blob,
+  function blobToDataURL(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => resolve(String(reader.result)));
+      reader.addEventListener("error", () => reject(reader.error));
+      reader.readAsDataURL(blob);
     });
-    const payload = await response.json() as { url?: string; error?: string };
-    if (!response.ok || !payload.url) throw new Error(payload.error || "Portrait upload failed.");
-    return payload.url;
   }
 
-  async function withSharedPortrait(character: Sheet) {
-    if (!character.portrait?.startsWith("data:image/")) return character;
-    const blob = await (await fetch(character.portrait)).blob();
-    const portrait = await uploadPortraitBlob(blob);
-    const migrated = { ...character, portrait };
-    setSheet(current => current.portrait === character.portrait ? migrated : current);
-    return migrated;
+  async function uploadPortraitBlob(blob: Blob, publicId: string, version: number) {
+    const response = await fetch(`/api/characters/${publicId}/portrait`, {
+      method: "POST",
+      headers: {
+        "content-type": blob.type || "image/jpeg",
+        "x-character-version": String(version),
+      },
+      body: blob,
+    });
+    const payload = await response.json() as { url?: string; version?: number; error?: string };
+    if (!response.ok || !payload.url || !payload.version) {
+      throw new Error(payload.error || "Portrait upload failed.");
+    }
+    return { url: payload.url, version: Number(payload.version) };
+  }
+
+  async function removePortrait() {
+    if (!signedIn) {
+      requireSignIn("remove a portrait");
+      return;
+    }
+    if (!canEdit) {
+      setTransferMessage("Only this character’s owner can remove its portrait.");
+      return;
+    }
+    if (!cloudId || cloudVersion === null) {
+      patch("portrait", "");
+      return;
+    }
+    const response = await fetch(`/api/characters/${cloudId}/portrait`, {
+      method: "DELETE",
+      headers: { "x-character-version": String(cloudVersion) },
+    });
+    const payload = await response.json() as { version?: number; error?: string };
+    if (!response.ok || !payload.version) {
+      setTransferMessage(payload.error || "The portrait could not be removed.");
+      return;
+    }
+    const nextSheet = { ...sheet, portrait: "" };
+    setSheet(nextSheet);
+    setCloudVersion(Number(payload.version));
+    lastCloudData.current = JSON.stringify(nextSheet);
+    setSaved("Saved online");
+    setTransferMessage("Character portrait removed.");
   }
 
   function takeRest() {
@@ -1223,69 +1459,57 @@ export default function Home() {
     setTransferMessage("Rest complete: nightly healing, System Strain, spell castings, and committed Effort have been updated.");
   }
 
-  async function refreshLibrary() {
+  async function refreshLibrary(scope = libraryScope, query = libraryQuery) {
+    if (scope === "mine" && !signedIn) {
+      setLibrary([]);
+      setLibraryError("Sign in with Google to view My Characters.");
+      return;
+    }
     setLibraryBusy(true);
     setLibraryError("");
     try {
-      const response = await fetch("/api/characters", { cache: "no-store" });
+      const search = scope === "public" && query.trim()
+        ? `&q=${encodeURIComponent(query.trim())}`
+        : "";
+      const response = await fetch(`/api/characters?scope=${scope}${search}`, { cache: "no-store" });
       const payload = await response.json() as { characters?: LibraryCharacter[]; error?: string };
       if (!response.ok) throw new Error(payload.error);
       setLibrary(payload.characters || []);
     } catch (error) {
-      setLibraryError(error instanceof Error ? error.message : "The shared library could not be loaded.");
+      setLibraryError(error instanceof Error ? error.message : "The character library could not be loaded.");
     } finally {
       setLibraryBusy(false);
     }
   }
 
-  async function openCloudCharacter(id: string) {
+  async function openCloudCharacter(
+    id: string,
+    options: { updateHistory?: boolean } = {},
+  ) {
     setLibraryBusy(true);
     setLibraryError("");
     try {
       const response = await fetch(`/api/characters/${id}`, { cache: "no-store" });
-      const payload = await response.json() as { character?: Partial<Sheet>; version?: number; error?: string };
+      const payload = await response.json() as {
+        character?: Partial<Sheet>;
+        version?: number;
+        visibility?: CharacterVisibility;
+        permissions?: { canEdit: boolean };
+        error?: string;
+      };
       if (!response.ok || !payload.character) throw new Error(payload.error);
-      const incoming = payload.character;
-      const rulesState = normalizedBackgroundRules(incoming);
-      const merged = {
-        ...initial, ...incoming,
-        ...migratedAttributeState(incoming),
-        ...rulesState,
-        profession: incoming.profession || incoming.employer || "",
-        skills: { ...initial.skills, ...(incoming.skills || {}) },
-        skillPurchases: migratedSkillPurchases(incoming),
-        hpRolls: Array.isArray(incoming.hpRolls) ? incoming.hpRolls.map(Number) : [],
-        spellPicks: Array.isArray(incoming.spellPicks)
-          ? incoming.spellPicks.map(p => ({ name: p.name || "", prepared: Boolean(p.prepared), cast: Boolean(p.cast), casts: Math.max(0, Number(p.casts) || 0) }))
-          : initial.spellPicks,
-        artEffort: Array.isArray(incoming.artEffort)
-          ? (incoming.artPicks || initial.artPicks).map((_, i) => Boolean(incoming.artEffort?.[i]))
-          : (incoming.artPicks || initial.artPicks).map(() => false),
-        languages: normalizeLanguages(incoming.languages),
-        companions: Array.isArray(incoming.companions)
-          ? incoming.companions.map((companion, index) => ({
-              ...newCompanion(companion.kind === "familiar" ? "familiar" : "henchman", index, incoming.level || 1),
-              ...companion,
-              archetype: companion.kind === "familiar" ? "" : (npcArchetypeNames.includes(companion.archetype as typeof npcArchetypeNames[number]) ? companion.archetype : "Student"),
-              readied: Array.isArray(companion.readied) ? companion.readied : [],
-              stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
-            }))
-          : [],
-        archivedCompanions: Array.isArray(incoming.archivedCompanions)
-          ? incoming.archivedCompanions.map((companion, index) => ({
-              ...newCompanion(companion.kind === "familiar" ? "familiar" : "henchman", index, incoming.level || 1),
-              ...companion,
-              readied: Array.isArray(companion.readied) ? companion.readied : [],
-              stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
-            }))
-          : [],
-      } as Sheet;
+      const merged = normalizeIncomingSheet(payload.character);
       lastCloudData.current = JSON.stringify(merged);
       setSheet(merged);
       setCloudId(id);
       setCloudVersion(Number(payload.version));
-      setSaved("Saved online");
+      setCloudVisibility(payload.visibility || "private");
+      setCloudCanEdit(Boolean(payload.permissions?.canEdit));
+      setSaved(payload.permissions?.canEdit ? "Saved online" : "Read-only");
       setLibraryOpen(false);
+      if (options.updateHistory !== false && window.location.pathname !== `/character/${id}`) {
+        window.history.pushState({ characterId: id }, "", `/character/${id}`);
+      }
     } catch (error) {
       setLibraryError(error instanceof Error ? error.message : "The character could not be opened.");
     } finally {
@@ -1294,20 +1518,42 @@ export default function Home() {
   }
 
   async function addCurrentToLibrary(character = sheet) {
+    if (!signedIn) {
+      requireSignIn("add a character to My Characters");
+      return;
+    }
     setSaved("Saving online…");
     try {
-      character = await withSharedPortrait(character);
+      const portraitSource = character.portrait;
       const response = await fetch("/api/characters", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ character }),
+        body: JSON.stringify({ character: { ...character, portrait: "" } }),
       });
-      const payload = await response.json() as { id?: string; version?: number; error?: string };
+      const payload = await response.json() as {
+        id?: string;
+        version?: number;
+        visibility?: CharacterVisibility;
+        error?: string;
+      };
       if (!response.ok || !payload.id) throw new Error(payload.error);
+      let nextVersion = Number(payload.version);
+      let nextCharacter = { ...character, portrait: "" };
+      if (portraitSource?.startsWith("data:image/") || portraitSource?.startsWith("/api/portraits/")) {
+        const portraitBlob = await (await fetch(portraitSource)).blob();
+        const uploaded = await uploadPortraitBlob(portraitBlob, payload.id, nextVersion);
+        nextVersion = uploaded.version;
+        nextCharacter = { ...character, portrait: uploaded.url };
+      }
+      setSheet(nextCharacter);
       setCloudId(payload.id);
-      setCloudVersion(Number(payload.version));
-      lastCloudData.current = JSON.stringify(character);
+      setCloudVersion(nextVersion);
+      setCloudVisibility(payload.visibility || "private");
+      setCloudCanEdit(true);
+      lastCloudData.current = JSON.stringify(nextCharacter);
       setSaved("Saved online");
-      await refreshLibrary();
+      window.history.pushState({ characterId: payload.id }, "", `/character/${payload.id}`);
+      setLibraryScope("mine");
+      await refreshLibrary("mine");
       setLibraryOpen(false);
     } catch (error) {
       setSaved("Not saved online");
@@ -1316,14 +1562,23 @@ export default function Home() {
   }
 
   async function saveToCloud() {
-    if (!cloudId || cloudVersion === null) return;
+    if (!signedIn || !canEdit || !cloudId || cloudVersion === null) return;
     setSaved("Saving online…");
     try {
-      const character = await withSharedPortrait(sheet);
+      let character = sheet;
+      let expectedVersion = cloudVersion;
+      if (character.portrait?.startsWith("data:image/")) {
+        const portraitBlob = await (await fetch(character.portrait)).blob();
+        const uploaded = await uploadPortraitBlob(portraitBlob, cloudId, expectedVersion);
+        expectedVersion = uploaded.version;
+        character = { ...character, portrait: uploaded.url };
+        setSheet(character);
+        setCloudVersion(expectedVersion);
+      }
       const savingData = JSON.stringify(character);
       const response = await fetch(`/api/characters/${cloudId}`, {
         method: "PUT", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ character, version: cloudVersion }),
+        body: JSON.stringify({ character, version: expectedVersion }),
       });
       const payload = await response.json() as { version?: number; updatedAt?: string; error?: string };
       if (response.status === 409) {
@@ -1335,9 +1590,79 @@ export default function Home() {
       lastCloudData.current = savingData;
       setCloudVersion(Number(payload.version));
       setSaved(`Saved online at ${new Date(String(payload.updatedAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`);
-      void refreshLibrary();
+      void refreshLibrary("mine");
+    } catch (error) {
+      setSaved("Not saved online");
+      setTransferMessage(error instanceof Error ? error.message : "The character could not be saved.");
+    }
+  }
+
+  async function changeVisibility(visibility: CharacterVisibility) {
+    if (!signedIn || !canEdit || !cloudId) return;
+    const previous = cloudVisibility;
+    setCloudVisibility(visibility);
+    try {
+      const response = await fetch(`/api/characters/${cloudId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visibility }),
+      });
+      const payload = await response.json() as { visibility?: CharacterVisibility; error?: string };
+      if (!response.ok || !payload.visibility) throw new Error(payload.error);
+      setCloudVisibility(payload.visibility);
+      setTransferMessage(
+        payload.visibility === "private"
+          ? "This character is private and visible only to you."
+          : payload.visibility === "unlisted"
+            ? "Anyone with the stable link can view this character."
+            : "This character is public and appears in Public Characters.",
+      );
+      void refreshLibrary("mine");
+    } catch (error) {
+      setCloudVisibility(previous);
+      setTransferMessage(error instanceof Error ? error.message : "Visibility could not be changed.");
+    }
+  }
+
+  async function copyShareLink() {
+    if (!cloudId || cloudVisibility === "private") return;
+    const shareURL = `${CANONICAL_ORIGIN}/character/${cloudId}`;
+    try {
+      await navigator.clipboard.writeText(shareURL);
+      setTransferMessage("Canonical character link copied.");
     } catch {
-      setSaved("Offline — changes kept locally");
+      window.prompt("Copy this character link:", shareURL);
+    }
+  }
+
+  async function claimLegacyCharacters() {
+    if (!signedIn) {
+      requireSignIn("claim a legacy character");
+      return;
+    }
+    const token = claimToken.trim();
+    if (!token) {
+      setLibraryError("Enter the one-time claim token you received.");
+      return;
+    }
+    setClaimBusy(true);
+    setLibraryError("");
+    try {
+      const response = await fetch("/api/legacy-claims", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const payload = await response.json() as { claimed?: number; error?: string };
+      if (!response.ok) throw new Error(payload.error);
+      setClaimToken("");
+      setTransferMessage(`${payload.claimed || 0} legacy character${payload.claimed === 1 ? "" : "s"} added to My Characters.`);
+      setLibraryScope("mine");
+      await refreshLibrary("mine");
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : "The character claim could not be completed.");
+    } finally {
+      setClaimBusy(false);
     }
   }
 
@@ -1360,28 +1685,57 @@ export default function Home() {
   }
 
   async function newOnlineCharacter() {
+    if (!signedIn) {
+      requireSignIn("create a character");
+      return;
+    }
     const fresh = blankSheet();
     setSheet(fresh);
     setCloudId(null);
     setCloudVersion(null);
+    setCloudVisibility("private");
+    setCloudCanEdit(true);
     lastCloudData.current = "";
     await addCurrentToLibrary(fresh);
   }
 
   async function duplicateCharacter(id: string) {
+    if (!signedIn) {
+      requireSignIn("duplicate a character into My Characters");
+      return;
+    }
     const response = await fetch(`/api/characters/${id}`, { cache: "no-store" });
-    const payload = await response.json() as { character?: Sheet };
-    if (!response.ok || !payload.character) return;
+    const payload = await response.json() as { character?: Sheet; error?: string };
+    if (!response.ok || !payload.character) {
+      setLibraryError(payload.error || "The character could not be duplicated.");
+      return;
+    }
     await addCurrentToLibrary({ ...payload.character, name: `${payload.character.name} (Copy)` });
   }
 
   async function deleteCharacter(id: string, name: string) {
+    if (!signedIn) {
+      requireSignIn("delete a character");
+      return;
+    }
     const characterName = name.trim() || "this unnamed character";
-    if (!window.confirm(`Delete ${characterName} from the shared library?\n\nThis cannot be undone.`)) return;
+    if (!window.confirm(`Delete ${characterName} from My Characters?\n\nThis cannot be undone.`)) return;
     const response = await fetch(`/api/characters/${id}`, { method: "DELETE" });
-    if (!response.ok) { setLibraryError("The character could not be deleted."); return; }
-    if (cloudId === id) { setCloudId(null); setCloudVersion(null); setSaved("Local copy only"); }
-    await refreshLibrary();
+    const payload = await response.json() as { error?: string };
+    if (!response.ok) {
+      setLibraryError(payload.error || "The character could not be deleted.");
+      return;
+    }
+    if (cloudId === id) {
+      setCloudId(null);
+      setCloudVersion(null);
+      setCloudVisibility("private");
+      setCloudCanEdit(false);
+      lastCloudData.current = "";
+      setSaved("Deleted online");
+      window.history.pushState({}, "", "/");
+    }
+    await refreshLibrary("mine");
   }
 
   const moveItem = (kind: "spell" | "art", from: number, to: number) => {
@@ -1947,16 +2301,10 @@ export default function Home() {
     const armsmasterNote = armsmasterDamage && w.shock !== "None"
       ? ` · Armsmaster can apply Stab ${signed(armsmasterDamage)} to Shock instead of damage`
       : "";
-    return { w, skillName, hit, damage: `${w.damage}${extraDamage ? signed(extraDamage) : ""}`, shock, range: w.range, note: `${skillName} ${skill >= 0 ? signed(skill) : "untrained"} effective${armsmasterNote}` };
+    return { w, skillName, hit, damage: `${w.damage}${extraDamage ? signed(extraDamage) : ""}`, shock, range: w.range, virtual: false, note: `${skillName} ${skill >= 0 ? signed(skill) : "untrained"} effective${armsmasterNote}` };
   }
 
-  function exportCharacter() {
-    const payload = {
-      format: "wwn-character-sheet",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      character: sheet,
-    };
+  function downloadCharacterExport(payload: unknown) {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1964,41 +2312,80 @@ export default function Home() {
     link.download = `${(sheet.name || "wwn-character").trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "wwn-character"}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    setTransferMessage("Character exported. Attach that JSON file here whenever you want me to review the exact sheet.");
+    setTransferMessage("Character exported as a personal JSON backup. Account and ownership data are not included.");
+  }
+
+  async function exportCharacter() {
+    if (!signedIn) {
+      requireSignIn("export a character");
+      return;
+    }
+    if (cloudId) {
+      if (!canEdit) {
+        setTransferMessage("Only this character’s owner can export it.");
+        return;
+      }
+      const response = await fetch(`/api/characters/${cloudId}/export`, { cache: "no-store" });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) {
+        setTransferMessage(payload.error || "The character could not be exported.");
+        return;
+      }
+      downloadCharacterExport(payload);
+      return;
+    }
+
+    const character = {
+      ...sheet,
+      portrait: sheet.portrait.startsWith("/api/portraits/") ? "" : sheet.portrait,
+    };
+    downloadCharacterExport({
+      format: "wwn-character-sheet",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      character,
+    });
   }
 
   async function importCharacter(file?: File) {
     if (!file) return;
+    if (!signedIn) {
+      requireSignIn("import a character");
+      if (importInput.current) importInput.current.value = "";
+      return;
+    }
     try {
       const parsed = JSON.parse(await file.text());
       const incoming = parsed?.format === "wwn-character-sheet" ? parsed.character : parsed;
       if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) throw new Error("Invalid character data");
-      const rulesState = normalizedBackgroundRules(incoming);
-      const merged = {
-        ...initial,
-        ...incoming,
-        ...migratedAttributeState(incoming),
-        ...rulesState,
-        profession: incoming.profession || incoming.employer || "",
-        skills: { ...initial.skills, ...(incoming.skills || {}) },
-        skillPurchases: migratedSkillPurchases(incoming),
-        hpRolls: Array.isArray(incoming.hpRolls) ? incoming.hpRolls.map(Number) : [],
-        spellPicks: Array.isArray(incoming.spellPicks)
-          ? incoming.spellPicks.map((pick: Partial<SpellPick>) => ({
-              name: pick.name || "",
-              prepared: Boolean(pick.prepared),
-              cast: Boolean(pick.cast),
-            }))
-          : initial.spellPicks,
-        artEffort: Array.isArray(incoming.artEffort)
-          ? (incoming.artPicks || initial.artPicks).map((_: string, index: number) => Boolean(incoming.artEffort[index]))
-          : (incoming.artPicks || initial.artPicks).map(() => false),
-        languages: normalizeLanguages(incoming.languages),
-      } as Sheet;
-      setSheet(merged);
-      setTransferMessage(`Imported ${merged.name || "character"}. The imported values are now saved on this device.`);
-    } catch {
-      setTransferMessage("That file could not be imported. Choose a JSON file exported by this character sheet.");
+      const portrait = typeof incoming.portrait === "string" && (
+        incoming.portrait.startsWith("data:image/")
+        || incoming.portrait.startsWith("/api/portraits/")
+      )
+        ? incoming.portrait
+        : "";
+      const response = await fetch("/api/characters/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(parsed?.format === "wwn-character-sheet"
+          ? { ...parsed, character: { ...incoming, portrait: "" } }
+          : { ...incoming, portrait: "" }),
+      });
+      const payload = await response.json() as { id?: string; version?: number; error?: string };
+      if (!response.ok || !payload.id || !payload.version) throw new Error(payload.error || "Import failed.");
+      let version = payload.version;
+      if (portrait) {
+        const portraitBlob = await (await fetch(portrait)).blob();
+        const uploaded = await uploadPortraitBlob(portraitBlob, payload.id, version);
+        version = uploaded.version;
+      }
+      setCloudVersion(version);
+      setLibraryScope("mine");
+      await openCloudCharacter(payload.id);
+      await refreshLibrary("mine");
+      setTransferMessage(`Imported ${String(incoming.name || "character")} as a new private character.`);
+    } catch (error) {
+      setTransferMessage(error instanceof Error ? error.message : "That file could not be imported. Choose a supported WWN character JSON file.");
     } finally {
       if (importInput.current) importInput.current.value = "";
     }
@@ -2101,31 +2488,70 @@ export default function Home() {
               </select>
             </label>
           </div>
-          <button className="library-button" onClick={() => { setLibraryOpen(true); void refreshLibrary(); }}>Character Library</button>
-          {cloudId ? <button onClick={() => void saveToCloud()}>Save Now</button> : <button onClick={() => void addCurrentToLibrary()}>Add to Library</button>}
-          <button onClick={exportCharacter}>Export Character</button>
-          <button onClick={() => importInput.current?.click()}>Import Character</button>
+          <button className="library-button" onClick={() => {
+            const scope = signedIn ? "mine" : "public";
+            setLibraryScope(scope);
+            setLibraryOpen(true);
+            void refreshLibrary(scope);
+          }}>{signedIn ? "My Characters" : "Public Characters"}</button>
+          {!signedIn && <button className="primary-action account-signin" onClick={() => void signInWithGoogle()}>Sign in with Google</button>}
+          {signedIn && <span className="account-state" aria-label="Signed in">Account</span>}
+          {signedIn && canEdit && (cloudId
+            ? <button onClick={() => void saveToCloud()}>Save Now</button>
+            : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
+          {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
+          {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}
           <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
-          <button onClick={() => window.print()}>Print / PDF</button>
+          {signedIn && <button className="account-signout" onClick={() => void signOut()}>Sign Out</button>}
+          <button className="print-button" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
 
       {libraryOpen && <div className="library-backdrop" role="presentation">
         <section className="library-panel" role="dialog" aria-modal="true" aria-labelledby="library-title">
           <header className="library-header">
-            <div><p className="eyebrow">THE COMPANY ARCHIVE</p><h1 id="library-title">Shared Character Library</h1><p>Everyone with the link sees and edits the same collection.</p></div>
+            <div><p className="eyebrow">THE COMPANY ARCHIVE</p><h1 id="library-title">Character Library</h1><p>Your private roster and publicly discoverable adventurers remain separate.</p></div>
             <img className="library-emblem" src="/assets/wwn-ledger-emblem.png" alt="" aria-hidden="true" />
             <button className="library-close" aria-label="Close character library" onClick={() => setLibraryOpen(false)}>×</button>
           </header>
-          <div className="library-actions">
-            <button className="primary-action" onClick={() => void newOnlineCharacter()}>＋ Create New Online Character</button>
-            {!cloudId && <button onClick={() => void addCurrentToLibrary()}>☁ Upload Current Browser Character</button>}
-            <button onClick={() => void refreshLibrary()}>↻ Refresh</button>
+          <div className="library-scopes" role="tablist" aria-label="Character library view">
+            {signedIn && <button
+              type="button"
+              role="tab"
+              aria-selected={libraryScope === "mine"}
+              className={libraryScope === "mine" ? "active" : ""}
+              onClick={() => { setLibraryScope("mine"); void refreshLibrary("mine"); }}
+            >My Characters</button>}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={libraryScope === "public"}
+              className={libraryScope === "public" ? "active" : ""}
+              onClick={() => { setLibraryScope("public"); void refreshLibrary("public"); }}
+            >Public Characters</button>
           </div>
+          {libraryScope === "public" && <form className="library-search" onSubmit={event => { event.preventDefault(); void refreshLibrary("public", libraryQuery); }}>
+            <label htmlFor="library-search">Search public characters</label>
+            <div><input id="library-search" type="search" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} /><button type="submit">Search</button></div>
+          </form>}
+          <div className="library-actions">
+            {signedIn && libraryScope === "mine" && <button className="primary-action" onClick={() => void newOnlineCharacter()}>＋ Create New Character</button>}
+            {signedIn && libraryScope === "mine" && !cloudId && <button onClick={() => void addCurrentToLibrary()}>☁ Add Current Browser Character</button>}
+            <button onClick={() => void refreshLibrary(libraryScope)}>↻ Refresh</button>
+          </div>
+          {!signedIn && <div className="library-signin">
+            <p>Sign in with Google to create, import, edit, and manage private characters.</p>
+            <button className="primary-action" onClick={() => void signInWithGoogle()}>Sign in with Google</button>
+          </div>}
+          {signedIn && libraryScope === "mine" && <form className="legacy-claim" onSubmit={event => { event.preventDefault(); void claimLegacyCharacters(); }}>
+            <label htmlFor="legacy-claim-token">Claim a legacy character</label>
+            <p>Enter the private, one-time claim token supplied by the administrator.</p>
+            <div><input id="legacy-claim-token" value={claimToken} onChange={event => setClaimToken(event.target.value)} autoComplete="off" /><button type="submit" disabled={claimBusy}>{claimBusy ? "Claiming…" : "Claim"}</button></div>
+          </form>}
           {libraryError && <div className="library-error" role="alert">{libraryError}</div>}
           <div className="library-list">
             {libraryBusy && library.length === 0 && <div className="library-empty"><span>⌛</span><h2>Opening the archive…</h2></div>}
-            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>No shared characters yet</h2><p>Upload Cecil from this browser or create the first new character.</p></div>}
+            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character, import a backup, or use a legacy claim token." : "Try a different search or return later."}</p></div>}
             {library.map(character => <article className={`library-card ${cloudId === character.id ? "current" : ""}`} key={character.id}>
               <button className="library-card-main" onClick={() => void openCloudCharacter(character.id)}>
                 <span className="library-level">LVL <b>{character.level}</b></span>
@@ -2134,23 +2560,37 @@ export default function Home() {
               </button>
               <div className="library-card-actions">
                 <button onClick={() => void openCloudCharacter(character.id)}>Open</button>
-                <button onClick={() => void duplicateCharacter(character.id)}>Duplicate</button>
-                <button className="danger-action" onClick={() => void deleteCharacter(character.id, character.name)}>Delete</button>
+                {signedIn && <button onClick={() => void duplicateCharacter(character.id)}>Duplicate</button>}
+                {character.permissions.canEdit && <button className="danger-action" onClick={() => void deleteCharacter(character.id, character.name)}>Delete</button>}
               </div>
             </article>)}
           </div>
-          <footer className="library-footer">Online characters autosave by updating the current copy. JSON export remains available as a separate personal backup.</footer>
+          <footer className="library-footer">Owned characters autosave. Private characters are visible only to their owner; public characters are read-only to everyone else.</footer>
         </section>
       </div>}
 
-      <div className="folio">
-        {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
+      <div ref={editableSurface} className={`folio ${canEdit ? "" : "read-only-folio"}`}>
+        {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
+        {!canEdit && <div className="read-only-banner" role="status">
+          <strong>Read-only character</strong>
+          <span>{signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
+          {!signedIn && <button type="button" data-readonly-interactive="true" onClick={() => void signInWithGoogle()}>Sign in with Google</button>}
+        </div>}
+        {cloudId && canEdit && <div className="character-sharing" data-readonly-interactive="true">
+          <label><span>Visibility</span><select value={cloudVisibility} onChange={event => void changeVisibility(event.target.value as CharacterVisibility)}>
+            <option value="private">Private · only you</option>
+            <option value="unlisted">Unlisted · anyone with link</option>
+            <option value="public">Public · discoverable</option>
+          </select></label>
+          {cloudVisibility !== "private" && <button type="button" onClick={() => void copyShareLink()}>Copy Share Link</button>}
+          <small>{cloudVisibility === "private" ? "Not available to other visitors." : cloudVisibility === "unlisted" ? "Viewable at its stable link, but absent from Public Characters." : "Viewable at its stable link and listed in Public Characters."}</small>
+        </div>}
         <div className="hero">
           <img className="hero-illustration" src="/assets/wwn-header-flow-v2.png" alt="" aria-hidden="true" />
           <div className={`portrait-frame ${sheet.portrait ? "has-portrait" : ""}`}>
             {sheet.portrait ? <img src={sheet.portrait} alt={`${sheet.name || "Character"} portrait`} /> : <span aria-hidden="true">✦</span>}
-            <button type="button" onClick={() => portraitInput.current?.click()}>{sheet.portrait ? "Change" : "Add portrait"}</button>
-            {sheet.portrait && <button type="button" className="portrait-remove" onClick={() => patch("portrait", "")}>Remove</button>}
+            {canEdit && <button type="button" onClick={() => portraitInput.current?.click()}>{sheet.portrait ? "Change" : "Add portrait"}</button>}
+            {canEdit && sheet.portrait && <button type="button" className="portrait-remove" onClick={() => void removePortrait()}>Remove</button>}
             <input ref={portraitInput} className="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => void uploadPortrait(e.target.files?.[0])} />
           </div>
           <div className="hero-identity">
@@ -2167,7 +2607,7 @@ export default function Home() {
             </div>
           </div>
           <div className="hero-tools">
-            <form ref={rulesAssistant} className="rules-assistant" autoComplete="off" onSubmit={askRules}>
+            <form ref={rulesAssistant} className="rules-assistant" data-readonly-interactive="true" autoComplete="off" onSubmit={askRules}>
               <label htmlFor="rules-question">Ask the WWN Rules Assistant</label>
               <div className="rules-question-row">
                 <input
@@ -2218,6 +2658,7 @@ export default function Home() {
           {(["core","magic","inventory","notes"] as Tab[]).map(t =>
             <button
               key={t}
+              data-readonly-interactive="true"
               className={[tab === t ? "active" : "", t === "inventory" ? "tab-inventory" : ""].filter(Boolean).join(" ")}
               onClick={() => setTab(t)}
             >{t === "core" ? "Core Sheet" : t[0].toUpperCase()+t.slice(1)}</button>
@@ -2225,14 +2666,14 @@ export default function Home() {
           {companionTabs.map((companion, index) => {
             const companionTab: Tab = `companion:${companion.id}`;
             const fallback = companion.kind === "familiar" ? "Familiar" : `Henchman ${index + 1}`;
-            return <button key={companion.id} className={tab === companionTab ? "active" : ""} onClick={() => setTab(companionTab)}>{companion.name || fallback}</button>;
+            return <button key={companion.id} data-readonly-interactive="true" className={tab === companionTab ? "active" : ""} onClick={() => setTab(companionTab)}>{companion.name || fallback}</button>;
           })}
-          <button
+          {canEdit && <button
             className="tab-rest"
             onClick={takeRest}
           >
             Rest
-          </button>
+          </button>}
         </nav>
 
         {warning && <div className="rule-warning"><strong>Level check:</strong> {warning}. The selections remain visible so nothing is lost.</div>}

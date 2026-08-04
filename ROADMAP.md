@@ -1,0 +1,226 @@
+# Tales Without End Roadmap
+
+This roadmap is the development plan for the project currently implemented in the repository
+`rkrismcneely/wwn-character-sheet` and deployed at:
+
+- Production: https://taleswithoutend.com
+- Legacy fallback: https://wwn-character-sheet.rkrismcneely.workers.dev
+
+GitHub is the source of truth. The old ChatGPT-hosted site is reference-only and must not receive
+new development work.
+
+## Status Key
+
+- [x] Complete
+- [ ] Planned
+- [~] In progress or partly complete
+
+---
+
+## Phase 1 — Polish, UX, and Visual Identity
+
+### Responsive design
+
+- [x] Eliminate horizontal scrolling on mobile.
+- [x] Improve phone layout for portrait and character details.
+- [x] Make the search bar full width on mobile.
+- [x] Improve iPad and Chrome layouts.
+- [x] General responsive cleanup for narrow windows and small screens.
+
+### Visual identity
+
+- [x] Establish a consistent fantasy-inspired visual system.
+- [x] Define font roles for display, heading, body, UI, and numeric text.
+- [x] Refine borders, ornaments, spacing, and decorative elements.
+- [~] Continue adapting the visual identity to the Tales Without End name and logo.
+- [ ] Keep the design consistent across desktop, mobile, print/PDF, and a future iOS app.
+
+### General UX
+
+- [x] Improve tooltips, labels, confirmation dialogs, counters, and layout clarity.
+- [x] Improve the rules search and expanded rule-result presentation.
+- [x] Improve character-header controls and mobile behavior.
+- [ ] Continue simplifying workflows where users currently need too many clicks.
+
+---
+
+## Phase 2 — Rules Accuracy and Character-Builder Completeness
+
+### Rules corrections and validation
+
+- [x] Review and correct rules behavior for:
+  - Close Combatant
+  - Any Combat
+  - Growth and Learning
+  - Developed Attribute
+  - Armored Magic
+  - Polymath
+  - Unarmed Combatant
+  - Vowed
+  - Wise
+  - Specialist
+- [x] Add a permanent virtual Unarmed Attack where appropriate.
+- [x] Confirm repeatable Spirit Familiar behavior.
+- [x] Preserve legal gating for classes, Foci, spells, arts, skills, and attribute improvements.
+- [x] Add or strengthen automated tests for corrected rule interactions.
+
+### Companion support
+
+- [x] Maintain Henchkeeper and Spirit Familiar support.
+- [ ] Finalize the curated set of 18 Henchkeeper archetypes.
+- [x] Preserve the existing varied base-stat spread style.
+- [x] Apply only the specified +1/-1 archetype modifiers, regardless of base values.
+- [x] Verify companion inventories, weapons, HP, notes, and level switching.
+
+---
+
+## Phase 3 — Dice and Play Utilities
+
+- [x] Add header d20 and 2d6 rollers near AC and HP.
+- [x] Use secure random generation with `crypto.getRandomValues`.
+- [x] Use rejection sampling to avoid modulo bias.
+- [x] Create a reusable dice utility.
+- [x] Add subtle roll animation and readable results.
+- [ ] Expand play utilities only where they support the character-sheet experience without clutter.
+
+---
+
+## Phase 4 — Online Platform Foundation
+
+### Phase 4A — Repository and Deployment Foundation
+
+**Status: Complete**
+
+- [x] Move the editable source to `rkrismcneely/wwn-character-sheet`.
+- [x] Make GitHub the source of truth.
+- [x] Stop development on the old ChatGPT-hosted site.
+- [x] Deploy through Cloudflare Workers.
+- [x] Preserve the production D1 configuration:
+  - Database: `wwn-character-sheet-db`
+  - Database ID: `8e2bf197-e20f-4ea7-a86f-cab4e1a74699`
+  - Binding: `DB`
+- [x] Preserve the production R2 configuration:
+  - Bucket: `site-creator-r2`
+  - Binding: `BUCKET`
+- [x] Connect GitHub changes to Cloudflare deployment.
+- [x] Establish the production domain `https://taleswithoutend.com`.
+- [x] Redirect `https://www.taleswithoutend.com` to the root domain.
+- [x] Confirm ChatGPT can read and write the GitHub repository.
+- [ ] Add automated browser testing and deployment checks as post-migration hardening.
+
+### Phase 4B — Accounts, Ownership, Privacy, and Shareable Character URLs
+
+#### Authentication
+
+- [ ] Add secure sign-in and sign-out.
+- [ ] Prefer an established authentication provider instead of building password storage from scratch.
+- [ ] Add user records and secure sessions.
+- [ ] Keep internal account identifiers separate from public-facing identifiers.
+- [ ] Do not expose usernames, email addresses, or internal user IDs in public URLs, metadata, API responses, portrait paths, or other public identifiers.
+
+#### Character ownership
+
+- [ ] Link every character to an owner account.
+- [ ] Enforce ownership on the server for edits, deletion, portraits, visibility changes, and protected exports.
+- [ ] Prevent one user from editing or deleting another user's character.
+- [ ] Add a safe process for claiming or migrating characters created before accounts exist.
+
+#### Privacy and visibility
+
+- [ ] Add character visibility states:
+  - Private — owner only
+  - Unlisted — viewable by anyone with the link
+  - Public — viewable by link and eligible for public listings
+- [ ] Ensure an unlisted link grants view access only, never edit access.
+- [ ] Ensure private character data is never returned to unauthorized users.
+
+#### Unique character URLs
+
+- [ ] Give every character a stable, unique URL in the browser address bar.
+- [ ] Use a random, opaque public character identifier rather than a username, email, sequential database ID, or easily guessed number.
+- [ ] Use a route similar to:
+  - `https://taleswithoutend.com/character/7f3k9m2q`
+- [ ] Keep the URL stable when the character is renamed.
+- [ ] Support direct links, browser bookmarks, and easy sharing.
+- [ ] Make URL access respect the character's visibility setting.
+- [ ] Design login, routing, database schema, API authorization, import, and migration around this requirement from the beginning.
+
+#### Account library and portability
+
+- [ ] Add a My Characters view.
+- [ ] Retain a Public Characters view where appropriate.
+- [ ] Add account-based import and export.
+- [ ] Preserve compatibility with older character JSON files.
+- [ ] Prevent accidental duplicates and retain useful export-version metadata.
+
+### Phase 4C — Campaigns and Sharing
+
+- [ ] Create campaigns.
+- [ ] Invite players.
+- [ ] Add GM and player roles.
+- [ ] Link characters to campaigns.
+- [ ] Add campaign-specific permissions.
+- [ ] Add a shared campaign library.
+- [ ] Allow GMs to view campaign-linked characters without automatically receiving unrestricted ownership.
+- [ ] Support view-only sharing and future campaign-aware character URLs.
+- [ ] Prepare for campaign maps, notes, handouts, encounters, and other VTT features.
+
+### Phase 4D — Reliability, Security, and Production Hardening
+
+- [ ] Add Playwright end-to-end browser testing.
+- [ ] Add GitHub Actions for build, lint, unit tests, artifact validation, and browser tests.
+- [ ] Test desktop, phone, tablet, Chromium, Firefox, and WebKit layouts.
+- [ ] Add screenshots, traces, console logs, and network logs for failed tests.
+- [ ] Use dedicated test D1 and R2 resources for destructive automated testing.
+- [ ] Add production-safe smoke tests.
+- [ ] Add revision and conflict handling.
+- [ ] Add safe database migrations.
+- [ ] Add database backup and recovery procedures.
+- [ ] Add protection against accidental deletion.
+- [ ] Validate portrait file type, file size, and ownership.
+- [ ] Add structured logging and error reporting.
+- [ ] Review privacy and data-retention practices.
+- [ ] Add accessibility checks and keyboard-navigation testing.
+- [ ] Add visual regression testing for key responsive layouts.
+
+---
+
+## Phase 5 — Full VTT Expansion
+
+This phase begins only after accounts, ownership, campaigns, and production hardening are stable.
+
+- [ ] Campaign dashboard.
+- [ ] Shared maps and scenes.
+- [ ] Tokens and token ownership.
+- [ ] Fog of war and visibility controls.
+- [ ] Initiative and encounter tracking.
+- [ ] Shared dice rolls and roll history.
+- [ ] Character-to-token integration.
+- [ ] Notes, handouts, journals, and campaign lore.
+- [ ] Real-time multiplayer synchronization.
+- [ ] GM permissions and player permissions.
+- [ ] Mobile and tablet play support.
+- [ ] System architecture that can eventually support other Without Number games.
+
+---
+
+## Development Workflow
+
+For every future change:
+
+1. Read the current source from `rkrismcneely/wwn-character-sheet`.
+2. Make changes only in that repository.
+3. Preserve the existing Cloudflare D1 and R2 bindings.
+4. Commit and push completed work to GitHub.
+5. Let Cloudflare build and deploy the change.
+6. Test the Cloudflare deployment.
+7. Do not publish or checkpoint changes to the old `chatgpt.site` site.
+
+For small, low-risk changes, direct commits to `main` are acceptable.
+
+For larger or riskier changes:
+
+1. Create a feature branch.
+2. Build and test the change there.
+3. Use a preview deployment where available.
+4. Merge only after approval.

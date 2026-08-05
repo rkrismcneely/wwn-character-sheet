@@ -978,18 +978,46 @@ export default function Home({
       : window.location.href;
   }
 
-  async function signInWithGoogle() {
+  async function signInWithGoogle(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const callbackURL = "/";
+    const isLocalDevelopment = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+
+    setTransferMessage("Opening Google sign-in…");
+    setLibraryError("");
+
     if (window.location.hostname === FALLBACK_WORKER_HOST) {
       const canonical = new URL(canonicalCallbackURL());
       canonical.searchParams.set("auth", "google");
       window.location.assign(canonical);
       return;
     }
-    setTransferMessage("Opening Google sign-in…");
-    await authClient.signIn.social({
-      provider: "google",
-      callbackURL: canonicalCallbackURL(),
-    });
+
+    try {
+      if (isLocalDevelopment) {
+        console.debug("[auth] Calling authClient.signIn.social", {
+          provider: "google",
+          callbackURL,
+        });
+      }
+      const { error } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL,
+      });
+      if (error) {
+        throw new Error(error.message || "Better Auth rejected Google sign-in.");
+      }
+    } catch (error) {
+      const detail = error instanceof Error
+        ? error.message
+        : "The request could not be started.";
+      const feedback = `Google sign-in failed: ${detail}`;
+      setTransferMessage(feedback);
+      setLibraryError(feedback);
+      if (isLocalDevelopment) {
+        console.error("[auth] Google sign-in failed", error);
+      }
+    }
   }
 
   async function signOut() {
@@ -2494,7 +2522,7 @@ export default function Home({
             setLibraryOpen(true);
             void refreshLibrary(scope);
           }}>{signedIn ? "My Characters" : "Public Characters"}</button>
-          {!signedIn && <button className="primary-action account-signin" onClick={() => void signInWithGoogle()}>Sign in with Google</button>}
+          {!signedIn && <button type="button" className="primary-action account-signin" onClick={signInWithGoogle}>Sign in with Google</button>}
           {signedIn && <span className="account-state" aria-label="Signed in">Account</span>}
           {signedIn && canEdit && (cloudId
             ? <button onClick={() => void saveToCloud()}>Save Now</button>
@@ -2541,7 +2569,7 @@ export default function Home({
           </div>
           {!signedIn && <div className="library-signin">
             <p>Sign in with Google to create, import, edit, and manage private characters.</p>
-            <button className="primary-action" onClick={() => void signInWithGoogle()}>Sign in with Google</button>
+            <button type="button" className="primary-action" onClick={signInWithGoogle}>Sign in with Google</button>
           </div>}
           {signedIn && libraryScope === "mine" && <form className="legacy-claim" onSubmit={event => { event.preventDefault(); void claimLegacyCharacters(); }}>
             <label htmlFor="legacy-claim-token">Claim a legacy character</label>
@@ -2574,7 +2602,7 @@ export default function Home({
         {!canEdit && <div className="read-only-banner" role="status">
           <strong>Read-only character</strong>
           <span>{signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
-          {!signedIn && <button type="button" data-readonly-interactive="true" onClick={() => void signInWithGoogle()}>Sign in with Google</button>}
+          {!signedIn && <button type="button" data-readonly-interactive="true" onClick={signInWithGoogle}>Sign in with Google</button>}
         </div>}
         {cloudId && canEdit && <div className="character-sharing" data-readonly-interactive="true">
           <label><span>Visibility</span><select value={cloudVisibility} onChange={event => void changeVisibility(event.target.value as CharacterVisibility)}>

@@ -1764,3 +1764,23 @@ main,
 @media(prefers-reduced-motion:reduce){
   .dice-result-roll{animation:none}
 }
+
+
+/* Tales Without End header mark: a tightly cropped source-logo asset. */
+.brand-logo{
+  display:block;
+  flex:0 0 auto;
+  width:72px;
+  height:42px;
+  object-fit:contain;
+}
+.brand strong{
+  font-size:16px;
+  letter-spacing:.08em;
+  white-space:nowrap;
+}
+@media(max-width:720px){
+  .brand{gap:8px}
+  .brand-logo{width:50px;height:34px}
+  .brand strong{font-size:13px;letter-spacing:.06em}
+}

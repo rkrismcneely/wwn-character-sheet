@@ -110,11 +110,11 @@ new development work.
 
 ### Phase 4B — Accounts, Ownership, Privacy, and Shareable Character URLs
 
-**Status: In progress — feature branch implemented and locally verified; production migration and live OAuth verification require review and approval.**
+**Status: In progress — Phase 4B is temporarily paused after successful local Google sign-in. Sign out remains unresolved and must be runtime-traced from the visible rendered control before more authentication changes. Production migration, production verification, and merging remain blocked pending review and approval. See `docs/PHASE-4B-CHECKPOINT.md`.**
 
 #### Authentication
 
-- [~] Add Better Auth Google sign-in and sign-out. The branch implementation and signed-out Worker paths are verified; live Google OAuth remains a post-approval production check.
+- [~] Add Better Auth Google sign-in and sign-out. Local Google sign-in succeeds; sign out is unresolved and Phase 4B is temporarily paused pending runtime click-path tracing. Production OAuth remains a post-approval check.
 - [x] Use established Better Auth Google authentication instead of building password storage.
 - [x] Add generated Better Auth user records and secure cookie sessions in D1.
 - [x] Keep internal account identifiers separate from public-facing identifiers.

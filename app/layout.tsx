@@ -13,7 +13,7 @@ import "@fontsource/jost/700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Worlds Without Number Character Sheet",
+  title: "Tales Without End - An Interactive Worlds Without Number Character Folio",
   description: "An interactive Worlds Without Number character folio.",
   other: {
     "codex-preview": "development",

@@ -32,6 +32,9 @@ new development work.
 - [x] Establish a consistent fantasy-inspired visual system.
 - [x] Define font roles for display, heading, body, UI, and numeric text.
 - [x] Refine borders, ornaments, spacing, and decorative elements.
+- [x] Replace the header's angled W emblem with the supplied, tightly cropped Tales Without End logo.
+- [x] Replace the header branding with `Tales Without End` and remove the former subtitle.
+- [x] Set the browser/page title to `Tales Without End - An Interactive Worlds Without Number Character Folio`.
 - [~] Continue adapting the visual identity to the Tales Without End name and logo.
 - [ ] Keep the design consistent across desktop, mobile, print/PDF, and a future iOS app.
 
@@ -109,6 +112,8 @@ new development work.
 - [ ] Add automated browser testing and deployment checks as post-migration hardening.
 
 ### Phase 4B — Accounts, Ownership, Privacy, and Shareable Character URLs
+
+**Status: In progress — Phase 4B remains on the separate `phase-4b-better-auth` branch, temporarily paused after successful local Google sign-in while sign-out runtime tracing remains unresolved.**
 
 #### Authentication
 

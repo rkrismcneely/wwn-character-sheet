@@ -243,15 +243,31 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
       assert.equal(denied.status, 401, `${method} ${pathname} must require sign-in: ${denial}`);
     }
 
-    const authUnavailable = await fetch(`${worker.origin}/api/auth/get-session`);
+    let authUnavailable;
+    let authDenial = "";
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      authUnavailable = await fetch(`${worker.origin}/api/auth/get-session`);
+      authDenial = await authUnavailable.text();
+      if (
+        authUnavailable.status !== 503
+        || !authDenial.includes("worker restarted mid-request")
+      ) break;
+      await new Promise(resolveWait => setTimeout(resolveWait, 100));
+    }
     assert.equal(authUnavailable.status, 503);
-    await new Promise(resolveWait => setTimeout(resolveWait, 100));
-    const output = worker.output();
+    assert.deepEqual(JSON.parse(authDenial), {
+      error: "Authentication is temporarily unavailable.",
+    });
+    let output = worker.output();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (output.includes('"event":"auth_runtime_unavailable"')) break;
+      await new Promise(resolveWait => setTimeout(resolveWait, 100));
+      output = worker.output();
+    }
     assert.match(output, /"event":"auth_runtime_unavailable"/u);
     assert.match(output, /"errorType":"AuthConfigurationError"/u);
     for (const binding of [
       "BETTER_AUTH_SECRET",
-      "BETTER_AUTH_URL",
       "GOOGLE_CLIENT_ID",
       "GOOGLE_CLIENT_SECRET",
     ]) {

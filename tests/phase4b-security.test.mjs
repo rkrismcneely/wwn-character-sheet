@@ -340,11 +340,17 @@ test("auth build configuration references runtime binding names without secret v
   const auth = await source("lib/auth.ts");
   const client = await source("lib/auth-client.ts");
   const example = await source(".dev.vars.example");
+  const wrangler = await source("wrangler.jsonc");
   assert.match(auth, /env\.BETTER_AUTH_SECRET/u);
   assert.match(auth, /env\.GOOGLE_CLIENT_ID/u);
   assert.match(auth, /env\.GOOGLE_CLIENT_SECRET/u);
   assert.doesNotMatch(client, /SECRET|CLIENT_ID/u);
   assert.equal(example, "BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:5173\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\n");
+  assert.match(
+    wrangler,
+    /"vars":\s*\{\s*"BETTER_AUTH_URL":\s*"https:\/\/taleswithoutend\.com"\s*\}/u,
+  );
+  assert.doesNotMatch(wrangler, /BETTER_AUTH_SECRET|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET/u);
 });
 
 test("request JSON parsing is bounded and rejects malformed input", async () => {

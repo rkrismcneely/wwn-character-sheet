@@ -1,0 +1,84 @@
+name: Finalize Phase 4B integration normalized
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/phase-4b-integration
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Apply reviewed patch from immutable control commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "ffe638733ccc3de3fa7645b2ec19768e232a167c"
+          git config user.name 'phase4b-preproduction-review'
+          git config user.email 'phase4b-preproduction-review@users.noreply.github.com'
+          git show 75c821457909416005b0bb267d42ff1f0ade8650:.github/workflows/phase4b-finalize-integration.yml > /tmp/source-workflow.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          raw = Path('/tmp/source-workflow.yml').read_text()
+          marker = "          python3 - <<'PY'\n"
+          start = raw.index(marker) + len(marker)
+          end = raw.index("\n          PY", start)
+          body = raw[start:end]
+          lines = []
+          for line in body.splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          Path('/tmp/phase4b-finalize.py').write_text('\n'.join(lines) + '\n')
+          PY
+          python3 /tmp/phase4b-finalize.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/PHASE-4B-CHECKPOINT.md')
+          text = path.read_text()
+          text = text.replace(
+              '**Current verified auth baseline before reconciliation:** `adc492927d1e1ba608beaa04c4afb791e1820bac`  \n',
+              '**Current verified auth baseline before reconciliation:** `adc492927d1e1ba608beaa04c4afb791e1820bac`\n',
+              1,
+          )
+          path.write_text(text)
+          PY
+          git diff --check
+          test -z "$(git grep -n '^<<<<<<<\|^=======\|^>>>>>>>' -- ROADMAP.md README.md app docs scripts tests || true)"
+          grep -Fq '/assets/tales-without-end-navigation-logo.svg' app/page.tsx
+          grep -Fq 'Tales Without End - An Interactive Worlds Without Number Character Folio' app/layout.tsx
+          grep -Fq 'authClient.signIn.social' app/page.tsx
+          grep -Fq 'authClient.signOut' app/page.tsx
+          grep -Fq 'font-size:24px' app/globals.css
+          grep -Fq 'drizzle/0004_better_auth_verification_camel_case_compatibility.sql' tests/phase4b-migration.test.mjs
+          grep -Fq 'Claim database creation failed after reserving' scripts/create-legacy-claim.mjs
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Full test suite
+        run: npm test
+      - name: Worker binding types
+        run: npm run workers:types
+      - name: Commit verified integration changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git add ROADMAP.md README.md app/globals.css docs/PHASE-4B-CHECKPOINT.md docs/phase-4b-review.md scripts/create-legacy-claim.mjs tests/phase4b-migration.test.mjs tests/phase4b-reconciliation.test.mjs
+          git diff --check --cached
+          git commit -m 'Complete Phase 4B pre-production reconciliation review'
+          git push origin HEAD:agent/phase-4b-integration

@@ -30,7 +30,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Correct the merge-boundary brace, then apply the requested modest title increase.
           css = Path('app/globals.css')
           text = css.read_text()
           old = '  .character-sharing select{min-width:0;width:100%}\n\n\n/* Tales Without End header mark:'
@@ -41,12 +40,11 @@ jobs:
           text = text.replace('  font-size:21px;', '  font-size:24px;', 1)
           assert text.count('  .brand strong{font-size:15px;letter-spacing:.04em}') == 1
           text = text.replace('  .brand strong{font-size:15px;letter-spacing:.04em}', '  .brand strong{font-size:17px;letter-spacing:.04em}', 1)
-          tail = '  .brand strong{font-size:14px;letter-spacing:.02em}\n}\n}'
-          assert text.count(tail) == 1, 'unexpected final branding/media brace layout'
+          tail = '  .brand strong{font-size:14px;letter-spacing:.02em}\n}'
+          assert text.count(tail) == 1, 'unexpected final branding block'
           text = text.replace(tail, '  .brand strong{font-size:16px;letter-spacing:.02em}\n}', 1)
           css.write_text(text)
 
-          # Reserve the one recoverable raw claim token before mutating D1.
           claim = Path('scripts/create-legacy-claim.mjs')
           text = claim.read_text()
           old = '''executeD1(statements.join("\\n"), remote);\nwriteFileSync(\n  outputPath,\n  `${JSON.stringify({ claimId, token, expiresAt, characters: publicIds }, null, 2)}\\n`,\n  { encoding: "utf8", flag: "wx", mode: 0o600 },\n);\nconsole.log(`Claim created. The token was written once to ${outputPath}.`);\n'''
@@ -54,7 +52,6 @@ jobs:
           assert text.count(old) == 1, 'claim creation sequence changed unexpectedly'
           claim.write_text(text.replace(old, new, 1))
 
-          # Exercise all current migrations, including the two compatibility migrations.
           migration_test = Path('tests/phase4b-migration.test.mjs')
           text = migration_test.read_text()
           marker = '  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0002_character_ownership_and_claims.sql")]);\n'
@@ -68,10 +65,8 @@ jobs:
           insert_before = '''  assert.throws(() => runWrangler(persistTo, environment, [\n    "--command",\n    "UPDATE characters SET visibility = 'friends-only' WHERE id = 'legacy-internal-id'",\n  ]));\n'''
           compatibility = '''  const compatibilityColumns = {\n    user: ["emailVerified", "createdAt", "updatedAt"],\n    session: ["expiresAt", "createdAt", "updatedAt", "ipAddress", "userAgent", "userId"],\n    account: ["accountId", "providerId", "userId", "accessToken", "refreshToken", "idToken", "accessTokenExpiresAt", "refreshTokenExpiresAt", "createdAt", "updatedAt"],\n    verification: ["expiresAt", "createdAt", "updatedAt"],\n    rateLimit: ["lastRequest"],\n  };\n  for (const [table, expectedColumns] of Object.entries(compatibilityColumns)) {\n    const columns = results(runWrangler(persistTo, environment, [\n      "--command",\n      `PRAGMA table_info('${table}')`,\n    ])).map(row => row.name);\n    for (const column of expectedColumns) {\n      assert.ok(columns.includes(column), `${table}.${column} should exist after compatibility migrations`);\n    }\n  }\n\n'''
           assert text.count(insert_before) == 1
-          text = text.replace(insert_before, compatibility + insert_before, 1)
-          migration_test.write_text(text)
+          migration_test.write_text(text.replace(insert_before, compatibility + insert_before, 1))
 
-          # Targeted security/branding regressions.
           security = Path('tests/phase4b-security.test.mjs')
           text = security.read_text()
           marker = 'test("visible Google sign-in controls keep direct Better Auth click paths", async () => {'
@@ -80,7 +75,6 @@ jobs:
           assert 'legacy claim creation reserves the recovery token before database mutation' not in text
           security.write_text(text.replace(marker, block + marker, 1))
 
-          # README: current migration inventory and authoritative rollout document.
           readme = Path('README.md')
           text = readme.read_text()
           old = '''- `0002_character_ownership_and_claims.sql` — additive character ownership,\n  visibility, public-ID, portrait-key, and legacy-claim schema\n'''
@@ -103,7 +97,6 @@ jobs:
           assert text.count(old) == 1
           readme.write_text(text.replace(old, new, 1))
 
-          # Checkpoint: record the now-complete manual auth loop and completed branding reconciliation.
           checkpoint = Path('docs/PHASE-4B-CHECKPOINT.md')
           text = checkpoint.read_text()
           marker = '**Resume date:** 2026-08-10\n'
@@ -125,7 +118,6 @@ jobs:
           text = text.replace('complete the production checklist in `docs/phase-4b-review.md`.', 'complete the authoritative production checklist in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.', 1)
           checkpoint.write_text(text)
 
-          # Older long-form review remains useful, but point execution to the current inventory/checklist.
           review = Path('docs/phase-4b-review.md')
           text = review.read_text()
           status = 'Status: feature branch review only. The production migration has **not** been\napplied and this branch must not be merged without approval.\n'
@@ -142,7 +134,6 @@ jobs:
           text = text.replace('apply the two production\n  migrations', 'apply the reviewed pending production\n  migrations', 1)
           review.write_text(text)
 
-          # Roadmap status after this verified review pass.
           roadmap = Path('ROADMAP.md')
           text = roadmap.read_text()
           old = ('**Status: In progress — the full local Google sign-in → callback → authenticated UI → '

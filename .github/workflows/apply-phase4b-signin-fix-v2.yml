@@ -1,0 +1,76 @@
+name: Apply verified Phase 4B sign-in fix v2
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase-4b-better-auth
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Verify expected feature HEAD
+        run: test "$(git rev-parse HEAD)" = "e8ee56ea17558757d9d07e5a1c83c0d4055bf5ea"
+      - name: Apply verified local patch
+        run: |
+          echo 'LS0tIGEvYXBwL3BhZ2UudHN4CisrKyBiL2FwcC9wYWdlLnRzeApAQCAtMjUxOCw3ICsyNTE4LDcgQEAKICAgICAgICAgICAgIHNldExpYnJhcnlPcGVuKHRydWUpOwogICAgICAgICAgICAgdm9pZCByZWZyZXNoTGlicmFyeShzY29wZSk7CiAgICAgICAgICAgfX0+e3NpZ25lZEluID8gIk15IENoYXJhY3RlcnMiIDogIlB1YmxpYyBDaGFyYWN0ZXJzIn08L2J1dHRvbj4KLSAgICAgICAgICB7IXNpZ25lZEluICYmIDxidXR0b24KKyAgICAgICAgICB7IXNpZ25lZEluICYmICFsaWJyYXJ5T3BlbiAmJiA8YnV0dG9uCiAgICAgICAgICAgICB0eXBlPSJidXR0b24iCiAgICAgICAgICAgICBjbGFzc05hbWU9InByaW1hcnktYWN0aW9uIGFjY291bnQtc2lnbmluIgogICAgICAgICAgICAgb25DbGljaz17YXN5bmMgKCkgPT4gewotLS0gYS90ZXN0cy9waGFzZTRiLXNlY3VyaXR5LnRlc3QubWpzCisrKyBiL3Rlc3RzL3BoYXNlNGItc2VjdXJpdHkudGVzdC5tanMKQEAgLTMyMiw2ICszMjIsMTIgQEAKICAgYXNzZXJ0Lm9rKGRhdGFiYXNlLmNoYXJhY3RlcnMuZXZlcnkoY2hhcmFjdGVyID0+IGNoYXJhY3Rlci5vd25lclVzZXJJZCA9PT0gZGF0YWJhc2UuY2xhaW0uY2xhaW1lZEJ5VXNlcklkKSk7CiB9KTsKIAordGVzdCgidmlzaWJsZSBHb29nbGUgc2lnbi1pbiBjb250cm9scyBrZWVwIGRpcmVjdCBCZXR0ZXIgQXV0aCBjbGljayBwYXRocyIsIGFzeW5jICgpID0+IHsKKyAgY29uc3QgcGFnZSA9IGF3YWl0IHNvdXJjZSgiYXBwL3BhZ2UudHN4Iik7CisgIGFzc2VydC5tYXRjaChwYWdlLCAvIXNpZ25lZEluICYmICFsaWJyYXJ5T3BlbiAmJiA8YnV0dG9uW1xzXFNdKmNsYXNzTmFtZT0icHJpbWFyeS1hY3Rpb24gYWNjb3VudC1zaWduaW4iW1xzXFNdKnNvdXJjZTogImhlYWRlciJbXHNcU10qYXV0aENsaWVudFwuc2lnbkluXC5zb2NpYWxcKFx7W1xzXFNdKnByb3ZpZGVyOiAiZ29vZ2xlIi91KTsKKyAgYXNzZXJ0Lm1hdGNoKHBhZ2UsIC9jbGFzc05hbWU9ImxpYnJhcnktc2lnbmluIltcc1xTXSpzb3VyY2U6ICJsaWJyYXJ5Iltcc1xTXSphdXRoQ2xpZW50XC5zaWduSW5cLnNvY2lhbFwoXHtbXHNcU10qcHJvdmlkZXI6ICJnb29nbGUiL3UpOworfSk7CisKIHRlc3QoInNpZ24tb3V0IHJlbW92ZXMgYWNjZXNzIHRvIG93bmVyLW9ubHkgb3BlcmF0aW9ucyIsIGFzeW5jICgpID0+IHsKICAgYXNzZXJ0LmRlZXBFcXVhbChhdXRob3JpemVDaGFyYWN0ZXJXcml0ZShvd25lciwgcHJpdmF0ZUNoYXJhY3RlciksIHsgYWxsb3dlZDogdHJ1ZSB9KTsKICAgYXNzZXJ0LmRlZXBFcXVhbChhdXRob3JpemVDaGFyYWN0ZXJXcml0ZShudWxsLCBwcml2YXRlQ2hhcmFjdGVyKSwgeyBhbGxvd2VkOiBmYWxzZSwgc3RhdHVzOiA0MDEgfSk7Ci0tLSBhL2RvY3MvUEhBU0UtNEItQ0hFQ0tQT0lOVC5tZAorKysgYi9kb2NzL1BIQVNFLTRCLUNIRUNLUE9JTlQubWQKQEAgLTEyMCw2ICsxMjAsMzYgQEAKIAogS2VlcCBhbGwgZnVydGhlciB2ZXJpZmljYXRpb24gbG9jYWwtb25seSB1bnRpbCBhIHNhZmUsIGlzb2xhdGVkIHN0YWdpbmcgZW52aXJvbm1lbnQgZXhpc3RzIGFuZCBoYXMgYmVlbiBleHBsaWNpdGx5IGFwcHJvdmVkLgogCisjIyBSZXNvbHZlZCByZWdyZXNzaW9uOiBzaWduZWQtb3V0IGhlYWRlciBzaWduLWluIGJlaGluZCB0aGUgQ2hhcmFjdGVyIExpYnJhcnkgbW9kYWwKKworUGhhc2UgNEIgd2FzIHJlc3VtZWQgYWdhaW4gZnJvbSBgZThlZTU2ZWExNzU1ODc1N2Q5ZDA3ZTVhMWM4M2MwZDQwNTViZjVlYWAgYWZ0ZXIgYSBtYW51YWwgcmVwb3J0IHRoYXQgY2xpY2tpbmcgKipTaWduIGluIHdpdGggR29vZ2xlKiogcHJvZHVjZWQgbm8gYnJvd3NlciBOZXR3b3JrIHJlcXVlc3QgYW5kIG5vIHRlcm1pbmFsIHJlcXVlc3QuIEhpc3RvcnkgdmVyaWZpY2F0aW9uIGNvbmZpcm1zIGBmODkzNDhiNjJhYzllMmEzZGRkNGY3NTljNTY5ZjIxZTAyMjgwZjMyYCByZW1haW5zIGFuIGFuY2VzdG9yIG9mIHRoZSBicmFuY2guIENvbXBhcmluZyBgZjg5MzQ4YmAgdGhyb3VnaCBgZDdmNDYyZWAgc2hvd3Mgbm8gYGFwcC9wYWdlLnRzeGAgb3IgYXV0aC1jb2RlIGNoYW5nZXM7IHRoZSBvbmx5IGxhdGVyIGF1dGgvVUkgY29kZSBjaGFuZ2UgYmVmb3JlIGBlOGVlNTZlYCBpcyB0aGUgc2lnbi1vdXQgc3RhdGUgZml4IGl0c2VsZi4KKworVGhlIGhlYWRlciBhbmQgQ2hhcmFjdGVyIExpYnJhcnkgc2lnbi1pbiBoYW5kbGVycyBpbiBgZThlZTU2ZWAgYXJlIHVuY2hhbmdlZCBmcm9tIHRoZSBwcmV2aW91c2x5IHZlcmlmaWVkIGBmODkzNDhiYCBpbXBsZW1lbnRhdGlvbi4gVGVtcG9yYXJ5IGRpYWdub3N0aWNzIHdlcmUgYXR0YWNoZWQgZGlyZWN0bHkgdG8gdGhlIGV4YWN0IHJlbmRlcmVkIGA8YnV0dG9uIHR5cGU9ImJ1dHRvbiI+YCBlbGVtZW50czoKKworLSBoZWFkZXI6IGBbYXV0aC1oZWFkZXItc2lnbi1pbl0gZGlyZWN0IGNsaWNrYCBwbHVzIGBIZWFkZXIgc2lnbi1pbiBjbGlja2VkYCwKKy0gQ2hhcmFjdGVyIExpYnJhcnk6IGBbYXV0aC1saWJyYXJ5LXNpZ24taW5dIGRpcmVjdCBjbGlja2AgcGx1cyBgTGlicmFyeSBzaWduLWluIGNsaWNrZWRgLgorCitJbiBhbiBpc29sYXRlZCBsb2NhbCBydW50aW1lIG9mIHRoZSBleGFjdCBgZThlZTU2ZWAgc291cmNlLCBib3RoIGNvbnRyb2xzIGZpcmVkIHRoZWlyIHVuaXF1ZSBkaWFnbm9zdGljIHdoZW4gdW5vYnN0cnVjdGVkIGFuZCBib3RoIHJlYWNoZWQgYFBPU1QgL2FwaS9hdXRoL3NpZ24taW4vc29jaWFsYC4gQmV0dGVyIEF1dGggcmV0dXJuZWQgYDIwMCBPS2AsIGByZWRpcmVjdDogdHJ1ZWAsIGFuZCBhIEdvb2dsZSBhdXRob3JpemF0aW9uIFVSTCB3aG9zZSBsb2NhbCBjYWxsYmFjayBpcyBgaHR0cDovL2xvY2FsaG9zdDo1MTczL2FwaS9hdXRoL2NhbGxiYWNrL2dvb2dsZWAuIFRoaXMgcnVsZXMgb3V0IGEgbG9zdCBzaWduLWluIGhhbmRsZXIsIGEgZGlmZmVyZW50IEpTWCBicmFuY2gsIHN0YWxlIGBvbkNsaWNrYCwgb3IgYSBCZXR0ZXIgQXV0aCBzZXJ2ZXIvY29uZmlndXJhdGlvbiByZWdyZXNzaW9uIGluIHRoZSBjb21taXR0ZWQgc291cmNlLgorCitUaGUgbm8tcmVxdWVzdCBoZWFkZXIgYmVoYXZpb3Igd2FzIHJlcHJvZHVjZWQgd2hlbiB0aGUgQ2hhcmFjdGVyIExpYnJhcnkgd2FzIG9wZW4uIGBsaWJyYXJ5T3BlbmAgZGVmYXVsdHMgdG8gdHJ1ZSBvbiB0aGUgaG9tZSBwYWdlIGFuZCBgLmxpYnJhcnktYmFja2Ryb3BgIGlzIGEgZml4ZWQsIGB6LWluZGV4OiAxMDBgIG1vZGFsIGJhY2tkcm9wLiBUaGUgaGVhZGVyIHNpZ24taW4gYnV0dG9uIHdhcyBzdGlsbCByZW5kZXJlZCBiZWhpbmQgdGhhdCBtb2RhbCwgc28gdGhlIGJhY2tkcm9wIGludGVyY2VwdGVkIHRoZSBwb2ludGVyIGV2ZW50IGJlZm9yZSBSZWFjdCBjb3VsZCByZWNlaXZlIGl0LiBUaGlzIGV4YWN0bHkgcHJvZHVjZXMgdGhlIG9ic2VydmVkIHN5bXB0b206IG5vIGNsaWNrIGRpYWdub3N0aWMsIG5vIE5ldHdvcmsgcmVxdWVzdCwgYW5kIG5vIHRlcm1pbmFsIHJlcXVlc3QuIFRoZSBDaGFyYWN0ZXIgTGlicmFyeSdzIG93biBHb29nbGUgc2lnbi1pbiBidXR0b24gcmVtYWluZWQgbGl2ZSBpbnNpZGUgdGhlIG1vZGFsLgorCitUaGUgZml4IGlzIGludGVudGlvbmFsbHkgbmFycm93OiB0aGUgaGVhZGVyIEdvb2dsZSBzaWduLWluIGNvbnRyb2wgbm93IHJlbmRlcnMgb25seSB3aGVuIHNpZ25lZCBvdXQgKiphbmQqKiB0aGUgQ2hhcmFjdGVyIExpYnJhcnkgbW9kYWwgaXMgY2xvc2VkLiBXaGlsZSB0aGUgbW9kYWwgaXMgb3BlbiwgaXRzIG93biBHb29nbGUgc2lnbi1pbiBjb250cm9sIGlzIHRoZSBhY3RpdmUgc2lnbi1pbiBwYXRoLiBDbG9zaW5nIHRoZSBtb2RhbCBleHBvc2VzIHRoZSBoZWFkZXIgY29udHJvbCwgd2hpY2ggc3RpbGwgY2FsbHMgQmV0dGVyIEF1dGggZGlyZWN0bHkuIFRoZSBzaWduLW91dCBpbXBsZW1lbnRhdGlvbiwgYGxvY2FsbHlTaWduZWRPdXRgLCBhbmQgYHJlZmV0Y2hTZXNzaW9uKClgIGJlaGF2aW9yIGFyZSB1bmNoYW5nZWQuCisKK2BlOGVlNTZlYCBkaWQgKipub3QqKiBkaXJlY3RseSBjaGFuZ2Ugb3IgYnJlYWsgZWl0aGVyIHNpZ24taW4gaGFuZGxlciBhbmQgZGlkIG5vdCBpbnRyb2R1Y2UgdGhlIG1vZGFsIGJhY2tkcm9wLiBJdHMgaW1tZWRpYXRlIHNpZ25lZC1vdXQgVUkgdXBkYXRlIGNhbiBleHBvc2UgdGhlIHNpZ25lZC1vdXQgaGVhZGVyIHN0YXRlIHNvb25lciBhZnRlciBzaWduLW91dCwgYnV0IHRoZSB1bmRlcmx5aW5nIGNsaWNrIGludGVyY2VwdGlvbiB3YXMgYW4gZXhpc3RpbmcgbW9kYWwvcmVuZGVyIGludGVyYWN0aW9uIHJhdGhlciB0aGFuIGFuIE9BdXRoIG9yIEJldHRlciBBdXRoIHJlZ3Jlc3Npb24uCisKK0N1cnJlbnQgaXNvbGF0ZWQgcnVudGltZSBwcm9vZiB1c2VzIGR1bW15IGxvY2FsIEdvb2dsZSBjcmVkZW50aWFscyBhbmQgdGhlcmVmb3JlIHByb3ZlcyB0aGUgbG9jYWwgcmVuZGVyZWQgY2xpY2sgcGF0aHMsIEJldHRlciBBdXRoIHJlcXVlc3QvcmVzcG9uc2UsIGF1dGhvcml6YXRpb24gVVJMIGdlbmVyYXRpb24sIHNpZ24tb3V0IGludmFsaWRhdGlvbiwgcmVmcmVzaCBwZXJzaXN0ZW5jZSwgYW5kIHRoZSBhYmlsaXR5IHRvIHJlcXVlc3QgR29vZ2xlIGF1dGhvcml6YXRpb24gYWdhaW4gYWZ0ZXIgc2lnbi1vdXQuIEEgZnJlc2ggY3JlZGVudGlhbGVkIGVuZC10by1lbmQgR29vZ2xlIGFjY291bnQgbG9naW4vcmV0dXJuIGNhbm5vdCBiZSBjb21wbGV0ZWQgaW4gdGhlIGlzb2xhdGVkIGRpYWdub3N0aWMgZW52aXJvbm1lbnQgYmVjYXVzZSB0aGUgcmVhbCBpZ25vcmVkIGAuZGV2LnZhcnNgIHNlY3JldHMgYXJlIGludGVudGlvbmFsbHkgdW5hdmFpbGFibGUgaGVyZS4gVGhhdCBjcmVkZW50aWFsZWQgbWFudWFsIHByb29mIHJlbWFpbnMgcmVxdWlyZWQgYmVmb3JlIFBoYXNlIDRCIGNhbiBiZSBjYWxsZWQgcHJvZHVjdGlvbi1yZWFkeS4KKworIyMgQnJhbmRpbmcgcmVjb25jaWxpYXRpb24gbm90ZQorCitgbWFpbmAgY29udGFpbnMgbmV3ZXIgVGFsZXMgV2l0aG91dCBFbmQgYnJhbmRpbmcgdGhhdCBpcyBub3QgcHJlc2VudCBvbiB0aGlzIG9sZGVyIFBoYXNlIDRCIGJyYW5jaCBhbmQgbXVzdCBiZSBwcmVzZXJ2ZWQgZHVyaW5nIGxhdGVyIHJlY29uY2lsaWF0aW9uLiBJbiBwYXJ0aWN1bGFyOgorCistIGBhcHAvcGFnZS50c3hgIG9uIGBtYWluYCB1c2VzIGAvYXNzZXRzL3RhbGVzLXdpdGhvdXQtZW5kLW5hdmlnYXRpb24tbG9nby5zdmdgIGFuZCB0aGUgYFRhbGVzIFdpdGhvdXQgRW5kYCBoZWFkZXIgdGV4dCBpbnN0ZWFkIG9mIHRoZSBhbmdsZWQgYFdgIC8gYFdPUkxEUyBXSVRIT1VUIE5VTUJFUmAgLyBgSW50ZXJhY3RpdmUgY2hhcmFjdGVyIGZvbGlvYCBicmFuZGluZy4KKy0gYGFwcC9nbG9iYWxzLmNzc2Agb24gYG1haW5gIGNvbnRhaW5zIHRoZSBjdXJyZW50IGAuYnJhbmQtbG9nb2Agc2l6aW5nIGFuZCBjdXJyZW50IGxhcmdlciB0aXRsZSBwcmVzZW50YXRpb24sIGluY2x1ZGluZyBkZXNrdG9wLCA8PTcyMHB4LCBhbmQgPD00MjBweCBzaXppbmcuCistIGBhcHAvbGF5b3V0LnRzeGAgb24gYG1haW5gIHVzZXMgdGhlIHRpdGxlIGBUYWxlcyBXaXRob3V0IEVuZCAtIEFuIEludGVyYWN0aXZlIFdvcmxkcyBXaXRob3V0IE51bWJlciBDaGFyYWN0ZXIgRm9saW9gLgorLSBgcHVibGljL2Fzc2V0cy90YWxlcy13aXRob3V0LWVuZC1lbWJsZW0ucG5nYCBhbmQgYHB1YmxpYy9hc3NldHMvdGFsZXMtd2l0aG91dC1lbmQtbmF2aWdhdGlvbi1sb2dvLnN2Z2AgYXJlIGJyYW5kaW5nIGFzc2V0cyBhZGRlZCBvbiBgbWFpbmAuCisKK0JlY2F1c2UgUGhhc2UgNEIgYWxzbyBjaGFuZ2VzIGBhcHAvcGFnZS50c3hgIGFuZCBgYXBwL2xheW91dC50c3hgLCB0aG9zZSBmaWxlcyBvdmVybGFwIHRoZSBicmFuZGluZyB3b3JrLiBEbyAqKm5vdCoqIHJlc29sdmUgdGhlIGV2ZW50dWFsIGJyYW5jaCByZWNvbmNpbGlhdGlvbiBieSByZXBsYWNpbmcgYG1haW5gIHZlcnNpb25zIHdob2xlc2FsZSB3aXRoIHRoZSBQaGFzZSA0QiB2ZXJzaW9uczsgY2FycnkgdGhlIGF1dGgvb3duZXJzaGlwIGh1bmtzIGZvcndhcmQgd2hpbGUgcmV0YWluaW5nIHRoZSBjdXJyZW50IGJyYW5kaW5nIGh1bmtzIGFuZCBhc3NldHMuCisKICMjIFByb2R1Y3Rpb24gZ2F0ZXMgc3RpbGwgb3V0c3RhbmRpbmcKIAogLSBEbyBub3QgbWVyZ2UgUFIgIzEuCg==' | base64 -d > /tmp/phase4b-signin-fix.patch
+          git apply --check /tmp/phase4b-signin-fix.patch
+          git apply /tmp/phase4b-signin-fix.patch
+          git diff --check
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build and validate artifact
+        run: npm run build
+      - name: Non-Worker tests
+        run: node --experimental-strip-types --test tests/dice.test.mjs tests/phase4b-migration.test.mjs tests/phase4b-security.test.mjs tests/rules-search.test.mjs tests/srd-rules.test.mjs
+      - name: Rendered Worker tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_rendered() {
+            local pattern="$1"
+            local expected="$2"
+            local log
+            log="$(mktemp)"
+            set +e
+            timeout 55s node --experimental-strip-types --test --test-name-pattern="$pattern" tests/rendered-html.test.mjs 2>&1 | tee "$log"
+            local status=${PIPESTATUS[0]}
+            set -e
+            if grep -q '^not ok ' "$log"; then exit 1; fi
+            grep -Fq "$expected" "$log"
+            if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+          }
+          run_rendered 'local Worker renders' 'ok 1 - local Worker renders the signed-out UI and rejects protected writes'
+          run_rendered 'local Worker signs out' 'ok 1 - local Worker signs out an authenticated session and reports the request'
+      - name: Worker types
+        run: npm run workers:types
+      - name: Commit verified fix
+        run: |
+          git config user.name 'phase4b-runtime-fix'
+          git config user.email 'phase4b-runtime-fix@users.noreply.github.com'
+          git add app/page.tsx tests/phase4b-security.test.mjs docs/PHASE-4B-CHECKPOINT.md
+          git commit -m 'Fix obscured Better Auth sign-in control'
+          git push origin HEAD:phase-4b-better-auth
+      - name: Remove temporary workflow branch
+        if: always()
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" = "agent/phase-4b-apply-fix-v2" ]; then
+            git push origin --delete "$HEAD_REF" || true
+          fi

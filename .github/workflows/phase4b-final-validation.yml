@@ -1,0 +1,48 @@
+name: Phase 4B final validation
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact Phase 4B head
+        uses: actions/checkout@v4
+        with:
+          ref: phase-4b-better-auth
+          fetch-depth: 0
+
+      - name: Verify exact source revision and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "adf14ce8e651c75b3bfe567cbf3ad7a835edf278"
+          git merge-base --is-ancestor adc492927d1e1ba608beaa04c4afb791e1820bac HEAD
+          git merge-base --is-ancestor 30890ee9c3d314103ac71d5c12fab1d325f9a2be HEAD
+          git merge-base --is-ancestor 7618b2fb27ded9ebf8d81c49dab99ee5bfe2c285 HEAD
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Worker types
+        run: npm run workers:types

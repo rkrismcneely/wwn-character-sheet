@@ -322,6 +322,12 @@ test("claim token cannot be reused or raced successfully", async () => {
   assert.ok(database.characters.every(character => character.ownerUserId === database.claim.claimedByUserId));
 });
 
+test("visible Google sign-in controls keep direct Better Auth click paths", async () => {
+  const page = await source("app/page.tsx");
+  assert.match(page, /!signedIn && !libraryOpen && <button[\s\S]*className="primary-action account-signin"[\s\S]*source: "header"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
+  assert.match(page, /className="library-signin"[\s\S]*source: "library"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
+});
+
 test("sign-out removes access to owner-only operations", async () => {
   assert.deepEqual(authorizeCharacterWrite(owner, privateCharacter), { allowed: true });
   assert.deepEqual(authorizeCharacterWrite(null, privateCharacter), { allowed: false, status: 401 });

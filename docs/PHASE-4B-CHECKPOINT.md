@@ -120,6 +120,36 @@ The local runtime proof is covered by `tests/rendered-html.test.mjs`; the direct
 
 Keep all further verification local-only until a safe, isolated staging environment exists and has been explicitly approved.
 
+## Resolved regression: signed-out header sign-in behind the Character Library modal
+
+Phase 4B was resumed again from `e8ee56ea17558757d9d07e5a1c83c0d4055bf5ea` after a manual report that clicking **Sign in with Google** produced no browser Network request and no terminal request. History verification confirms `f89348b62ac9e2a3ddd4f759c569f21e02280f32` remains an ancestor of the branch. Comparing `f89348b` through `d7f462e` shows no `app/page.tsx` or auth-code changes; the only later auth/UI code change before `e8ee56e` is the sign-out state fix itself.
+
+The header and Character Library sign-in handlers in `e8ee56e` are unchanged from the previously verified `f89348b` implementation. Temporary diagnostics were attached directly to the exact rendered `<button type="button">` controls:
+
+- header: `[auth-header-sign-in] direct click` plus `Header sign-in clicked`,
+- Character Library: `[auth-library-sign-in] direct click` plus `Library sign-in clicked`.
+
+In an isolated local runtime of the exact `e8ee56e` source, both controls fired their unique diagnostic when unobstructed and both reached `POST /api/auth/sign-in/social`. Better Auth returned `200 OK`, `redirect: true`, and a Google authorization URL using the local callback `http://localhost:5173/api/auth/callback/google`. This rules out a lost handler, alternate JSX branch, stale `onClick`, `refetchSession()` suppression, or a Better Auth server/configuration regression in the committed source.
+
+The reported no-request behavior was reproduced when the Character Library modal was open. `libraryOpen` defaults to true on the home page, and `.library-backdrop` is a fixed modal backdrop above the header. The header sign-in button was still rendered behind that backdrop, so the backdrop intercepted the pointer event before React could receive it. This exactly produces no click diagnostic, no Network request, and no terminal request. The Character Library's own Google sign-in control remains live inside the modal.
+
+The fix is intentionally narrow: the header Google sign-in control now renders only when signed out **and** the Character Library modal is closed. While the modal is open, its own Google sign-in control is the active path; closing it exposes the header control, which still calls Better Auth directly. The `e8ee56e` sign-out implementation, `locallySignedOut`, and `refetchSession()` behavior are unchanged. `e8ee56e` did **not** directly alter either sign-in handler or introduce the modal backdrop; its immediate signed-out UI update can expose the signed-out state sooner after sign-out, but the underlying click interception was an existing modal/render interaction rather than an OAuth regression.
+
+The rendered local-Worker tests now allow 90 seconds instead of 45 seconds because isolated Worker/D1 startup can exceed 45 seconds on CI runners. Assertions are unchanged; only the test startup allowance is increased.
+
+Current isolated runtime proof uses dummy local Google credentials and therefore proves the rendered click paths, Better Auth request/response, authorization URL generation, sign-out invalidation, refresh persistence, and the ability to request Google authorization again after sign-out. It cannot freshly complete a credentialed Google account login/return because the real ignored `.dev.vars` credentials are intentionally unavailable in the isolated diagnostic environment. That credentialed manual proof remains required before Phase 4B can be called production-ready.
+
+### Branding reconciliation note
+
+`main` contains newer Tales Without End branding that is not present on this older Phase 4B branch and must be preserved during later reconciliation. In particular:
+
+- `app/page.tsx` on `main` uses `/assets/tales-without-end-navigation-logo.svg` and the `Tales Without End` header text instead of the angled `W` / `WORLDS WITHOUT NUMBER` / `Interactive character folio` branding.
+- `app/globals.css` on `main` contains the current `.brand-logo` sizing and larger title presentation, including desktop, `<=720px`, and `<=420px` sizing.
+- `app/layout.tsx` on `main` uses the title `Tales Without End - An Interactive Worlds Without Number Character Folio`.
+- `public/assets/tales-without-end-emblem.png` and `public/assets/tales-without-end-navigation-logo.svg` are branding assets added on `main`.
+
+Because Phase 4B also changes `app/page.tsx` and `app/layout.tsx`, those files overlap the branding work. Do **not** resolve the eventual branch reconciliation by replacing `main` versions wholesale with the Phase 4B versions; carry the auth/ownership hunks forward while retaining the current branding hunks and assets.
+
 ## Production gates still outstanding
 
 - Do not merge PR #1.

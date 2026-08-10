@@ -2518,7 +2518,7 @@ export default function Home({
             setLibraryOpen(true);
             void refreshLibrary(scope);
           }}>{signedIn ? "My Characters" : "Public Characters"}</button>
-          {!signedIn && <button
+          {!signedIn && !libraryOpen && <button
             type="button"
             className="primary-action account-signin"
             onClick={async () => {

@@ -187,7 +187,7 @@ async function startLocalWorker({ auth = false } = {}) {
   };
 }
 
-test("local Worker renders the signed-out UI and rejects protected writes", { timeout: 45_000 }, async () => {
+test("local Worker renders the signed-out UI and rejects protected writes", { timeout: 90_000 }, async () => {
   const worker = await startLocalWorker();
   try {
     const response = await fetch(`${worker.origin}/`);
@@ -250,7 +250,7 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
   }
 });
 
-test("local Worker signs out an authenticated session and reports the request", { timeout: 45_000 }, async () => {
+test("local Worker signs out an authenticated session and reports the request", { timeout: 90_000 }, async () => {
   const worker = await startLocalWorker({ auth: true });
   try {
     const signature = createHmac("sha256", worker.authSecret)

@@ -113,50 +113,50 @@ new development work.
 
 ### Phase 4B — Accounts, Ownership, Privacy, and Shareable Character URLs
 
-**Status: In progress — Phase 4B remains on the separate `phase-4b-better-auth` branch, temporarily paused after successful local Google sign-in while sign-out runtime tracing remains unresolved.**
+**Status: In progress — the full local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Current Tales Without End branding is reconciled and the pre-production code/migration/security review is complete. Production migration, backfill/claims, deployment, and merging remain blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md` and `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.**
 
 #### Authentication
 
-- [ ] Add secure sign-in and sign-out.
-- [ ] Prefer an established authentication provider instead of building password storage from scratch.
-- [ ] Add user records and secure sessions.
-- [ ] Keep internal account identifiers separate from public-facing identifiers.
-- [ ] Do not expose usernames, email addresses, or internal user IDs in public URLs, metadata, API responses, portrait paths, or other public identifiers.
+- [x] Add Better Auth Google sign-in and sign-out. Both are locally runtime-verified; production OAuth remains a post-approval check.
+- [x] Use established Better Auth Google authentication instead of building password storage.
+- [x] Add generated Better Auth user records and secure cookie sessions in D1.
+- [x] Keep internal account identifiers separate from public-facing identifiers.
+- [x] Do not expose usernames, email addresses, Google IDs, or internal user IDs in public URLs, metadata, API responses, portrait paths, exports, or other public identifiers.
 
 #### Character ownership
 
-- [ ] Link every character to an owner account.
-- [ ] Enforce ownership on the server for edits, deletion, portraits, visibility changes, and protected exports.
-- [ ] Prevent one user from editing or deleting another user's character.
-- [ ] Add a safe process for claiming or migrating characters created before accounts exist.
+- [~] Link every new and imported character to an owner account. Existing characters remain safely unowned until explicitly claimed after migration review.
+- [x] Enforce ownership on the server for edits, deletion, portraits, visibility changes, and protected exports.
+- [x] Prevent one user from editing or deleting another user's character.
+- [x] Add hashed, expiring, one-time claim tokens and guarded admin commands for characters created before accounts exist.
 
 #### Privacy and visibility
 
-- [ ] Add character visibility states:
+- [x] Add character visibility states:
   - Private — owner only
   - Unlisted — viewable by anyone with the link
   - Public — viewable by link and eligible for public listings
-- [ ] Ensure an unlisted link grants view access only, never edit access.
-- [ ] Ensure private character data is never returned to unauthorized users.
+- [x] Ensure an unlisted link grants view access only, never edit access.
+- [x] Ensure private character data is never returned to unauthorized users.
 
 #### Unique character URLs
 
-- [ ] Give every character a stable, unique URL in the browser address bar.
-- [ ] Use a random, opaque public character identifier rather than a username, email, sequential database ID, or easily guessed number.
-- [ ] Use a route similar to:
-  - `https://taleswithoutend.com/character/7f3k9m2q`
-- [ ] Keep the URL stable when the character is renamed.
-- [ ] Support direct links, browser bookmarks, and easy sharing.
-- [ ] Make URL access respect the character's visibility setting.
-- [ ] Design login, routing, database schema, API authorization, import, and migration around this requirement from the beginning.
+- [~] Give every character a stable, unique URL in the browser address bar. New records are automatic; legacy records need the reviewed public-ID backfill.
+- [x] Use a cryptographically random, opaque 128-bit public character identifier rather than a username, email, sequential database ID, or easily guessed number.
+- [x] Use the route:
+  - `https://taleswithoutend.com/character/chr_<opaque-id>`
+- [x] Keep the URL stable when the character is renamed.
+- [x] Support direct links, browser bookmarks, history navigation, and easy sharing.
+- [x] Make URL access respect the character's visibility setting.
+- [x] Design login, routing, database schema, API authorization, import, portrait handling, and migration around stable opaque IDs.
 
 #### Account library and portability
 
-- [ ] Add a My Characters view.
-- [ ] Retain a Public Characters view where appropriate.
-- [ ] Add account-based import and export.
-- [ ] Preserve compatibility with older character JSON files.
-- [ ] Prevent accidental duplicates and retain useful export-version metadata.
+- [x] Add a My Characters view.
+- [x] Retain a separate Public Characters view and search.
+- [x] Add account-based import and owner-only export.
+- [x] Preserve compatibility with v1, v2, and legacy bare character JSON files while stripping ownership/auth fields.
+- [~] Retain export-version metadata and make imports fresh private records. Additional duplicate-detection UX remains planned.
 
 ### Phase 4C — Campaigns and Sharing
 

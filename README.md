@@ -1,195 +1,203 @@
-# Worlds Without Number Character Sheet
+# Tales Without End
 
-An editable, browser-based character sheet and character library for the
-Worlds Without Number ruleset. The current application includes character
-creation, rules calculations, spells, arts, foci, equipment, companions,
-background development, search, portraits, themes, and the header dice roller.
+Tales Without End is an editable Worlds Without Number character sheet built
+with React, Next.js App Router conventions, Vinext, and a Cloudflare Worker.
+Cloudflare D1 stores characters and Better Auth records; R2 stores portraits.
 
-This archive is the editable source project. It does not include generated
-deployment output, dependencies, browser data, personal character exports, or
-secrets.
+Production: <https://taleswithoutend.com>
 
-## Prerequisites
+The fallback Worker URL is retained for application access, but authentication
+is canonicalized to `https://taleswithoutend.com` so it never creates a second
+production login identity.
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+## Requirements
 
-## Install
+- Node.js 22.13 or newer
+- npm
+- Bash and GNU `timeout` for the existing build helpers
 
-Use Node.js `>=22.13.0` and npm. From the project directory:
+Install the exact locked dependencies:
 
 ```sh
 npm ci
 ```
 
-The repository also contains the project-specific `install:ci` helper used by
-the hosting workflow:
+## Authentication
 
-```sh
-npm run install:ci
+Phase 4B uses Better Auth 1.6.25 with Google as the only sign-in provider.
+Email/password, usernames, public profiles, magic links, and other social
+providers are disabled. Authentication is mounted at `/api/auth/*`; Google's
+production callback is:
+
+```text
+https://taleswithoutend.com/api/auth/callback/google
 ```
 
-## Development
+Create an ignored `.dev.vars` file from `.dev.vars.example` for local work:
 
-Start the local development server with:
+```text
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:5173
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+```
+
+Use local development credentials and configure Google's local callback as
+`http://localhost:5173/api/auth/callback/google`. Never commit `.dev.vars`,
+`.env` files, credentials, OAuth tokens, session data, or claim tokens.
+
+Start the application on the trusted local origin:
 
 ```sh
 npm run dev
 ```
 
-Open the local URL printed by Vite/Vinext. Stop the server with `Ctrl-C`.
+Open <http://localhost:5173>. The auth configuration also trusts
+`http://127.0.0.1:5173`; no wildcard production origins are trusted.
 
-## Tests and validation
+## Character privacy and URLs
 
-Run the complete automated test suite:
+Every new or imported character is owned by the authenticated Better Auth user,
+starts private, and receives a server-generated opaque URL with 128 random bits:
 
-```sh
-npm test
+```text
+https://taleswithoutend.com/character/chr_<opaque-id>
 ```
 
-This runs the production build first and then the tests in `tests/`. Additional
-checks are available with:
+The ID is independent of the character name and remains stable after renaming.
+Server-side authorization applies to every write and portrait operation.
+
+- **Private:** readable and editable only by the owner. Unauthorized retrieval
+  returns not found.
+- **Unlisted:** readable by anyone with the exact URL, editable only by the
+  owner, and excluded from public listings/search.
+- **Public:** readable by anyone and eligible for the Public Characters view;
+  still editable only by the owner.
+
+Public responses, metadata, exports, URLs, and portrait keys omit account IDs,
+Google IDs, names, emails, credentials, and session data. Portrait objects are
+served through an authorization-aware route rather than exposed as public R2
+URLs.
+
+## Database migrations
+
+The versioned D1 migrations are in `drizzle/`:
+
+- `0000_brainy_killraven.sql` — existing character tables
+- `0001_better_auth_core.sql` — schema generated with Better Auth's official
+  CLI for its D1-backed user, session, account, verification, and rate-limit
+  records
+- `0002_character_ownership_and_claims.sql` — additive character ownership,
+  visibility, public-ID, portrait-key, and legacy-claim schema
+- `0003_better_auth_rate_limit_compatibility.sql` — additive historical
+  `rateLimit` / `lastRequest` compatibility table
+- `0004_better_auth_verification_camel_case_compatibility.sql` — additive
+  historical camel-case compatibility columns; current runtime mappings use
+  the canonical snake-case Better Auth fields
+
+Apply and test migrations against local D1:
 
 ```sh
+npm run db:migrate:local
+```
+
+Inspect production's pending migrations deliberately:
+
+```sh
+npm run db:migrations:list:production
+```
+
+The authoritative Phase 4B production order, verification queries, claim setup, and rollback commands are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.
+
+Production migration is intentionally separate from deployment:
+
+```sh
+npm run db:migrate:production -- \
+  --apply \
+  --confirm-database-id=8e2bf197-e20f-4ea7-a86f-cab4e1a74699
+```
+
+The guarded command verifies the remote database identity and prints the exact
+pending migrations before applying them. Before running it, review every SQL
+file and confirm D1 Time Travel/recovery availability. The configured target
+must remain `wwn-character-sheet-db` with database ID
+`8e2bf197-e20f-4ea7-a86f-cab4e1a74699`. Ordinary builds do not apply remote
+migrations.
+
+Generate updated Worker binding types after configuration changes:
+
+```sh
+npm run workers:types
+```
+
+Regenerate Better Auth's schema only after reviewing a deliberate Better Auth
+upgrade:
+
+```sh
+npm run auth:schema
+```
+
+## Legacy characters
+
+The ownership migration preserves every existing row and keeps legacy ownership
+nullable. It does not infer an owner. After the migration is reviewed and
+applied:
+
+1. Run `npm run db:backfill:public-ids` as a dry run. Use `--apply` only after
+   confirming the target; remote mode additionally requires the exact database
+   ID confirmation shown by the script.
+2. Select only the intended opaque character IDs and run
+   `npm run legacy-claim:create -- --character=<public-id> --output=<private-file-outside-repository>`.
+   The command is dry-run by default. `--apply` creates a cryptographically
+   random, expiring, one-time token, reserves the raw token first in a new mode-`0600` file and stores only its SHA-256 hash in D1. If the D1 result is ambiguous, retain that private file and verify/revoke its claim ID before retrying.
+3. Give that token privately to the intended person. They must sign in before
+   submitting it in My Characters.
+4. Revoke an unused claim with `npm run legacy-claim:revoke --
+   --claim-id=<id>`; add `--apply` only after reviewing the dry run.
+
+For any remote admin command, add `--remote` and
+`--confirm-database-id=8e2bf197-e20f-4ea7-a86f-cab4e1a74699`. Never put a
+claim token in a URL, shell history shared with others, source control, logs, or
+analytics.
+
+## Build, test, and validation
+
+```sh
+npm run typecheck
 npm run lint
+npm test
 npm run validate:artifact
 ```
 
-## Production build
+`npm test` first creates the production bundle, then runs the rules, dice,
+authorization/privacy, and local D1 migration-preservation tests. The build
+must succeed without production secret values because secrets are read from the
+Worker runtime.
 
-Create and validate the deployable production artifact with:
+Create a validated production artifact explicitly with:
 
 ```sh
 npm run build
 ```
 
-To serve an existing production build locally:
+Serve that artifact in a local Workers runtime with `npm run start`.
 
-```sh
-npm run start
-```
-
-The generated `dist/` directory is intentionally excluded from the source
-archive and can always be recreated with `npm run build`.
+Generated output (`dist/`, `.next/`), dependencies, Wrangler state, local D1
+state, environment files, and personal character exports are ignored.
 
 ## Project layout
 
-- `app/` — the main page, rules/data modules, styles, and API routes
-- `public/` — favicon and local visual assets
-- `tests/` — dice, rendering, search, and rules regression tests
-- `scripts/` — install, build, import, and artifact-validation helpers
-- `db/` and `drizzle/` — database schema and migration files
-- `build/`, `vite.config.ts`, `next.config.ts`, and `worker/` — build/runtime configuration
-- `.openai/hosting.json` — hosting project configuration
+- `app/` — character UI, stable character route, and App Router API routes
+- `lib/` — Better Auth, authorization, validation, privacy, and claim helpers
+- `db/` and `drizzle/` — reviewed schema and versioned D1 migrations
+- `worker/` — Cloudflare Worker entry point
+- `public/` — fonts, icons, and local visual assets
+- `scripts/` — build checks and guarded migration/claim administration
+- `tests/` — rules, dice, security, build, and migration regressions
+- `docs/phase-4b-review.md` — migration and security review material plus the
+  production verification checklist
+- `docs/PHASE-4B-PRODUCTION-ROLLOUT.md` — authoritative pre-production audit and exact guarded rollout/rollback checklist
 
-## Data and secrets
-
-Do not commit `.env` files, API keys, tokens, passwords, browser caches, or
-personal character exports. The app's hosted data and portraits are not part
-of this source archive. The `.gitignore` file excludes common secret,
-dependency, cache, and generated-output paths.
-
-## Platform note
-
-The hosting helper scripts are designed for the project's Linux hosting
-environment and expect tools such as `bash`, `flock`, `curl`, and GNU
-`timeout`. The application source itself is standard TypeScript/React and can
-be continued elsewhere with the same Node/npm versions.
-
-## Hosting workflow
-
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
-
-This starter does not use `wrangler.jsonc`.
-
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout and then validates the Sites artifact. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
-
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
-
-## Included Shape
-
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Diagnostic Commands
-
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build and validate the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm test`: build, validate, and verify the rendered development-preview metadata
-- `npm run validate:artifact`: recheck an existing artifact's manifest and ESM `default.fetch` export
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-Use build and validation commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
-
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+Cloudflare configuration is authoritative in `wrangler.jsonc`. Do not change
+the production `DB` or `BUCKET` resources, apply remote migrations, or merge the
+Phase 4B branch without explicit review and approval.

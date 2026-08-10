@@ -1,21 +1,43 @@
-const schemaStatements = [
-  `CREATE TABLE IF NOT EXISTS characters (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    player TEXT NOT NULL DEFAULT '',
-    class_label TEXT NOT NULL DEFAULT '',
-    level INTEGER NOT NULL DEFAULT 1,
-    data TEXT NOT NULL,
-    version INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )`,
-];
+import {
+  canReadCharacter,
+  isCharacterOwner,
+  type CharacterActor,
+  type CharacterVisibility,
+} from "@/lib/characters/authorization";
+import { generatePublicCharacterId } from "@/lib/characters/identifiers";
+import {
+  characterForStorage,
+  parseCharacter,
+} from "@/lib/characters/sanitize";
 
-export async function getD1() {
+export interface CharacterRow {
+  id: string;
+  ownerUserId: string | null;
+  publicId: string | null;
+  visibility: CharacterVisibility;
+  portraitKey: string | null;
+  data: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CharacterSummaryRow {
+  ownerUserId: string | null;
+  publicId: string;
+  name: string;
+  player: string;
+  classLabel: string;
+  level: number;
+  visibility: CharacterVisibility;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getD1(): Promise<D1Database> {
   const { env } = await import("cloudflare:workers");
-  if (!env.DB) throw new Error("Shared character database is unavailable.");
-  await env.DB.batch(schemaStatements.map((statement) => env.DB.prepare(statement)));
+  if (!env.DB) throw new Error("Character database is unavailable.");
   return env.DB;
 }
 
@@ -32,7 +54,151 @@ export function characterSummary(data: Record<string, unknown>) {
   };
 }
 
-export function parseCharacter(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
+export { parseCharacter };
+
+export async function findCharacterByPublicId(
+  db: D1Database,
+  publicId: string,
+): Promise<CharacterRow | null> {
+  return db
+    .prepare(
+      `SELECT id,
+              owner_user_id AS ownerUserId,
+              public_id AS publicId,
+              visibility,
+              portrait_key AS portraitKey,
+              data,
+              version,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+       FROM characters
+       WHERE public_id = ?`,
+    )
+    .bind(publicId)
+    .first<CharacterRow>();
+}
+
+export function characterApiPayload(
+  row: CharacterRow,
+  actor: CharacterActor | null,
+) {
+  const character = parseCharacter(JSON.parse(row.data) as unknown);
+  if (!character) throw new Error("Stored character data is invalid.");
+  return {
+    id: row.publicId,
+    character,
+    version: row.version,
+    visibility: row.visibility,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    permissions: {
+      canEdit: isCharacterOwner(actor, row),
+    },
+  };
+}
+
+export async function listCharacters(
+  db: D1Database,
+  options: {
+    actor: CharacterActor | null;
+    scope: "mine" | "public";
+    query?: string;
+  },
+): Promise<CharacterSummaryRow[]> {
+  if (options.scope === "mine") {
+    if (!options.actor) return [];
+    const result = await db
+      .prepare(
+        `SELECT owner_user_id AS ownerUserId, public_id AS publicId, name, player,
+                class_label AS classLabel, level, visibility, version,
+                created_at AS createdAt, updated_at AS updatedAt
+         FROM characters
+         WHERE owner_user_id = ? AND public_id IS NOT NULL
+         ORDER BY updated_at DESC`,
+      )
+      .bind(options.actor.userId)
+      .all<CharacterSummaryRow>();
+    return result.results;
+  }
+
+  const search = options.query?.trim().slice(0, 120);
+  if (search) {
+    const pattern = `%${search.toLowerCase()}%`;
+    const result = await db
+      .prepare(
+        `SELECT owner_user_id AS ownerUserId, public_id AS publicId, name, player,
+                class_label AS classLabel, level, visibility, version,
+                created_at AS createdAt, updated_at AS updatedAt
+         FROM characters
+         WHERE visibility = 'public' AND public_id IS NOT NULL
+           AND (lower(name) LIKE ? OR lower(class_label) LIKE ?)
+         ORDER BY updated_at DESC`,
+      )
+      .bind(pattern, pattern)
+      .all<CharacterSummaryRow>();
+    return result.results;
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT owner_user_id AS ownerUserId, public_id AS publicId, name, player,
+              class_label AS classLabel, level, visibility, version,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM characters
+       WHERE visibility = 'public' AND public_id IS NOT NULL
+       ORDER BY updated_at DESC`,
+    )
+    .all<CharacterSummaryRow>();
+  return result.results;
+}
+
+export async function createOwnedCharacter(
+  db: D1Database,
+  ownerUserId: string,
+  rawCharacter: unknown,
+): Promise<{ publicId: string; version: number; updatedAt: string }> {
+  const character = characterForStorage(rawCharacter);
+  if (!character) throw new TypeError("Invalid character data.");
+  const data = JSON.stringify(character);
+  const summary = characterSummary(character);
+  const now = new Date().toISOString();
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const publicId = generatePublicCharacterId();
+    try {
+      await db
+        .prepare(
+          `INSERT INTO characters
+            (id, owner_user_id, public_id, visibility, portrait_key,
+             name, player, class_label, level, data, version, created_at, updated_at)
+           VALUES (?, ?, ?, 'private', NULL, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          ownerUserId,
+          publicId,
+          summary.name,
+          summary.player,
+          summary.classLabel,
+          summary.level,
+          data,
+          now,
+          now,
+        )
+        .run();
+      return { publicId, version: 1, updatedAt: now };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("public_id") || attempt === 4) throw error;
+    }
+  }
+
+  throw new Error("Could not allocate a public character identifier.");
+}
+
+export function canReadRow(
+  actor: CharacterActor | null,
+  row: CharacterRow,
+): boolean {
+  return canReadCharacter(actor, row);
 }

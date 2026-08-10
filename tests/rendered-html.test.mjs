@@ -245,6 +245,19 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
 
     const authUnavailable = await fetch(`${worker.origin}/api/auth/get-session`);
     assert.equal(authUnavailable.status, 503);
+    await new Promise(resolveWait => setTimeout(resolveWait, 100));
+    const output = worker.output();
+    assert.match(output, /"event":"auth_runtime_unavailable"/u);
+    assert.match(output, /"errorType":"AuthConfigurationError"/u);
+    for (const binding of [
+      "BETTER_AUTH_SECRET",
+      "BETTER_AUTH_URL",
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+    ]) {
+      assert.match(output, new RegExp(`"${binding}"`, "u"));
+    }
+    assert.doesNotMatch(output, /authorization|cookie|session_token/iu);
   } finally {
     await worker.stop();
   }

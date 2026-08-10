@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -21,7 +22,7 @@ async function availablePort() {
   return port;
 }
 
-async function startLocalWorker() {
+async function startLocalWorker({ auth = false } = {}) {
   const projectRoot = resolve(new URL("..", import.meta.url).pathname);
   const serverRoot = resolve(projectRoot, "dist/server");
   const temporaryRoot = mkdtempSync(`${tmpdir()}/wwn-phase4b-worker-`);
@@ -69,6 +70,8 @@ async function startLocalWorker() {
     unlisted: `chr_${"U".repeat(22)}`,
     private: `chr_${"R".repeat(22)}`,
   };
+  const authSecret = "local-runtime-proof-secret-2026-08-10-very-long";
+  const authSessionToken = "runtime-proof-session-token";
   const inserts = [
     ["fixture-public", fixtureIds.public, "public", "Public Scout"],
     ["fixture-unlisted", fixtureIds.unlisted, "unlisted", "Unlisted Mage"],
@@ -81,7 +84,19 @@ async function startLocalWorker() {
       ('${id}', NULL, '${publicId}', '${visibility}', NULL, '${name}', '',
        'Expert', 1, '{"name":"${name}","level":1,"classOne":"Expert"}',
        1, '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
-  `).join("\n");
+  `).join("\n") + (auth ? `
+    INSERT INTO user
+      (id, name, email, email_verified, created_at, updated_at)
+    VALUES
+      ('runtime-proof-user', 'Runtime Proof', 'runtime-proof@example.invalid',
+       1, 1786348800000, 1786348800000);
+    INSERT INTO session
+      (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
+    VALUES
+      ('runtime-proof-session', 1893456000000, '${authSessionToken}',
+       1786348800000, 1786348800000, '127.0.0.1', 'runtime-proof',
+       'runtime-proof-user');
+  ` : "");
   execFileSync(wrangler, [
     "d1",
     "execute",
@@ -95,7 +110,7 @@ async function startLocalWorker() {
     inserts,
   ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"] });
 
-  const child = spawn(wrangler, [
+  const workerArguments = [
     "dev",
     "--config",
     "wrangler.json",
@@ -112,7 +127,20 @@ async function startLocalWorker() {
     "info",
     "--show-interactive-dev-session",
     "false",
-  ], {
+  ];
+  if (auth) {
+    workerArguments.push(
+      "--var",
+      `BETTER_AUTH_SECRET:${authSecret}`,
+      "--var",
+      `BETTER_AUTH_URL:http://127.0.0.1:${port}`,
+      "--var",
+      "GOOGLE_CLIENT_ID:local-runtime-proof.apps.googleusercontent.com",
+      "--var",
+      "GOOGLE_CLIENT_SECRET:local-runtime-proof-secret",
+    );
+  }
+  const child = spawn(wrangler, workerArguments, {
     cwd: serverRoot,
     env: environment,
     stdio: ["ignore", "pipe", "pipe"],
@@ -144,6 +172,9 @@ async function startLocalWorker() {
   return {
     origin: `http://127.0.0.1:${port}`,
     fixtureIds,
+    authSecret,
+    authSessionToken,
+    output: () => output,
     async stop() {
       if (child.exitCode !== null) return;
       child.kill("SIGTERM");
@@ -214,6 +245,52 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
 
     const authUnavailable = await fetch(`${worker.origin}/api/auth/get-session`);
     assert.equal(authUnavailable.status, 503);
+  } finally {
+    await worker.stop();
+  }
+});
+
+test("local Worker signs out an authenticated session and reports the request", { timeout: 45_000 }, async () => {
+  const worker = await startLocalWorker({ auth: true });
+  try {
+    const signature = createHmac("sha256", worker.authSecret)
+      .update(worker.authSessionToken)
+      .digest("base64");
+    const signedToken = encodeURIComponent(`${worker.authSessionToken}.${signature}`);
+    const headers = {
+      cookie: `better-auth.session_token=${signedToken}`,
+      origin: worker.origin,
+    };
+
+    const before = await fetch(`${worker.origin}/api/auth/get-session`, { headers });
+    assert.equal(before.status, 200);
+    assert.equal((await before.json()).user.id, "runtime-proof-user");
+
+    const signOut = await fetch(`${worker.origin}/api/auth/sign-out`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(signOut.status, 200);
+    assert.deepEqual(await signOut.json(), { success: true });
+
+    const after = await fetch(`${worker.origin}/api/auth/get-session`, { headers });
+    assert.equal(after.status, 200);
+    assert.equal(await after.json(), null);
+
+    const signIn = await fetch(`${worker.origin}/api/auth/sign-in/social`, {
+      method: "POST",
+      headers: { origin: worker.origin, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "google", callbackURL: "/" }),
+    });
+    assert.equal(signIn.status, 200);
+    const signInPayload = await signIn.json();
+    assert.equal(signInPayload.redirect, true);
+    assert.match(signInPayload.url, /^https:\/\/accounts\.google\.com\//u);
+
+    await new Promise(resolveWait => setTimeout(resolveWait, 100));
+    assert.match(worker.output(), /POST \/api\/auth\/sign-out 200 OK/u);
+    assert.match(worker.output(), /POST \/api\/auth\/sign-in\/social 200 OK/u);
   } finally {
     await worker.stop();
   }

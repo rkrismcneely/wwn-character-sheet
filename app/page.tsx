@@ -895,8 +895,13 @@ export default function Home({
 }: {
   initialCharacter?: InitialCharacterPayload;
 }) {
-  const { data: session, isPending: sessionPending } = authClient.useSession();
-  const signedIn = Boolean(session?.user?.id);
+  const {
+    data: session,
+    isPending: sessionPending,
+    refetch: refetchSession,
+  } = authClient.useSession();
+  const [locallySignedOut, setLocallySignedOut] = useState(false);
+  const signedIn = Boolean(session?.user?.id) && !locallySignedOut;
   const [tab, setTab] = useState<Tab>("core");
   const [theme, setTheme] = useState<Theme>("light");
   const [sheet, setSheet] = useState<Sheet>(() =>
@@ -1018,15 +1023,6 @@ export default function Home({
         console.error("[auth] Google sign-in failed", error);
       }
     }
-  }
-
-  async function signOut() {
-    await authClient.signOut();
-    setCloudCanEdit(false);
-    setLibraryScope("public");
-    setSaved(cloudId ? "Read-only" : "Sign in to edit");
-    setTransferMessage("Signed out. Owner-only controls have been disabled.");
-    void refreshLibrary("public");
   }
 
   function requireSignIn(action: string): false {
@@ -2567,7 +2563,38 @@ export default function Home({
           {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
           {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}
           <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
-          {signedIn && <button className="account-signout" onClick={() => void signOut()}>Sign Out</button>}
+          {signedIn && <button
+            type="button"
+            className="account-signout"
+            onClick={async () => {
+              console.log("[auth-sign-out-button] direct click");
+              setLibraryError("");
+              try {
+                console.log("[auth] Calling authClient.signOut", {
+                  endpoint: "POST /api/auth/sign-out",
+                });
+                const { error } = await authClient.signOut();
+                if (error) {
+                  throw new Error(error.message || "Better Auth rejected sign out.");
+                }
+                setLocallySignedOut(true);
+                setCloudCanEdit(false);
+                setLibraryScope("public");
+                setSaved(cloudId ? "Read-only" : "Sign in to edit");
+                setTransferMessage("Signed out. Owner-only controls have been disabled.");
+                await refetchSession();
+                void refreshLibrary("public");
+              } catch (error) {
+                const detail = error instanceof Error
+                  ? error.message
+                  : "The request could not be completed.";
+                const feedback = `Sign out failed: ${detail}`;
+                setTransferMessage(feedback);
+                setLibraryError(feedback);
+                console.error("[auth] Sign out failed", error);
+              }
+            }}
+          >Sign Out</button>}
           <button className="print-button" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>

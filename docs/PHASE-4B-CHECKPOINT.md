@@ -1,12 +1,14 @@
-# Phase 4B Checkpoint — Paused
+# Phase 4B Checkpoint — Resumed
 
-**Status:** Paused, still in progress  
+**Status:** Resumed, still in progress  
 **Feature branch:** `phase-4b-better-auth`  
 **Implementation HEAD before this checkpoint documentation:** `f89348b62ac9e2a3ddd4f759c569f21e02280f32`  
+**HEAD when sign-out work resumed:** `d7f462ee6079c34beda329d8d07ff4cbc8876539`  
 **Draft pull request:** [#1 — Phase 4B: Better Auth, ownership, privacy, and stable character URLs](https://github.com/rkrismcneely/wwn-character-sheet/pull/1)  
 **Checkpoint date:** 2026-08-08
+**Resume date:** 2026-08-10
 
-This document is the restart point for Phase 4B. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 while resuming local authentication debugging.
+This document remains the restart point for Phase 4B. Local Google sign-in and sign-out are now verified. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 until the remaining review and production gates are explicitly approved.
 
 ## Current branch history
 
@@ -89,41 +91,34 @@ Manual local testing confirmed:
   - production build and artifact validation
   - `npm test` — 63/63 tests passed
 
-These checks are historical confirmation at this checkpoint. Re-run the relevant checks after the next Phase 4B code change.
+## Resolved bug: sign out
 
-## Unresolved bug: sign out
+The only visible Sign out control is rendered directly by `Home` in `app/page.tsx`. Runtime diagnostics proved that it is a real, enabled, unobstructed `<button type="button">` and that the exact rendered control receives the click.
 
-**Sign out is not working in local manual testing.**
+The prior control called a shared `signOut()` function that awaited `authClient.signOut()` and changed several sheet flags, but it did not explicitly refresh the Better Auth `useSession()` hook or expose failures. The server session could be invalidated while the signed-in navigation and owner-only controls remained stale until a page reload.
 
-Clicking the visible Sign out control:
+The proven rendered control now:
 
-- produces no sign-out request in the terminal,
-- does not prove that the rendered control reaches its intended handler,
-- and leaves the signed-in session/UI state unresolved.
+- logs `[auth-sign-out-button] direct click`,
+- calls `authClient.signOut()` directly,
+- surfaces returned or rejected Better Auth errors,
+- immediately disables signed-in UI after a successful response,
+- clears owner/edit state and returns the library to public scope,
+- calls `refetchSession()` so the Better Auth client state agrees with the server,
+- and refreshes the public library.
 
-No speculative shared-handler change should be made first.
+Local Worker runtime verification now confirms:
 
-## Exact next debugging task
+- `POST /api/auth/sign-out` returns `200 OK`,
+- the response is `{ "success": true }`,
+- `GET /api/auth/get-session` returns an authenticated user before sign-out and `null` afterward,
+- the test session row is no longer usable after sign-out,
+- signed-in navigation and owner-only controls are derived from the refreshed/locally invalidated session state,
+- and a subsequent `POST /api/auth/sign-in/social` still returns `200 OK` with a Google authorization URL.
 
-Trace the actual rendered **Sign out** control and its runtime click path using the same proof-first approach that resolved Google sign-in:
+The local runtime proof is covered by `tests/rendered-html.test.mjs`; the direct rendered-control diagnostic was temporary and is not committed.
 
-1. Identify the exact component and JSX line that render each visible Sign out control.
-2. Temporarily replace each visible control's handler with a unique direct inline diagnostic:
-   - `console.log(...)`
-   - `window.alert(...)`
-   - `type="button"`
-   - no shared handler call in this first diagnostic step.
-3. Build/run locally and prove which alert/log fires for each visible control.
-4. Trace exactly how the current UI state or status is being set; inspect for duplicate JSX, stale component instances, click-capture handlers, overlays, form interception, optional props, and hydration issues.
-5. Only after the real rendered path is proven, wire that exact element directly to Better Auth's current sign-out API.
-6. Prove end to end:
-   - the unique direct-click log,
-   - an auth-call log,
-   - the Better Auth sign-out request in the browser and terminal,
-   - invalidated session after refresh,
-   - and return to the signed-out UI.
-
-Keep all of this local-only until a safe, isolated staging environment exists and has been explicitly approved.
+Keep all further verification local-only until a safe, isolated staging environment exists and has been explicitly approved.
 
 ## Production gates still outstanding
 

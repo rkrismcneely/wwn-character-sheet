@@ -326,7 +326,8 @@ test("sign-out removes access to owner-only operations", async () => {
   assert.deepEqual(authorizeCharacterWrite(owner, privateCharacter), { allowed: true });
   assert.deepEqual(authorizeCharacterWrite(null, privateCharacter), { allowed: false, status: 401 });
   const page = await source("app/page.tsx");
-  assert.match(page, /async function signOut\(\)[\s\S]*authClient\.signOut\(\)[\s\S]*setCloudCanEdit\(false\)/u);
+  assert.match(page, /className="account-signout"[\s\S]*\[auth-sign-out-button\] direct click[\s\S]*authClient\.signOut\(\)[\s\S]*setLocallySignedOut\(true\)[\s\S]*setCloudCanEdit\(false\)[\s\S]*refetchSession\(\)/u);
+  assert.match(page, /Sign out failed:/u);
 });
 
 test("auth build configuration references runtime binding names without secret values", async () => {

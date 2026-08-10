@@ -1,0 +1,101 @@
+name: Apply verified Phase 4B sign-in fix v3
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase-4b-better-auth
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Verify expected feature HEAD
+        run: test "$(git rev-parse HEAD)" = "e8ee56ea17558757d9d07e5a1c83c0d4055bf5ea"
+      - name: Apply verified auth/UI patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page = Path('app/page.tsx')
+          text = page.read_text()
+          old = '          {!signedIn && <button\n            type="button"\n            className="primary-action account-signin"'
+          new = '          {!signedIn && !libraryOpen && <button\n            type="button"\n            className="primary-action account-signin"'
+          assert text.count(old) == 1, text.count(old)
+          page.write_text(text.replace(old, new, 1))
+
+          security = Path('tests/phase4b-security.test.mjs')
+          text = security.read_text()
+          marker = 'test("sign-out removes access to owner-only operations", async () => {'
+          block = '''test("visible Google sign-in controls keep direct Better Auth click paths", async () => {\n  const page = await source("app/page.tsx");\n  assert.match(page, /!signedIn && !libraryOpen && <button[\\s\\S]*className="primary-action account-signin"[\\s\\S]*source: "header"[\\s\\S]*authClient\\.signIn\\.social\\(\\{[\\s\\S]*provider: "google"/u);\n  assert.match(page, /className="library-signin"[\\s\\S]*source: "library"[\\s\\S]*authClient\\.signIn\\.social\\(\\{[\\s\\S]*provider: "google"/u);\n});\n\n'''
+          assert marker in text
+          assert 'visible Google sign-in controls keep direct Better Auth click paths' not in text
+          security.write_text(text.replace(marker, block + marker, 1))
+
+          rendered = Path('tests/rendered-html.test.mjs')
+          text = rendered.read_text()
+          assert text.count('{ timeout: 45_000 }') == 2, text.count('{ timeout: 45_000 }')
+          rendered.write_text(text.replace('{ timeout: 45_000 }', '{ timeout: 90_000 }'))
+
+          checkpoint = Path('docs/PHASE-4B-CHECKPOINT.md')
+          text = checkpoint.read_text()
+          marker = '## Production gates still outstanding\n'
+          addition = '''## Resolved regression: signed-out header sign-in behind the Character Library modal\n\nPhase 4B was resumed again from `e8ee56ea17558757d9d07e5a1c83c0d4055bf5ea` after a manual report that clicking **Sign in with Google** produced no browser Network request and no terminal request. History verification confirms `f89348b62ac9e2a3ddd4f759c569f21e02280f32` remains an ancestor of the branch. Comparing `f89348b` through `d7f462e` shows no `app/page.tsx` or auth-code changes; the only later auth/UI code change before `e8ee56e` is the sign-out state fix itself.\n\nThe header and Character Library sign-in handlers in `e8ee56e` are unchanged from the previously verified `f89348b` implementation. Temporary diagnostics were attached directly to the exact rendered `<button type="button">` controls:\n\n- header: `[auth-header-sign-in] direct click` plus `Header sign-in clicked`,\n- Character Library: `[auth-library-sign-in] direct click` plus `Library sign-in clicked`.\n\nIn an isolated local runtime of the exact `e8ee56e` source, both controls fired their unique diagnostic when unobstructed and both reached `POST /api/auth/sign-in/social`. Better Auth returned `200 OK`, `redirect: true`, and a Google authorization URL using the local callback `http://localhost:5173/api/auth/callback/google`. This rules out a lost handler, alternate JSX branch, stale `onClick`, `refetchSession()` suppression, or a Better Auth server/configuration regression in the committed source.\n\nThe reported no-request behavior was reproduced when the Character Library modal was open. `libraryOpen` defaults to true on the home page, and `.library-backdrop` is a fixed modal backdrop above the header. The header sign-in button was still rendered behind that backdrop, so the backdrop intercepted the pointer event before React could receive it. This exactly produces no click diagnostic, no Network request, and no terminal request. The Character Library's own Google sign-in control remains live inside the modal.\n\nThe fix is intentionally narrow: the header Google sign-in control now renders only when signed out **and** the Character Library modal is closed. While the modal is open, its own Google sign-in control is the active path; closing it exposes the header control, which still calls Better Auth directly. The `e8ee56e` sign-out implementation, `locallySignedOut`, and `refetchSession()` behavior are unchanged. `e8ee56e` did **not** directly alter either sign-in handler or introduce the modal backdrop; its immediate signed-out UI update can expose the signed-out state sooner after sign-out, but the underlying click interception was an existing modal/render interaction rather than an OAuth regression.\n\nThe rendered local-Worker tests now allow 90 seconds instead of 45 seconds because isolated Worker/D1 startup can exceed 45 seconds on CI runners. Assertions are unchanged; only the test startup allowance is increased.\n\nCurrent isolated runtime proof uses dummy local Google credentials and therefore proves the rendered click paths, Better Auth request/response, authorization URL generation, sign-out invalidation, refresh persistence, and the ability to request Google authorization again after sign-out. It cannot freshly complete a credentialed Google account login/return because the real ignored `.dev.vars` credentials are intentionally unavailable in the isolated diagnostic environment. That credentialed manual proof remains required before Phase 4B can be called production-ready.\n\n### Branding reconciliation note\n\n`main` contains newer Tales Without End branding that is not present on this older Phase 4B branch and must be preserved during later reconciliation. In particular:\n\n- `app/page.tsx` on `main` uses `/assets/tales-without-end-navigation-logo.svg` and the `Tales Without End` header text instead of the angled `W` / `WORLDS WITHOUT NUMBER` / `Interactive character folio` branding.\n- `app/globals.css` on `main` contains the current `.brand-logo` sizing and larger title presentation, including desktop, `<=720px`, and `<=420px` sizing.\n- `app/layout.tsx` on `main` uses the title `Tales Without End - An Interactive Worlds Without Number Character Folio`.\n- `public/assets/tales-without-end-emblem.png` and `public/assets/tales-without-end-navigation-logo.svg` are branding assets added on `main`.\n\nBecause Phase 4B also changes `app/page.tsx` and `app/layout.tsx`, those files overlap the branding work. Do **not** resolve the eventual branch reconciliation by replacing `main` versions wholesale with the Phase 4B versions; carry the auth/ownership hunks forward while retaining the current branding hunks and assets.\n\n'''
+          assert marker in text
+          assert 'Resolved regression: signed-out header sign-in behind the Character Library modal' not in text
+          checkpoint.write_text(text.replace(marker, addition + marker, 1))
+          PY
+          git diff --check
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build and validate artifact
+        run: npm run build
+      - name: Non-Worker tests
+        run: node --experimental-strip-types --test tests/dice.test.mjs tests/phase4b-migration.test.mjs tests/phase4b-security.test.mjs tests/rules-search.test.mjs tests/srd-rules.test.mjs
+      - name: Rendered Worker tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          set +e
+          timeout 210s node --experimental-strip-types --test tests/rendered-html.test.mjs 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if grep -q '^not ok ' "$log"; then exit 1; fi
+          grep -Fq 'ok 1 - local Worker renders the signed-out UI and rejects protected writes' "$log"
+          grep -Fq 'ok 2 - local Worker signs out an authenticated session and reports the request' "$log"
+          grep -Fq '# pass 2' "$log"
+          grep -Fq '# fail 0' "$log"
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+      - name: Worker types
+        run: npm run workers:types
+      - name: Commit verified fix
+        run: |
+          git config user.name 'phase4b-runtime-fix'
+          git config user.email 'phase4b-runtime-fix@users.noreply.github.com'
+          git add app/page.tsx tests/phase4b-security.test.mjs tests/rendered-html.test.mjs docs/PHASE-4B-CHECKPOINT.md
+          git commit -m 'Fix obscured Better Auth sign-in control'
+          git push origin HEAD:phase-4b-better-auth
+      - name: Remove temporary workflow branch
+        if: always()
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" = "agent/phase-4b-apply-fix-v3" ]; then
+            git push origin --delete "$HEAD_REF" || true
+          fi

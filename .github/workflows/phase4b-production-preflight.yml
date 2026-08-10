@@ -1,0 +1,41 @@
+name: Phase 4B production preflight
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase-4b-better-auth
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Confirm branch head and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "7618b2fb27ded9ebf8d81c49dab99ee5bfe2c285"
+          git merge-base --is-ancestor adc492927d1e1ba608beaa04c4afb791e1820bac HEAD
+          git merge-base --is-ancestor 30890ee9c3d314103ac71d5c12fab1d325f9a2be HEAD
+      - name: npm ci
+        run: npm ci
+      - name: npm run typecheck
+        run: npm run typecheck
+      - name: npm run lint
+        run: npm run lint
+      - name: npm run build
+        run: npm run build
+      - name: npm test
+        run: npm test
+      - name: npm run workers:types
+        run: npm run workers:types

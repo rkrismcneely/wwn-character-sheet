@@ -1,0 +1,31 @@
+name: Export Phase 4B source
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive source
+        run: tar --exclude=.git -czf /tmp/wwn-phase4b-source.tgz .
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwn-phase4b-source
+          path: /tmp/wwn-phase4b-source.tgz
+          retention-days: 1
+      - name: Remove temporary diagnostic branch
+        if: always()
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" = "agent/phase-4b-runtime-source" ]; then
+            git push origin --delete "$HEAD_REF" || true
+          fi

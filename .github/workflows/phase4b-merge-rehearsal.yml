@@ -1,0 +1,36 @@
+name: Phase 4B merge rehearsal
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase-4b-better-auth
+          fetch-depth: 0
+      - name: Rehearse current main merge
+        shell: bash
+        run: |
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_status=$?
+          set -e
+          echo "MERGE_STATUS=$merge_status"
+          echo '--- STATUS ---'
+          git status --short
+          echo '--- CONFLICT FILES ---'
+          git diff --name-only --diff-filter=U || true
+          echo '--- CONFLICT MARKERS ---'
+          for file in $(git diff --name-only --diff-filter=U); do
+            echo "### $file"
+            grep -n -B 8 -A 18 '^<<<<<<<\|^=======\|^>>>>>>>' "$file" || true
+          done
+          git merge --abort || true

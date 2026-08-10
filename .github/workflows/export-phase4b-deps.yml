@@ -1,0 +1,37 @@
+name: Export Phase 4B dependencies
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  export-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Archive dependencies
+        run: tar -czf /tmp/wwn-phase4b-node-modules.tgz node_modules
+      - name: Upload dependency artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwn-phase4b-node-modules
+          path: /tmp/wwn-phase4b-node-modules.tgz
+          retention-days: 1
+      - name: Remove temporary diagnostic branch
+        if: always()
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" = "agent/phase-4b-runtime-deps" ]; then
+            git push origin --delete "$HEAD_REF" || true
+          fi

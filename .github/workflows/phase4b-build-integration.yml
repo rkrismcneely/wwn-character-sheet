@@ -1,0 +1,80 @@
+name: Build Phase 4B integration branch
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/phase-4b-integration
+          fetch-depth: 0
+      - name: Merge current main with reviewed conflict resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'phase4b-integration'
+          git config user.email 'phase4b-integration@users.noreply.github.com'
+          test "$(git rev-parse HEAD)" = "adc492927d1e1ba608beaa04c4afb791e1820bac"
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          status=$?
+          set -e
+          test "$status" -eq 1
+          conflicts="$(git diff --name-only --diff-filter=U | sort)"
+          expected=$'ROADMAP.md\napp/globals.css\napp/layout.tsx'
+          test "$conflicts" = "$expected"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          roadmap = Path('ROADMAP.md')
+          text = roadmap.read_text()
+          start = text.index('<<<<<<< HEAD\n')
+          end = text.index('>>>>>>> origin/main\n', start) + len('>>>>>>> origin/main\n')
+          replacement = ('**Status: In progress — the full local Google sign-in → callback → authenticated UI → '
+                         'sign-out → refresh-signed-out → sign-in-again loop is verified on '
+                         '`adc492927d1e1ba608beaa04c4afb791e1820bac`. Pre-production reconciliation and review '
+                         'are in progress; production migration, backfill/claims, deployment, and merging remain '
+                         'blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md`.**\n')
+          roadmap.write_text(text[:start] + replacement + text[end:])
+
+          css = Path('app/globals.css')
+          text = css.read_text()
+          start = text.index('<<<<<<< HEAD\n')
+          split = text.index('=======\n', start)
+          end = text.index('>>>>>>> origin/main\n', split) + len('>>>>>>> origin/main\n')
+          ours = text[start + len('<<<<<<< HEAD\n'):split]
+          theirs = text[split + len('=======\n'):end - len('>>>>>>> origin/main\n')]
+          css.write_text(text[:start] + ours + '\n' + theirs + text[end:])
+
+          layout = Path('app/layout.tsx')
+          text = layout.read_text()
+          start = text.index('<<<<<<< HEAD\n')
+          end = text.index('>>>>>>> origin/main\n', start) + len('>>>>>>> origin/main\n')
+          replacement = ('  metadataBase: new URL(CANONICAL_ORIGIN),\n'
+                         '  title: "Tales Without End - An Interactive Worlds Without Number Character Folio",\n')
+          layout.write_text(text[:start] + replacement + text[end:])
+          PY
+
+          test -z "$(git grep -n '^<<<<<<<\|^=======\|^>>>>>>>' -- ROADMAP.md app/globals.css app/layout.tsx app/page.tsx || true)"
+          grep -Fq '/assets/tales-without-end-navigation-logo.svg' app/page.tsx
+          grep -Fq '<strong>Tales Without End</strong>' app/page.tsx
+          grep -Fq 'authClient.signIn.social' app/page.tsx
+          grep -Fq 'authClient.signOut' app/page.tsx
+          grep -Fq 'metadataBase: new URL(CANONICAL_ORIGIN)' app/layout.tsx
+          grep -Fq 'Tales Without End - An Interactive Worlds Without Number Character Folio' app/layout.tsx
+          grep -Fq '.account-state{' app/globals.css
+          grep -Fq '.brand-logo{' app/globals.css
+          git add ROADMAP.md app/globals.css app/layout.tsx app/page.tsx public/assets/tales-without-end-emblem.png public/assets/tales-without-end-navigation-logo.svg
+          git diff --check --cached
+          git commit -m 'Merge current Tales Without End branding into Phase 4B'
+          git push origin HEAD:agent/phase-4b-integration

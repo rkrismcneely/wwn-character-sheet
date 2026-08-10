@@ -1,0 +1,20 @@
+name: Clean temporary Phase 4B branches
+
+on:
+  pull_request:
+    branches:
+      - phase-4b-better-auth
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove temporary diagnostic branches
+        run: |
+          git push origin --delete agent/phase-4b-integration || true
+          git push origin --delete agent/phase-4b-merge-rehearsal || true
+          git push origin --delete agent/phase-4b-integration-control || true

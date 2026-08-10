@@ -1,156 +1,231 @@
-# Phase 4B Checkpoint — Resumed
+# Phase 4B Checkpoint — Production rollout paused at legacy baseline reconciliation
 
-**Status:** Resumed, still in progress  
+**Status:** In progress; production rollout paused before Phase 4B migrations  
 **Feature branch:** `phase-4b-better-auth`  
-**Implementation HEAD before this checkpoint documentation:** `f89348b62ac9e2a3ddd4f759c569f21e02280f32`  
-**HEAD when sign-out work resumed:** `d7f462ee6079c34beda329d8d07ff4cbc8876539`  
 **Draft pull request:** [#1 — Phase 4B: Better Auth, ownership, privacy, and stable character URLs](https://github.com/rkrismcneely/wwn-character-sheet/pull/1)  
-**Checkpoint date:** 2026-08-08
-**Resume date:** 2026-08-10
-**Current verified auth baseline before reconciliation:** `adc492927d1e1ba608beaa04c4afb791e1820bac`
-**Current `main` branding head reconciled:** `30890ee9c3d314103ac71d5c12fab1d325f9a2be`
+**Checkpoint date:** 2026-08-10  
+**Verified auth baseline before reconciliation:** `adc492927d1e1ba608beaa04c4afb791e1820bac`  
+**Current `main` branding history reconciled:** through `30890ee9c3d314103ac71d5c12fab1d325f9a2be`  
+**Pre-production reconciliation review head:** `7618b2fb27ded9ebf8d81c49dab99ee5bfe2c285`
 
-This document remains the restart point for Phase 4B. The complete credentialed local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 until the remaining review and production gates are explicitly approved.
+This document remains the restart point for Phase 4B. The credentialed local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop was verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Branding reconciliation and the pre-production audit preserved those auth handlers.
 
-## Current branch history
+The approved production rollout began on 2026-08-10 but stopped at the documented mandatory migration-baseline gate when production reported `0000_brainy_killraven.sql` as pending. No Phase 4B production migration, public-ID backfill, legacy claim, PR merge, or deployment has occurred.
 
-The Phase 4B implementation commits before this checkpoint are:
+The authoritative execution procedure is now `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`. Do not improvise around the legacy baseline procedure recorded there.
+
+## Current branch/auth history
+
+Key Phase 4B implementation and corrective commits include:
 
 1. `80a0ce90573a3dd9f26e7611e43650758e34d5c3` — Implement Phase 4B auth, ownership, and private sharing
 2. `d04063e` — Add Better Auth rate-limit compatibility migration
 3. `c6ebd56` — Add Better Auth verification/schema compatibility migration
 4. `502e840d` — Fix Google sign-in button wiring
-5. `6c5ce59` — Prove and directly wire the rendered Google sign-in controls
+5. `6c5ce59df94d5ae072b53008612e43fe7b49015b` — Prove and directly wire rendered Google sign-in controls
 6. `f89348b62ac9e2a3ddd4f759c569f21e02280f32` — Map Better Auth runtime to generated D1 schema
+7. `e8ee56ea17558757d9d07e5a1c83c0d4055bf5ea` — Sign-out state/runtime fix
+8. `adc492927d1e1ba608beaa04c4afb791e1820bac` — Fix signed-out header sign-in obscured by the Character Library modal
 
-The last four corrective changes were made after manual local testing exposed Better Auth/SQLite naming and rendered-control issues. They are intentionally additive and must stay on this feature branch until the full Phase 4B review is approved.
+The full real local Google login/callback/authenticated-return/sign-out/refresh/sign-in-again loop was manually verified on `adc4929`.
 
-## Migrations currently present
-
-- `drizzle/0000_brainy_killraven.sql` — existing `characters` and `character_revisions` tables
-- `drizzle/0001_better_auth_core.sql` — Better Auth `user`, `session`, `account`, `verification`, and `rate_limit` tables
-- `drizzle/0002_character_ownership_and_claims.sql` — additive ownership, visibility, opaque public-ID, portrait-key, and legacy-claim schema
-- `drizzle/0003_better_auth_rate_limit_compatibility.sql` — additive `rateLimit` / `lastRequest` compatibility table and data copy
-- `drizzle/0004_better_auth_verification_camel_case_compatibility.sql` — additive camelCase compatibility columns and backfills for Better Auth tables
-
-Local D1 has had the Phase 4B migrations applied during manual testing. No production D1 migration has been applied. The later field mappings in `lib/auth.ts` direct Better Auth back to the generated snake_case schema; the additive compatibility migrations remain non-destructive and preserve previously created local records.
+The current Tales Without End branding history through `30890ee9c3d314103ac71d5c12fab1d325f9a2be` was merged into Phase 4B without replacing the verified auth implementation. The reconciled header keeps `/assets/tales-without-end-navigation-logo.svg`, `Tales Without End`, and the exact browser title `Tales Without End - An Interactive Worlds Without Number Character Folio`. The requested title sizing is 24px desktop, 17px at `<=720px`, and 16px at `<=420px`.
 
 ## Better Auth configuration
 
 - Package: Better Auth `1.6.25`
 - Entry: `lib/auth.ts`
-- Route base path: `/api/auth`
+- Base path: `/api/auth`
 - Provider: Google only
 - Email/password: disabled
-- Secure session and database-backed rate limiting: enabled
+- Secure session/database rate limiting: enabled
 - OAuth account tokens: encrypted
 - Cross-subdomain cookies: disabled
-- CSRF and origin checks: enabled
-- User/session/account/verification/rate-limit field mappings explicitly target the generated snake_case D1 columns.
-- Trusted origins: `https://taleswithoutend.com`, `http://localhost:5173`, and `http://127.0.0.1:5173`.
+- CSRF/origin checks: enabled
+- Generated snake_case D1 fields are explicitly mapped in runtime configuration
+- Trusted origins: `https://taleswithoutend.com`, `http://localhost:5173`, `http://127.0.0.1:5173`
 
-Production configuration remains in `wrangler.jsonc` and is unchanged:
+Production configuration:
 
 - D1 binding `DB` → `wwn-character-sheet-db` (`8e2bf197-e20f-4ea7-a86f-cab4e1a74699`)
 - R2 binding `BUCKET` → `site-creator-r2`
+- production Google callback: `https://taleswithoutend.com/api/auth/callback/google`
 
-Do not use the existing Cloudflare branch preview for write tests; it was found to be bound to production storage and lacks usable auth secrets.
+Do not use the existing Cloudflare branch preview for write testing; it was previously found to be bound to production storage and lacks the approved production auth setup.
 
-## Local development and Google OAuth
+## Migration inventory
 
-Local development is deliberately isolated:
+Repository migration files are:
 
-- Site URL: `http://localhost:5173`
-- `BETTER_AUTH_URL=http://localhost:5173`
-- Local credentials belong only in ignored `.dev.vars`, created from `.dev.vars.example`:
-  - `BETTER_AUTH_SECRET`
-  - `BETTER_AUTH_URL`
-  - `GOOGLE_CLIENT_ID`
-  - `GOOGLE_CLIENT_SECRET`
-- Local D1 command: `npm run db:migrate:local`
-- Local development command: `npm run dev`
-- Local R2 behavior is Wrangler's local emulation through the `BUCKET` binding.
+- `drizzle/0000_brainy_killraven.sql` — generated legacy baseline containing `characters` **and** `character_revisions`
+- `drizzle/0001_better_auth_core.sql` — Better Auth `user`, `session`, `account`, `verification`, `rate_limit`
+- `drizzle/0002_character_ownership_and_claims.sql` — additive ownership, visibility, opaque public ID, portrait key, legacy claims
+- `drizzle/0003_better_auth_rate_limit_compatibility.sql` — additive historical `rateLimit` compatibility
+- `drizzle/0004_better_auth_verification_camel_case_compatibility.sql` — additive historical camelCase compatibility columns
 
-Google OAuth must include:
+Important correction: `0000` was **not** historically executed in production. Production was initialized outside Wrangler migration tracking by the pre-Phase-4B application's runtime `CREATE TABLE IF NOT EXISTS characters` bootstrap.
 
-- Authorized JavaScript origin: `http://localhost:5173`
-- Authorized redirect URI: `http://localhost:5173/api/auth/callback/google`
+## Production read-only audit — 2026-08-10
 
-## Verified state
+The approved rollout verified the production D1 target exactly:
 
-Manual local testing confirmed:
+- database: `wwn-character-sheet-db`
+- ID: `8e2bf197-e20f-4ea7-a86f-cab4e1a74699`
 
-- Google sign-in opens successfully.
-- The user can authenticate with Google and return to the local application.
-- The rendered header and Character Library Google sign-in controls were runtime-proven to be real `<button type="button">` elements.
-- Each proven control directly calls Better Auth; the local request reaches `POST /api/auth/sign-in/social` and redirects to Google.
-- The local compatibility issues involving `rateLimit`, `verification`, and snake_case Better Auth fields have been addressed without editing already-applied migrations.
-- Existing automated verification previously passed:
-  - `npm run typecheck`
-  - `npm run lint`
-  - `npm run workers:types`
-  - `npm run db:migrate:local`
-  - production build and artifact validation
-  - `npm test` — 63/63 tests passed
+A D1 Time Travel recovery bookmark was recorded before any production write.
 
-## Resolved bug: sign out
+Observed production state:
 
-The only visible Sign out control is rendered directly by `Home` in `app/page.tsx`. Runtime diagnostics proved that it is a real, enabled, unobstructed `<button type="button">` and that the exact rendered control receives the click.
+- `characters`: exists, 3 rows
+- `character_revisions`: absent
+- Wrangler `d1_migrations`: now exists after migration inspection but contains no applied migration rows
+- Wrangler lists `0000`–`0004` all pending
 
-The prior control called a shared `signOut()` function that awaited `authClient.signOut()` and changed several sheet flags, but it did not explicitly refresh the Better Auth `useSession()` hook or expose failures. The server session could be invalidated while the signed-in navigation and owner-only controls remained stale until a page reload.
+Observed live `characters` DDL:
 
-The proven rendered control now:
+```sql
+CREATE TABLE characters (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  player TEXT NOT NULL DEFAULT '',
+  class_label TEXT NOT NULL DEFAULT '',
+  level INTEGER NOT NULL DEFAULT 1,
+  data TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+```
 
-- logs `[auth-sign-out-button] direct click`,
-- calls `authClient.signOut()` directly,
-- surfaces returned or rejected Better Auth errors,
-- immediately disables signed-in UI after a successful response,
-- clears owner/edit state and returns the library to public scope,
-- calls `refetchSession()` so the Better Auth client state agrees with the server,
-- and refreshes the public library.
+`PRAGMA` inspection confirmed:
 
-Local Worker runtime verification now confirms:
+- exactly 9 legacy columns;
+- `id` is TEXT, primary key, `notnull=0`;
+- all other expected types/defaults/not-null constraints match the historical runtime schema;
+- ordinary rowid table;
+- `STRICT=false`;
+- `WITHOUT ROWID=false`;
+- only index is `sqlite_autoindex_characters_1`, unique, origin `pk`;
+- no foreign keys.
 
-- `POST /api/auth/sign-out` returns `200 OK`,
-- the response is `{ "success": true }`,
-- `GET /api/auth/get-session` returns an authenticated user before sign-out and `null` afterward,
-- the test session row is no longer usable after sign-out,
-- signed-in navigation and owner-only controls are derived from the refreshed/locally invalidated session state,
-- and a subsequent `POST /api/auth/sign-in/social` still returns `200 OK` with a Google authorization URL.
+All three rows passed validation:
 
-The local runtime proof is covered by `tests/rendered-html.test.mjs`; the direct rendered-control diagnostic was temporary and is not committed.
+- no NULL value in any of the nine legacy columns;
+- all stored character JSON is valid.
 
-Keep all further verification local-only until a safe, isolated staging environment exists and has been explicitly approved.
+### Historical explanation
 
-## Resolved regression: signed-out header sign-in behind the Character Library modal
+The pre-Phase-4B runtime `app/api/characters/db.ts` created only `characters` with `id TEXT PRIMARY KEY` and did not create `character_revisions`. The pre-Phase-4B `db/schema.ts` also declared only `characters`, and the application read/save/delete paths used only that table.
 
-Phase 4B was resumed again from `e8ee56ea17558757d9d07e5a1c83c0d4055bf5ea` after a manual report that clicking **Sign in with Google** produced no browser Network request and no terminal request. History verification confirms `f89348b62ac9e2a3ddd4f759c569f21e02280f32` remains an ancestor of the branch. Comparing `f89348b` through `d7f462e` shows no `app/page.tsx` or auth-code changes; the only later auth/UI code change before `e8ee56e` is the sign-out state fix itself.
+Generated migration `0000`, however, contained both `characters` and `character_revisions`, and specified `characters.id TEXT PRIMARY KEY NOT NULL`. Therefore the live production schema is the expected historical runtime schema but is not a literal execution of `0000`.
 
-The header and Character Library sign-in handlers in `e8ee56e` are unchanged from the previously verified `f89348b` implementation. Temporary diagnostics were attached directly to the exact rendered `<button type="button">` controls:
+This is migration history drift, not character-data corruption.
 
-- header: `[auth-header-sign-in] direct click` plus `Header sign-in clicked`,
-- Character Library: `[auth-library-sign-in] direct click` plus `Library sign-in clicked`.
+## Local compatibility proof against exact production shape
 
-In an isolated local runtime of the exact `e8ee56e` source, both controls fired their unique diagnostic when unobstructed and both reached `POST /api/auth/sign-in/social`. Better Auth returned `200 OK`, `redirect: true`, and a Google authorization URL using the local callback `http://localhost:5173/api/auth/callback/google`. This rules out a lost handler, alternate JSX branch, stale `onClick`, `refetchSession()` suppression, or a Better Auth server/configuration regression in the committed source.
+An exact local reproduction was tested with:
 
-The reported no-request behavior was reproduced when the Character Library modal was open. `libraryOpen` defaults to true on the home page, and `.library-backdrop` is a fixed modal backdrop above the header. The header sign-in button was still rendered behind that backdrop, so the backdrop intercepted the pointer event before React could receive it. This exactly produces no click diagnostic, no Network request, and no terminal request. The Character Library's own Google sign-in control remains live inside the modal.
+- `id TEXT PRIMARY KEY` and no explicit `NOT NULL`;
+- the other eight legacy columns matching production;
+- no `character_revisions` table;
+- three representative legacy rows.
 
-The fix is intentionally narrow: the header Google sign-in control now renders only when signed out **and** the Character Library modal is closed. While the modal is open, its own Google sign-in control is the active path; closing it exposes the header control, which still calls Better Auth directly. The `e8ee56e` sign-out implementation, `locallySignedOut`, and `refetchSession()` behavior are unchanged. `e8ee56e` did **not** directly alter either sign-in handler or introduce the modal backdrop; its immediate signed-out UI update can expose the signed-out state sooner after sign-out, but the underlying click interception was an existing modal/render interaction rather than an OAuth regression.
+The repository copies of `0001`, `0002`, `0003`, and `0004` were applied in order without running `0000`.
 
-The rendered local-Worker tests now allow 90 seconds instead of 45 seconds because isolated Worker/D1 startup can exceed 45 seconds on CI runners. Assertions are unchanged; only the test startup allowance is increased.
+Result:
 
-After `adc4929`, manual testing with the real ignored local Google credentials completed the full Google login/callback/authenticated-return/sign-out/refresh/sign-in-again loop successfully. The reconciliation changes branding, documentation, migration coverage, and the administrative claim-creation failure path; it does not replace the verified Better Auth sign-in/sign-out/session handlers. Another credentialed Google login is not required unless automated auth/runtime checks expose a regression.
+- all four migrations succeeded;
+- character count stayed 3;
+- all nine original character fields remained unchanged;
+- all three rows received only the intended `0002` defaults/additions: `owner_user_id=NULL`, `public_id=NULL`, `visibility='private'`, `portrait_key=NULL`;
+- no migration referenced or required `character_revisions`;
+- no migration depended on `characters.id` carrying an explicit `NOT NULL` constraint.
 
-### Branding reconciliation completed
+Therefore the observed production schema is compatible with the Phase 4B migration chain.
 
-Current `main` branding through `30890ee9c3d314103ac71d5c12fab1d325f9a2be` is merged hunk-by-hunk into the Phase 4B integration history. `app/page.tsx` keeps `/assets/tales-without-end-navigation-logo.svg`, the `Tales Without End` header text, and all Phase 4B auth/ownership UI. `app/layout.tsx` keeps Phase 4B canonical/Open Graph metadata while using the exact browser title `Tales Without End - An Interactive Worlds Without Number Character Folio`. `app/globals.css` keeps both Phase 4B account/library/share rules and current responsive logo sizes. The requested title revision is 21/15/14px → 24/17/16px while retaining font weight, letter spacing, logo sizes, alignment, and no-wrap behavior.
+## Wrangler 4.92.0 migration-tracking audit
 
-The migration/backfill/claim/authorization/privacy audit and exact future production command order are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`. The key rollout effect remains deliberate: after `0002`, pre-account characters are private and unowned until explicitly claimed. Claim creation now reserves its private recovery token file before the administrative D1 mutation.
+The project currently pins Wrangler 4.92.0. Its migration implementation creates the default tracking table as:
+
+```sql
+CREATE TABLE IF NOT EXISTS d1_migrations(
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT UNIQUE,
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+```
+
+Wrangler reads `name` from that table to determine which migration filenames are already applied. After successfully executing a normal migration file, Wrangler appends:
+
+```sql
+INSERT INTO d1_migrations (name) values ('<migration filename>');
+```
+
+The approved manual baseline therefore uses the same filename-only tracking mechanism, but only after reconciling the missing source-model table and preserving an explicit audit trail explaining that `0000` itself never ran.
+
+## Approved handling of `character_revisions`
+
+Although the live legacy application never used `character_revisions`, it should now be created as an empty table **exactly as represented by `0000`** before baselining `0000`.
+
+Reason: current `db/schema.ts` and Drizzle snapshots still declare `character_revisions`. Leaving it absent while teaching Wrangler that `0000` is satisfied would preserve known schema drift that future generated migrations could assume away. Creating the empty table is a small additive change and does not modify the three live character rows.
+
+The live `characters.id` variance will **not** be repaired by rebuilding the table. Its lack of an explicit `NOT NULL` is documented and accepted because all three IDs are non-null and `0001`–`0004` do not depend on that declaration. Rebuilding the live table solely for that constraint would add unnecessary risk.
+
+## Approved legacy baseline procedure — not yet executed
+
+Execute the production steps only in the order in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.
+
+1. Reconfirm preconditions: D1 identity, Time Travel bookmark, character count 3, legacy DDL unchanged, `character_revisions` absent, empty tracking table, and `0000`–`0004` pending.
+2. Create **only** the empty `character_revisions` table with the exact `0000` column definition. Do not run `0000` and do not use `IF NOT EXISTS`.
+3. Verify revision DDL, `revision_count=0`, and `character_count=3`.
+4. Verify `d1_migrations` has Wrangler 4.92.0's expected schema and no applied rows.
+5. Insert exactly one tracking row: `0000_brainy_killraven.sql`.
+6. Verify exactly one tracking row, `character_count=3`, and `revision_count=0`.
+7. Run `npm run db:migrations:list:production`.
+8. Required pending set after reconciliation is exactly:
+   - `0001_better_auth_core.sql`
+   - `0002_character_ownership_and_claims.sql`
+   - `0003_better_auth_rate_limit_compatibility.sql`
+   - `0004_better_auth_verification_camel_case_compatibility.sql`
+9. STOP on any mismatch. Do not apply `0001`–`0004` until this reconciliation is complete and reviewed.
+
+Both baseline writes are additive. The recorded Time Travel bookmark remains the recovery point if an unexpected state occurs before legitimate post-bookmark writes make destructive restore unacceptable.
+
+## Validation state
+
+The final reconciled implementation tree was cleanly validated before production rollout:
+
+- `npm ci`: pass
+- `npm run typecheck`: pass
+- `npm run lint`: pass
+- `npm run build`: pass; Worker artifact validation passed
+- `npm test`: 67/67 pass, 0 fail
+- `npm run workers:types`: pass
+
+The migration-preservation tests cover `0001`–`0004`; the production-shaped local audit described above additionally proves those four migrations succeed from the exact observed legacy production schema without `0000` or `character_revisions`.
+
+## Auth/UI resolved issues retained
+
+### Sign out
+
+The rendered Sign out control calls Better Auth directly, surfaces errors, immediately disables signed-in UI after success, clears owner/edit state, refetches the Better Auth session, and refreshes the public library. Local Worker runtime verification confirms `POST /api/auth/sign-out` succeeds, the server session becomes null, refresh stays signed out, and Google sign-in can be requested again.
+
+### Signed-out header sign-in behind Character Library modal
+
+The no-request sign-in symptom was traced to the fixed Character Library backdrop intercepting the visible header sign-in button while the modal was open. The narrow fix renders the header sign-in only when signed out and the library modal is closed; the modal's own Google sign-in remains active. The Better Auth sign-in handler itself was not regressed.
+
+## Branding reconciliation retained
+
+Current `main` branding through `30890ee9c3d314103ac71d5c12fab1d325f9a2be` remains reconciled with Phase 4B. The exact browser title is `Tales Without End - An Interactive Worlds Without Number Character Folio`; Phase 4B canonical/Open Graph metadata and auth/ownership UI remain intact.
 
 ## Production gates still outstanding
 
-- Do not merge PR #1.
-- Do not apply any production migration.
-- Do not run public-ID backfill or legacy claims in production.
-- Do not write to production D1 or R2.
-- Before production work: review the PR and migrations, confirm a recovery point/Time Travel, verify remote migration status with authenticated Cloudflare access, use isolated staging, and complete the authoritative production checklist in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.
+- Execute and verify the documented legacy baseline reconciliation.
+- Require migration list to become exactly `0001`–`0004` pending.
+- Do not run `0000`.
+- Do not rebuild `characters` to add explicit `NOT NULL` to `id`.
+- Do not apply `0001`–`0004` until the baseline reconciliation is verified.
+- Do not run the public-ID backfill yet.
+- Do not create production legacy claims yet unless separately reviewed.
+- Do not merge PR #1 or deploy yet.
+- After the baseline is resolved, resume only from the authoritative ordered procedure in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.

@@ -2500,7 +2500,7 @@ export default function Home({
   return (
     <main>
       <div className="topbar">
-        <div className="brand"><span className="sigil">W</span><div><strong>WORLDS WITHOUT NUMBER</strong><small>Interactive character folio</small></div></div>
+        <div className="brand"><img className="brand-logo" src="/assets/tales-without-end-navigation-logo.svg" alt="Tales Without End" /><div><strong>Tales Without End</strong></div></div>
         <div className="status">
           <div className="status-meta">
             <span className="save-state"><span className="dot" />{saved}</span>

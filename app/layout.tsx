@@ -15,7 +15,7 @@ import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
-  title: "Tales Without End | Worlds Without Number Character Sheet",
+  title: "Tales Without End - An Interactive Worlds Without Number Character Folio",
   description: "An interactive Worlds Without Number character folio.",
   alternates: { canonical: "/" },
   openGraph: {

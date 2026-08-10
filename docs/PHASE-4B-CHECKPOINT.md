@@ -7,8 +7,10 @@
 **Draft pull request:** [#1 — Phase 4B: Better Auth, ownership, privacy, and stable character URLs](https://github.com/rkrismcneely/wwn-character-sheet/pull/1)  
 **Checkpoint date:** 2026-08-08
 **Resume date:** 2026-08-10
+**Current verified auth baseline before reconciliation:** `adc492927d1e1ba608beaa04c4afb791e1820bac`
+**Current `main` branding head reconciled:** `30890ee9c3d314103ac71d5c12fab1d325f9a2be`
 
-This document remains the restart point for Phase 4B. Local Google sign-in and sign-out are now verified. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 until the remaining review and production gates are explicitly approved.
+This document remains the restart point for Phase 4B. The complete credentialed local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 until the remaining review and production gates are explicitly approved.
 
 ## Current branch history
 
@@ -137,18 +139,13 @@ The fix is intentionally narrow: the header Google sign-in control now renders o
 
 The rendered local-Worker tests now allow 90 seconds instead of 45 seconds because isolated Worker/D1 startup can exceed 45 seconds on CI runners. Assertions are unchanged; only the test startup allowance is increased.
 
-Current isolated runtime proof uses dummy local Google credentials and therefore proves the rendered click paths, Better Auth request/response, authorization URL generation, sign-out invalidation, refresh persistence, and the ability to request Google authorization again after sign-out. It cannot freshly complete a credentialed Google account login/return because the real ignored `.dev.vars` credentials are intentionally unavailable in the isolated diagnostic environment. That credentialed manual proof remains required before Phase 4B can be called production-ready.
+After `adc4929`, manual testing with the real ignored local Google credentials completed the full Google login/callback/authenticated-return/sign-out/refresh/sign-in-again loop successfully. The reconciliation changes branding, documentation, migration coverage, and the administrative claim-creation failure path; it does not replace the verified Better Auth sign-in/sign-out/session handlers. Another credentialed Google login is not required unless automated auth/runtime checks expose a regression.
 
-### Branding reconciliation note
+### Branding reconciliation completed
 
-`main` contains newer Tales Without End branding that is not present on this older Phase 4B branch and must be preserved during later reconciliation. In particular:
+Current `main` branding through `30890ee9c3d314103ac71d5c12fab1d325f9a2be` is merged hunk-by-hunk into the Phase 4B integration history. `app/page.tsx` keeps `/assets/tales-without-end-navigation-logo.svg`, the `Tales Without End` header text, and all Phase 4B auth/ownership UI. `app/layout.tsx` keeps Phase 4B canonical/Open Graph metadata while using the exact browser title `Tales Without End - An Interactive Worlds Without Number Character Folio`. `app/globals.css` keeps both Phase 4B account/library/share rules and current responsive logo sizes. The requested title revision is 21/15/14px → 24/17/16px while retaining font weight, letter spacing, logo sizes, alignment, and no-wrap behavior.
 
-- `app/page.tsx` on `main` uses `/assets/tales-without-end-navigation-logo.svg` and the `Tales Without End` header text instead of the angled `W` / `WORLDS WITHOUT NUMBER` / `Interactive character folio` branding.
-- `app/globals.css` on `main` contains the current `.brand-logo` sizing and larger title presentation, including desktop, `<=720px`, and `<=420px` sizing.
-- `app/layout.tsx` on `main` uses the title `Tales Without End - An Interactive Worlds Without Number Character Folio`.
-- `public/assets/tales-without-end-emblem.png` and `public/assets/tales-without-end-navigation-logo.svg` are branding assets added on `main`.
-
-Because Phase 4B also changes `app/page.tsx` and `app/layout.tsx`, those files overlap the branding work. Do **not** resolve the eventual branch reconciliation by replacing `main` versions wholesale with the Phase 4B versions; carry the auth/ownership hunks forward while retaining the current branding hunks and assets.
+The migration/backfill/claim/authorization/privacy audit and exact future production command order are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`. The key rollout effect remains deliberate: after `0002`, pre-account characters are private and unowned until explicitly claimed. Claim creation now reserves its private recovery token file before the administrative D1 mutation.
 
 ## Production gates still outstanding
 
@@ -156,4 +153,4 @@ Because Phase 4B also changes `app/page.tsx` and `app/layout.tsx`, those files o
 - Do not apply any production migration.
 - Do not run public-ID backfill or legacy claims in production.
 - Do not write to production D1 or R2.
-- Before production work: review the PR and migrations, confirm a recovery point/Time Travel, verify remote migration status with authenticated Cloudflare access, use isolated staging, and complete the production checklist in `docs/phase-4b-review.md`.
+- Before production work: review the PR and migrations, confirm a recovery point/Time Travel, verify remote migration status with authenticated Cloudflare access, use isolated staging, and complete the authoritative production checklist in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.

@@ -113,7 +113,7 @@ new development work.
 
 ### Phase 4B — Accounts, Ownership, Privacy, and Shareable Character URLs
 
-**Status: In progress — the full local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Pre-production reconciliation and review are in progress; production migration, backfill/claims, deployment, and merging remain blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md`.**
+**Status: In progress — the full local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Current Tales Without End branding is reconciled and the pre-production code/migration/security review is complete. Production migration, backfill/claims, deployment, and merging remain blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md` and `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.**
 
 #### Authentication
 

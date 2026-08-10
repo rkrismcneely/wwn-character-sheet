@@ -72,10 +72,17 @@ const statements = [
       `INSERT INTO legacy_character_claim_items (claim_id, character_id) VALUES (${sqlText(claimId)}, ${sqlText(row.id)});`,
   ),
 ];
-executeD1(statements.join("\n"), remote);
 writeFileSync(
   outputPath,
   `${JSON.stringify({ claimId, token, expiresAt, characters: publicIds }, null, 2)}\n`,
   { encoding: "utf8", flag: "wx", mode: 0o600 },
 );
+try {
+  executeD1(statements.join("\n"), remote);
+} catch (error) {
+  console.error(
+    `Claim database creation failed after reserving ${outputPath}. Keep this file private and verify or revoke claim ID ${claimId} before retrying.`,
+  );
+  throw error;
+}
 console.log(`Claim created. The token was written once to ${outputPath}.`);

@@ -3,6 +3,8 @@
 Status: feature branch review only. The production migration has **not** been
 applied and this branch must not be merged without approval.
 
+> **2026-08-10 reconciliation note:** the current repository migration inventory is `0000` through `0004`. The authoritative production command order, verification queries, claim preparation, and rollback procedure are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`. Older wording below that refers only to `0001`/`0002` is historical context, not an execution checklist.
+
 ## Architecture audit
 
 - The application uses React and Next.js App Router conventions compiled by
@@ -173,6 +175,14 @@ CREATE INDEX `legacy_character_claim_items_character_idx`
   ON `legacy_character_claim_items` (`character_id`);
 ```
 
+### `drizzle/0003_better_auth_rate_limit_compatibility.sql`
+
+Additive historical compatibility table `rateLimit` with camel-case `lastRequest`; current Better Auth runtime mapping uses canonical `rate_limit.last_request`.
+
+### `drizzle/0004_better_auth_verification_camel_case_compatibility.sql`
+
+Additive historical camel-case compatibility columns/backfills on `user`, `session`, `account`, and `verification`; current Better Auth runtime mapping uses the canonical snake-case columns.
+
 ## Tables and indexes
 
 New tables:
@@ -249,7 +259,7 @@ claimed.
 2. Immediately before migration, confirm the remote target reports database ID
    `8e2bf197-e20f-4ea7-a86f-cab4e1a74699` and list the exact pending files.
 3. Confirm D1 Time Travel is available for a restore point immediately before
-   applying `0001` and `0002`.
+   applying the reviewed pending set (`0001`–`0004`).
 4. Apply the migrations deliberately; deployment does not run them.
 5. Verify existing row counts and a sample of legacy JSON/revision records
    before any backfill.
@@ -297,7 +307,7 @@ tests if a branch preview is attached to production `DB` or `BUCKET`.
 - No production migration has been applied.
 - No branch has been merged into `main`.
 - No live Google credentials are used in automated tests.
-- After approval, a human must verify D1 Time Travel, apply the two production
+- After approval, a human must verify D1 Time Travel, apply the reviewed pending production
   migrations, run/review the public-ID backfill, and complete the checklist
   above. The OAuth secret values and production Google callback are already
   configured externally and must remain outside the repository.

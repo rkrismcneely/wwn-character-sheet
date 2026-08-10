@@ -85,6 +85,8 @@ test("existing character data remains readable and unchanged after Phase 4B migr
 
   runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0001_better_auth_core.sql")]);
   runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0002_character_ownership_and_claims.sql")]);
+  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0003_better_auth_rate_limit_compatibility.sql")]);
+  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0004_better_auth_verification_camel_case_compatibility.sql")]);
 
   const characters = results(runWrangler(persistTo, environment, [
     "--command",
@@ -122,11 +124,29 @@ test("existing character data remains readable and unchanged after Phase 4B migr
     "legacy_character_claim_items",
     "legacy_character_claims",
     "rate_limit",
+    "rateLimit",
     "session",
     "user",
     "verification",
   ]) {
     assert.ok(tables.includes(table), `${table} should exist after migration`);
+  }
+
+  const compatibilityColumns = {
+    user: ["emailVerified", "createdAt", "updatedAt"],
+    session: ["expiresAt", "createdAt", "updatedAt", "ipAddress", "userAgent", "userId"],
+    account: ["accountId", "providerId", "userId", "accessToken", "refreshToken", "idToken", "accessTokenExpiresAt", "refreshTokenExpiresAt", "createdAt", "updatedAt"],
+    verification: ["expiresAt", "createdAt", "updatedAt"],
+    rateLimit: ["lastRequest"],
+  };
+  for (const [table, expectedColumns] of Object.entries(compatibilityColumns)) {
+    const columns = results(runWrangler(persistTo, environment, [
+      "--command",
+      `PRAGMA table_info('${table}')`,
+    ])).map(row => row.name);
+    for (const column of expectedColumns) {
+      assert.ok(columns.includes(column), `${table}.${column} should exist after compatibility migrations`);
+    }
   }
 
   assert.throws(() => runWrangler(persistTo, environment, [

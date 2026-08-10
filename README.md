@@ -89,6 +89,11 @@ The versioned D1 migrations are in `drizzle/`:
   records
 - `0002_character_ownership_and_claims.sql` — additive character ownership,
   visibility, public-ID, portrait-key, and legacy-claim schema
+- `0003_better_auth_rate_limit_compatibility.sql` — additive historical
+  `rateLimit` / `lastRequest` compatibility table
+- `0004_better_auth_verification_camel_case_compatibility.sql` — additive
+  historical camel-case compatibility columns; current runtime mappings use
+  the canonical snake-case Better Auth fields
 
 Apply and test migrations against local D1:
 
@@ -101,6 +106,8 @@ Inspect production's pending migrations deliberately:
 ```sh
 npm run db:migrations:list:production
 ```
+
+The authoritative Phase 4B production order, verification queries, claim setup, and rollback commands are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.
 
 Production migration is intentionally separate from deployment:
 
@@ -142,8 +149,7 @@ applied:
 2. Select only the intended opaque character IDs and run
    `npm run legacy-claim:create -- --character=<public-id> --output=<private-file-outside-repository>`.
    The command is dry-run by default. `--apply` creates a cryptographically
-   random, expiring, one-time token, stores only its SHA-256 hash in D1, and
-   writes the raw token once to a new mode-`0600` file.
+   random, expiring, one-time token, reserves the raw token first in a new mode-`0600` file and stores only its SHA-256 hash in D1. If the D1 result is ambiguous, retain that private file and verify/revoke its claim ID before retrying.
 3. Give that token privately to the intended person. They must sign in before
    submitting it in My Characters.
 4. Revoke an unused claim with `npm run legacy-claim:revoke --
@@ -190,6 +196,7 @@ state, environment files, and personal character exports are ignored.
 - `tests/` — rules, dice, security, build, and migration regressions
 - `docs/phase-4b-review.md` — migration and security review material plus the
   production verification checklist
+- `docs/PHASE-4B-PRODUCTION-ROLLOUT.md` — authoritative pre-production audit and exact guarded rollout/rollback checklist
 
 Cloudflare configuration is authoritative in `wrangler.jsonc`. Do not change
 the production `DB` or `BUCKET` resources, apply remote migrations, or merge the

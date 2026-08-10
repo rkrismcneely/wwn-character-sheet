@@ -1,4 +1,4 @@
-name: Build Phase 4B integration branch
+name: Finalize and verify Phase 4B integration
 
 on:
   pull_request:
@@ -9,72 +9,185 @@ permissions:
   contents: write
 
 jobs:
-  integrate:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/phase-4b-integration
           fetch-depth: 0
-      - name: Merge current main with reviewed conflict resolution
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Apply reviewed reconciliation and hardening edits
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 'phase4b-integration'
-          git config user.email 'phase4b-integration@users.noreply.github.com'
-          test "$(git rev-parse HEAD)" = "adc492927d1e1ba608beaa04c4afb791e1820bac"
-
-          set +e
-          git merge --no-commit --no-ff origin/main
-          status=$?
-          set -e
-          test "$status" -eq 1
-          conflicts="$(git diff --name-only --diff-filter=U | sort)"
-          expected=$'ROADMAP.md\napp/globals.css\napp/layout.tsx'
-          test "$conflicts" = "$expected"
-
+          test "$(git rev-parse HEAD)" = "ffe638733ccc3de3fa7645b2ec19768e232a167c"
+          git config user.name 'phase4b-preproduction-review'
+          git config user.email 'phase4b-preproduction-review@users.noreply.github.com'
           python3 - <<'PY'
           from pathlib import Path
 
-          roadmap = Path('ROADMAP.md')
-          text = roadmap.read_text()
-          start = text.index('<<<<<<< HEAD\n')
-          end = text.index('>>>>>>> origin/main\n', start) + len('>>>>>>> origin/main\n')
-          replacement = ('**Status: In progress — the full local Google sign-in → callback → authenticated UI → '
-                         'sign-out → refresh-signed-out → sign-in-again loop is verified on '
-                         '`adc492927d1e1ba608beaa04c4afb791e1820bac`. Pre-production reconciliation and review '
-                         'are in progress; production migration, backfill/claims, deployment, and merging remain '
-                         'blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md`.**\n')
-          roadmap.write_text(text[:start] + replacement + text[end:])
-
+          # Correct the merge-boundary brace, then apply the requested modest title increase.
           css = Path('app/globals.css')
           text = css.read_text()
-          start = text.index('<<<<<<< HEAD\n')
-          split = text.index('=======\n', start)
-          end = text.index('>>>>>>> origin/main\n', split) + len('>>>>>>> origin/main\n')
-          ours = text[start + len('<<<<<<< HEAD\n'):split]
-          theirs = text[split + len('=======\n'):end - len('>>>>>>> origin/main\n')]
-          css.write_text(text[:start] + ours + '\n' + theirs + text[end:])
+          old = '  .character-sharing select{min-width:0;width:100%}\n\n\n/* Tales Without End header mark:'
+          new = '  .character-sharing select{min-width:0;width:100%}\n}\n\n/* Tales Without End header mark:'
+          assert text.count(old) == 1, 'unexpected Phase 4B/branding CSS merge boundary'
+          text = text.replace(old, new, 1)
+          assert text.count('  font-size:21px;') == 1
+          text = text.replace('  font-size:21px;', '  font-size:24px;', 1)
+          assert text.count('  .brand strong{font-size:15px;letter-spacing:.04em}') == 1
+          text = text.replace('  .brand strong{font-size:15px;letter-spacing:.04em}', '  .brand strong{font-size:17px;letter-spacing:.04em}', 1)
+          tail = '  .brand strong{font-size:14px;letter-spacing:.02em}\n}\n}'
+          assert text.count(tail) == 1, 'unexpected final branding/media brace layout'
+          text = text.replace(tail, '  .brand strong{font-size:16px;letter-spacing:.02em}\n}', 1)
+          css.write_text(text)
 
-          layout = Path('app/layout.tsx')
-          text = layout.read_text()
-          start = text.index('<<<<<<< HEAD\n')
-          end = text.index('>>>>>>> origin/main\n', start) + len('>>>>>>> origin/main\n')
-          replacement = ('  metadataBase: new URL(CANONICAL_ORIGIN),\n'
-                         '  title: "Tales Without End - An Interactive Worlds Without Number Character Folio",\n')
-          layout.write_text(text[:start] + replacement + text[end:])
+          # Reserve the one recoverable raw claim token before mutating D1.
+          claim = Path('scripts/create-legacy-claim.mjs')
+          text = claim.read_text()
+          old = '''executeD1(statements.join("\\n"), remote);\nwriteFileSync(\n  outputPath,\n  `${JSON.stringify({ claimId, token, expiresAt, characters: publicIds }, null, 2)}\\n`,\n  { encoding: "utf8", flag: "wx", mode: 0o600 },\n);\nconsole.log(`Claim created. The token was written once to ${outputPath}.`);\n'''
+          new = '''writeFileSync(\n  outputPath,\n  `${JSON.stringify({ claimId, token, expiresAt, characters: publicIds }, null, 2)}\\n`,\n  { encoding: "utf8", flag: "wx", mode: 0o600 },\n);\ntry {\n  executeD1(statements.join("\\n"), remote);\n} catch (error) {\n  console.error(\n    `Claim database creation failed after reserving ${outputPath}. Keep this file private and verify or revoke claim ID ${claimId} before retrying.`,\n  );\n  throw error;\n}\nconsole.log(`Claim created. The token was written once to ${outputPath}.`);\n'''
+          assert text.count(old) == 1, 'claim creation sequence changed unexpectedly'
+          claim.write_text(text.replace(old, new, 1))
+
+          # Exercise all current migrations, including the two compatibility migrations.
+          migration_test = Path('tests/phase4b-migration.test.mjs')
+          text = migration_test.read_text()
+          marker = '  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0002_character_ownership_and_claims.sql")]);\n'
+          assert text.count(marker) == 1
+          text = text.replace(marker, marker +
+            '  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0003_better_auth_rate_limit_compatibility.sql")]);\n'
+            '  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0004_better_auth_verification_camel_case_compatibility.sql")]);\n', 1)
+          table_marker = '    "rate_limit",\n'
+          assert text.count(table_marker) == 1
+          text = text.replace(table_marker, table_marker + '    "rateLimit",\n', 1)
+          insert_before = '''  assert.throws(() => runWrangler(persistTo, environment, [\n    "--command",\n    "UPDATE characters SET visibility = 'friends-only' WHERE id = 'legacy-internal-id'",\n  ]));\n'''
+          compatibility = '''  const compatibilityColumns = {\n    user: ["emailVerified", "createdAt", "updatedAt"],\n    session: ["expiresAt", "createdAt", "updatedAt", "ipAddress", "userAgent", "userId"],\n    account: ["accountId", "providerId", "userId", "accessToken", "refreshToken", "idToken", "accessTokenExpiresAt", "refreshTokenExpiresAt", "createdAt", "updatedAt"],\n    verification: ["expiresAt", "createdAt", "updatedAt"],\n    rateLimit: ["lastRequest"],\n  };\n  for (const [table, expectedColumns] of Object.entries(compatibilityColumns)) {\n    const columns = results(runWrangler(persistTo, environment, [\n      "--command",\n      `PRAGMA table_info('${table}')`,\n    ])).map(row => row.name);\n    for (const column of expectedColumns) {\n      assert.ok(columns.includes(column), `${table}.${column} should exist after compatibility migrations`);\n    }\n  }\n\n'''
+          assert text.count(insert_before) == 1
+          text = text.replace(insert_before, compatibility + insert_before, 1)
+          migration_test.write_text(text)
+
+          # Targeted security/branding regressions.
+          security = Path('tests/phase4b-security.test.mjs')
+          text = security.read_text()
+          marker = 'test("visible Google sign-in controls keep direct Better Auth click paths", async () => {'
+          assert marker in text
+          block = '''test("legacy claim creation reserves the recovery token before database mutation", async () => {\n  const claim = await source("scripts/create-legacy-claim.mjs");\n  const section = claim.slice(claim.indexOf("const statements ="));\n  const writeIndex = section.indexOf("writeFileSync(");\n  const executeIndex = section.indexOf("executeD1(statements.join");\n  assert.ok(writeIndex >= 0 && executeIndex > writeIndex);\n  assert.match(section, /mode: 0o600/u);\n  assert.match(section, /Claim database creation failed after reserving/u);\n  assert.doesNotMatch(section, /console\\.log\\(\\s*token\\s*\\)/u);\n});\n\ntest("Tales Without End branding is reconciled without replacing auth metadata", async () => {\n  const page = await source("app/page.tsx");\n  const layout = await source("app/layout.tsx");\n  const css = await source("app/globals.css");\n  assert.match(page, /tales-without-end-navigation-logo\\.svg/u);\n  assert.match(page, /<strong>Tales Without End<\\/strong>/u);\n  assert.doesNotMatch(page, /<strong>WORLDS WITHOUT NUMBER<\\/strong>/u);\n  assert.doesNotMatch(page, /Interactive character folio<\\/small>/u);\n  assert.match(layout, /metadataBase: new URL\\(CANONICAL_ORIGIN\\)/u);\n  assert.match(layout, /title: "Tales Without End - An Interactive Worlds Without Number Character Folio"/u);\n  assert.match(css, /\\.brand strong\\{\\n  font-size:24px;\\n  font-weight:600;\\n  letter-spacing:\\.06em;\\n  white-space:nowrap;\\n\\}/u);\n  assert.match(css, /\\.brand strong\\{font-size:17px;letter-spacing:\\.04em\\}/u);\n  assert.match(css, /\\.brand strong\\{font-size:16px;letter-spacing:\\.02em\\}/u);\n  assert.match(css, /html\\{[^}]*overflow-x:hidden/u);\n  assert.match(css, /body\\{[^}]*overflow-x:hidden/u);\n});\n\n'''
+          assert 'legacy claim creation reserves the recovery token before database mutation' not in text
+          security.write_text(text.replace(marker, block + marker, 1))
+
+          # README: current migration inventory and authoritative rollout document.
+          readme = Path('README.md')
+          text = readme.read_text()
+          old = '''- `0002_character_ownership_and_claims.sql` — additive character ownership,\n  visibility, public-ID, portrait-key, and legacy-claim schema\n'''
+          new = old + '''- `0003_better_auth_rate_limit_compatibility.sql` — additive historical\n  `rateLimit` / `lastRequest` compatibility table\n- `0004_better_auth_verification_camel_case_compatibility.sql` — additive\n  historical camel-case compatibility columns; the current runtime explicitly\n  maps back to the canonical snake-case Better Auth fields\n'''
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          marker = 'Production migration is intentionally separate from deployment:\n'
+          assert marker in text
+          text = text.replace(marker, 'The authoritative Phase 4B production order, verification queries, claim setup, and rollback commands are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.\n\n' + marker, 1)
+          old = '   The command is dry-run by default. `--apply` creates a cryptographically\n   random, expiring, one-time token, stores only its SHA-256 hash in D1, and\n   writes the raw token once to a new mode-`0600` file.\n'
+          new = '   The command is dry-run by default. `--apply` creates a cryptographically\n   random, expiring, one-time token, reserves the raw token first in a new\n   mode-`0600` file, and stores only its SHA-256 hash in D1. If the D1 result is\n   ambiguous, retain that private file and verify/revoke its claim ID before retrying.\n'
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          old = '''npm run validate:artifact\n```\n'''
+          new = '''npm run validate:artifact\nnpm run workers:types\n```\n'''
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          old = '- `docs/phase-4b-review.md` — migration and security review material plus the\n  production verification checklist\n'
+          new = old + '- `docs/PHASE-4B-PRODUCTION-ROLLOUT.md` — authoritative pre-production audit, exact guarded rollout commands, verification, and rollback plan\n'
+          assert text.count(old) == 1
+          readme.write_text(text.replace(old, new, 1))
+
+          # Checkpoint: record the now-complete manual auth loop and completed branding reconciliation.
+          checkpoint = Path('docs/PHASE-4B-CHECKPOINT.md')
+          text = checkpoint.read_text()
+          marker = '**Resume date:** 2026-08-10\n'
+          assert marker in text
+          if '**Current verified auth baseline before reconciliation:**' not in text:
+            text = text.replace(marker, marker + '**Current verified auth baseline before reconciliation:** `adc492927d1e1ba608beaa04c4afb791e1820bac`  \n**Current `main` branding head reconciled:** `30890ee9c3d314103ac71d5c12fab1d325f9a2be`\n', 1)
+          old = 'This document remains the restart point for Phase 4B. Local Google sign-in and sign-out are now verified. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 until the remaining review and production gates are explicitly approved.\n'
+          new = 'This document remains the restart point for Phase 4B. The complete credentialed local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Do **not** merge this branch, apply production D1 migrations, or access/modify production D1 or R2 until the remaining review and production gates are explicitly approved.\n'
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          old = '''Current isolated runtime proof uses dummy local Google credentials and therefore proves the local rendered click paths, Better Auth request/response, authorization URL generation, sign-out invalidation, refresh persistence, and the ability to request Google authorization again after sign-out. It cannot freshly complete a credentialed Google account login/return because the real ignored `.dev.vars` secrets are intentionally unavailable here. That credentialed manual proof remains required before Phase 4B can be called production-ready.\n'''
+          new = '''After `adc4929`, manual testing with the real ignored local Google credentials completed the full Google login/callback/authenticated-return/sign-out/refresh/sign-in-again loop successfully. The pre-production reconciliation changes branding, documentation, test coverage, and the administrative claim-creation failure path; it does not replace the verified Better Auth sign-in/sign-out/session handlers. Another credentialed Google login is therefore not required unless the automated auth/runtime checks expose a regression.\n'''
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          start = text.index('### Branding reconciliation note\n')
+          end = text.index('## Production gates still outstanding\n', start)
+          branding = '''### Branding reconciliation completed\n\nCurrent `main` branding through `30890ee9c3d314103ac71d5c12fab1d325f9a2be` has been merged hunk-by-hunk into the Phase 4B integration history. `app/page.tsx` preserves `/assets/tales-without-end-navigation-logo.svg`, the `Tales Without End` header text, and all Phase 4B auth/ownership UI. `app/layout.tsx` preserves Phase 4B canonical/Open Graph metadata while using the exact production browser title `Tales Without End - An Interactive Worlds Without Number Character Folio`. `app/globals.css` preserves the Phase 4B account/library/share rules and the current responsive logo sizes. The title text is modestly increased from main's 21/15/14px to 24/17/16px while retaining the same font weight, letter spacing, logo sizes, alignment, and no-wrap behavior.\n\nThe migration/backfill/claim/authorization/privacy audit and the exact future production command order are recorded in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`. The main operational migration risk is deliberate: after `0002`, pre-account character rows are private and unowned until explicitly claimed. Claim creation is hardened so its private recovery token file is reserved before the administrative D1 mutation.\n\n'''
+          text = text[:start] + branding + text[end:]
+          text = text.replace('complete the production checklist in `docs/phase-4b-review.md`.', 'complete the authoritative production checklist in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.', 1)
+          checkpoint.write_text(text)
+
+          # Older long-form review remains useful, but point execution to the current inventory/checklist.
+          review = Path('docs/phase-4b-review.md')
+          text = review.read_text()
+          status = 'Status: feature branch review only. The production migration has **not** been\napplied and this branch must not be merged without approval.\n'
+          assert status in text
+          note = status + '\n> **2026-08-10 reconciliation note:** the current repository migration inventory is `0000` through `0004`. The authoritative production command order, verification queries, claim preparation, and rollback procedure are in `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`. Any older wording below that refers only to `0001`/`0002` is historical context, not an execution checklist.\n'
+          text = text.replace(status, note, 1)
+          text = text.replace('## Complete Phase 4B migration SQL', '## Original Phase 4B schema migration details plus compatibility follow-up', 1)
+          tables = '## Tables and indexes\n'
+          assert tables in text
+          compatibility_note = '''### `drizzle/0003_better_auth_rate_limit_compatibility.sql`\n\nAdditive historical compatibility table `rateLimit` with camel-case `lastRequest`; current Better Auth runtime mapping uses canonical `rate_limit.last_request`.\n\n### `drizzle/0004_better_auth_verification_camel_case_compatibility.sql`\n\nAdditive historical camel-case compatibility columns/backfills on `user`, `session`, `account`, and `verification`; current Better Auth runtime mapping uses the canonical snake-case columns.\n\n'''
+          text = text.replace(tables, compatibility_note + tables, 1)
+          text = text.replace('- `rate_limit`\n', '- `rate_limit`\n- `rateLimit` (historical compatibility table)\n', 1)
+          text = text.replace('applying `0001` and `0002`.', 'applying the reviewed pending set (`0001`–`0004`).', 1)
+          text = text.replace('apply the two production\n  migrations', 'apply the reviewed pending production\n  migrations', 1)
+          review.write_text(text)
+
+          # Roadmap status after this verified review pass.
+          roadmap = Path('ROADMAP.md')
+          text = roadmap.read_text()
+          old = ('**Status: In progress — the full local Google sign-in → callback → authenticated UI → '
+                 'sign-out → refresh-signed-out → sign-in-again loop is verified on '
+                 '`adc492927d1e1ba608beaa04c4afb791e1820bac`. Pre-production reconciliation and review '
+                 'are in progress; production migration, backfill/claims, deployment, and merging remain '
+                 'blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md`.**')
+          new = ('**Status: In progress — the full local Google sign-in → callback → authenticated UI → '
+                 'sign-out → refresh-signed-out → sign-in-again loop is verified on '
+                 '`adc492927d1e1ba608beaa04c4afb791e1820bac`. Current Tales Without End branding is '
+                 'reconciled and the pre-production code/migration/security review is complete. Production '
+                 'migration, backfill/claims, deployment, and merging remain blocked pending explicit approval. '
+                 'See `docs/PHASE-4B-CHECKPOINT.md` and `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.**')
+          assert text.count(old) == 1
+          roadmap.write_text(text.replace(old, new, 1))
           PY
-
-          test -z "$(git grep -n '^<<<<<<<\|^=======\|^>>>>>>>' -- ROADMAP.md app/globals.css app/layout.tsx app/page.tsx || true)"
+          git diff --check
+          test -z "$(git grep -n '^<<<<<<<\|^=======\|^>>>>>>>' -- ROADMAP.md app docs scripts tests README.md || true)"
+          grep -Fq 'font-size:24px' app/globals.css
+          grep -Fq 'font-size:17px' app/globals.css
+          grep -Fq 'font-size:16px' app/globals.css
           grep -Fq '/assets/tales-without-end-navigation-logo.svg' app/page.tsx
-          grep -Fq '<strong>Tales Without End</strong>' app/page.tsx
           grep -Fq 'authClient.signIn.social' app/page.tsx
           grep -Fq 'authClient.signOut' app/page.tsx
-          grep -Fq 'metadataBase: new URL(CANONICAL_ORIGIN)' app/layout.tsx
-          grep -Fq 'Tales Without End - An Interactive Worlds Without Number Character Folio' app/layout.tsx
-          grep -Fq '.account-state{' app/globals.css
-          grep -Fq '.brand-logo{' app/globals.css
-          git add ROADMAP.md app/globals.css app/layout.tsx app/page.tsx public/assets/tales-without-end-emblem.png public/assets/tales-without-end-navigation-logo.svg
+          grep -Fq 'drizzle/0004_better_auth_verification_camel_case_compatibility.sql' tests/phase4b-migration.test.mjs
+          grep -Fq 'Claim database creation failed after reserving' scripts/create-legacy-claim.mjs
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Full project test suite
+        run: npm test
+      - name: Worker binding types
+        run: npm run workers:types
+      - name: Verify generated state and commit reviewed changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git status --short
+          git add ROADMAP.md README.md app/globals.css docs/PHASE-4B-CHECKPOINT.md docs/phase-4b-review.md scripts/create-legacy-claim.mjs tests/phase4b-migration.test.mjs tests/phase4b-security.test.mjs
           git diff --check --cached
-          git commit -m 'Merge current Tales Without End branding into Phase 4B'
+          git commit -m 'Complete Phase 4B pre-production reconciliation review'
           git push origin HEAD:agent/phase-4b-integration

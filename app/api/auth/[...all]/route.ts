@@ -29,6 +29,31 @@ const handlers = (() => {
   }
 })();
 
+type AuthMethod = "GET" | "POST";
+
+async function invokeAuthHandler(request: Request, method: AuthMethod): Promise<Response> {
+  logAuthCheckpoint("auth_context_access_start");
+  const context = auth.$context;
+  logAuthCheckpoint("auth_context_access_complete");
+  logAuthCheckpoint("auth_context_observer_attach_start");
+  void context.then(
+    () => logAuthCheckpoint("auth_context_observer_complete"),
+    (error) => logAuthInitializationException("auth_context_observer_exception", error),
+  );
+  logAuthCheckpoint("auth_context_observer_attach_complete");
+
+  logAuthCheckpoint("auth_next_handler_access_start");
+  const handler = handlers[method];
+  logAuthCheckpoint("auth_next_handler_access_complete");
+  logAuthCheckpoint("auth_next_handler_invoke_start");
+  const pendingResponse = handler(request);
+  logAuthCheckpoint("auth_next_handler_invoke_returned");
+  logAuthCheckpoint("auth_next_handler_await_start");
+  const response = await pendingResponse;
+  logAuthCheckpoint("auth_next_handler_await_complete");
+  return response;
+}
+
 function unavailable(): Response {
   return Response.json(
     { error: "Authentication is temporarily unavailable." },
@@ -83,7 +108,7 @@ export async function GET(request: Request): Promise<Response> {
   logAuthCheckpoint("auth_bindings_valid");
   try {
     logAuthCheckpoint("auth_handler_start");
-    const response = await handlers.GET(request);
+    const response = await invokeAuthHandler(request, "GET");
     logAuthCheckpoint("auth_handler_complete");
     return response;
   } catch (error) {
@@ -105,7 +130,7 @@ export async function POST(request: Request): Promise<Response> {
   logAuthCheckpoint("auth_bindings_valid");
   try {
     logAuthCheckpoint("auth_handler_start");
-    const response = await handlers.POST(request);
+    const response = await invokeAuthHandler(request, "POST");
     logAuthCheckpoint("auth_handler_complete");
     return response;
   } catch (error) {

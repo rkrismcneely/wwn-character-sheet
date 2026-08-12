@@ -407,3 +407,29 @@ test("production migration and legacy admin commands fail closed", async () => {
   assert.match(claim, /mode: 0o600/u);
   assert.doesNotMatch(claim, /console\.log\(\s*token\s*\)/u);
 });
+
+
+test("auth diagnostics checkpoint initialization and handler execution", async () => {
+  const auth = await source("lib/auth.ts");
+  const route = await source("app/api/auth/[...all]/route.ts");
+
+  for (const checkpoint of [
+    "auth_instance_create_start",
+    "auth_instance_create_complete",
+    "auth_instance_create_exception",
+  ]) {
+    assert.match(auth, new RegExp(`"${checkpoint}"`, "u"));
+  }
+
+  for (const checkpoint of [
+    "auth_handler_create_start",
+    "auth_handler_create_complete",
+    "auth_handler_create_exception",
+    "auth_route_enter",
+    "auth_bindings_valid",
+    "auth_handler_start",
+    "auth_handler_complete",
+  ]) {
+    assert.match(route, new RegExp(`"${checkpoint}"`, "u"));
+  }
+});

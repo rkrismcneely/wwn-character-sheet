@@ -16,6 +16,20 @@ const requiredAuthBindingNames = [
 
 export type AuthBindingName = (typeof requiredAuthBindingNames)[number];
 
+function logAuthCheckpoint(event: string): void {
+  console.log(JSON.stringify({ event }));
+}
+
+function logAuthInitializationException(event: string, error: unknown): void {
+  const errorType = error instanceof Error ? error.name : "UnknownThrownValue";
+  const message = error instanceof Error
+    ? error.message
+    : "A non-Error value was thrown during authentication initialization.";
+  const stack = error instanceof Error ? error.stack : undefined;
+
+  console.error(JSON.stringify({ event, errorType, message, stack }));
+}
+
 export function missingAuthBindings(
   runtimeEnv: Pick<CloudflareEnv, AuthBindingName> = env,
 ): AuthBindingName[] {
@@ -30,7 +44,11 @@ export function isAuthRuntimeConfigured(
   return missingAuthBindings(runtimeEnv).length === 0;
 }
 
-export const auth = betterAuth({
+function createAuth() {
+  logAuthCheckpoint("auth_instance_create_start");
+
+  try {
+    const instance = betterAuth({
   database: env.DB,
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
@@ -111,6 +129,15 @@ export const auth = betterAuth({
   logger: {
     level: "error",
   },
-});
+    });
+    logAuthCheckpoint("auth_instance_create_complete");
+    return instance;
+  } catch (error) {
+    logAuthInitializationException("auth_instance_create_exception", error);
+    throw error;
+  }
+}
+
+export const auth = createAuth();
 
 export type Auth = typeof auth;

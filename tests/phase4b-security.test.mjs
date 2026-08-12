@@ -417,6 +417,9 @@ test("auth diagnostics checkpoint initialization and handler execution", async (
     "auth_instance_create_start",
     "auth_instance_create_complete",
     "auth_instance_create_exception",
+    "auth_context_create_start",
+    "auth_context_create_complete",
+    "auth_context_create_exception",
   ]) {
     assert.match(auth, new RegExp(`"${checkpoint}"`, "u"));
   }
@@ -432,4 +435,13 @@ test("auth diagnostics checkpoint initialization and handler execution", async (
   ]) {
     assert.match(route, new RegExp(`"${checkpoint}"`, "u"));
   }
+});
+
+test("auth D1 diagnostics expose only safe operation metadata", async () => {
+  const diagnostics = await source("lib/auth-d1-diagnostics.ts");
+  assert.match(diagnostics, /auth_d1_operation_start/u);
+  assert.match(diagnostics, /auth_d1_operation_complete/u);
+  assert.match(diagnostics, /auth_d1_operation_exception/u);
+  assert.match(diagnostics, /model, operation/u);
+  assert.doesNotMatch(diagnostics, /console\.(?:log|error)\([^\n]*(?:query|values|args)/u);
 });

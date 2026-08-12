@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { betterAuth } from "better-auth";
 import { CANONICAL_ORIGIN } from "./auth-constants";
+import { instrumentAuthDatabase } from "./auth-d1-diagnostics";
 
 export const LOCAL_AUTH_ORIGINS = [
   "http://localhost:5173",
@@ -49,7 +50,7 @@ function createAuth() {
 
   try {
     const instance = betterAuth({
-  database: env.DB,
+  database: instrumentAuthDatabase(env.DB),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
   basePath: "/api/auth",
@@ -131,6 +132,11 @@ function createAuth() {
   },
     });
     logAuthCheckpoint("auth_instance_create_complete");
+    logAuthCheckpoint("auth_context_create_start");
+    void instance.$context.then(
+      () => logAuthCheckpoint("auth_context_create_complete"),
+      (error) => logAuthInitializationException("auth_context_create_exception", error),
+    );
     return instance;
   } catch (error) {
     logAuthInitializationException("auth_instance_create_exception", error);

@@ -2,7 +2,32 @@ import { toNextJsHandler } from "better-auth/next-js";
 import { auth, missingAuthBindings } from "@/lib/auth";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 
-const handlers = toNextJsHandler(auth);
+function logAuthCheckpoint(event: string): void {
+  console.log(JSON.stringify({ event }));
+}
+
+function logAuthInitializationException(event: string, error: unknown): void {
+  const errorType = error instanceof Error ? error.name : "UnknownThrownValue";
+  const message = error instanceof Error
+    ? error.message
+    : "A non-Error value was thrown during authentication initialization.";
+  const stack = error instanceof Error ? error.stack : undefined;
+
+  console.error(JSON.stringify({ event, errorType, message, stack }));
+}
+
+const handlers = (() => {
+  logAuthCheckpoint("auth_handler_create_start");
+
+  try {
+    const instance = toNextJsHandler(auth);
+    logAuthCheckpoint("auth_handler_create_complete");
+    return instance;
+  } catch (error) {
+    logAuthInitializationException("auth_handler_create_exception", error);
+    throw error;
+  }
+})();
 
 function unavailable(): Response {
   return Response.json(
@@ -46,6 +71,7 @@ function canonicalFallbackRedirect(request: Request): Response | null {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  logAuthCheckpoint("auth_route_enter");
   const redirect = canonicalFallbackRedirect(request);
   if (redirect) return redirect;
   const missingBindings = missingAuthBindings();
@@ -53,8 +79,13 @@ export async function GET(request: Request): Promise<Response> {
     logMissingAuthBindings(request, missingBindings);
     return unavailable();
   }
+
+  logAuthCheckpoint("auth_bindings_valid");
   try {
-    return await handlers.GET(request);
+    logAuthCheckpoint("auth_handler_start");
+    const response = await handlers.GET(request);
+    logAuthCheckpoint("auth_handler_complete");
+    return response;
   } catch (error) {
     logAuthException(request, error);
     return unavailable();
@@ -62,6 +93,7 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  logAuthCheckpoint("auth_route_enter");
   const redirect = canonicalFallbackRedirect(request);
   if (redirect) return redirect;
   const missingBindings = missingAuthBindings();
@@ -69,8 +101,13 @@ export async function POST(request: Request): Promise<Response> {
     logMissingAuthBindings(request, missingBindings);
     return unavailable();
   }
+
+  logAuthCheckpoint("auth_bindings_valid");
   try {
-    return await handlers.POST(request);
+    logAuthCheckpoint("auth_handler_start");
+    const response = await handlers.POST(request);
+    logAuthCheckpoint("auth_handler_complete");
+    return response;
   } catch (error) {
     logAuthException(request, error);
     return unavailable();

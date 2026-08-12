@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { instrumentAuthDatabase } from "../lib/auth-d1-diagnostics.ts";
 import test from "node:test";
 import {
   authorizeCharacterWrite,
@@ -342,9 +341,9 @@ test("auth build configuration references runtime binding names without secret v
   const client = await source("lib/auth-client.ts");
   const example = await source(".dev.vars.example");
   const wrangler = await source("wrangler.jsonc");
-  assert.match(auth, /env\.BETTER_AUTH_SECRET/u);
-  assert.match(auth, /env\.GOOGLE_CLIENT_ID/u);
-  assert.match(auth, /env\.GOOGLE_CLIENT_SECRET/u);
+  assert.match(auth, /runtimeEnv\.BETTER_AUTH_SECRET/u);
+  assert.match(auth, /runtimeEnv\.GOOGLE_CLIENT_ID/u);
+  assert.match(auth, /runtimeEnv\.GOOGLE_CLIENT_SECRET/u);
   assert.doesNotMatch(client, /SECRET|CLIENT_ID/u);
   assert.equal(example, "BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:5173\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\n");
   assert.match(
@@ -410,93 +409,36 @@ test("production migration and legacy admin commands fail closed", async () => {
 });
 
 
-test("auth diagnostics checkpoint initialization and handler execution", async () => {
+test("auth is request-scoped, uses the concrete D1 binding, and has no temporary diagnostics", async () => {
   const auth = await source("lib/auth.ts");
+  const asyncStorage = await source("lib/better-auth-cloudflare.ts");
   const route = await source("app/api/auth/[...all]/route.ts");
+  const session = await source("lib/auth-session.ts");
 
-  for (const checkpoint of [
-    "auth_instance_create_start",
-    "auth_instance_create_complete",
-    "auth_instance_create_exception",
-    "auth_context_create_start",
-    "auth_context_create_complete",
-    "auth_context_create_exception",
+  assert.match(auth, /export function createAuth\(runtimeEnv/u);
+  assert.match(auth, /database: runtimeEnv\.DB/u);
+  assert.doesNotMatch(auth, /cloudflare:workers|export const auth|instrumentAuthDatabase/u);
+  assert.match(route, /createAuth\(env\)\.handler\(request\)/u);
+  assert.match(session, /createAuth\(env\)\.api\.getSession/u);
+  assert.match(asyncStorage, /import \{ AsyncLocalStorage \} from "node:async_hooks"/u);
+  for (const storage of [
+    "adapterAsyncStorage",
+    "endpointContextAsyncStorage",
+    "requestStateAsyncStorage",
   ]) {
-    assert.match(auth, new RegExp(`"${checkpoint}"`, "u"));
+    assert.match(asyncStorage, new RegExp(`${storage} \\?\\?= new AsyncLocalStorage`, "u"));
   }
 
-  for (const checkpoint of [
-    "auth_handler_create_start",
-    "auth_handler_create_complete",
-    "auth_handler_create_exception",
+  const combined = `${auth}\n${route}\n${session}\n${asyncStorage}`;
+  for (const diagnostic of [
     "auth_route_enter",
     "auth_bindings_valid",
+    "auth_instance_create_start",
+    "auth_context_create_start",
     "auth_handler_start",
-    "auth_handler_complete",
-    "auth_context_access_start",
-    "auth_context_access_complete",
-    "auth_context_observer_attach_start",
-    "auth_context_observer_attach_complete",
-    "auth_context_observer_complete",
-    "auth_context_observer_exception",
-    "auth_next_handler_access_start",
-    "auth_next_handler_access_complete",
-    "auth_next_handler_invoke_start",
-    "auth_next_handler_invoke_returned",
     "auth_next_handler_await_start",
-    "auth_next_handler_await_complete",
+    "auth_d1_operation_start",
   ]) {
-    assert.match(route, new RegExp(`"${checkpoint}"`, "u"));
+    assert.doesNotMatch(combined, new RegExp(diagnostic, "u"));
   }
-});
-
-test("auth D1 diagnostics pass through unavailable bindings and preserve D1 behavior", async () => {
-  for (const value of [undefined, null, false, 0, ""]) {
-    assert.equal(instrumentAuthDatabase(value), value);
-  }
-
-  const expected = { results: [{ ok: true }] };
-  const statement = {
-    bind() {
-      return this;
-    },
-    async all() {
-      return expected;
-    },
-  };
-  const database = {
-    prepare() {
-      return statement;
-    },
-    async batch(statements) {
-      return statements;
-    },
-  };
-  const checkpoints = [];
-  const originalLog = console.log;
-  console.log = (entry) => checkpoints.push(JSON.parse(entry));
-
-  try {
-    const result = await instrumentAuthDatabase(database)
-      .prepare('SELECT * FROM "session"')
-      .bind("not-logged")
-      .all();
-    assert.equal(result, expected);
-  } finally {
-    console.log = originalLog;
-  }
-
-  assert.deepEqual(checkpoints, [
-    { event: "auth_d1_operation_start", model: "session", operation: "all" },
-    { event: "auth_d1_operation_complete", model: "session", operation: "all" },
-  ]);
-});
-
-test("auth D1 diagnostics expose only safe operation metadata", async () => {
-  const diagnostics = await source("lib/auth-d1-diagnostics.ts");
-  assert.match(diagnostics, /auth_d1_operation_start/u);
-  assert.match(diagnostics, /auth_d1_operation_complete/u);
-  assert.match(diagnostics, /auth_d1_operation_exception/u);
-  assert.match(diagnostics, /model, operation/u);
-  assert.doesNotMatch(diagnostics, /console\.(?:log|error)\([^\n]*(?:query|values|args)/u);
 });

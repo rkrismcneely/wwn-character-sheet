@@ -433,6 +433,18 @@ test("auth diagnostics checkpoint initialization and handler execution", async (
     "auth_bindings_valid",
     "auth_handler_start",
     "auth_handler_complete",
+    "auth_context_access_start",
+    "auth_context_access_complete",
+    "auth_context_observer_attach_start",
+    "auth_context_observer_attach_complete",
+    "auth_context_observer_complete",
+    "auth_context_observer_exception",
+    "auth_next_handler_access_start",
+    "auth_next_handler_access_complete",
+    "auth_next_handler_invoke_start",
+    "auth_next_handler_invoke_returned",
+    "auth_next_handler_await_start",
+    "auth_next_handler_await_complete",
   ]) {
     assert.match(route, new RegExp(`"${checkpoint}"`, "u"));
   }

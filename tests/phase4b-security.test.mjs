@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { instrumentAuthDatabase } from "../lib/auth-d1-diagnostics.ts";
 import test from "node:test";
 import {
   authorizeCharacterWrite,
@@ -435,6 +436,48 @@ test("auth diagnostics checkpoint initialization and handler execution", async (
   ]) {
     assert.match(route, new RegExp(`"${checkpoint}"`, "u"));
   }
+});
+
+test("auth D1 diagnostics pass through unavailable bindings and preserve D1 behavior", async () => {
+  for (const value of [undefined, null, false, 0, ""]) {
+    assert.equal(instrumentAuthDatabase(value), value);
+  }
+
+  const expected = { results: [{ ok: true }] };
+  const statement = {
+    bind() {
+      return this;
+    },
+    async all() {
+      return expected;
+    },
+  };
+  const database = {
+    prepare() {
+      return statement;
+    },
+    async batch(statements) {
+      return statements;
+    },
+  };
+  const checkpoints = [];
+  const originalLog = console.log;
+  console.log = (entry) => checkpoints.push(JSON.parse(entry));
+
+  try {
+    const result = await instrumentAuthDatabase(database)
+      .prepare('SELECT * FROM "session"')
+      .bind("not-logged")
+      .all();
+    assert.equal(result, expected);
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.deepEqual(checkpoints, [
+    { event: "auth_d1_operation_start", model: "session", operation: "all" },
+    { event: "auth_d1_operation_complete", model: "session", operation: "all" },
+  ]);
 });
 
 test("auth D1 diagnostics expose only safe operation metadata", async () => {

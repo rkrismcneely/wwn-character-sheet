@@ -47,11 +47,17 @@ function classifyModel(query: string): AuthDatabaseModel {
   ))?.[1] ?? "unknown";
 }
 
+function isProxyable(value: unknown): value is object {
+  return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
 function instrumentStatement(
   statement: D1PreparedStatement,
   model: AuthDatabaseModel,
   originals: WeakMap<D1PreparedStatement, D1PreparedStatement>,
 ): D1PreparedStatement {
+  if (!isProxyable(statement)) return statement;
+
   const wrapped = new Proxy(statement, {
     get(target, property) {
       if (property === "bind") {
@@ -92,6 +98,8 @@ function instrumentStatement(
 }
 
 export function instrumentAuthDatabase(database: D1Database): D1Database {
+  if (!isProxyable(database)) return database;
+
   const originals = new WeakMap<D1PreparedStatement, D1PreparedStatement>();
 
   return new Proxy(database, {

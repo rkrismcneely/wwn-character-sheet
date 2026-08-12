@@ -74,8 +74,10 @@ type Companion = {
 type LibraryCharacter = {
   id: string; name: string; player: string; classLabel: string; level: number;
   visibility: CharacterVisibility; version: number; createdAt: string; updatedAt: string;
-  permissions: { canEdit: boolean };
+  ownerState?: "mine" | "other" | "unowned";
+  permissions: { canEdit: boolean; adminReadOnly: boolean };
 };
+type LibraryScope = "mine" | "public" | "all";
 
 const skills = ["Administer","Connect","Convince","Craft","Exert","Heal","Know","Lead","Magic","Notice","Perform","Pray","Punch","Ride","Sail","Shoot","Sneak","Stab","Survive","Trade","Work"];
 const combatSkills = ["Punch", "Shoot", "Stab"] as const;
@@ -271,7 +273,7 @@ export type InitialCharacterPayload = {
   visibility: CharacterVisibility;
   createdAt: string;
   updatedAt: string;
-  permissions: { canEdit: boolean };
+  permissions: { canEdit: boolean; adminReadOnly: boolean };
 };
 
 const blankCharacter: Sheet = {
@@ -902,6 +904,7 @@ export default function Home({
   } = authClient.useSession();
   const [locallySignedOut, setLocallySignedOut] = useState(false);
   const signedIn = Boolean(session?.user?.id) && !locallySignedOut;
+  const isAdmin = signedIn && session?.user?.role === "admin";
   const [tab, setTab] = useState<Tab>("core");
   const [theme, setTheme] = useState<Theme>("light");
   const [sheet, setSheet] = useState<Sheet>(() =>
@@ -916,7 +919,7 @@ export default function Home({
   const [dragging, setDragging] = useState<{ kind: "spell" | "art"; index: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(!initialCharacter);
-  const [libraryScope, setLibraryScope] = useState<"mine" | "public">("public");
+  const [libraryScope, setLibraryScope] = useState<LibraryScope>("public");
   const [libraryQuery, setLibraryQuery] = useState("");
   const [library, setLibrary] = useState<LibraryCharacter[]>([]);
   const [libraryBusy, setLibraryBusy] = useState(false);
@@ -928,6 +931,9 @@ export default function Home({
   );
   const [cloudCanEdit, setCloudCanEdit] = useState(
     initialCharacter?.permissions.canEdit ?? false,
+  );
+  const [cloudAdminReadOnly, setCloudAdminReadOnly] = useState(
+    initialCharacter?.permissions.adminReadOnly ?? false,
   );
   const [claimToken, setClaimToken] = useState("");
   const [claimBusy, setClaimBusy] = useState(false);
@@ -986,7 +992,6 @@ export default function Home({
   async function signInWithGoogle(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     const callbackURL = "/";
-    const isLocalDevelopment = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 
     setTransferMessage("Opening Google sign-in…");
     setLibraryError("");
@@ -999,12 +1004,6 @@ export default function Home({
     }
 
     try {
-      if (isLocalDevelopment) {
-        console.debug("[auth] Calling authClient.signIn.social", {
-          provider: "google",
-          callbackURL,
-        });
-      }
       const { error } = await authClient.signIn.social({
         provider: "google",
         callbackURL,
@@ -1019,9 +1018,6 @@ export default function Home({
       const feedback = `Google sign-in failed: ${detail}`;
       setTransferMessage(feedback);
       setLibraryError(feedback);
-      if (isLocalDevelopment) {
-        console.error("[auth] Google sign-in failed", error);
-      }
     }
   }
 
@@ -1208,6 +1204,7 @@ export default function Home({
         setCloudId(null);
         setCloudVersion(null);
         setCloudVisibility("private");
+        setCloudAdminReadOnly(false);
         setCloudCanEdit(false);
         lastCloudData.current = "";
         setSaved(signedIn ? "Saved on this device" : "Sign in to edit");
@@ -1489,10 +1486,15 @@ export default function Home({
       setLibraryError("Sign in with Google to view My Characters.");
       return;
     }
+    if (scope === "all" && !isAdmin) {
+      setLibrary([]);
+      setLibraryError("Administrator access is required to view all characters.");
+      return;
+    }
     setLibraryBusy(true);
     setLibraryError("");
     try {
-      const search = scope === "public" && query.trim()
+      const search = scope !== "mine" && query.trim()
         ? `&q=${encodeURIComponent(query.trim())}`
         : "";
       const response = await fetch(`/api/characters?scope=${scope}${search}`, { cache: "no-store" });
@@ -1518,7 +1520,7 @@ export default function Home({
         character?: Partial<Sheet>;
         version?: number;
         visibility?: CharacterVisibility;
-        permissions?: { canEdit: boolean };
+        permissions?: { canEdit: boolean; adminReadOnly: boolean };
         error?: string;
       };
       if (!response.ok || !payload.character) throw new Error(payload.error);
@@ -1529,6 +1531,7 @@ export default function Home({
       setCloudVersion(Number(payload.version));
       setCloudVisibility(payload.visibility || "private");
       setCloudCanEdit(Boolean(payload.permissions?.canEdit));
+      setCloudAdminReadOnly(Boolean(payload.permissions?.adminReadOnly));
       setSaved(payload.permissions?.canEdit ? "Saved online" : "Read-only");
       setLibraryOpen(false);
       if (options.updateHistory !== false && window.location.pathname !== `/character/${id}`) {
@@ -1573,6 +1576,7 @@ export default function Home({
       setCloudVersion(nextVersion);
       setCloudVisibility(payload.visibility || "private");
       setCloudCanEdit(true);
+      setCloudAdminReadOnly(false);
       lastCloudData.current = JSON.stringify(nextCharacter);
       setSaved("Saved online");
       window.history.pushState({ characterId: payload.id }, "", `/character/${payload.id}`);
@@ -1719,6 +1723,7 @@ export default function Home({
     setCloudVersion(null);
     setCloudVisibility("private");
     setCloudCanEdit(true);
+    setCloudAdminReadOnly(false);
     lastCloudData.current = "";
     await addCurrentToLibrary(fresh);
   }
@@ -1755,6 +1760,7 @@ export default function Home({
       setCloudVersion(null);
       setCloudVisibility("private");
       setCloudCanEdit(false);
+      setCloudAdminReadOnly(false);
       lastCloudData.current = "";
       setSaved("Deleted online");
       window.history.pushState({}, "", "/");
@@ -2522,20 +2528,9 @@ export default function Home({
             type="button"
             className="primary-action account-signin"
             onClick={async () => {
-              const isLocalDevelopment = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-              if (isLocalDevelopment) {
-                console.log("[auth-header-button] direct click");
-              }
               setTransferMessage("Opening Google sign-in…");
               setLibraryError("");
               try {
-                if (isLocalDevelopment) {
-                  console.log("[auth] Calling authClient.signIn.social", {
-                    source: "header",
-                    provider: "google",
-                    callbackURL: "/",
-                  });
-                }
                 const { error } = await authClient.signIn.social({
                   provider: "google",
                   callbackURL: "/",
@@ -2550,9 +2545,6 @@ export default function Home({
                 const feedback = `Google sign-in failed: ${detail}`;
                 setTransferMessage(feedback);
                 setLibraryError(feedback);
-                if (isLocalDevelopment) {
-                  console.error("[auth] Google sign-in failed", error);
-                }
               }
             }}
           >Sign in with Google</button>}
@@ -2567,18 +2559,15 @@ export default function Home({
             type="button"
             className="account-signout"
             onClick={async () => {
-              console.log("[auth-sign-out-button] direct click");
               setLibraryError("");
               try {
-                console.log("[auth] Calling authClient.signOut", {
-                  endpoint: "POST /api/auth/sign-out",
-                });
                 const { error } = await authClient.signOut();
                 if (error) {
                   throw new Error(error.message || "Better Auth rejected sign out.");
                 }
                 setLocallySignedOut(true);
                 setCloudCanEdit(false);
+                setCloudAdminReadOnly(false);
                 setLibraryScope("public");
                 setSaved(cloudId ? "Read-only" : "Sign in to edit");
                 setTransferMessage("Signed out. Owner-only controls have been disabled.");
@@ -2591,7 +2580,6 @@ export default function Home({
                 const feedback = `Sign out failed: ${detail}`;
                 setTransferMessage(feedback);
                 setLibraryError(feedback);
-                console.error("[auth] Sign out failed", error);
               }
             }}
           >Sign Out</button>}
@@ -2621,9 +2609,16 @@ export default function Home({
               className={libraryScope === "public" ? "active" : ""}
               onClick={() => { setLibraryScope("public"); void refreshLibrary("public"); }}
             >Public Characters</button>
+            {isAdmin && <button
+              type="button"
+              role="tab"
+              aria-selected={libraryScope === "all"}
+              className={libraryScope === "all" ? "active" : ""}
+              onClick={() => { setLibraryScope("all"); void refreshLibrary("all"); }}
+            >All Characters</button>}
           </div>
-          {libraryScope === "public" && <form className="library-search" onSubmit={event => { event.preventDefault(); void refreshLibrary("public", libraryQuery); }}>
-            <label htmlFor="library-search">Search public characters</label>
+          {libraryScope !== "mine" && <form className="library-search" onSubmit={event => { event.preventDefault(); void refreshLibrary(libraryScope, libraryQuery); }}>
+            <label htmlFor="library-search">Search {libraryScope === "all" ? "all" : "public"} characters</label>
             <div><input id="library-search" type="search" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} /><button type="submit">Search</button></div>
           </form>}
           <div className="library-actions">
@@ -2637,20 +2632,9 @@ export default function Home({
               type="button"
               className="primary-action"
               onClick={async () => {
-                const isLocalDevelopment = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-                if (isLocalDevelopment) {
-                  console.log("[auth-library-button] direct click");
-                }
                 setTransferMessage("Opening Google sign-in…");
                 setLibraryError("");
                 try {
-                  if (isLocalDevelopment) {
-                    console.log("[auth] Calling authClient.signIn.social", {
-                      source: "library",
-                      provider: "google",
-                      callbackURL: "/",
-                    });
-                  }
                   const { error } = await authClient.signIn.social({
                     provider: "google",
                     callbackURL: "/",
@@ -2665,9 +2649,6 @@ export default function Home({
                   const feedback = `Google sign-in failed: ${detail}`;
                   setTransferMessage(feedback);
                   setLibraryError(feedback);
-                  if (isLocalDevelopment) {
-                    console.error("[auth] Google sign-in failed", error);
-                  }
                 }
               }}
             >Sign in with Google</button>
@@ -2680,11 +2661,11 @@ export default function Home({
           {libraryError && <div className="library-error" role="alert">{libraryError}</div>}
           <div className="library-list">
             {libraryBusy && library.length === 0 && <div className="library-empty"><span>⌛</span><h2>Opening the archive…</h2></div>}
-            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character, import a backup, or use a legacy claim token." : "Try a different search or return later."}</p></div>}
+            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : libraryScope === "all" ? "No characters found" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character, import a backup, or use a legacy claim token." : "Try a different search or return later."}</p></div>}
             {library.map(character => <article className={`library-card ${cloudId === character.id ? "current" : ""}`} key={character.id}>
               <button className="library-card-main" onClick={() => void openCloudCharacter(character.id)}>
                 <span className="library-level">LVL <b>{character.level}</b></span>
-                <span><strong>{character.name}</strong><small>{character.classLabel}{character.player ? ` · ${character.player}` : ""}</small></span>
+                <span><strong>{character.name}</strong><small>{character.classLabel}{character.player ? ` · ${character.player}` : ""}</small>{libraryScope === "all" && <small className="library-owner-state">{character.ownerState === "mine" ? "Mine" : character.ownerState === "unowned" ? "Unowned" : "Other user"} · {character.visibility}</small>}</span>
                 <time>Updated {new Date(character.updatedAt).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</time>
               </button>
               <div className="library-card-actions">
@@ -2694,15 +2675,15 @@ export default function Home({
               </div>
             </article>)}
           </div>
-          <footer className="library-footer">Owned characters autosave. Private characters are visible only to their owner; public characters are read-only to everyone else.</footer>
+          <footer className="library-footer">{isAdmin ? "Administrator access is read-only outside My Characters; only owners can make changes." : "Owned characters autosave. Private characters are visible only to their owner; public characters are read-only to everyone else."}</footer>
         </section>
       </div>}
 
       <div ref={editableSurface} className={`folio ${canEdit ? "" : "read-only-folio"}`}>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
         {!canEdit && <div className="read-only-banner" role="status">
-          <strong>Read-only character</strong>
-          <span>{signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
+          <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
+          <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
           {!signedIn && <button type="button" data-readonly-interactive="true" onClick={signInWithGoogle}>Sign in with Google</button>}
         </div>}
         {cloudId && canEdit && <div className="character-sharing" data-readonly-interactive="true">

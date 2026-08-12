@@ -87,6 +87,7 @@ test("existing character data remains readable and unchanged after Phase 4B migr
   runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0002_character_ownership_and_claims.sql")]);
   runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0003_better_auth_rate_limit_compatibility.sql")]);
   runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0004_better_auth_verification_camel_case_compatibility.sql")]);
+  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0005_user_role.sql")]);
 
   const characters = results(runWrangler(persistTo, environment, [
     "--command",
@@ -148,6 +149,18 @@ test("existing character data remains readable and unchanged after Phase 4B migr
       assert.ok(columns.includes(column), `${table}.${column} should exist after compatibility migrations`);
     }
   }
+
+  const users = results(runWrangler(persistTo, environment, [
+    "--command",
+    `INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
+     VALUES ('ordinary-user', 'Ordinary', 'ordinary@example.invalid', 1, 1, 1);
+     SELECT id, role FROM user WHERE id = 'ordinary-user'`,
+  ]));
+  assert.deepEqual(users, [{ id: "ordinary-user", role: "user" }]);
+  assert.throws(() => runWrangler(persistTo, environment, [
+    "--command",
+    "UPDATE user SET role = 'superuser' WHERE id = 'ordinary-user'",
+  ]));
 
   assert.throws(() => runWrangler(persistTo, environment, [
     "--command",

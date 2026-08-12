@@ -93,18 +93,28 @@ export function characterApiPayload(
     updatedAt: row.updatedAt,
     permissions: {
       canEdit: isCharacterOwner(actor, row),
+      adminReadOnly: actor?.role === "admin" && !isCharacterOwner(actor, row),
     },
   };
+}
+
+export function characterOwnerState(
+  actor: CharacterActor | null,
+  ownerUserId: string | null,
+): "mine" | "other" | "unowned" {
+  if (!ownerUserId) return "unowned";
+  return actor?.userId === ownerUserId ? "mine" : "other";
 }
 
 export async function listCharacters(
   db: D1Database,
   options: {
     actor: CharacterActor | null;
-    scope: "mine" | "public";
+    scope: "mine" | "public" | "all";
     query?: string;
   },
 ): Promise<CharacterSummaryRow[]> {
+  if (options.scope === "all" && options.actor?.role !== "admin") return [];
   if (options.scope === "mine") {
     if (!options.actor) return [];
     const result = await db
@@ -122,6 +132,9 @@ export async function listCharacters(
   }
 
   const search = options.query?.trim().slice(0, 120);
+  const visibilityClause = options.scope === "all"
+    ? "public_id IS NOT NULL"
+    : "visibility = 'public' AND public_id IS NOT NULL";
   if (search) {
     const pattern = `%${search.toLowerCase()}%`;
     const result = await db
@@ -130,7 +143,7 @@ export async function listCharacters(
                 class_label AS classLabel, level, visibility, version,
                 created_at AS createdAt, updated_at AS updatedAt
          FROM characters
-         WHERE visibility = 'public' AND public_id IS NOT NULL
+         WHERE ${visibilityClause}
            AND (lower(name) LIKE ? OR lower(class_label) LIKE ?)
          ORDER BY updated_at DESC`,
       )
@@ -145,7 +158,7 @@ export async function listCharacters(
               class_label AS classLabel, level, visibility, version,
               created_at AS createdAt, updated_at AS updatedAt
        FROM characters
-       WHERE visibility = 'public' AND public_id IS NOT NULL
+       WHERE ${visibilityClause}
        ORDER BY updated_at DESC`,
     )
     .all<CharacterSummaryRow>();

@@ -1802,6 +1802,12 @@ main,
   background:var(--paper2);
   color:var(--ink);
 }
+.library-card-main .library-owner-state{
+  color:var(--amber-dark);
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:capitalize;
+}
 .library-search,
 .legacy-claim{
   margin:16px 28px 0;

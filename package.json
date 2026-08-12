@@ -23,7 +23,8 @@
     "db:migrate:production": "node scripts/migrate-production.mjs --remote",
     "db:backfill:public-ids": "node scripts/backfill-public-ids.mjs",
     "legacy-claim:create": "node scripts/create-legacy-claim.mjs",
-    "legacy-claim:revoke": "node scripts/revoke-legacy-claim.mjs"
+    "legacy-claim:revoke": "node scripts/revoke-legacy-claim.mjs",
+    "admin:promote": "node scripts/promote-admin.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",

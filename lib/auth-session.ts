@@ -1,4 +1,5 @@
-import { auth, isAuthRuntimeConfigured } from "./auth";
+import { env } from "cloudflare:workers";
+import { createAuth, isAuthRuntimeConfigured } from "./auth";
 
 export interface SessionActor {
   userId: string;
@@ -7,9 +8,9 @@ export interface SessionActor {
 export async function getSessionActor(
   request: Pick<Request, "headers">,
 ): Promise<SessionActor | null> {
-  if (!isAuthRuntimeConfigured()) return null;
+  if (!isAuthRuntimeConfigured(env)) return null;
 
-  const session = await auth.api.getSession({
+  const session = await createAuth(env).api.getSession({
     headers: request.headers,
   });
 

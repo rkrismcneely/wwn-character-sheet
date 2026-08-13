@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import CharacterSheet, { type InitialCharacterPayload } from "../../page";
+import CharacterSheet, { type InitialCharacterPayload } from "../../character-sheet";
 import { getSessionActor } from "@/lib/auth-session";
 import { isPlausiblePublicCharacterId } from "@/lib/characters/identifiers";
 import {

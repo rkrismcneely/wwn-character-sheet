@@ -8,7 +8,7 @@ const source = path => readFile(resolve(root, path), "utf8");
 
 test("Tales Without End branding survives Phase 4B reconciliation", async () => {
   const [page, layout, css] = await Promise.all([
-    source("app/page.tsx"),
+    source("app/character-sheet.tsx"),
     source("app/layout.tsx"),
     source("app/globals.css"),
   ]);

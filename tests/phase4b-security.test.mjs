@@ -125,7 +125,7 @@ test("admin read paths do not weaken mutation endpoints", async () => {
 });
 
 test("administrator UI is explicitly read-only for non-owned characters", async () => {
-  const page = await source("app/page.tsx");
+  const page = await source("app/character-sheet.tsx");
   assert.match(page, />All Characters<\/button>/u);
   assert.match(page, /Viewing as administrator · Read only/u);
   assert.match(page, /const canEdit = signedIn && \(!cloudId \|\| cloudCanEdit\)/u);
@@ -382,7 +382,7 @@ test("claim token cannot be reused or raced successfully", async () => {
 });
 
 test("visible Google sign-in controls keep direct Better Auth click paths", async () => {
-  const page = await source("app/page.tsx");
+  const page = await source("app/character-sheet.tsx");
   assert.match(page, /!signedIn && !libraryOpen && <button[\s\S]*className="primary-action account-signin"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
   assert.match(page, /className="library-signin"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
 });
@@ -390,7 +390,7 @@ test("visible Google sign-in controls keep direct Better Auth click paths", asyn
 test("sign-out removes access to owner-only operations", async () => {
   assert.deepEqual(authorizeCharacterWrite(owner, privateCharacter), { allowed: true });
   assert.deepEqual(authorizeCharacterWrite(null, privateCharacter), { allowed: false, status: 401 });
-  const page = await source("app/page.tsx");
+  const page = await source("app/character-sheet.tsx");
   assert.match(page, /className="account-signout"[\s\S]*authClient\.signOut\(\)[\s\S]*setLocallySignedOut\(true\)[\s\S]*setCloudCanEdit\(false\)[\s\S]*refetchSession\(\)/u);
   assert.match(page, /Sign out failed:/u);
 });
@@ -444,7 +444,7 @@ test("canonical auth configuration has one production origin and Google-only sco
 });
 
 test("public URL format is stable, opaque, and independent of names", async () => {
-  const page = await source("app/page.tsx");
+  const page = await source("app/character-sheet.tsx");
   const route = await source("app/character/[publicId]/page.tsx");
   assert.match(page, /\/character\/\$\{id\}/u);
   assert.match(route, /CANONICAL_ORIGIN\}\/character\/\$\{publicId\}/u);
@@ -511,7 +511,7 @@ test("auth is request-scoped, uses the concrete D1 binding, and has no temporary
 });
 
 test("temporary client auth diagnostics are removed", async () => {
-  const page = await source("app/page.tsx");
+  const page = await source("app/character-sheet.tsx");
   assert.doesNotMatch(page, /auth-header-button|auth-library-button|auth-sign-out-button/u);
   assert.doesNotMatch(page, /console\.(?:log|debug|error)\(\s*["']\[auth/u);
 });

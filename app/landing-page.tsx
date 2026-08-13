@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import "./landing-density.css";
 
 /* eslint-disable @next/next/no-img-element -- small existing brand SVGs are served directly */
 

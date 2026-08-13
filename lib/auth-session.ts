@@ -3,6 +3,7 @@ import { createAuth, isAuthRuntimeConfigured } from "./auth";
 
 export interface SessionActor {
   userId: string;
+  role: "user" | "admin";
 }
 
 export async function getSessionActor(
@@ -14,5 +15,10 @@ export async function getSessionActor(
     headers: request.headers,
   });
 
-  return session?.user.id ? { userId: session.user.id } : null;
+  return session?.user.id
+    ? {
+        userId: session.user.id,
+        role: session.user.role === "admin" ? "admin" : "user",
+      }
+    : null;
 }

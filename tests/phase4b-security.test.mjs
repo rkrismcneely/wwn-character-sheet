@@ -32,11 +32,14 @@ import {
 } from "../lib/characters/claims.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/http-json.ts";
 
-const owner = { userId: "user-owner" };
-const otherUser = { userId: "user-other" };
+const owner = { userId: "user-owner", role: "user" };
+const otherUser = { userId: "user-other", role: "user" };
+const adminOwner = { userId: "user-owner", role: "admin" };
+const adminOther = { userId: "user-admin", role: "admin" };
 const privateCharacter = { ownerUserId: owner.userId, visibility: "private" };
 const unlistedCharacter = { ownerUserId: owner.userId, visibility: "unlisted" };
 const publicCharacter = { ownerUserId: owner.userId, visibility: "public" };
+const unownedPrivateCharacter = { ownerUserId: null, visibility: "private" };
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -76,6 +79,62 @@ test("another signed-in user cannot edit public or unlisted characters", () => {
   assert.deepEqual(authorizeCharacterWrite(otherUser, unlistedCharacter), { allowed: false, status: 403 });
 });
 
+test("administrator read access covers every visibility and unowned legacy rows", () => {
+  for (const character of [
+    privateCharacter,
+    unlistedCharacter,
+    publicCharacter,
+    unownedPrivateCharacter,
+  ]) {
+    assert.equal(canReadCharacter(adminOther, character), true);
+  }
+});
+
+test("administrator write access remains strictly owner-only", () => {
+  assert.deepEqual(authorizeCharacterWrite(adminOwner, privateCharacter), { allowed: true });
+  assert.deepEqual(authorizeCharacterWrite(adminOther, privateCharacter), { allowed: false, status: 404 });
+  assert.deepEqual(authorizeCharacterWrite(adminOther, unlistedCharacter), { allowed: false, status: 403 });
+  assert.deepEqual(authorizeCharacterWrite(adminOther, publicCharacter), { allowed: false, status: 403 });
+  assert.deepEqual(authorizeCharacterWrite(adminOther, unownedPrivateCharacter), { allowed: false, status: 404 });
+});
+
+test("all-character scope is guarded by the server session role", async () => {
+  const route = await source("app/api/characters/route.ts");
+  assert.match(route, /requestedScope === "all" && !actor[\s\S]*status: 401/u);
+  assert.match(route, /requestedScope === "all" && actor\?\.role !== "admin"[\s\S]*status: 403/u);
+  assert.match(route, /scope: requestedScope/u);
+  assert.doesNotMatch(route, /searchParams\.get\("role"\)|searchParams\.get\("isAdmin"\)/u);
+});
+
+test("admin read paths do not weaken mutation endpoints", async () => {
+  const [characterRoute, portraitRoute, exportRoute, claimRoute] = await Promise.all([
+    source("app/api/characters/[id]/route.ts"),
+    source("app/api/characters/[id]/portrait/route.ts"),
+    source("app/api/characters/[id]/export/route.ts"),
+    source("app/api/legacy-claims/route.ts"),
+  ]);
+  for (const method of ["PUT", "PATCH", "DELETE"]) {
+    const section = characterRoute.slice(characterRoute.indexOf(`export async function ${method}`));
+    assert.match(section, /authorizeCharacterWrite\(actor, row\)/u);
+  }
+  assert.match(characterRoute, /WHERE id = \? AND owner_user_id = \?/u);
+  assert.match(portraitRoute, /authorizeCharacterWrite\(actor, row\)/u);
+  assert.match(portraitRoute, /owner_user_id = \?/u);
+  assert.match(exportRoute, /authorizeCharacterWrite\(actor, row\)/u);
+  assert.doesNotMatch(claimRoute, /role\s*===\s*["']admin/u);
+});
+
+test("administrator UI is explicitly read-only for non-owned characters", async () => {
+  const page = await source("app/page.tsx");
+  assert.match(page, />All Characters<\/button>/u);
+  assert.match(page, /Viewing as administrator · Read only/u);
+  assert.match(page, /const canEdit = signedIn && \(!cloudId \|\| cloudCanEdit\)/u);
+  assert.match(page, /!hydrated \|\| !canEdit \|\| !cloudId/u);
+  assert.match(page, /character\.permissions\.canEdit && <button className="danger-action"/u);
+  assert.match(page, /cloudId && canEdit && <div className="character-sharing"/u);
+  assert.match(page, /canEdit && <button type="button" onClick=\{\(\) => portraitInput/u);
+});
+
 test("signed-out user can view a public character", () => {
   assert.equal(canReadCharacter(null, publicCharacter), true);
 });
@@ -87,7 +146,7 @@ test("signed-out user can view an unlisted character at its exact URL", () => {
 test("private character is hidden from public library and search", async () => {
   assert.equal(isPubliclyDiscoverable(privateCharacter), false);
   const database = await source("app/api/characters/db.ts");
-  assert.match(database, /WHERE visibility = 'public' AND public_id IS NOT NULL/u);
+  assert.match(database, /visibilityClause = options\.scope === "all"[\s\S]*visibility = 'public' AND public_id IS NOT NULL/u);
 });
 
 test("unlisted character is hidden from public library and search", () => {
@@ -324,15 +383,15 @@ test("claim token cannot be reused or raced successfully", async () => {
 
 test("visible Google sign-in controls keep direct Better Auth click paths", async () => {
   const page = await source("app/page.tsx");
-  assert.match(page, /!signedIn && !libraryOpen && <button[\s\S]*className="primary-action account-signin"[\s\S]*source: "header"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
-  assert.match(page, /className="library-signin"[\s\S]*source: "library"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
+  assert.match(page, /!signedIn && !libraryOpen && <button[\s\S]*className="primary-action account-signin"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
+  assert.match(page, /className="library-signin"[\s\S]*authClient\.signIn\.social\(\{[\s\S]*provider: "google"/u);
 });
 
 test("sign-out removes access to owner-only operations", async () => {
   assert.deepEqual(authorizeCharacterWrite(owner, privateCharacter), { allowed: true });
   assert.deepEqual(authorizeCharacterWrite(null, privateCharacter), { allowed: false, status: 401 });
   const page = await source("app/page.tsx");
-  assert.match(page, /className="account-signout"[\s\S]*\[auth-sign-out-button\] direct click[\s\S]*authClient\.signOut\(\)[\s\S]*setLocallySignedOut\(true\)[\s\S]*setCloudCanEdit\(false\)[\s\S]*refetchSession\(\)/u);
+  assert.match(page, /className="account-signout"[\s\S]*authClient\.signOut\(\)[\s\S]*setLocallySignedOut\(true\)[\s\S]*setCloudCanEdit\(false\)[\s\S]*refetchSession\(\)/u);
   assert.match(page, /Sign out failed:/u);
 });
 
@@ -351,6 +410,9 @@ test("auth build configuration references runtime binding names without secret v
     /"vars":\s*\{\s*"BETTER_AUTH_URL":\s*"https:\/\/taleswithoutend\.com"\s*\}/u,
   );
   assert.doesNotMatch(wrangler, /BETTER_AUTH_SECRET|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET/u);
+  assert.match(auth, /additionalFields:[\s\S]*role:[\s\S]*input: false/u);
+  assert.match(auth, /defaultValue: "user"/u);
+  assert.match(client, /inferAdditionalFields<Auth>/u);
 });
 
 test("request JSON parsing is bounded and rejects malformed input", async () => {
@@ -400,12 +462,17 @@ test("production migration and legacy admin commands fail closed", async () => {
   const migration = await source("scripts/migrate-production.mjs");
   const admin = await source("scripts/d1-admin.mjs");
   const claim = await source("scripts/create-legacy-claim.mjs");
+  const promotion = await source("scripts/promote-admin.mjs");
   assert.match(migration, /if \(!remote \|\| !apply\)/u);
   assert.match(admin, /--confirm-database-id/u);
   assert.match(admin, /containsDatabaseId\(info\)/u);
   assert.match(claim, /private token output file must be outside the repository/u);
   assert.match(claim, /mode: 0o600/u);
   assert.doesNotMatch(claim, /console\.log\(\s*token\s*\)/u);
+  assert.match(promotion, /process\.env\.TWE_ADMIN_EMAIL/u);
+  assert.match(promotion, /matchingUsers\.length !== 1/u);
+  assert.match(promotion, /UPDATE user SET role = 'admin'/u);
+  assert.doesNotMatch(promotion, /console\.log\([^\n]*\$\{(?:email|id)\}/u);
 });
 
 
@@ -441,4 +508,10 @@ test("auth is request-scoped, uses the concrete D1 binding, and has no temporary
   ]) {
     assert.doesNotMatch(combined, new RegExp(diagnostic, "u"));
   }
+});
+
+test("temporary client auth diagnostics are removed", async () => {
+  const page = await source("app/page.tsx");
+  assert.doesNotMatch(page, /auth-header-button|auth-library-button|auth-sign-out-button/u);
+  assert.doesNotMatch(page, /console\.(?:log|debug|error)\(\s*["']\[auth/u);
 });

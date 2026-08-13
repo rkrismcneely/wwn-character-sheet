@@ -1,6 +1,8 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
+import { inferAdditionalFields } from "better-auth/client/plugins";
+import type { Auth } from "./auth";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "./auth-constants";
 
 function authBaseURL(): string | undefined {
@@ -12,4 +14,5 @@ function authBaseURL(): string | undefined {
 
 export const authClient = createAuthClient({
   baseURL: authBaseURL(),
+  plugins: [inferAdditionalFields<Auth>()],
 });

@@ -160,6 +160,28 @@ For any remote admin command, add `--remote` and
 claim token in a URL, shell history shared with others, source control, logs, or
 analytics.
 
+## Read-only administrators
+
+Administrator roles use Better Auth's server-owned `user.role` field. New and
+existing accounts default to `user`. After the role migration is applied, an
+operator can deliberately promote one existing account without printing its
+email or internal ID:
+
+```sh
+TWE_ADMIN_EMAIL='account@example.com' npm run admin:promote -- \
+  --remote --confirm-database-id=8e2bf197-e20f-4ea7-a86f-cab4e1a74699
+
+TWE_ADMIN_EMAIL='account@example.com' npm run admin:promote -- \
+  --remote --apply \
+  --confirm-database-id=8e2bf197-e20f-4ea7-a86f-cab4e1a74699
+```
+
+The first command is read-only and must match exactly one Better Auth user. The
+second promotes only that same account and verifies its stored role. Repeat the
+same reviewed procedure with another account email to add another
+administrator. Administrator status expands character read access only;
+character mutations remain owner-only.
+
 ## Build, test, and validation
 
 ```sh

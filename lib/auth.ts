@@ -55,6 +55,15 @@ export function createAuth(runtimeEnv: AuthRuntimeEnv) {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      additionalFields: {
+        role: {
+          type: ["user", "admin"],
+          required: false,
+          defaultValue: "user",
+          input: false,
+          returned: true,
+        },
+      },
     },
     session: {
       fields: {

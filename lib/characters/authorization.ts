@@ -13,6 +13,7 @@ export interface CharacterAccessRecord {
 
 export interface CharacterActor {
   userId: string;
+  role: "user" | "admin";
 }
 
 export type WriteAuthorization =
@@ -43,6 +44,7 @@ export function canReadCharacter(
   actor: CharacterActor | null,
   character: CharacterAccessRecord,
 ): boolean {
+  if (actor?.role === "admin") return true;
   if (isCharacterOwner(actor, character)) return true;
   return character.visibility === "public" || character.visibility === "unlisted";
 }

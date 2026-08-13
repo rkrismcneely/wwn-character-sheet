@@ -69,34 +69,55 @@ async function startLocalWorker({ auth = false } = {}) {
     public: `chr_${"P".repeat(22)}`,
     unlisted: `chr_${"U".repeat(22)}`,
     private: `chr_${"R".repeat(22)}`,
+    legacy: `chr_${"L".repeat(22)}`,
+    normalOwn: `chr_${"N".repeat(22)}`,
+    normalDelete: `chr_${"D".repeat(22)}`,
+    adminOwn: `chr_${"A".repeat(22)}`,
   };
   const authSecret = "local-runtime-proof-secret-2026-08-10-very-long";
   const authSessionToken = "runtime-proof-session-token";
+  const adminSessionToken = "runtime-admin-session-token";
   const inserts = [
-    ["fixture-public", fixtureIds.public, "public", "Public Scout"],
-    ["fixture-unlisted", fixtureIds.unlisted, "unlisted", "Unlisted Mage"],
-    ["fixture-private", fixtureIds.private, "private", "Private Expert"],
-  ].map(([id, publicId, visibility, name]) => `
+    ["fixture-public", "other-owner", fixtureIds.public, "public", "Public Scout"],
+    ["fixture-unlisted", "other-owner", fixtureIds.unlisted, "unlisted", "Unlisted Mage"],
+    ["fixture-private", "other-owner", fixtureIds.private, "private", "Private Expert"],
+    ["fixture-legacy", null, fixtureIds.legacy, "private", "Legacy Wanderer"],
+    ["fixture-normal-own", "runtime-proof-user", fixtureIds.normalOwn, "private", "Normal Owner"],
+    ["fixture-normal-delete", "runtime-proof-user", fixtureIds.normalDelete, "private", "Normal Delete"],
+    ["fixture-admin-own", "runtime-admin", fixtureIds.adminOwn, "private", "Admin Owner"],
+  ];
+  const userInserts = `
+    INSERT INTO user
+      (id, name, email, email_verified, role, created_at, updated_at)
+    VALUES
+      ('runtime-proof-user', 'Runtime Proof', 'runtime-proof@example.invalid',
+       1, 'user', 1786348800000, 1786348800000),
+      ('runtime-admin', 'Runtime Admin', 'runtime-admin@example.invalid',
+       1, 'admin', 1786348800000, 1786348800000),
+      ('other-owner', 'Other Owner', 'other-owner@example.invalid',
+       1, 'user', 1786348800000, 1786348800000);
+  `;
+  const characterInserts = inserts.map(([id, ownerUserId, publicId, visibility, name]) => `
     INSERT INTO characters
       (id, owner_user_id, public_id, visibility, portrait_key, name, player,
        class_label, level, data, version, created_at, updated_at)
     VALUES
-      ('${id}', NULL, '${publicId}', '${visibility}', NULL, '${name}', '',
+      ('${id}', ${ownerUserId ? `'${ownerUserId}'` : "NULL"}, '${publicId}', '${visibility}', NULL, '${name}', '',
        'Expert', 1, '{"name":"${name}","level":1,"classOne":"Expert"}',
        1, '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
-  `).join("\n") + (auth ? `
-    INSERT INTO user
-      (id, name, email, email_verified, created_at, updated_at)
-    VALUES
-      ('runtime-proof-user', 'Runtime Proof', 'runtime-proof@example.invalid',
-       1, 1786348800000, 1786348800000);
+  `).join("\n");
+  const sessionInserts = auth ? `
     INSERT INTO session
       (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
     VALUES
       ('runtime-proof-session', 1893456000000, '${authSessionToken}',
        1786348800000, 1786348800000, '127.0.0.1', 'runtime-proof',
-       'runtime-proof-user');
-  ` : "");
+       'runtime-proof-user'),
+      ('runtime-admin-session', 1893456000000, '${adminSessionToken}',
+       1786348800000, 1786348800000, '127.0.0.1', 'runtime-admin',
+       'runtime-admin');
+  ` : "";
+  const fixtureSql = `${userInserts}\n${characterInserts}\n${sessionInserts}`;
   execFileSync(wrangler, [
     "d1",
     "execute",
@@ -107,7 +128,7 @@ async function startLocalWorker({ auth = false } = {}) {
     "--persist-to",
     persistence,
     "--command",
-    inserts,
+    fixtureSql,
   ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"] });
 
   const workerArguments = [
@@ -174,6 +195,7 @@ async function startLocalWorker({ auth = false } = {}) {
     fixtureIds,
     authSecret,
     authSessionToken,
+    adminSessionToken,
     output: () => output,
     async stop() {
       if (child.exitCode !== null) return;
@@ -184,6 +206,16 @@ async function startLocalWorker({ auth = false } = {}) {
       ]);
       if (child.exitCode === null) child.kill("SIGKILL");
     },
+  };
+}
+
+function authenticatedHeaders(worker, sessionToken) {
+  const signature = createHmac("sha256", worker.authSecret)
+    .update(sessionToken)
+    .digest("base64");
+  return {
+    cookie: `better-auth.session_token=${encodeURIComponent(`${sessionToken}.${signature}`)}`,
+    origin: worker.origin,
   };
 }
 
@@ -279,17 +311,181 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
   }
 });
 
+test("local Worker enforces read-only administrator access", { timeout: 90_000 }, async () => {
+  const worker = await startLocalWorker({ auth: true });
+  try {
+    const normalHeaders = authenticatedHeaders(worker, worker.authSessionToken);
+    const adminHeaders = authenticatedHeaders(worker, worker.adminSessionToken);
+
+    const normalOwn = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}`,
+      { headers: normalHeaders },
+    );
+    assert.equal(normalOwn.status, 200);
+    assert.equal((await normalOwn.json()).permissions.canEdit, true);
+
+    const normalPrivate = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.private}`,
+      { headers: normalHeaders },
+    );
+    assert.equal(normalPrivate.status, 404);
+    for (const query of ["scope=all", "scope=all&role=admin", "scope=all&isAdmin=true"]) {
+      const denied = await fetch(`${worker.origin}/api/characters?${query}`, {
+        headers: normalHeaders,
+      });
+      assert.equal(denied.status, 403, query);
+    }
+    assert.equal(
+      (await fetch(`${worker.origin}/api/characters?scope=all`)).status,
+      401,
+    );
+
+    const allResponse = await fetch(`${worker.origin}/api/characters?scope=all`, {
+      headers: adminHeaders,
+    });
+    assert.equal(allResponse.status, 200);
+    const allPayload = await allResponse.json();
+    assert.equal(allPayload.characters.length, 7);
+    assert.equal(JSON.stringify(allPayload).includes("ownerUserId"), false);
+    assert.equal(JSON.stringify(allPayload).includes("example.invalid"), false);
+    assert.equal(
+      allPayload.characters.find(character => character.id === worker.fixtureIds.legacy).ownerState,
+      "unowned",
+    );
+    assert.equal(
+      allPayload.characters.find(character => character.id === worker.fixtureIds.adminOwn).ownerState,
+      "mine",
+    );
+    assert.equal(
+      allPayload.characters.find(character => character.id === worker.fixtureIds.private).ownerState,
+      "other",
+    );
+
+    for (const visibility of ["public", "unlisted", "private", "legacy"]) {
+      const response = await fetch(
+        `${worker.origin}/api/characters/${worker.fixtureIds[visibility]}`,
+        { headers: adminHeaders },
+      );
+      assert.equal(response.status, 200, `admin ${visibility} read`);
+      const payload = await response.json();
+      assert.equal(payload.permissions.canEdit, false);
+      assert.equal(payload.permissions.adminReadOnly, true);
+    }
+    const adminPage = await fetch(
+      `${worker.origin}/character/${worker.fixtureIds.private}`,
+      { headers: adminHeaders },
+    );
+    assert.equal(adminPage.status, 200);
+    assert.match(await adminPage.text(), /Viewing as administrator · Read only/u);
+
+    const normalSave = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}`,
+      {
+        method: "PUT",
+        headers: { ...normalHeaders, "content-type": "application/json" },
+        body: JSON.stringify({ character: { name: "Normal Owner Updated" }, version: 1 }),
+      },
+    );
+    assert.equal(normalSave.status, 200);
+    const normalVisibility = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}`,
+      {
+        method: "PATCH",
+        headers: { ...normalHeaders, "content-type": "application/json" },
+        body: JSON.stringify({ visibility: "unlisted" }),
+      },
+    );
+    assert.equal(normalVisibility.status, 200);
+    const portraitUpload = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}/portrait`,
+      {
+        method: "POST",
+        headers: {
+          ...normalHeaders,
+          "content-type": "image/png",
+          "x-character-version": "2",
+        },
+        body: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      },
+    );
+    assert.equal(portraitUpload.status, 201);
+    const portraitVersion = (await portraitUpload.json()).version;
+    const portraitDelete = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}/portrait`,
+      {
+        method: "DELETE",
+        headers: { ...normalHeaders, "x-character-version": String(portraitVersion) },
+      },
+    );
+    assert.equal(portraitDelete.status, 200);
+    const normalDelete = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalDelete}`,
+      { method: "DELETE", headers: normalHeaders },
+    );
+    assert.equal(normalDelete.status, 200);
+
+    const adminOwnSave = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.adminOwn}`,
+      {
+        method: "PUT",
+        headers: { ...adminHeaders, "content-type": "application/json" },
+        body: JSON.stringify({ character: { name: "Admin Owner Updated" }, version: 1 }),
+      },
+    );
+    assert.equal(adminOwnSave.status, 200);
+
+    for (const [id, method, body, expectedStatus] of [
+      [worker.fixtureIds.private, "PUT", { character: { name: "Denied" }, version: 1 }, 404],
+      [worker.fixtureIds.unlisted, "PATCH", { visibility: "private" }, 403],
+      [worker.fixtureIds.public, "DELETE", undefined, 403],
+    ]) {
+      const response = await fetch(`${worker.origin}/api/characters/${id}`, {
+        method,
+        headers: body
+          ? { ...adminHeaders, "content-type": "application/json" }
+          : adminHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      assert.equal(response.status, expectedStatus, `admin ${method} other character`);
+    }
+    for (const method of ["POST", "DELETE"]) {
+      const response = await fetch(
+        `${worker.origin}/api/characters/${worker.fixtureIds.public}/portrait`,
+        {
+          method,
+          headers: {
+            ...adminHeaders,
+            "content-type": "image/png",
+            "x-character-version": "1",
+          },
+          body: method === "POST"
+            ? Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+            : undefined,
+        },
+      );
+      assert.equal(response.status, 403, `admin ${method} other portrait`);
+    }
+    const claim = await fetch(`${worker.origin}/api/legacy-claims`, {
+      method: "POST",
+      headers: { ...adminHeaders, "content-type": "application/json" },
+      body: JSON.stringify({ token: `claim_${"C".repeat(43)}` }),
+    });
+    assert.notEqual(claim.status, 200);
+
+    const adminSession = await fetch(`${worker.origin}/api/auth/get-session`, {
+      headers: adminHeaders,
+    });
+    assert.equal(adminSession.status, 200);
+    assert.equal((await adminSession.json()).user.role, "admin");
+  } finally {
+    await worker.stop();
+  }
+});
+
 test("local Worker signs out an authenticated session and reports the request", { timeout: 90_000 }, async () => {
   const worker = await startLocalWorker({ auth: true });
   try {
-    const signature = createHmac("sha256", worker.authSecret)
-      .update(worker.authSessionToken)
-      .digest("base64");
-    const signedToken = encodeURIComponent(`${worker.authSessionToken}.${signature}`);
-    const headers = {
-      cookie: `better-auth.session_token=${signedToken}`,
-      origin: worker.origin,
-    };
+    const headers = authenticatedHeaders(worker, worker.authSessionToken);
 
     const before = await fetch(`${worker.origin}/api/auth/get-session`, { headers });
     assert.equal(before.status, 200);

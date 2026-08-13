@@ -2,6 +2,7 @@ import { getSessionActor } from "@/lib/auth-session";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 import {
   createOwnedCharacter,
+  characterOwnerState,
   getD1,
   listCharacters,
 } from "./db";
@@ -10,13 +11,23 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     const requestedScope = url.searchParams.get("scope") ?? "public";
-    if (requestedScope !== "mine" && requestedScope !== "public") {
+    if (
+      requestedScope !== "mine"
+      && requestedScope !== "public"
+      && requestedScope !== "all"
+    ) {
       return Response.json({ error: "Invalid library scope." }, { status: 400 });
     }
 
     const actor = await getSessionActor(request);
     if (requestedScope === "mine" && !actor) {
       return Response.json({ error: "Sign in is required." }, { status: 401 });
+    }
+    if (requestedScope === "all" && !actor) {
+      return Response.json({ error: "Sign in is required." }, { status: 401 });
+    }
+    if (requestedScope === "all" && actor?.role !== "admin") {
+      return Response.json({ error: "Not permitted." }, { status: 403 });
     }
 
     const rows = await listCharacters(await getD1(), {
@@ -28,7 +39,14 @@ export async function GET(request: Request): Promise<Response> {
       characters: rows.map(({ ownerUserId, publicId, ...row }) => ({
         id: publicId,
         ...row,
-        permissions: { canEdit: actor?.userId === ownerUserId },
+        ...(requestedScope === "all"
+          ? { ownerState: characterOwnerState(actor, ownerUserId) }
+          : {}),
+        permissions: {
+          canEdit: actor?.userId === ownerUserId,
+          adminReadOnly:
+            actor?.role === "admin" && actor.userId !== ownerUserId,
+        },
       })),
     });
   } catch {

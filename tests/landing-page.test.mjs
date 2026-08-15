@@ -7,7 +7,9 @@ const source = async path => readFile(new URL(`../${path}`, import.meta.url), "u
 test("root selects the landing page only for signed-out visitors", async () => {
   const page = await source("app/page.tsx");
   assert.match(page, /getSessionActor/u);
-  assert.match(page, /actor \? <CharacterSheet \/> : <LandingPage \/>/u);
+  assert.match(page, /if \(!actor\) return <LandingPage \/>/u);
+  assert.match(page, /<DashboardPage \/>/u);
+  assert.match(page, /<CharacterSheet startNew \/>/u);
 });
 
 test("landing page exposes the required signed-out actions and product story", async () => {

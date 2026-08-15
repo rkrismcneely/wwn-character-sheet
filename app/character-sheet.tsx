@@ -667,6 +667,24 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
   } as Sheet;
 }
 
+function createBlankSheet(): Sheet {
+  return {
+    ...blankCharacter,
+    attrs: { ...blankCharacter.attrs },
+    skills: { ...blankCharacter.skills },
+    skillPurchases: { ...blankCharacter.skillPurchases },
+    backgroundLearningPicks: blankCharacter.backgroundLearningPicks.map(pick => ({ ...pick })),
+    backgroundDevelopmentRolls: blankCharacter.backgroundDevelopmentRolls.map(roll => ({ ...roll, attributeChoices: [...roll.attributeChoices] })),
+    focusPicks: [],
+    artPicks: [],
+    artEffort: [],
+    spellPicks: [],
+    weapons: [],
+    readied: [...blankCharacter.readied],
+    stowed: [...blankCharacter.stowed],
+  };
+}
+
 function Tip({ title, children }: { title: string; children: React.ReactNode }) {
   return <span className="tip" tabIndex={0}>{title}<span className="tipbox">{children}</span></span>;
 }
@@ -894,8 +912,10 @@ function DiceControl({
 
 export default function Home({
   initialCharacter,
+  startNew = false,
 }: {
   initialCharacter?: InitialCharacterPayload;
+  startNew?: boolean;
 }) {
   const {
     data: session,
@@ -908,7 +928,9 @@ export default function Home({
   const [tab, setTab] = useState<Tab>("core");
   const [theme, setTheme] = useState<Theme>("light");
   const [sheet, setSheet] = useState<Sheet>(() =>
-    initialCharacter
+    startNew && !initialCharacter
+      ? createBlankSheet()
+      : initialCharacter
       ? normalizeIncomingSheet(initialCharacter.character)
       : initial,
   );
@@ -918,7 +940,7 @@ export default function Home({
   const [transferMessage, setTransferMessage] = useState("");
   const [dragging, setDragging] = useState<{ kind: "spell" | "art"; index: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(!initialCharacter);
+  const [libraryOpen, setLibraryOpen] = useState(!initialCharacter && !startNew);
   const [libraryScope, setLibraryScope] = useState<LibraryScope>("public");
   const [libraryQuery, setLibraryQuery] = useState("");
   const [library, setLibrary] = useState<LibraryCharacter[]>([]);
@@ -954,6 +976,7 @@ export default function Home({
   const characterNameInput = useRef<HTMLTextAreaElement>(null);
   const editableSurface = useRef<HTMLDivElement>(null);
   const authIntentHandled = useRef(false);
+  const startNewHandled = useRef(false);
   const lastCloudData = useRef(
     initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
   );
@@ -1125,7 +1148,7 @@ export default function Home({
 
   useEffect(() => {
     const t = setTimeout(() => {
-      if (!initialCharacter) {
+      if (!initialCharacter && !startNew) {
         const raw = localStorage.getItem("wwn-cecil-sheet");
         if (raw) try {
           setSheet(normalizeIncomingSheet(JSON.parse(raw)));
@@ -1134,7 +1157,15 @@ export default function Home({
       setHydrated(true);
     }, 0);
     return () => clearTimeout(t);
-  }, [initialCharacter]);
+  }, [initialCharacter, startNew]);
+
+  useEffect(() => {
+    if (!startNew || !hydrated || sessionPending || !signedIn || startNewHandled.current) return;
+    startNewHandled.current = true;
+    void addCurrentToLibrary(createBlankSheet());
+  // The dashboard's create action intentionally creates one fresh, blank record.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startNew, hydrated, sessionPending, signedIn]);
 
   useEffect(() => {
     if (!hydrated || !canEdit) return;
@@ -1694,30 +1725,12 @@ export default function Home({
     }
   }
 
-  function blankSheet(): Sheet {
-    return {
-      ...blankCharacter,
-      attrs: { ...blankCharacter.attrs },
-      skills: { ...blankCharacter.skills },
-      skillPurchases: { ...blankCharacter.skillPurchases },
-      backgroundLearningPicks: blankCharacter.backgroundLearningPicks.map(pick => ({ ...pick })),
-      backgroundDevelopmentRolls: blankCharacter.backgroundDevelopmentRolls.map(roll => ({ ...roll, attributeChoices: [...roll.attributeChoices] })),
-      focusPicks: [],
-      artPicks: [],
-      artEffort: [],
-      spellPicks: [],
-      weapons: [],
-      readied: [...blankCharacter.readied],
-      stowed: [...blankCharacter.stowed],
-    };
-  }
-
   async function newOnlineCharacter() {
     if (!signedIn) {
       requireSignIn("create a character");
       return;
     }
-    const fresh = blankSheet();
+    const fresh = createBlankSheet();
     setSheet(fresh);
     setCloudId(null);
     setCloudVersion(null);

@@ -317,6 +317,20 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
     const normalHeaders = authenticatedHeaders(worker, worker.authSessionToken);
     const adminHeaders = authenticatedHeaders(worker, worker.adminSessionToken);
 
+    const normalRoot = await fetch(`${worker.origin}/`, { headers: normalHeaders });
+    assert.equal(normalRoot.status, 200);
+    const normalRootHTML = await normalRoot.text();
+    assert.match(normalRootHTML, /My Characters/u);
+    assert.match(normalRootHTML, /Create New Character/u);
+    assert.match(normalRootHTML, /Claim a legacy character/u);
+    assert.doesNotMatch(normalRootHTML, /Your Adventures\.<br/u);
+    const mine = await fetch(`${worker.origin}/api/characters?scope=mine`, { headers: normalHeaders });
+    assert.equal(mine.status, 200);
+    const minePayload = await mine.json();
+    assert.deepEqual(minePayload.characters.map(character => character.name), ["Normal Delete", "Normal Owner"]);
+    assert.equal(JSON.stringify(minePayload).includes("other-owner@example.invalid"), false);
+    assert.equal(JSON.stringify(minePayload).includes("ownerUserId"), false);
+
     const normalOwn = await fetch(
       `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}`,
       { headers: normalHeaders },

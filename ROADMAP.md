@@ -1,231 +1,212 @@
 # Tales Without End Roadmap
 
-This roadmap is the development plan for the project currently implemented in the repository
-`rkrismcneely/wwn-character-sheet` and deployed at:
+_Last reconciled against `main` at `c25d0b86` on 2026-08-15._
 
-- Production: https://taleswithoutend.com
-- Legacy fallback: https://wwn-character-sheet.rkrismcneely.workers.dev
+This is the forward-looking project roadmap. Current source, automated tests, and merged
+pull requests are its status authority. The Phase 4B checkpoint and rollout documents
+preserve useful historical migration and production-review detail, but predate the
+subsequent merged and deployed account work; they are not current status checklists.
 
-GitHub is the source of truth. The old ChatGPT-hosted site is reference-only and must not receive
-new development work.
+## Status key
 
-## Status Key
+- ✅ Complete
+- ◐ Partial / underway
+- ⬜ Planned
 
-- [x] Complete
-- [ ] Planned
-- [~] In progress or partly complete
+## Recommended next work
 
----
-
-## Phase 1 — Polish, UX, and Visual Identity
-
-### Responsive design
-
-- [x] Eliminate horizontal scrolling on mobile.
-- [x] Improve phone layout for portrait and character details.
-- [x] Make the search bar full width on mobile.
-- [x] Improve iPad and Chrome layouts.
-- [x] General responsive cleanup for narrow windows and small screens.
-
-### Visual identity
-
-- [x] Establish a consistent fantasy-inspired visual system.
-- [x] Define font roles for display, heading, body, UI, and numeric text.
-- [x] Refine borders, ornaments, spacing, and decorative elements.
-- [x] Replace the header's angled W emblem with the supplied, tightly cropped Tales Without End logo.
-- [x] Replace the header branding with `Tales Without End` and remove the former subtitle.
-- [x] Set the browser/page title to `Tales Without End - An Interactive Worlds Without Number Character Folio`.
-- [~] Continue adapting the visual identity to the Tales Without End name and logo.
-- [ ] Keep the design consistent across desktop, mobile, print/PDF, and a future iOS app.
-
-### General UX
-
-- [x] Improve tooltips, labels, confirmation dialogs, counters, and layout clarity.
-- [x] Improve the rules search and expanded rule-result presentation.
-- [x] Improve character-header controls and mobile behavior.
-- [ ] Continue simplifying workflows where users currently need too many clicks.
+- **Easiest meaningful task:** add explicit regression coverage for the full 18-item
+  Henchkeeper archetype catalogue and its base-stat/modifier invariants. The behavior is
+  implemented, but this would make accidental catalogue regressions immediately visible.
+- **Highest-value task:** add a small Playwright browser smoke suite for the public
+  landing/archive and the signed-in dashboard/owner route boundary. Current source and
+  Worker tests are strong, but there is no browser E2E suite.
+- **Recommended next task:** improve import duplicate-detection UX. Imports are already
+  safe: they are authenticated, sanitized, and always create a fresh private record.
+  A focused pre-import warning for an obvious duplicate would reduce accidental duplicate
+  folios without changing ownership, authentication, or storage semantics.
 
 ---
 
-## Phase 2 — Rules Accuracy and Character-Builder Completeness
+## Phase 1 — Product polish, UX, and visual identity
 
-### Rules corrections and validation
+### Completed
 
-- [x] Review and correct rules behavior for:
-  - Close Combatant
-  - Any Combat
-  - Growth and Learning
-  - Developed Attribute
-  - Armored Magic
-  - Polymath
-  - Unarmed Combatant
-  - Vowed
-  - Wise
-  - Specialist
-- [x] Add a permanent virtual Unarmed Attack where appropriate.
-- [x] Confirm repeatable Spirit Familiar behavior.
-- [x] Preserve legal gating for classes, Foci, spells, arts, skills, and attribute improvements.
-- [x] Add or strengthen automated tests for corrected rule interactions.
+- ✅ Core responsive/mobile character-sheet pass, including header and rules-search
+  behavior for narrow and tablet layouts.
+- ✅ Amber Ledger / Company Archive visual system, typography, branded navigation mark,
+  and Tales Without End metadata.
+- ✅ Signed-out landing page at `/`, with responsive polish and the later
+  large-screen density/spacing pass.
+- ✅ Standalone public-character archive for signed-out browsing.
+- ✅ Signed-in `/` experience is now a dense, responsive **My Characters** dashboard,
+  not an immediate sheet load.
+- ✅ General character-sheet usability work: labels, tooltips, confirmation affordances,
+  counters, rules search, and printable/exportable folio workflows.
 
-### Companion support
+### Remaining
 
-- [x] Maintain Henchkeeper and Spirit Familiar support.
-- [ ] Finalize the curated set of 18 Henchkeeper archetypes.
-- [x] Preserve the existing varied base-stat spread style.
-- [x] Apply only the specified +1/-1 archetype modifiers, regardless of base values.
-- [x] Verify companion inventories, weapons, HP, notes, and level switching.
+- ◐ Accessibility and responsive behavior are designed into current controls, but there
+  is no automated browser accessibility or cross-browser visual test suite yet.
+- ⬜ Continue UX simplification only when a concrete friction point is identified; do not
+  retain a vague evergreen redesign task.
 
 ---
 
-## Phase 3 — Dice and Play Utilities
+## Phase 2 — Rules accuracy and character-builder completeness
 
-- [x] Add header d20 and 2d6 rollers near AC and HP.
-- [x] Use secure random generation with `crypto.getRandomValues`.
-- [x] Use rejection sampling to avoid modulo bias.
-- [x] Create a reusable dice utility.
-- [x] Add subtle roll animation and readable results.
-- [ ] Expand play utilities only where they support the character-sheet experience without clutter.
+**Status: complete for the reconciled Phase 2 scope.** No confirmed Phase 2 feature
+blocker was found in current source or tests.
 
----
+| Item | Status | Evidence in current implementation |
+| --- | --- | --- |
+| Close Combatant | ✅ Complete | Explicit combat-skill choice handling in `app/phase2-rules.ts` and focus choice UI; covered by the SRD rules tests. |
+| Any Combat | ✅ Complete | Background development resolves legal combat choices rather than treating the text as a passive label; covered by background/SRD tests. |
+| Growth and Learning | ✅ Complete | `app/background-development.ts` models quick, selected-learning, and rolled growth/learning methods, saved rolls, attribute choices, and legacy normalization; covered by tests. |
+| Developed Attribute | ✅ Complete | Repeatable focus targeting, duplicate-target prevention, eligibility limits, and derived attribute effects are implemented and tested. |
+| Armored Magic | ✅ Complete | Eligibility is restricted to appropriate mage traditions and casting restrictions are evaluated against equipped armor/shields. |
+| Polymath | ✅ Complete | Legal focus gating and non-combat skill floors are derived without overwriting purchased ranks; covered by tests. |
+| Unarmed Combatant | ✅ Complete | Unarmed progression and damage/shock behavior are derived in the shared unarmed attack calculation; covered by tests. |
+| Vowed | ✅ Complete | Vowed class data/progression, effort handling, magical unarmed progression, and Shock modifiers are integrated; progression and unarmed behavior are tested. |
+| Wise | ✅ Complete | Wise is present as a selectable additional partial class with its arts and correct effort behavior; covered by class/rules tests. |
+| Specialist | ✅ Complete | Repeatable focus targeting and legal non-combat skill selection are enforced; duplicate-target behavior is tested. |
+| Permanent virtual Unarmed Attack | ✅ Complete | The shared derived attack is always available, excluded from inventory-owned weapon records, and cannot be stowed/dropped as equipment. It handles default, Unarmed Combatant, and Vowed cases. |
+| Repeatable Spirit Familiar | ✅ Complete | Each legal focus pick maps to a distinct familiar slot/record; legacy data is reconciled safely and multiple selections are tested. |
+| Henchkeeper support | ✅ Complete | Companion records include inventories, virtual unarmed attacks, weapons, HP, notes, level handling, and Henchkeeper count progression. |
+| All 18 intended Henchkeeper archetypes | ✅ Complete | The current curated catalogue contains Athlete, Blacksmith, Guard, Courier, Thief, Artisan, Farmer, Sailor, Miner, Student, Engineer, Bookkeeper, Hunter, Hermit, Elder, Merchant, Noble, and Performer. |
+| Henchkeeper stat spread and modifiers | ✅ Complete | Archetypes carry deliberately varied base stats; the requested +1/-1 modifiers are layered on those values rather than replacing the spread. |
 
-## Phase 4 — Online Platform Foundation
+### Rules status
 
-### Phase 4A — Repository and Deployment Foundation
-
-**Status: Complete**
-
-- [x] Move the editable source to `rkrismcneely/wwn-character-sheet`.
-- [x] Make GitHub the source of truth.
-- [x] Stop development on the old ChatGPT-hosted site.
-- [x] Deploy through Cloudflare Workers.
-- [x] Preserve the production D1 configuration:
-  - Database: `wwn-character-sheet-db`
-  - Database ID: `8e2bf197-e20f-4ea7-a86f-cab4e1a74699`
-  - Binding: `DB`
-- [x] Preserve the production R2 configuration:
-  - Bucket: `site-creator-r2`
-  - Binding: `BUCKET`
-- [x] Connect GitHub changes to Cloudflare deployment.
-- [x] Establish the production domain `https://taleswithoutend.com`.
-- [x] Redirect `https://www.taleswithoutend.com` to the root domain.
-- [x] Confirm ChatGPT can read and write the GitHub repository.
-- [ ] Add automated browser testing and deployment checks as post-migration hardening.
-
-### Phase 4B — Accounts, Ownership, Privacy, and Shareable Character URLs
-
-**Status: In progress — the full local Google sign-in → callback → authenticated UI → sign-out → refresh-signed-out → sign-in-again loop is verified on `adc492927d1e1ba608beaa04c4afb791e1820bac`. Current Tales Without End branding is reconciled and the pre-production code/migration/security review is complete. Production migration, backfill/claims, deployment, and merging remain blocked pending explicit approval. See `docs/PHASE-4B-CHECKPOINT.md` and `docs/PHASE-4B-PRODUCTION-ROLLOUT.md`.**
-
-#### Authentication
-
-- [x] Add Better Auth Google sign-in and sign-out. Both are locally runtime-verified; production OAuth remains a post-approval check.
-- [x] Use established Better Auth Google authentication instead of building password storage.
-- [x] Add generated Better Auth user records and secure cookie sessions in D1.
-- [x] Keep internal account identifiers separate from public-facing identifiers.
-- [x] Do not expose usernames, email addresses, Google IDs, or internal user IDs in public URLs, metadata, API responses, portrait paths, exports, or other public identifiers.
-
-#### Character ownership
-
-- [~] Link every new and imported character to an owner account. Existing characters remain safely unowned until explicitly claimed after migration review.
-- [x] Enforce ownership on the server for edits, deletion, portraits, visibility changes, and protected exports.
-- [x] Prevent one user from editing or deleting another user's character.
-- [x] Add hashed, expiring, one-time claim tokens and guarded admin commands for characters created before accounts exist.
-
-#### Privacy and visibility
-
-- [x] Add character visibility states:
-  - Private — owner only
-  - Unlisted — viewable by anyone with the link
-  - Public — viewable by link and eligible for public listings
-- [x] Ensure an unlisted link grants view access only, never edit access.
-- [x] Ensure private character data is never returned to unauthorized users.
-
-#### Unique character URLs
-
-- [~] Give every character a stable, unique URL in the browser address bar. New records are automatic; legacy records need the reviewed public-ID backfill.
-- [x] Use a cryptographically random, opaque 128-bit public character identifier rather than a username, email, sequential database ID, or easily guessed number.
-- [x] Use the route:
-  - `https://taleswithoutend.com/character/chr_<opaque-id>`
-- [x] Keep the URL stable when the character is renamed.
-- [x] Support direct links, browser bookmarks, history navigation, and easy sharing.
-- [x] Make URL access respect the character's visibility setting.
-- [x] Design login, routing, database schema, API authorization, import, portrait handling, and migration around stable opaque IDs.
-
-#### Account library and portability
-
-- [x] Add a My Characters view.
-- [x] Retain a separate Public Characters view and search.
-- [x] Add account-based import and owner-only export.
-- [x] Preserve compatibility with v1, v2, and legacy bare character JSON files while stripping ownership/auth fields.
-- [~] Retain export-version metadata and make imports fresh private records. Additional duplicate-detection UX remains planned.
-
-### Phase 4C — Campaigns and Sharing
-
-- [ ] Create campaigns.
-- [ ] Invite players.
-- [ ] Add GM and player roles.
-- [ ] Link characters to campaigns.
-- [ ] Add campaign-specific permissions.
-- [ ] Add a shared campaign library.
-- [ ] Allow GMs to view campaign-linked characters without automatically receiving unrestricted ownership.
-- [ ] Support view-only sharing and future campaign-aware character URLs.
-- [ ] Prepare for campaign maps, notes, handouts, encounters, and other VTT features.
-
-### Phase 4D — Reliability, Security, and Production Hardening
-
-- [ ] Add Playwright end-to-end browser testing.
-- [ ] Add GitHub Actions for build, lint, unit tests, artifact validation, and browser tests.
-- [ ] Test desktop, phone, tablet, Chromium, Firefox, and WebKit layouts.
-- [ ] Add screenshots, traces, console logs, and network logs for failed tests.
-- [ ] Use dedicated test D1 and R2 resources for destructive automated testing.
-- [ ] Add production-safe smoke tests.
-- [ ] Add revision and conflict handling.
-- [ ] Add safe database migrations.
-- [ ] Add database backup and recovery procedures.
-- [ ] Add protection against accidental deletion.
-- [ ] Validate portrait file type, file size, and ownership.
-- [ ] Add structured logging and error reporting.
-- [ ] Review privacy and data-retention practices.
-- [ ] Add accessibility checks and keyboard-navigation testing.
-- [ ] Add visual regression testing for key responsive layouts.
+- ✅ Current SRD rules tests cover the corrected focus interactions, unarmed attack
+  variants, Spirit Familiar records, background development, class progressions, spells,
+  arts, and gated selection behavior.
+- ⬜ The only concrete Phase 2 hardening opportunity is a direct regression test that
+  locks the 18-archetype catalogue and representative modifier calculations. It is not a
+  missing player-facing rules feature.
 
 ---
 
-## Phase 5 — Full VTT Expansion
+## Phase 3 — Dice and play utilities
 
-This phase begins only after accounts, ownership, campaigns, and production hardening are stable.
-
-- [ ] Campaign dashboard.
-- [ ] Shared maps and scenes.
-- [ ] Tokens and token ownership.
-- [ ] Fog of war and visibility controls.
-- [ ] Initiative and encounter tracking.
-- [ ] Shared dice rolls and roll history.
-- [ ] Character-to-token integration.
-- [ ] Notes, handouts, journals, and campaign lore.
-- [ ] Real-time multiplayer synchronization.
-- [ ] GM permissions and player permissions.
-- [ ] Mobile and tablet play support.
-- [ ] System architecture that can eventually support other Without Number games.
+- ✅ Header d20 and 2d6 rollers.
+- ✅ Reusable dice utility using `crypto.getRandomValues` and rejection sampling.
+- ✅ Readable result presentation and subtle roll animation.
+- ⬜ Add further table/play tools only when they support the character folio without
+  turning it into an unfocused VTT surface.
 
 ---
 
-## Development Workflow
+## Phase 4A — Repository and deployment foundation
 
-For every future change:
+**Status: complete.**
 
-1. Read the current source from `rkrismcneely/wwn-character-sheet`.
-2. Make changes only in that repository.
-3. Preserve the existing Cloudflare D1 and R2 bindings.
-4. Commit and push completed work to GitHub.
-5. Let Cloudflare build and deploy the change.
-6. Test the Cloudflare deployment.
-7. Do not publish or checkpoint changes to the old `chatgpt.site` site.
+- ✅ GitHub repository is the source of truth; development is no longer directed at the
+  old ChatGPT-hosted site.
+- ✅ Cloudflare Worker deployment, production custom domain, D1, and R2 integration.
+- ✅ Git-based deployment process with checked production Worker artifact.
+- ✅ GitHub Actions CI on pull requests to `main` and pushes to `main`: clean install,
+  typecheck, lint, full tests, production build, and Worker artifact validation.
+- ✅ Node 22.13.0 CI baseline, matching the repository engine requirement.
+- ⬜ CI intentionally has no deployment or production-credential steps.
 
-For small, low-risk changes, direct commits to `main` are acceptable.
+---
 
-For larger or riskier changes:
+## Phase 4B — Accounts, ownership, privacy, and character URLs
 
-1. Create a feature branch.
-2. Build and test the change there.
-3. Use a preview deployment where available.
-4. Merge only after approval.
+**Status: complete implementation and deployed application capability.** Stateful production
+migration/admin actions are operational records, not a checklist maintained in this roadmap;
+do not infer their current data state from the older pre-rollout documents.
+
+### Authentication and sessions
+
+- ✅ Better Auth with Google sign-in, persistent D1-backed sessions, sign-out, and
+  re-login flows.
+- ✅ Request-scoped Cloudflare Better Auth construction, avoiding module-scope binding and
+  workerd async-context failures.
+- ✅ Runtime binding guard and safe generic auth failure behavior.
+- ✅ Public responses and URLs keep internal account identifiers, email addresses, and
+  provider identifiers out of public output.
+
+### Ownership, privacy, and sharing
+
+- ✅ Server-enforced owner-only mutation for character data, deletion, portraits,
+  visibility, export, and claims.
+- ✅ Stable opaque `/character/chr_<id>` URLs for new/imported records and direct-route
+  visibility enforcement.
+- ✅ Private, unlisted, and public visibility states; public listing excludes private and
+  unlisted records.
+- ✅ Owner-scoped **My Characters** dashboard and public-character archive.
+- ✅ Authenticated, sanitized imports create fresh private owner records and strip
+  ownership/auth fields from inbound files.
+- ✅ Secure hashed, expiring, single-use legacy claim tokens and a gated claim flow.
+- ✅ Read-only administrator role with a privacy-safe **All Characters** view; all
+  non-owner mutations remain denied.
+- ◐ Import duplicate prevention is intentionally not implemented: importing the same file
+  more than once creates separate safe private records. The planned next UX task is a
+  warning/choice, not a change to that safety model.
+
+---
+
+## Phase 4C — Campaigns and sharing
+
+**Status: planned; no campaign/shared-party implementation was found.**
+
+- ⬜ Campaigns, invitations, GM/player roles, and campaign-specific permissions.
+- ⬜ Campaign character links and a shared campaign library.
+- ⬜ GM view access that does not silently confer ownership.
+- ⬜ Campaign-aware sharing, maps, notes, handouts, encounters, and related VTT
+  foundations.
+
+---
+
+## Phase 4D — Reliability, security, and production hardening
+
+### Completed
+
+- ✅ GitHub Actions validation gate for PRs and `main` pushes.
+- ✅ Typecheck, lint, full automated tests, production build, and Worker artifact
+  validation in CI.
+- ✅ Migration compatibility/preservation tests and guarded production migration scripts.
+- ✅ Authentication, authorization, visibility, ownership, legacy-claim, and
+  admin-read-only regression coverage.
+- ✅ Local built-Worker/runtime checks, including Better Auth/session route coverage.
+- ✅ Optimistic version checks on character saves return a conflict instead of silently
+  overwriting a concurrent update.
+- ✅ Portrait endpoint validation and owner authorization are enforced server-side.
+
+### Remaining
+
+- ⬜ Playwright browser E2E smoke coverage, with failed-test screenshots/traces/logs.
+- ⬜ Automated desktop/tablet/phone and Chromium/Firefox/WebKit visual/accessibility
+  checks.
+- ⬜ Production-safe smoke checks that use no real player data.
+- ⬜ A documented, tested backup/recovery operational procedure.
+- ◐ Character writes have optimistic conflict detection, but the user-facing conflict
+  recovery/merge experience is not yet a dedicated workflow.
+- ⬜ Structured application error reporting and a privacy/data-retention review.
+- ⬜ Visual regression coverage for the landing page, dashboard, public archive, and
+  character sheet.
+
+---
+
+## Phase 5 — Full VTT expansion
+
+**Status: future.** Begin only after campaigns and the remaining production hardening are
+stable.
+
+- ⬜ Campaign dashboard, shared maps/scenes, tokens, fog of war, and initiative.
+- ⬜ Shared dice rolls/history and character-to-token integration.
+- ⬜ Notes, handouts, journals, campaign lore, and real-time multiplayer synchronization.
+- ⬜ Mobile/tablet play support and architecture for other Without Number games.
+
+---
+
+## Development workflow
+
+1. Treat current `main`, tests, and merged PRs as the project-status authority.
+2. Keep application changes in focused branches and review them through pull requests.
+3. Preserve Cloudflare bindings and production data unless a task explicitly authorizes a
+   scoped operational change.
+4. Let CI validate every PR; CI has no deployment side effects.
+5. Verify deployed behavior after merges that affect routes, authentication, data, or UI.

@@ -21,10 +21,8 @@ subsequent merged and deployed account work; they are not current status checkli
 - **Highest-value task:** add a small Playwright browser smoke suite for the public
   landing/archive and the signed-in dashboard/owner route boundary. Current source and
   Worker tests are strong, but there is no browser E2E suite.
-- **Recommended next task:** improve import duplicate-detection UX. Imports are already
-  safe: they are authenticated, sanitized, and always create a fresh private record.
-  A focused pre-import warning for an obvious duplicate would reduce accidental duplicate
-  folios without changing ownership, authentication, or storage semantics.
+- **Recommended next task:** add the first focused Playwright browser smoke coverage,
+  starting with the signed-out landing/archive and the signed-in dashboard route boundary.
 
 ---
 
@@ -142,9 +140,8 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Secure hashed, expiring, single-use legacy claim tokens and a gated claim flow.
 - ✅ Read-only administrator role with a privacy-safe **All Characters** view; all
   non-owner mutations remain denied.
-- ◐ Import duplicate prevention is intentionally not implemented: importing the same file
-  more than once creates separate safe private records. The planned next UX task is a
-  warning/choice, not a change to that safety model.
+- ✅ Conservative duplicate-import warning checks high-confidence summary and content
+  matches before creation; users may still import a separate fresh private record.
 
 ---
 

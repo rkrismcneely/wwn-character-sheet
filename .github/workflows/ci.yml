@@ -28,9 +28,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Worker types
-        run: npm run workers:types
-
       - name: Typecheck
         run: npm run typecheck
 

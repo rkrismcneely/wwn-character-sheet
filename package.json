@@ -24,7 +24,9 @@
     "db:backfill:public-ids": "node scripts/backfill-public-ids.mjs",
     "legacy-claim:create": "node scripts/create-legacy-claim.mjs",
     "legacy-claim:revoke": "node scripts/revoke-legacy-claim.mjs",
-    "admin:promote": "node scripts/promote-admin.mjs"
+    "admin:promote": "node scripts/promote-admin.mjs",
+    "test:e2e": "playwright test",
+    "e2e:server": "node scripts/start-e2e-worker.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
@@ -54,7 +56,8 @@
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "wrangler": "4.92.0",
+    "@playwright/test": "1.62.1"
   },
   "type": "module",
   "displayName": "Worlds Without Number Character Sheet"

@@ -171,13 +171,17 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Authentication, authorization, visibility, ownership, legacy-claim, and
   admin-read-only regression coverage.
 - ✅ Local built-Worker/runtime checks, including Better Auth/session route coverage.
+- ✅ Playwright Chromium smoke-test foundation for signed-out routing, public/private
+  character access, signed-in ownership, administrator read-only behavior, and a narrow
+  mobile overflow/navigation check. It runs against disposable local D1 state through the
+  built workerd-backed Worker.
 - ✅ Optimistic version checks on character saves return a conflict instead of silently
   overwriting a concurrent update.
 - ✅ Portrait endpoint validation and owner authorization are enforced server-side.
 
 ### Remaining
 
-- ⬜ Playwright browser E2E smoke coverage, with failed-test screenshots/traces/logs.
+- ⬜ Broader Playwright E2E coverage beyond the initial high-value Chromium smoke suite.
 - ⬜ Automated desktop/tablet/phone and Chromium/Firefox/WebKit visual/accessibility
   checks.
 - ⬜ Production-safe smoke checks that use no real player data.

@@ -164,6 +164,18 @@ export async function listEligibleCampaignCharacters(
   );
   if (authenticatedActor.role === "admin") return [];
 
+  const existingLink = await db
+    .prepare(
+      `SELECT 1
+       FROM campaign_characters cc
+       INNER JOIN characters linked ON linked.id = cc.character_id
+       WHERE cc.campaign_id = ? AND linked.owner_user_id = ?
+       LIMIT 1`,
+    )
+    .bind(campaign.id, authenticatedActor.userId)
+    .first<{ 1: number }>();
+  if (existingLink) return [];
+
   const result = await db
     .prepare(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
@@ -220,14 +232,33 @@ export async function linkCharacterToCampaign(
   }
 
   try {
-    await db
+    const result = await db
       .prepare(
         `INSERT INTO campaign_characters (campaign_id, character_id, added_at)
-         VALUES (?, ?, ?)`,
+         SELECT ?, ?, ?
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM campaign_characters cc
+           INNER JOIN characters linked ON linked.id = cc.character_id
+           WHERE cc.campaign_id = ? AND linked.owner_user_id = ?
+         )`,
       )
-      .bind(campaign.id, character.id, now)
+      .bind(
+        campaign.id,
+        character.id,
+        now,
+        campaign.id,
+        authenticatedActor.userId,
+      )
       .run();
+    if (result.meta.changes !== 1) {
+      throw new CampaignServiceError(
+        "You already have a character linked to this campaign.",
+        409,
+      );
+    }
   } catch (error) {
+    if (error instanceof CampaignServiceError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("UNIQUE") || message.includes("PRIMARY KEY")) {
       throw new CampaignServiceError(

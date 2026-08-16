@@ -150,25 +150,25 @@ do not infer their current data state from the older pre-rollout documents.
 
 ## Phase 4C — Campaigns and sharing
 
-**Status: private campaign workflow implemented; production rollout remains pending.**
+**Status: private campaign workflow is deployed; production smoke verification remains underway.**
 
 - ✅ Additive campaign schema/domain foundation: private campaign records, GM/player
-  membership, many-to-many character links, hash-only expiring/single-use invite state,
-  opaque campaign IDs, and pure permission helpers. The new migration remains pending
-  production rollout.
-- ✅ Private campaign create/list/read/settings/delete API foundation, privacy-safe member
-  roster reads, and server-side member removal/leave services. The campaign APIs remain
-  undeployed until the approved production migration and user-facing slice are ready.
+  membership, multi-campaign character links, hash-only expiring/single-use invite state,
+  opaque campaign IDs, and pure permission helpers. Migration 0006 is applied in
+  production with existing character/account data preserved.
+- ✅ Private campaign create/list/read/settings/delete APIs, privacy-safe member roster
+  reads, and server-side member removal/leave services.
 - ✅ Secure campaign invitation API/service foundation: seven-day hash-only player
-  invites, atomic single-use redemption, and authorized revocation. Plaintext tokens are
-  returned only at creation.
+  invites, non-consuming validation, atomic single-use membership plus selected-character
+  redemption, and authorized revocation. Plaintext tokens are returned only at creation.
 - ✅ Initial My Campaigns dashboard and private campaign-management UI: create, open,
   rename, roster, player removal/leave, and owner-confirmed deletion.
-- ✅ Secure invitation UI and join flow: one-time plaintext display/copy, immediate
-  revocation, seven-day expiry guidance, server-authoritative redemption, and a
-  fragment-based signed-out continuation through Google sign-in that avoids request logs.
-- ✅ Owner-controlled character linking and shared campaign character library, including
-  multi-campaign links and owner-only unlinking that preserve ownership and visibility.
+- ✅ Secure invitation UI and join flow: unmistakable cminv_ code creation/copy,
+  character selection before redemption, seven-day expiry guidance, and fragment-based
+  signed-out continuation through Google sign-in that avoids request logs.
+- ✅ Owner-controlled character linking and shared campaign character library: at most
+  one linked character per member per campaign, multi-campaign participation, and
+  owner-only unlinking that preserve ownership and visibility.
 - ✅ Campaign-scoped read-only character and portrait routes for members, GMs, and
   read-only site administrators; global visibility and direct character-route
   authorization remain unchanged.

@@ -147,6 +147,14 @@
 .campaign-join-card>p{max-width:490px;margin:14px auto 21px;color:#675b49;font:15px/1.5 var(--font-ui)}
 .campaign-join-card .campaign-error{width:100%;margin:0 0 18px;text-align:left}
 .campaign-join-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:9px}
+.campaign-join-character-list{display:grid;gap:9px;margin:18px 0 0;padding:0;border:0;text-align:left}
+.campaign-join-character-list legend{margin-bottom:8px;color:#60421f;font:700 10px var(--font-ui);letter-spacing:.08em;text-transform:uppercase}
+.campaign-join-character{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid #bca478;background:#fff8e8;cursor:pointer}
+.campaign-join-character:has(input:checked){border-color:#8b5d1f;box-shadow:0 0 0 2px rgba(139,93,31,.18)}
+.campaign-join-character input{width:auto;margin:0;accent-color:#8b5d1f}
+.campaign-join-character span{display:flex;min-width:0;flex-direction:column;gap:3px}
+.campaign-join-character strong{overflow-wrap:anywhere;color:#49351d;font:700 14px var(--font-ui)}
+.campaign-join-character small{color:#756957;font:11px var(--font-ui)}
 @media(max-width:900px){
   .campaign-dashboard-layout,.campaign-detail-layout{grid-template-columns:1fr}
   .campaign-join,.campaign-management{width:100%}
@@ -177,4 +185,5 @@
   .campaign-dialog-actions>*{flex:1}
   .campaign-join-card{padding:28px 18px}
   .campaign-join-actions{flex-direction:column}.campaign-join-actions>*{width:100%}
+  .campaign-join-card form>.campaign-primary,.campaign-join .campaign-dialog-actions>*{width:100%}
 }

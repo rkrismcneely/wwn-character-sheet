@@ -51,18 +51,18 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
   assert.match(detail, /Owner · Game Master/u);
 });
 
-test("invite UI shows the plaintext once, supports copy and immediate revocation, and stores nothing", async () => {
+test("invite UI distinguishes cminv_ codes from campaign IDs and supports copy-once revocation", async () => {
   const detail = await source("app/campaigns/campaign-detail.tsx");
-  assert.match(detail, /Campaign Invite/u);
-  assert.match(detail, /inviteUrl\.hash = invite\.token/u);
-  assert.match(detail, /navigator\.clipboard\.writeText\(inviteUrl\.toString\(\)\)/u);
-  assert.match(detail, /Copy Invite Link/u);
+  assert.match(detail, /Campaign Invitation/u);
+  assert.match(detail, /private cminv_ invitation code/u);
+  assert.match(detail, /navigator\.clipboard\.writeText\(invite\.token\)/u);
+  assert.match(detail, /Copy Invite Code/u);
   assert.match(detail, /value=\{invite\.token\}/u);
   assert.match(detail, /Expires/u);
   assert.match(detail, /The plaintext code cannot be retrieved after this window closes/u);
   assert.match(detail, /method: "DELETE"/u);
   assert.match(detail, /Revoke Invite/u);
-  assert.doesNotMatch(detail, /localStorage|sessionStorage|console\.|tokenHash|token_hash/u);
+  assert.doesNotMatch(detail, /<dt>Campaign ID<\/dt>|localStorage|sessionStorage|console\.|tokenHash|token_hash/u);
 });
 
 test("signed-out invite continuation keeps the token out of requests and clears temporary state", async () => {
@@ -74,14 +74,22 @@ test("signed-out invite continuation keeps the token out of requests and clears 
   assert.match(join, /sessionStorage\.removeItem/u);
   assert.match(join, /callbackURL: "\/campaigns\/join"/u);
   assert.match(join, /Sign in with Google to Join/u);
+  assert.match(join, /\/api\/campaign-invites\/preview/u);
   assert.match(join, /\/api\/campaign-invites\/redeem/u);
+  assert.match(join, /characterId: selectedCharacterId/u);
+  assert.match(join, /Choose Your Character/u);
   assert.match(join, /router\.replace\(`\/campaigns\/\$\{payload\.campaign\.id\}`\)/u);
   assert.doesNotMatch(join, /localStorage|console\.|searchParams\.set\("token"/u);
 });
 
-test("signed-in join flow handles server-authoritative invite outcomes", async () => {
+test("signed-in join flow previews without consuming, requires one owned character, and handles outcomes", async () => {
   const dashboard = await source("app/campaigns/campaign-dashboard.tsx");
+  assert.match(dashboard, /\/api\/campaign-invites\/preview/u);
   assert.match(dashboard, /\/api\/campaign-invites\/redeem/u);
+  assert.match(dashboard, /characterId: selectedCharacterId/u);
+  assert.match(dashboard, /Choose Your Character/u);
+  assert.match(dashboard, /Your other characters remain unrelated/u);
+  assert.match(dashboard, /Campaign IDs beginning cmp_ are not invite codes/u);
   assert.match(dashboard, /router\.push\(`\/campaigns\/\$\{payload\.campaign\.id\}`\)/u);
   for (const copy of [
     "This campaign invitation is invalid.",
@@ -109,8 +117,10 @@ test("campaign character library uses scoped routes and owner-only link controls
   const portraitApi = await source("app/api/campaigns/[id]/characters/[characterId]/portrait/route.ts");
   assert.match(detail, /Campaign Characters/u);
   assert.match(detail, /campaign\.permissions\.canLinkCharacters/u);
+  assert.match(detail, /!characters\.some\(character => character\.isMine\)/u);
+  assert.match(detail, /Each member may have one character in a campaign/u);
   assert.match(detail, /character\.permissions\.canUnlink/u);
-  assert.match(detail, /Linking does not transfer ownership or change global visibility/u);
+  assert.match(detail, /Ownership and global visibility will not change/u);
   assert.match(detail, /\/campaigns\/\$\{campaign\.id\}\/characters\/\$\{character\.id\}/u);
   assert.match(scopedPage, /readCampaignLinkedCharacter/u);
   assert.match(scopedPage, /campaignContext/u);

@@ -15,7 +15,7 @@ test("character sharing is an owner-only bottom-of-folio utility", async () => {
   assert.notEqual(sharingIndex, -1);
   assert.ok(sharingIndex > heroIndex, "sharing should follow the character identity/header");
   assert.ok(sharingIndex < footerIndex, "sharing should remain inside the folio before its footer");
-  assert.equal((sheet.match(/className="character-sharing/g) || []).length, 1);
+  assert.equal((sheet.match(/className="character-sharing(?: |")/g) || []).length, 1);
   assert.match(sheet, /cloudId && canEdit && <section className="character-sharing character-sharing-footer"/u);
   assert.match(sheet, /value=\{cloudVisibility\}/u);
   assert.match(sheet, /changeVisibility/u);

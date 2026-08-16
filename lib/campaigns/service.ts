@@ -1,5 +1,6 @@
 import {
   canDeleteCampaign,
+  canInviteCampaignMembers,
   canLeaveCampaign,
   canManageCampaignSettings,
   canRemoveCampaignMember,
@@ -16,6 +17,7 @@ import type {
   CampaignMembershipRecord,
   CampaignRole,
 } from "./types.ts";
+import { hashOpaqueToken } from "../security/opaque-tokens.ts";
 
 export type CampaignServiceStatus = 400 | 401 | 403 | 404 | 409 | 422;
 
@@ -34,6 +36,7 @@ interface CampaignRow extends CampaignAccessRecord {
   version: number;
   createdAt: string;
   updatedAt: string;
+  memberCount: number;
 }
 
 interface CampaignMembershipRow extends CampaignMembershipRecord {
@@ -54,20 +57,37 @@ export interface CampaignPayload {
   version: number;
   createdAt: string;
   updatedAt: string;
+  memberCount: number;
   membershipRole: CampaignRole | null;
   isOwner: boolean;
   permissions: {
     canManageSettings: boolean;
     canDelete: boolean;
+    canInviteMembers: boolean;
+    canRemovePlayers: boolean;
+    canLeave: boolean;
     adminReadOnly: boolean;
   };
 }
 
 export interface CampaignMemberPayload {
+  memberKey: string;
   name: string;
   role: CampaignRole;
   joinedAt: string;
   isOwner: boolean;
+}
+
+const CAMPAIGN_MEMBER_KEY_PATTERN = /^cmem_[0-9a-f]{32}$/u;
+
+async function campaignMemberKey(
+  campaignPublicId: string,
+  userId: string,
+): Promise<string> {
+  const hash = await hashOpaqueToken(
+    `campaign-member:${campaignPublicId}:${userId}`,
+  );
+  return `cmem_${hash.slice(0, 32)}`;
 }
 
 function notFound(): CampaignServiceError {
@@ -110,10 +130,13 @@ async function findCampaignByPublicId(
   if (!isPlausiblePublicCampaignId(publicId)) return null;
   return db
     .prepare(
-      `SELECT id, public_id AS publicId, owner_user_id AS ownerUserId,
-              name, version, created_at AS createdAt, updated_at AS updatedAt
-       FROM campaigns
-       WHERE public_id = ?`,
+      `SELECT c.id, c.public_id AS publicId, c.owner_user_id AS ownerUserId,
+              c.name, c.version, c.created_at AS createdAt,
+              c.updated_at AS updatedAt,
+              (SELECT COUNT(*) FROM campaign_members cm
+               WHERE cm.campaign_id = c.id) AS memberCount
+       FROM campaigns c
+       WHERE c.public_id = ?`,
     )
     .bind(publicId)
     .first<CampaignRow>();
@@ -147,11 +170,17 @@ function campaignPayload(
     version: campaign.version,
     createdAt: campaign.createdAt,
     updatedAt: campaign.updatedAt,
+    memberCount: Number(campaign.memberCount) || 0,
     membershipRole: membership?.role ?? null,
     isOwner,
     permissions: {
       canManageSettings: canManageCampaignSettings(actor, campaign),
       canDelete: canDeleteCampaign(actor, campaign),
+      canInviteMembers:
+        actor.role !== "admin"
+        && canInviteCampaignMembers(actor, campaign, membership),
+      canRemovePlayers: canInviteCampaignMembers(actor, campaign, membership),
+      canLeave: canLeaveCampaign(actor, campaign, membership),
       adminReadOnly: actor.role === "admin" && !isOwner,
     },
   };
@@ -194,6 +223,7 @@ export async function createCampaign(
       version: 1,
       createdAt: now,
       updatedAt: now,
+      memberCount: 1,
     };
     const membership: CampaignMembershipRow = {
       campaignId: campaign.id,
@@ -242,7 +272,9 @@ export async function listCampaigns(
     .prepare(
       `SELECT c.id, c.public_id AS publicId, c.owner_user_id AS ownerUserId,
               c.name, c.version, c.created_at AS createdAt,
-              c.updated_at AS updatedAt, cm.role AS membershipRole
+              c.updated_at AS updatedAt, cm.role AS membershipRole,
+              (SELECT COUNT(*) FROM campaign_members roster
+               WHERE roster.campaign_id = c.id) AS memberCount
        FROM campaigns c
        INNER JOIN campaign_members cm ON cm.campaign_id = c.id
        WHERE cm.user_id = ?
@@ -294,12 +326,13 @@ export async function listCampaignMembers(
     )
     .bind(campaign.id, campaign.ownerUserId)
     .all<CampaignMemberRow>();
-  return result.results.map((member) => ({
+  return Promise.all(result.results.map(async (member) => ({
+    memberKey: await campaignMemberKey(campaign.publicId, member.userId),
     name: member.displayName,
     role: member.role,
     joinedAt: member.joinedAt,
     isOwner: member.userId === campaign.ownerUserId,
-  }));
+  })));
 }
 
 export async function updateCampaignName(
@@ -419,6 +452,56 @@ export async function removeCampaignMember(
        WHERE campaign_id = ? AND user_id = ? AND role = 'player'`,
     ).bind(campaign.id, targetUserId),
   ]);
+}
+
+export async function removeCampaignMemberByKey(
+  db: D1Database,
+  actor: CampaignActor | null,
+  publicId: string,
+  rawMemberKey: unknown,
+): Promise<void> {
+  const authenticatedActor = requireActor(actor);
+  if (
+    typeof rawMemberKey !== "string"
+    || !CAMPAIGN_MEMBER_KEY_PATTERN.test(rawMemberKey)
+  ) {
+    throw new CampaignServiceError("A valid campaign member is required.", 422);
+  }
+  const { campaign, membership: actorMembership } = await loadCampaignAccess(
+    db,
+    authenticatedActor,
+    publicId,
+  );
+  const result = await db
+    .prepare(
+      `SELECT campaign_id AS campaignId, user_id AS userId, role
+       FROM campaign_members
+       WHERE campaign_id = ? AND role = 'player'`,
+    )
+    .bind(campaign.id)
+    .all<CampaignMembershipRecord>();
+  let targetMembership: CampaignMembershipRecord | null = null;
+  for (const candidate of result.results) {
+    if (await campaignMemberKey(campaign.publicId, candidate.userId) === rawMemberKey) {
+      targetMembership = candidate;
+      break;
+    }
+  }
+  if (!targetMembership) throw notFound();
+  if (!canRemoveCampaignMember(
+    authenticatedActor,
+    campaign,
+    actorMembership,
+    targetMembership,
+  )) {
+    throw new CampaignServiceError("Not permitted.", 403);
+  }
+  await removeCampaignMember(
+    db,
+    authenticatedActor,
+    publicId,
+    targetMembership.userId,
+  );
 }
 
 export async function leaveCampaign(

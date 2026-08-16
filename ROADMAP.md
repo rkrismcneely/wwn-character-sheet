@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` at `c25d0b86` on 2026-08-15._
+_Last reconciled against `main` at `2e943e3c` on 2026-08-16._
 
 This is the forward-looking project roadmap. Current source, automated tests, and merged
 pull requests are its status authority. The Phase 4B checkpoint and rollout documents
@@ -12,6 +12,10 @@ subsequent merged and deployed account work; they are not current status checkli
 - ✅ Complete
 - ◐ Partial / underway
 - ⬜ Planned
+
+## Character-sheet hierarchy principle
+
+The character identity/header is the uninterrupted visual beginning of the folio. Do not insert new utility, account, sharing, campaign, or management controls between the site header and that identity/header. Global controls belong in the global header; character-data controls belong in the appropriate tab; other utilities should use a compact secondary area or the bottom/footer portion of the folio.
 
 ## Recommended next work
 
@@ -152,9 +156,9 @@ do not infer their current data state from the older pre-rollout documents.
 
 ---
 
-## Phase 4C — Campaigns and sharing
+## Phase 4C — Private Campaign Experience
 
-**Status: private campaign workflow is deployed; production smoke verification remains underway.**
+**Status: private campaign workflow is deployed; production smoke verification remains underway. Campaign access is authenticated, private, and limited to actual campaign members. Character-level Public / Unlisted / Private visibility remains separate.**
 
 - ✅ Additive campaign schema/domain foundation: private campaign records, GM/player
   membership, multi-campaign character links, hash-only expiring/single-use invite state,
@@ -176,12 +180,23 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Campaign-scoped read-only character and portrait routes for members, GMs, and
   read-only site administrators; global visibility and direct character-route
   authorization remain unchanged.
-- ⬜ Later sharing/VTT work: guest links, maps, notes, handouts, encounters, and realtime
-  features.
+
+### Remaining private-campaign usability
+
+- ⬜ Direct campaign invite links that complement the existing `cminv_...` code flow with an expiring, authenticated, single-use join URL; recipients sign in if necessary, choose an owned eligible character, and then join the private campaign.
+- ⬜ Lightweight campaign overview and resources layer: a description/summary plus a small set of external links such as Discord, Roll20, shared documents, a campaign wiki, or rules resources. This is not a maps, handouts, file-hosting, or full-wiki system.
+- ⬜ Richer compact Campaign Characters cards with the most useful at-a-glance subset of portrait, character name, owner/player display name, class, level, current/max HP, Armor Class, System Strain, and update/status information.
+- ⬜ Intuitive character ↔ campaign navigation that remains clean if a character participates in more than one campaign and does not clutter the character identity/header.
+- ⬜ Change/replace campaign character without leaving or rejoining: preserve membership, remove the old link, link a new owned eligible character, and preserve ownership, visibility, and the one-character-per-player-per-campaign rule.
 
 ---
 
-## Phase 4D — Reliability, security, and production hardening
+## Phase 4D — Reliability, library maturity, security, and production hardening
+
+### Library maturity
+
+- ⬜ Archive / retire characters and campaigns non-destructively so old records leave active lists but remain recoverable; Archive is distinct from Delete.
+- ⬜ Duplicate Character as a new independent owned record with its own identity/public ID and no accidental campaign-membership inheritance.
 
 ### Completed
 
@@ -211,13 +226,20 @@ do not infer their current data state from the older pre-rollout documents.
 
 ---
 
+## Phase 4E — Actual Play Improvements
+
+- ⬜ Click-to-roll character actions, beginning with high-value WWN saving throws, weapon attacks, weapon damage, and skill checks that account for the relevant attribute + skill structure.
+- ⬜ Lightweight recent roll history associated with actual-play rolling; persistence and session scope can be designed when implemented.
+
+---
+
 ## Phase 5 — Full VTT expansion
 
 **Status: future.** Begin only after campaigns and the remaining production hardening are
 stable.
 
 - ⬜ Campaign dashboard, shared maps/scenes, tokens, fog of war, and initiative.
-- ⬜ Shared dice rolls/history and character-to-token integration.
+- ⬜ Real-time multiplayer synchronization and character-to-token integration.
 - ⬜ Notes, handouts, journals, campaign lore, and real-time multiplayer synchronization.
 - ⬜ Mobile/tablet play support and architecture for other Without Number games.
 

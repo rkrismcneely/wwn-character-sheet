@@ -41,6 +41,8 @@ subsequent merged and deployed account work; they are not current status checkli
 - ✅ Standalone public-character archive for signed-out browsing.
 - ✅ Signed-in `/` experience is now a dense, responsive **My Characters** dashboard,
   not an immediate sheet load.
+- ✅ Authenticated **Account** profile with an application-managed display name, Google
+  name fallback, and unified signed-in navigation across characters and campaigns.
 - ✅ General character-sheet usability work: labels, tooltips, confirmation affordances,
   counters, rules search, and printable/exportable folio workflows.
 
@@ -122,6 +124,8 @@ do not infer their current data state from the older pre-rollout documents.
 
 - ✅ Better Auth with Google sign-in, persistent D1-backed sessions, sign-out, and
   re-login flows.
+- ✅ Custom Tales Without End display names are stored separately from Google identity
+  and used by campaign roster/linked-character projections.
 - ✅ Request-scoped Cloudflare Better Auth construction, avoiding module-scope binding and
   workerd async-context failures.
 - ✅ Runtime binding guard and safe generic auth failure behavior.

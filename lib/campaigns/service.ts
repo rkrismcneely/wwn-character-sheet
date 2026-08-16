@@ -18,6 +18,7 @@ import type {
   CampaignRole,
 } from "./types.ts";
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
+import { effectiveDisplayName } from "../account/display-name.ts";
 
 export type CampaignServiceStatus = 400 | 401 | 403 | 404 | 409 | 422;
 
@@ -48,7 +49,8 @@ interface CampaignListRow extends CampaignRow {
 }
 
 interface CampaignMemberRow extends CampaignMembershipRow {
-  displayName: string;
+  providerName: string;
+  customDisplayName: string | null;
 }
 
 export interface CampaignPayload {
@@ -317,18 +319,23 @@ export async function listCampaignMembers(
   const result = await db
     .prepare(
       `SELECT cm.campaign_id AS campaignId, cm.user_id AS userId,
-              cm.role, cm.joined_at AS joinedAt, u.name AS displayName
+              cm.role, cm.joined_at AS joinedAt,
+              u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_members cm
        INNER JOIN user u ON u.id = cm.user_id
        WHERE cm.campaign_id = ?
        ORDER BY CASE WHEN cm.user_id = ? THEN 0 ELSE 1 END,
-                lower(u.name), cm.joined_at`,
+                lower(COALESCE(NULLIF(trim(u.display_name), ''), u.name)),
+                cm.joined_at`,
     )
     .bind(campaign.id, campaign.ownerUserId)
     .all<CampaignMemberRow>();
   return Promise.all(result.results.map(async (member) => ({
     memberKey: await campaignMemberKey(campaign.publicId, member.userId),
-    name: member.displayName,
+    name: effectiveDisplayName(
+      member.customDisplayName,
+      member.providerName,
+    ),
     role: member.role,
     joinedAt: member.joinedAt,
     isOwner: member.userId === campaign.ownerUserId,

@@ -7,10 +7,13 @@ const source = async path => readFile(new URL(`../${path}`, import.meta.url), "u
 test("My Campaigns is a signed-in route and a first-class dashboard destination", async () => {
   const page = await source("app/campaigns/page.tsx");
   const dashboard = await source("app/dashboard-page.tsx");
+  const header = await source("app/app-header.tsx");
   assert.match(page, /getSessionActor/u);
   assert.match(page, /if \(!actor\) redirect\("\/"\)/u);
   assert.match(page, /<CampaignDashboard/u);
-  assert.match(dashboard, /href="\/campaigns">My Campaigns/u);
+  assert.match(dashboard, /<SignedInHeader active="characters"/u);
+  assert.match(header, /link\("campaigns", "\/campaigns", "My Campaigns"\)/u);
+  assert.match(header, /My Campaigns/u);
 });
 
 test("campaign dashboard lists only server-authorized campaigns and has an intentional empty state", async () => {

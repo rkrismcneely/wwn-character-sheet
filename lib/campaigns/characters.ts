@@ -15,6 +15,7 @@ import type {
 import type { CharacterVisibility } from "../characters/authorization.ts";
 import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
 import { parseCharacter } from "../characters/sanitize.ts";
+import { effectiveDisplayName } from "../account/display-name.ts";
 
 interface CharacterLinkRow extends CampaignCharacterRecord {
   publicId: string;
@@ -23,7 +24,8 @@ interface CharacterLinkRow extends CampaignCharacterRecord {
   level: number;
   visibility: CharacterVisibility;
   updatedAt: string;
-  ownerName: string;
+  providerName: string;
+  customDisplayName: string | null;
 }
 
 interface CampaignLinkedCharacterRow extends CharacterLinkRow {
@@ -95,7 +97,7 @@ function summaryPayload(
     level: Number(row.level) || 1,
     visibility: row.visibility,
     updatedAt: row.updatedAt,
-    ownerName: row.ownerName,
+    ownerName: effectiveDisplayName(row.customDisplayName, row.providerName),
     isMine,
     permissions: {
       canUnlink: actor.role !== "admin" && isMine,
@@ -114,7 +116,7 @@ async function findCharacterForCampaign(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS ownerName
+              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.public_id = ?`,
@@ -139,7 +141,7 @@ export async function listCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS ownerName
+              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_characters cc
        INNER JOIN characters ch ON ch.id = cc.character_id
        INNER JOIN user u ON u.id = ch.owner_user_id
@@ -181,7 +183,7 @@ export async function listEligibleCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS ownerName
+              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.owner_user_id = ? AND ch.public_id IS NOT NULL
@@ -328,7 +330,7 @@ export async function readCampaignLinkedCharacter(
               ch.class_label AS classLabel, ch.level,
               ch.data, ch.version, ch.portrait_key AS portraitKey,
               ch.created_at AS createdAt, ch.updated_at AS updatedAt,
-              u.name AS ownerName
+              u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_characters cc
        INNER JOIN characters ch ON ch.id = cc.character_id
        INNER JOIN user u ON u.id = ch.owner_user_id

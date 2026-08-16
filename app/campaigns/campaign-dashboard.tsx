@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
+import { SignedInHeader } from "../app-header";
 import {
   campaignRoleLabel,
   formatCampaignDate,
   type CampaignSummary,
 } from "./campaign-types";
-
-/* eslint-disable @next/next/no-img-element -- the established navigation mark is a static asset */
 
 const INVITE_PATTERN = /^cminv_[A-Za-z0-9_-]{43}$/u;
 
@@ -188,16 +187,7 @@ export function CampaignDashboard() {
 
   return (
     <main className="campaign-shell">
-      <header className="campaign-header">
-        <Link href="/" className="campaign-brand" aria-label="Tales Without End home">
-          <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
-          <span>Tales Without End</span>
-        </Link>
-        <nav aria-label="Campaign navigation">
-          <Link href="/">My Characters</Link>
-          <Link href="/public-characters">Public Characters</Link>
-        </nav>
-      </header>
+      <SignedInHeader active="campaigns" />
 
       <section className="campaign-hero" aria-labelledby="my-campaigns-title">
         <div>

@@ -7,13 +7,15 @@ const root = resolve(new URL("..", import.meta.url).pathname);
 const source = path => readFile(resolve(root, path), "utf8");
 
 test("Tales Without End branding survives Phase 4B reconciliation", async () => {
-  const [page, layout, css] = await Promise.all([
+  const [page, layout, css, header] = await Promise.all([
     source("app/character-sheet.tsx"),
     source("app/layout.tsx"),
     source("app/globals.css"),
+    source("app/app-header.tsx"),
   ]);
-  assert.match(page, /tales-without-end-navigation-logo\.svg/u);
-  assert.match(page, /<strong>Tales Without End<\/strong>/u);
+  assert.match(page, /TalesBrandLink/u);
+  assert.match(header, /tales-without-end-navigation-logo\.svg/u);
+  assert.match(header, /<strong>Tales Without End<\/strong>/u);
   assert.doesNotMatch(page, /<strong>WORLDS WITHOUT NUMBER<\/strong>/u);
   assert.doesNotMatch(page, /Interactive character folio<\/small>/u);
   assert.match(page, /authClient\.signIn\.social/u);

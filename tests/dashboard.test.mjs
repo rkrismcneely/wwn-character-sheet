@@ -6,19 +6,22 @@ const source = async path => readFile(new URL(`../${path}`, import.meta.url), "u
 
 test("signed-in dashboard uses the owner-scoped character API", async () => {
   const dashboard = await source("app/dashboard-page.tsx");
+  const header = await source("app/app-header.tsx");
   assert.match(dashboard, /\/api\/characters\?scope=mine/u);
   assert.match(dashboard, /\/api\/characters\/import/u);
   assert.match(dashboard, /\/api\/legacy-claims/u);
   assert.match(dashboard, /href=\{`\/character\/\$\{character\.id\}`\}/u);
-  assert.match(dashboard, /authClient\.signOut/u);
+  assert.match(header, /authClient\.signOut/u);
   assert.match(dashboard, /Browse Public Characters/u);
-  assert.match(dashboard, /href="\/campaigns">My Campaigns/u);
+  assert.match(header, /link\("campaigns", "\/campaigns", "My Campaigns"\)/u);
+  assert.match(header, /My Campaigns/u);
   assert.match(dashboard, /Create New Character/u);
   assert.doesNotMatch(dashboard, /ownerUserId|owner_user_id|sessionToken|accessToken|refreshToken|Authorization/u);
 });
 
 test("dashboard exposes useful roster, empty, import, and claim states", async () => {
   const dashboard = await source("app/dashboard-page.tsx");
+  const header = await source("app/app-header.tsx");
   for (const copy of [
     "My Characters",
     "Character roster",
@@ -29,8 +32,8 @@ test("dashboard exposes useful roster, empty, import, and claim states", async (
     "Claim a legacy character",
     "One-time claim code",
     "Import Character",
-    "Sign Out",
   ]) assert.equal(dashboard.includes(copy), true, copy);
+  assert.equal(header.includes("Sign Out"), true);
 });
 
 test("the create action starts the existing character-sheet flow without changing direct routes", async () => {

@@ -13,7 +13,7 @@ test("signed-in dashboard uses the owner-scoped character API", async () => {
   assert.match(dashboard, /href=\{`\/character\/\$\{character\.id\}`\}/u);
   assert.match(header, /authClient\.signOut/u);
   assert.match(dashboard, /Browse Public Characters/u);
-  assert.match(header, /href="\/campaigns"/u);
+  assert.match(header, /link\("campaigns", "\/campaigns", "My Campaigns"\)/u);
   assert.match(header, /My Campaigns/u);
   assert.match(dashboard, /Create New Character/u);
   assert.doesNotMatch(dashboard, /ownerUserId|owner_user_id|sessionToken|accessToken|refreshToken|Authorization/u);

@@ -9,12 +9,17 @@ export function normalizeDisplayName(value: unknown): string {
   if (typeof value !== "string") {
     throw new DisplayNameValidationError("Enter a username.");
   }
-  const normalized = value.normalize("NFC").trim().replace(/\s+/gu, " ");
+  const trimmed = value.normalize("NFC").trim();
+  if (CONTROL_OR_INVISIBLE_PATTERN.test(trimmed)) {
+    throw new DisplayNameValidationError(
+      "Usernames cannot contain control or invisible characters.",
+    );
+  }
+  const normalized = trimmed.replace(/\s+/gu, " ");
   const length = Array.from(normalized).length;
   if (
     length < DISPLAY_NAME_MIN_LENGTH
     || length > DISPLAY_NAME_MAX_LENGTH
-    || CONTROL_OR_INVISIBLE_PATTERN.test(normalized)
   ) {
     throw new DisplayNameValidationError(
       `Usernames must be between ${DISPLAY_NAME_MIN_LENGTH} and ${DISPLAY_NAME_MAX_LENGTH} visible characters.`,

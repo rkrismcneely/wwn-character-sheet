@@ -12,7 +12,7 @@ test("My Campaigns is a signed-in route and a first-class dashboard destination"
   assert.match(page, /if \(!actor\) redirect\("\/"\)/u);
   assert.match(page, /<CampaignDashboard/u);
   assert.match(dashboard, /<SignedInHeader active="characters"/u);
-  assert.match(header, /href="\/campaigns"/u);
+  assert.match(header, /link\("campaigns", "\/campaigns", "My Campaigns"\)/u);
   assert.match(header, /My Campaigns/u);
 });
 

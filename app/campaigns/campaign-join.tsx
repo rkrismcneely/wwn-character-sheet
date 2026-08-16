@@ -9,6 +9,18 @@ import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 const INVITE_SESSION_KEY = "twe-campaign-invite";
 const INVITE_PATTERN = /^cminv_[A-Za-z0-9_-]{43}$/u;
 
+interface JoinCharacterOption {
+  id: string;
+  name: string;
+  classLabel: string;
+  level: number;
+}
+
+interface JoinPreview {
+  campaign: { id: string; name: string };
+  characters: JoinCharacterOption[];
+}
+
 function inviteError(status: number, message?: string): string {
   if (status === 400) return "This campaign invitation is invalid.";
   if (status === 404) return "This campaign invitation is invalid, expired, or no longer available.";
@@ -26,23 +38,64 @@ export function CampaignJoin() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [preview, setPreview] = useState<JoinPreview | null>(null);
+  const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const authIntentHandled = useRef(false);
-  const redemptionHandled = useRef(false);
+  const previewHandled = useRef(false);
 
-  async function redeemInvite(inviteToken: string) {
+  async function previewInvite(inviteToken: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/campaign-invites/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: inviteToken }),
+      });
+      const payload = await response.json() as JoinPreview & { error?: string };
+      if (!response.ok || !payload.campaign || !Array.isArray(payload.characters)) {
+        const failure = new Error(inviteError(response.status, payload.error));
+        Object.assign(failure, { status: response.status });
+        throw failure;
+      }
+      setPreview({
+        campaign: payload.campaign,
+        characters: payload.characters,
+      });
+    } catch (error) {
+      const status = typeof error === "object" && error && "status" in error
+        ? Number(error.status)
+        : 500;
+      if (status < 500) sessionStorage.removeItem(INVITE_SESSION_KEY);
+      setMessage(error instanceof Error ? error.message : "The campaign invitation could not be verified.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function joinCampaign(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!preview || !selectedCharacterId) {
+      setMessage("Choose one of your characters to join this campaign.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
       const response = await fetch("/api/campaign-invites/redeem", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: inviteToken }),
+        body: JSON.stringify({
+          token,
+          characterId: selectedCharacterId,
+        }),
       });
       const payload = await response.json() as {
         campaign?: { id: string; name: string };
+        character?: JoinCharacterOption;
         error?: string;
       };
-      if (!response.ok || !payload.campaign) {
+      if (!response.ok || !payload.campaign || !payload.character) {
         const failure = new Error(inviteError(response.status, payload.error));
         Object.assign(failure, { status: response.status });
         throw failure;
@@ -53,7 +106,9 @@ export function CampaignJoin() {
       const status = typeof error === "object" && error && "status" in error
         ? Number(error.status)
         : 500;
-      if (status < 500) sessionStorage.removeItem(INVITE_SESSION_KEY);
+      if (status === 404 || status === 409) {
+        sessionStorage.removeItem(INVITE_SESSION_KEY);
+      }
       setMessage(error instanceof Error ? error.message : "The campaign invitation could not be redeemed.");
       setBusy(false);
     }
@@ -88,17 +143,15 @@ export function CampaignJoin() {
   }, [isPending, session?.user]);
 
   useEffect(() => {
-    if (!ready || isPending || !session?.user || redemptionHandled.current) return;
+    if (!ready || isPending || !session?.user || previewHandled.current) return;
     if (!token) {
       sessionStorage.removeItem(INVITE_SESSION_KEY);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessage("This campaign invitation is invalid.");
       return;
     }
-    redemptionHandled.current = true;
-    // Authenticated redemption remains server-authoritative.
-    void redeemInvite(token);
-    // The route remounts after a successful redemption.
+    previewHandled.current = true;
+    void previewInvite(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, ready, session?.user, token]);
 
@@ -129,6 +182,7 @@ export function CampaignJoin() {
   }
 
   const signedIn = Boolean(session?.user);
+  const selectedCharacter = preview?.characters.find(character => character.id === selectedCharacterId);
   return (
     <main className="campaign-shell">
       <header className="campaign-header">
@@ -139,18 +193,54 @@ export function CampaignJoin() {
         <div className="campaign-join-card">
           <span aria-hidden="true">✦</span>
           <p className="campaign-kicker">A PRIVATE INVITATION</p>
-          <h1 id="campaign-join-title">Join the Campaign</h1>
-          <p>{signedIn ? "Your invitation is being verified." : "Sign in with Google to accept this private, single-use campaign invitation."}</p>
+          <h1 id="campaign-join-title">{preview ? "Choose Your Character" : "Join the Campaign"}</h1>
+          {!signedIn && <p>Sign in with Google to accept this private, single-use campaign invitation.</p>}
+          {signedIn && preview && (
+            <p>Select the one character who will join <strong>{preview.campaign.name}</strong>. Your other characters remain unrelated.</p>
+          )}
           {message && <div className="campaign-error" role="alert">{message}</div>}
-          <div className="campaign-join-actions">
-            {!isPending && !signedIn && (
+          {!isPending && !signedIn && (
+            <div className="campaign-join-actions">
               <button type="button" className="campaign-primary" onClick={() => void signIn()} disabled={busy || !ready}>
                 Sign in with Google to Join
               </button>
-            )}
-            {(message || !token) && <Link href="/campaigns" className="campaign-secondary">Open My Campaigns</Link>}
-          </div>
-          {(isPending || (signedIn && busy)) && <p role="status">Checking your invitation…</p>}
+            </div>
+          )}
+          {signedIn && preview && preview.characters.length > 0 && (
+            <form onSubmit={joinCampaign}>
+              <fieldset className="campaign-join-character-list">
+                <legend>Choose one character</legend>
+                {preview.characters.map(character => (
+                  <label key={character.id} className="campaign-join-character">
+                    <input
+                      type="radio"
+                      name="campaign-character"
+                      value={character.id}
+                      checked={selectedCharacterId === character.id}
+                      onChange={() => setSelectedCharacterId(character.id)}
+                    />
+                    <span><strong>{character.name}</strong><small>{character.classLabel} · Level {character.level}</small></span>
+                  </label>
+                ))}
+              </fieldset>
+              <button type="submit" className="campaign-primary" disabled={busy || !selectedCharacter}>
+                {busy
+                  ? "Joining…"
+                  : selectedCharacter
+                    ? `Join ${preview.campaign.name} as ${selectedCharacter.name}`
+                    : "Choose a Character"}
+              </button>
+            </form>
+          )}
+          {signedIn && preview && preview.characters.length === 0 && (
+            <div className="campaign-link-empty" role="status">
+              <strong>You need an owned character to join.</strong>
+              <p>Create or claim a character from My Characters, then return with this invitation.</p>
+              <Link href="/" className="campaign-secondary">Open My Characters</Link>
+            </div>
+          )}
+          {(isPending || (signedIn && busy && !preview)) && <p role="status">Checking your invitation…</p>}
+          {(message || !token) && <Link href="/campaigns" className="campaign-secondary">Open My Campaigns</Link>}
         </div>
       </section>
     </main>

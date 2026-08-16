@@ -159,7 +159,10 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Private campaign create/list/read/settings/delete API foundation, privacy-safe member
   roster reads, and server-side member removal/leave services. The campaign APIs remain
   undeployed until the approved production migration and user-facing slice are ready.
-- ⬜ Invite generation/redemption and the user-facing membership flows.
+- ✅ Secure campaign invitation API/service foundation: seven-day hash-only player
+  invites, atomic single-use redemption, and authorized revocation. Plaintext tokens are
+  returned only at creation.
+- ⬜ Invitation UI and user-facing membership flows.
 - ⬜ Campaign dashboard, character-linking UX, and shared member character library.
 - ⬜ Campaign-scoped read-only character routes; global character visibility and direct
   character-route authorization remain unchanged.

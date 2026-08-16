@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   CAMPAIGN_INVITE_DEFAULT_TTL_MS,
   createCampaignInvite,
+  previewCampaignInvite,
   redeemCampaignInvite,
   revokeCampaignInvite,
 } from "../lib/campaigns/invite-service.ts";
@@ -24,6 +25,14 @@ const outsider = { userId: "user-outsider", role: "user" };
 const secondOutsider = { userId: "user-second-outsider", role: "user" };
 const admin = { userId: "user-admin", role: "admin" };
 const now = new Date("2026-08-16T12:00:00.000Z");
+const characterIds = {
+  [owner.userId]: "chr_AAAAAAAAAAAAAAAAAAAAAA",
+  [gm.userId]: "chr_BBBBBBBBBBBBBBBBBBBBBB",
+  [player.userId]: "chr_CCCCCCCCCCCCCCCCCCCCCC",
+  [outsider.userId]: "chr_DDDDDDDDDDDDDDDDDDDDDD",
+  [secondOutsider.userId]: "chr_EEEEEEEEEEEEEEEEEEEEEE",
+  [admin.userId]: "chr_FFFFFFFFFFFFFFFFFFFFFF",
+};
 
 class TestStatement {
   constructor(statement) {
@@ -89,6 +98,9 @@ async function fixture() {
       public_id TEXT,
       visibility TEXT NOT NULL,
       name TEXT NOT NULL,
+      class_label TEXT NOT NULL,
+      level INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
       FOREIGN KEY (owner_user_id) REFERENCES user(id) ON DELETE SET NULL
     );
   `);
@@ -108,6 +120,27 @@ async function fixture() {
       name,
       `${actor.userId}@example.invalid`,
       actor.role,
+    );
+  }
+  const insertCharacter = sqlite.prepare(
+    `INSERT INTO characters
+       (id, owner_user_id, public_id, visibility, name, class_label, level, updated_at)
+     VALUES (?, ?, ?, 'private', ?, 'Adventurer', 1, ?)`,
+  );
+  for (const [actor, name] of [
+    [owner, "Owner Hero"],
+    [gm, "GM Hero"],
+    [player, "Player Hero"],
+    [outsider, "Outsider Hero"],
+    [secondOutsider, "Second Outsider Hero"],
+    [admin, "Admin Hero"],
+  ]) {
+    insertCharacter.run(
+      `character-${actor.userId}`,
+      actor.userId,
+      characterIds[actor.userId],
+      name,
+      now.toISOString(),
     );
   }
   const migration = await readFile(
@@ -203,11 +236,17 @@ test("valid signed-in redemption consumes the invite and creates one player memb
   const { sqlite, db, campaign } = await campaignFixture();
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
   const redeemedAt = new Date("2026-08-16T12:30:00.000Z");
-  const redeemed = await redeemCampaignInvite(db, outsider, invite.token, redeemedAt);
+  const redeemed = await redeemCampaignInvite(db, outsider, invite.token, characterIds[outsider.userId], redeemedAt);
 
   assert.deepEqual(redeemed, {
     campaign: { id: campaign.id, name: "The Amber Company" },
     membership: { role: "player", joinedAt: redeemedAt.toISOString() },
+    character: {
+      id: characterIds[outsider.userId],
+      name: "Outsider Hero",
+      classLabel: "Adventurer",
+      level: 1,
+    },
   });
   const membership = sqlite.prepare(`
     SELECT cm.role, cm.joined_at AS joinedAt
@@ -225,14 +264,68 @@ test("valid signed-in redemption consumes the invite and creates one player memb
   );
   assert.equal(stored.acceptedAt, redeemedAt.toISOString());
   assert.equal(stored.acceptedByUserId, outsider.userId);
+  const linked = sqlite.prepare(`
+    SELECT ch.public_id AS publicId
+    FROM campaign_characters cc
+    JOIN characters ch ON ch.id = cc.character_id
+    JOIN campaigns c ON c.id = cc.campaign_id
+    WHERE c.public_id = ? AND ch.owner_user_id = ?
+  `).get(campaign.id, outsider.userId);
+  assert.equal(linked.publicId, characterIds[outsider.userId]);
+});
+
+test("invite preview is non-consuming and returns only the caller's characters", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const preview = await previewCampaignInvite(db, outsider, invite.token, now);
+
+  assert.deepEqual(preview.campaign, {
+    id: campaign.id,
+    name: "The Amber Company",
+  });
+  assert.deepEqual(preview.characters.map(character => character.id), [
+    characterIds[outsider.userId],
+  ]);
+  const stored = storedInvite(sqlite, await hashCampaignInviteToken(invite.token));
+  assert.equal(stored.acceptedAt, null);
+  assert.equal(
+    Number(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_members WHERE user_id = ?").get(outsider.userId).count),
+    0,
+  );
+});
+
+test("campaign IDs, missing character selection, and another user's character are rejected without consuming the invite", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+
+  await expectServiceError(previewCampaignInvite(db, outsider, campaign.id, now), 400);
+  await expectServiceError(
+    redeemCampaignInvite(db, outsider, invite.token, undefined, now),
+    422,
+  );
+  await expectServiceError(
+    redeemCampaignInvite(db, outsider, invite.token, characterIds[owner.userId], now),
+    403,
+  );
+
+  const stored = storedInvite(sqlite, await hashCampaignInviteToken(invite.token));
+  assert.equal(stored.acceptedAt, null);
+  assert.equal(
+    Number(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_members WHERE user_id = ?").get(outsider.userId).count),
+    0,
+  );
+  assert.equal(
+    Number(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_characters").get().count),
+    0,
+  );
 });
 
 test("a consumed invitation cannot be redeemed a second time", async () => {
   const { db, campaign } = await campaignFixture();
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
-  await redeemCampaignInvite(db, outsider, invite.token, now);
+  await redeemCampaignInvite(db, outsider, invite.token, characterIds[outsider.userId], now);
   await expectServiceError(
-    redeemCampaignInvite(db, secondOutsider, invite.token, now),
+    redeemCampaignInvite(db, secondOutsider, invite.token, characterIds[secondOutsider.userId], now),
     409,
   );
 });
@@ -241,8 +334,8 @@ test("concurrent redemption permits exactly one membership", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
   const attempts = await Promise.allSettled([
-    redeemCampaignInvite(db, outsider, invite.token, now),
-    redeemCampaignInvite(db, secondOutsider, invite.token, now),
+    redeemCampaignInvite(db, outsider, invite.token, characterIds[outsider.userId], now),
+    redeemCampaignInvite(db, secondOutsider, invite.token, characterIds[secondOutsider.userId], now),
   ]);
 
   assert.equal(attempts.filter(result => result.status === "fulfilled").length, 1);
@@ -254,6 +347,13 @@ test("concurrent redemption permits exactly one membership", async () => {
     WHERE c.public_id = ? AND cm.user_id IN (?, ?)
   `).get(campaign.id, outsider.userId, secondOutsider.userId);
   assert.equal(Number(memberships.count), 1);
+  const links = sqlite.prepare(`
+    SELECT COUNT(*) AS count
+    FROM campaign_characters cc
+    JOIN characters ch ON ch.id = cc.character_id
+    WHERE ch.owner_user_id IN (?, ?)
+  `).get(outsider.userId, secondOutsider.userId);
+  assert.equal(Number(links.count), 1);
 });
 
 test("expired, revoked, unknown, and malformed invitations are rejected", async () => {
@@ -264,24 +364,24 @@ test("expired, revoked, unknown, and malformed invitations are rejected", async 
     campaign.id,
     new Date(now.getTime() - CAMPAIGN_INVITE_DEFAULT_TTL_MS - 1),
   );
-  await expectServiceError(redeemCampaignInvite(db, outsider, expired.token, now), 404);
+  await expectServiceError(redeemCampaignInvite(db, outsider, expired.token, characterIds[outsider.userId], now), 404);
 
   const revoked = await createCampaignInvite(db, owner, campaign.id, now);
   await revokeCampaignInvite(db, owner, campaign.id, revoked.token, now);
-  await expectServiceError(redeemCampaignInvite(db, outsider, revoked.token, now), 404);
+  await expectServiceError(redeemCampaignInvite(db, outsider, revoked.token, characterIds[outsider.userId], now), 404);
 
   await expectServiceError(
-    redeemCampaignInvite(db, outsider, generateCampaignInviteToken(), now),
+    redeemCampaignInvite(db, outsider, generateCampaignInviteToken(), characterIds[outsider.userId], now),
     404,
   );
-  await expectServiceError(redeemCampaignInvite(db, outsider, "not-an-invite", now), 400);
+  await expectServiceError(redeemCampaignInvite(db, outsider, "not-an-invite", characterIds[outsider.userId], now), 400);
 });
 
 test("already-member redemption rejects without consuming the invitation", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   await addMember(sqlite, campaign.id, player);
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
-  await expectServiceError(redeemCampaignInvite(db, player, invite.token, now), 409);
+  await expectServiceError(redeemCampaignInvite(db, player, invite.token, characterIds[player.userId], now), 409);
   const stored = storedInvite(
     sqlite,
     await hashCampaignInviteToken(invite.token),
@@ -293,13 +393,13 @@ test("already-member redemption rejects without consuming the invitation", async
 test("redemption requires authentication", async () => {
   const { db, campaign } = await campaignFixture();
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
-  await expectServiceError(redeemCampaignInvite(db, null, invite.token, now), 401);
+  await expectServiceError(redeemCampaignInvite(db, null, invite.token, characterIds[outsider.userId], now), 401);
 });
 
 test("redemption grants only campaign player membership and preserves site-admin role", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
-  const redeemed = await redeemCampaignInvite(db, admin, invite.token, now);
+  const redeemed = await redeemCampaignInvite(db, admin, invite.token, characterIds[admin.userId], now);
   assert.equal(redeemed.membership.role, "player");
   assert.equal(
     sqlite.prepare("SELECT role FROM user WHERE id = ?").get(admin.userId).role,
@@ -312,27 +412,42 @@ test("redemption grants only campaign player membership and preserves site-admin
   );
 });
 
-test("redemption never changes character ownership, visibility, or campaign links", async () => {
+test("redemption links only the selected character and preserves character data", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
+  const otherCharacterId = "chr_GGGGGGGGGGGGGGGGGGGGGG";
   sqlite.prepare(`
-    INSERT INTO characters (id, owner_user_id, public_id, visibility, name)
-    VALUES ('character-outsider', ?, 'chr_outsider', 'private', 'Private Hero')
-  `).run(outsider.userId);
+    INSERT INTO characters
+      (id, owner_user_id, public_id, visibility, name, class_label, level, updated_at)
+    VALUES ('character-outsider-other', ?, ?, 'unlisted', 'Other Hero', 'Mage', 3, ?)
+  `).run(outsider.userId, otherCharacterId, now.toISOString());
   const before = sqlite.prepare(`
     SELECT owner_user_id AS ownerUserId, visibility FROM characters
-    WHERE id = 'character-outsider'
-  `).get();
+    WHERE public_id = ?
+  `).get(characterIds[outsider.userId]);
+
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
-  await redeemCampaignInvite(db, outsider, invite.token, now);
+  await redeemCampaignInvite(
+    db,
+    outsider,
+    invite.token,
+    characterIds[outsider.userId],
+    now,
+  );
+
   const after = sqlite.prepare(`
     SELECT owner_user_id AS ownerUserId, visibility FROM characters
-    WHERE id = 'character-outsider'
-  `).get();
+    WHERE public_id = ?
+  `).get(characterIds[outsider.userId]);
   assert.deepEqual({ ...after }, { ...before });
-  assert.equal(
-    Number(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_characters").get().count),
-    0,
-  );
+  const links = sqlite.prepare(`
+    SELECT ch.public_id AS publicId
+    FROM campaign_characters cc
+    JOIN characters ch ON ch.id = cc.character_id
+    JOIN campaigns c ON c.id = cc.campaign_id
+    WHERE c.public_id = ? AND ch.owner_user_id = ?
+  `).all(campaign.id, outsider.userId);
+  assert.deepEqual(links.map(link => link.publicId), [characterIds[outsider.userId]]);
+  assert.equal(links.some(link => link.publicId === otherCharacterId), false);
 });
 
 test("owner and GM can revoke while preserving the historical invite row", async () => {
@@ -367,7 +482,7 @@ test("invite payloads expose no hashes, internal user IDs, or email addresses", 
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
   const creationPayload = JSON.stringify(invite);
   const redeemedPayload = JSON.stringify(
-    await redeemCampaignInvite(db, outsider, invite.token, now),
+    await redeemCampaignInvite(db, outsider, invite.token, characterIds[outsider.userId], now),
   );
   for (const payload of [creationPayload, redeemedPayload]) {
     assert.equal(payload.includes("tokenHash"), false);

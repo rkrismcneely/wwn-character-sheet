@@ -2723,15 +2723,6 @@ export default function Home({
           <span>{campaignContext?.readOnly ? "Campaign access allows viewing; only the owner can change this character." : cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
           {!signedIn && <button type="button" data-readonly-interactive="true" onClick={signInWithGoogle}>Sign in with Google</button>}
         </div>}
-        {cloudId && canEdit && <div className="character-sharing" data-readonly-interactive="true">
-          <label><span>Visibility</span><select value={cloudVisibility} onChange={event => void changeVisibility(event.target.value as CharacterVisibility)}>
-            <option value="private">Private · only you</option>
-            <option value="unlisted">Unlisted · anyone with link</option>
-            <option value="public">Public · discoverable</option>
-          </select></label>
-          {cloudVisibility !== "private" && <button type="button" onClick={() => void copyShareLink()}>Copy Share Link</button>}
-          <small>{cloudVisibility === "private" ? "Not available to other visitors." : cloudVisibility === "unlisted" ? "Viewable at its stable link, but absent from Public Characters." : "Viewable at its stable link and listed in Public Characters."}</small>
-        </div>}
         <div className="hero">
           <img className="hero-illustration" src="/assets/wwn-header-flow-v2.png" alt="" aria-hidden="true" />
           <div className={`portrait-frame ${sheet.portrait ? "has-portrait" : ""}`}>
@@ -3657,6 +3648,19 @@ export default function Home({
           </div>;
         })()}
 
+        {cloudId && canEdit && <section className="character-sharing character-sharing-footer" data-readonly-interactive="true" aria-labelledby="character-sharing-title">
+          <div className="character-sharing-heading">
+            <strong id="character-sharing-title">Privacy & Sharing</strong>
+            <small>Choose who can view this character.</small>
+          </div>
+          <label><span>Visibility</span><select value={cloudVisibility} onChange={event => void changeVisibility(event.target.value as CharacterVisibility)}>
+            <option value="private">Private · only you</option>
+            <option value="unlisted">Unlisted · anyone with link</option>
+            <option value="public">Public · discoverable</option>
+          </select></label>
+          {cloudVisibility !== "private" && <button type="button" onClick={() => void copyShareLink()}>Copy Share Link</button>}
+          <small className="character-sharing-status">{cloudVisibility === "private" ? "Not available to other visitors." : cloudVisibility === "unlisted" ? "Viewable at its stable link, but absent from Public Characters." : "Viewable at its stable link and listed in Public Characters."}</small>
+        </section>}
         <footer>Rules authority: Worlds Without Number SRD 1.0 (March 13, 2024, CC0). Fan-made utility; not an official Sine Nomine product.</footer>
       </div>
     </main>

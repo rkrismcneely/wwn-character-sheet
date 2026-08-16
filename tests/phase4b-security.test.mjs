@@ -131,7 +131,7 @@ test("administrator UI is explicitly read-only for non-owned characters", async 
   assert.match(page, /const canEdit = signedIn && \(!cloudId \|\| cloudCanEdit\)/u);
   assert.match(page, /!hydrated \|\| !canEdit \|\| !cloudId/u);
   assert.match(page, /character\.permissions\.canEdit && <button className="danger-action"/u);
-  assert.match(page, /cloudId && canEdit && <div className="character-sharing"/u);
+  assert.match(page, /cloudId && canEdit && <section className="character-sharing character-sharing-footer"/u);
   assert.match(page, /canEdit && <button type="button" onClick=\{\(\) => portraitInput/u);
 });
 

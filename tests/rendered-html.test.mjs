@@ -118,7 +118,7 @@ async function startLocalWorker({ auth = false } = {}) {
        1786348800000, 1786348800000, '127.0.0.1', 'runtime-admin',
        'runtime-admin');
   ` : "";
-  const campaignInserts = `
+  const campaignInserts = auth ? `
     INSERT INTO campaigns
       (id, public_id, owner_user_id, name, description, version, created_at, updated_at)
     VALUES
@@ -130,7 +130,7 @@ async function startLocalWorker({ auth = false } = {}) {
       ('runtime-campaign', 'runtime-proof-user', 'player', '2026-08-04T00:00:00.000Z');
     INSERT INTO campaign_characters (campaign_id, character_id, added_at)
     VALUES ('runtime-campaign', 'fixture-private', '2026-08-04T00:00:00.000Z');
-  `;
+  ` : "";
   const fixtureSql = `${userInserts}\n${characterInserts}\n${campaignInserts}\n${sessionInserts}`;
   execFileSync(wrangler, [
     "d1",

@@ -2,6 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(", ");
+
 export function CampaignDialog({
   title,
   description,
@@ -13,22 +22,72 @@ export function CampaignDialog({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  const dialog = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
-    closeButton.current?.focus();
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    const dialogElement = dialog.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    if (!dialogElement) return;
+
+    const focusableElements = () => Array.from(
+      dialogElement.querySelectorAll<HTMLElement>(focusableSelector),
+    ).filter(element => element.getAttribute("aria-hidden") !== "true");
+
+    if (!dialogElement.contains(document.activeElement)) {
+      const preferredFocus = dialogElement.querySelector<HTMLElement>("[autofocus]")
+        ?? focusableElements()[0]
+        ?? closeButton.current;
+      preferredFocus?.focus();
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const elements = focusableElements();
+      const first = elements[0];
+      const last = elements.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        closeButton.current?.focus();
+        return;
+      }
+
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialogElement.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, []);
 
   return (
     <div className="campaign-dialog-backdrop" onMouseDown={event => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <section
+        ref={dialog}
         className="campaign-dialog"
         role="dialog"
         aria-modal="true"

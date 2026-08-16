@@ -135,7 +135,9 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   async function copyInvite() {
     if (!invite) return;
     try {
-      await navigator.clipboard.writeText(invite.token);
+      const inviteUrl = new URL("/campaigns/join", window.location.origin);
+      inviteUrl.hash = invite.token;
+      await navigator.clipboard.writeText(inviteUrl.toString());
       setInviteCopied(true);
     } catch {
       setInviteCopied(false);
@@ -324,7 +326,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       {invite && (
         <CampaignDialog
           title="Campaign Invite"
-          description="Share this code with the player you want to invite. It is displayed only now."
+          description="Share this link or code with the player you want to invite. It is displayed only now."
           onClose={closeInvite}
         >
           <div className="campaign-invite-code">
@@ -334,9 +336,9 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           <p className="campaign-invite-expiry">Expires <time dateTime={invite.expiresAt}>{formatCampaignDate(invite.expiresAt)}</time>. The code can be redeemed once.</p>
           <div className="campaign-dialog-actions">
             <button type="button" className="campaign-danger" onClick={() => void revokeInvite()} disabled={actionBusy}>Revoke Invite</button>
-            <button type="button" className="campaign-primary" onClick={() => void copyInvite()}>{inviteCopied ? "Copied" : "Copy Code"}</button>
+            <button type="button" className="campaign-primary" onClick={() => void copyInvite()}>{inviteCopied ? "Copied" : "Copy Invite Link"}</button>
           </div>
-          <p className="campaign-invite-note" role="status">{inviteCopied ? "Invite code copied to your clipboard." : "The plaintext code cannot be retrieved after this window closes."}</p>
+          <p className="campaign-invite-note" role="status">{inviteCopied ? "Invite link copied to your clipboard." : "The plaintext code cannot be retrieved after this window closes."}</p>
         </CampaignDialog>
       )}
 

@@ -179,7 +179,8 @@ async function fixture() {
       now,
     );
   }
-  sqlite.prepare("UPDATE characters SET portrait_key = ? WHERE id = ?").run("portraits/character-player/example.webp", "character-player");\n  return { sqlite, db, campaign, secondCampaign, ids };
+  sqlite.prepare("UPDATE characters SET portrait_key = ? WHERE id = ?").run("portraits/character-player/example.webp", "character-player");
+  return { sqlite, db, campaign, secondCampaign, ids };
 }
 
 async function expectServiceError(promise, status) {

@@ -73,6 +73,7 @@ async function startLocalWorker({ auth = false } = {}) {
     normalOwn: `chr_${"N".repeat(22)}`,
     normalDelete: `chr_${"D".repeat(22)}`,
     adminOwn: `chr_${"A".repeat(22)}`,
+    campaign: `cmp_${"C".repeat(22)}`,
   };
   const authSecret = "local-runtime-proof-secret-2026-08-10-very-long";
   const authSessionToken = "runtime-proof-session-token";
@@ -117,7 +118,20 @@ async function startLocalWorker({ auth = false } = {}) {
        1786348800000, 1786348800000, '127.0.0.1', 'runtime-admin',
        'runtime-admin');
   ` : "";
-  const fixtureSql = `${userInserts}\n${characterInserts}\n${sessionInserts}`;
+  const campaignInserts = `
+    INSERT INTO campaigns
+      (id, public_id, owner_user_id, name, description, version, created_at, updated_at)
+    VALUES
+      ('runtime-campaign', '${fixtureIds.campaign}', 'other-owner',
+       'Runtime Company', NULL, 1, '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
+    INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+    VALUES
+      ('runtime-campaign', 'other-owner', 'gm', '2026-08-04T00:00:00.000Z'),
+      ('runtime-campaign', 'runtime-proof-user', 'player', '2026-08-04T00:00:00.000Z');
+    INSERT INTO campaign_characters (campaign_id, character_id, added_at)
+    VALUES ('runtime-campaign', 'fixture-private', '2026-08-04T00:00:00.000Z');
+  `;
+  const fixtureSql = `${userInserts}\n${characterInserts}\n${campaignInserts}\n${sessionInserts}`;
   execFileSync(wrangler, [
     "d1",
     "execute",
@@ -343,6 +357,58 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
       { headers: normalHeaders },
     );
     assert.equal(normalPrivate.status, 404);
+    const campaignLibrary = await fetch(
+      `${worker.origin}/api/campaigns/${worker.fixtureIds.campaign}/characters`,
+      { headers: normalHeaders },
+    );
+    assert.equal(campaignLibrary.status, 200);
+    const campaignLibraryPayload = await campaignLibrary.json();
+    assert.deepEqual(
+      campaignLibraryPayload.characters.map(character => character.name),
+      ["Private Expert"],
+    );
+    assert.equal(campaignLibraryPayload.characters[0].permissions.canEdit, false);
+    assert.equal(JSON.stringify(campaignLibraryPayload).includes("other-owner"), false);
+
+    const campaignPrivate = await fetch(
+      `${worker.origin}/api/campaigns/${worker.fixtureIds.campaign}/characters/${worker.fixtureIds.private}`,
+      { headers: normalHeaders },
+    );
+    assert.equal(campaignPrivate.status, 200);
+    const campaignPrivatePayload = await campaignPrivate.json();
+    assert.equal(campaignPrivatePayload.permissions.canEdit, false);
+    assert.equal(campaignPrivatePayload.campaignContext.readOnly, true);
+
+    const campaignPrivatePage = await fetch(
+      `${worker.origin}/campaigns/${worker.fixtureIds.campaign}/characters/${worker.fixtureIds.private}`,
+      { headers: normalHeaders },
+    );
+    assert.equal(campaignPrivatePage.status, 200);
+    assert.match(await campaignPrivatePage.text(), /Viewing through campaign · Read only/u);
+
+    const deniedCampaignMutation = await fetch(
+      `${worker.origin}/api/campaigns/${worker.fixtureIds.campaign}/characters/${worker.fixtureIds.private}`,
+      { method: "PUT", headers: { ...normalHeaders, "content-type": "application/json" }, body: "{}" },
+    );
+    assert.equal(deniedCampaignMutation.status, 405);
+    const deniedOtherLink = await fetch(
+      `${worker.origin}/api/campaigns/${worker.fixtureIds.campaign}/characters`,
+      {
+        method: "POST",
+        headers: { ...normalHeaders, "content-type": "application/json" },
+        body: JSON.stringify({ characterId: worker.fixtureIds.private }),
+      },
+    );
+    assert.equal(deniedOtherLink.status, 403);
+    const ownLink = await fetch(
+      `${worker.origin}/api/campaigns/${worker.fixtureIds.campaign}/characters`,
+      {
+        method: "POST",
+        headers: { ...normalHeaders, "content-type": "application/json" },
+        body: JSON.stringify({ characterId: worker.fixtureIds.normalOwn }),
+      },
+    );
+    assert.equal(ownLink.status, 201);
     for (const query of ["scope=all", "scope=all&role=admin", "scope=all&isAdmin=true"]) {
       const denied = await fetch(`${worker.origin}/api/characters?${query}`, {
         headers: normalHeaders,

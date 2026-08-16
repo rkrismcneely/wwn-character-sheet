@@ -167,9 +167,11 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Secure invitation UI and join flow: one-time plaintext display/copy, immediate
   revocation, seven-day expiry guidance, server-authoritative redemption, and a
   fragment-based signed-out continuation through Google sign-in that avoids request logs.
-- ⬜ Character-linking UX and shared campaign character library.
-- ⬜ Campaign-scoped read-only character routes; global character visibility and direct
-  character-route authorization remain unchanged.
+- ✅ Owner-controlled character linking and shared campaign character library, including
+  multi-campaign links and owner-only unlinking that preserve ownership and visibility.
+- ✅ Campaign-scoped read-only character and portrait routes for members, GMs, and
+  read-only site administrators; global visibility and direct character-route
+  authorization remain unchanged.
 - ⬜ Later sharing/VTT work: guest links, maps, notes, handouts, encounters, and realtime
   features.
 

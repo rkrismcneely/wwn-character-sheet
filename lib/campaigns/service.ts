@@ -30,7 +30,7 @@ export class CampaignServiceError extends Error {
   }
 }
 
-interface CampaignRow extends CampaignAccessRecord {
+export interface CampaignRow extends CampaignAccessRecord {
   publicId: string;
   name: string;
   version: number;
@@ -66,6 +66,7 @@ export interface CampaignPayload {
     canInviteMembers: boolean;
     canRemovePlayers: boolean;
     canLeave: boolean;
+    canLinkCharacters: boolean;
     adminReadOnly: boolean;
   };
 }
@@ -181,12 +182,13 @@ function campaignPayload(
         && canInviteCampaignMembers(actor, campaign, membership),
       canRemovePlayers: canInviteCampaignMembers(actor, campaign, membership),
       canLeave: canLeaveCampaign(actor, campaign, membership),
+      canLinkCharacters: actor.role !== "admin",
       adminReadOnly: actor.role === "admin" && !isOwner,
     },
   };
 }
 
-async function loadCampaignAccess(
+export async function loadCampaignAccess(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,

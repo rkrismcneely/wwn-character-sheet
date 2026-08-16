@@ -7,6 +7,7 @@ import { CampaignDialog } from "./campaign-dialog";
 import {
   campaignRoleLabel,
   formatCampaignDate,
+  type CampaignCharacter,
   type CampaignMember,
   type CampaignSummary,
   type CreatedInvite,
@@ -17,17 +18,21 @@ import {
 type Confirmation =
   | { kind: "delete" }
   | { kind: "leave" }
-  | { kind: "remove"; member: CampaignMember };
+  | { kind: "remove"; member: CampaignMember }
+  | { kind: "unlink"; character: CampaignCharacter };
 
 export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const router = useRouter();
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
   const [members, setMembers] = useState<CampaignMember[]>([]);
+  const [characters, setCharacters] = useState<CampaignCharacter[]>([]);
+  const [eligibleCharacters, setEligibleCharacters] = useState<CampaignCharacter[]>([]);
   const [busy, setBusy] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
+  const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [invite, setInvite] = useState<CreatedInvite | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -35,9 +40,10 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
   async function loadCampaign() {
     try {
-      const [campaignResponse, memberResponse] = await Promise.all([
+      const [campaignResponse, memberResponse, characterResponse] = await Promise.all([
         fetch(`/api/campaigns/${campaignId}`, { cache: "no-store" }),
         fetch(`/api/campaigns/${campaignId}/members`, { cache: "no-store" }),
+        fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" }),
       ]);
       const campaignPayload = await campaignResponse.json() as {
         campaign?: CampaignSummary;
@@ -47,18 +53,30 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         members?: CampaignMember[];
         error?: string;
       };
+      const characterPayload = await characterResponse.json() as {
+        characters?: CampaignCharacter[];
+        eligibleCharacters?: CampaignCharacter[];
+        error?: string;
+      };
       if (!campaignResponse.ok || !campaignPayload.campaign) {
         throw new Error(campaignPayload.error || "This campaign could not be opened.");
       }
       if (!memberResponse.ok) {
         throw new Error(memberPayload.error || "The campaign roster could not be loaded.");
       }
+      if (!characterResponse.ok) {
+        throw new Error(characterPayload.error || "The campaign character library could not be loaded.");
+      }
       setCampaign(campaignPayload.campaign);
       setMembers(Array.isArray(memberPayload.members) ? memberPayload.members : []);
+      setCharacters(Array.isArray(characterPayload.characters) ? characterPayload.characters : []);
+      setEligibleCharacters(Array.isArray(characterPayload.eligibleCharacters) ? characterPayload.eligibleCharacters : []);
       setRenameValue(campaignPayload.campaign.name);
     } catch (loadError) {
       setCampaign(null);
       setMembers([]);
+      setCharacters([]);
+      setEligibleCharacters([]);
       setError(loadError instanceof Error ? loadError.message : "This campaign could not be opened.");
     } finally {
       setBusy(false);
@@ -186,6 +204,20 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         router.push("/campaigns");
         return;
       }
+      if (confirmation.kind === "unlink") {
+        const response = await fetch(`/api/campaigns/${campaign.id}/characters`, {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ characterId: confirmation.character.id }),
+        });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(payload.error || "The character could not be removed from the campaign.");
+        setCharacters(current => current.filter(character => character.id !== confirmation.character.id));
+        setEligibleCharacters(current => [confirmation.character, ...current]);
+        setNotice(`${confirmation.character.name} was removed from this campaign. The character itself was not deleted or changed.`);
+        setConfirmation(null);
+        return;
+      }
       const response = await fetch(`/api/campaigns/${campaign.id}/members`, {
         method: "DELETE",
         headers: { "content-type": "application/json" },
@@ -202,6 +234,35 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       setConfirmation(null);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "The campaign action could not be completed.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function linkCharacter(character: CampaignCharacter) {
+    if (!campaign) return;
+    setActionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/characters`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ characterId: character.id }),
+      });
+      const payload = await response.json() as {
+        character?: CampaignCharacter;
+        error?: string;
+      };
+      if (!response.ok || !payload.character) {
+        throw new Error(payload.error || "The character could not be added to the campaign.");
+      }
+      setCharacters(current => [...current, payload.character!].sort((left, right) => left.name.localeCompare(right.name)));
+      setEligibleCharacters(current => current.filter(candidate => candidate.id !== character.id));
+      setNotice(`${payload.character.name} was added to the campaign library. Ownership and visibility were not changed.`);
+      setAddCharacterOpen(false);
+    } catch (linkError) {
+      setError(linkError instanceof Error ? linkError.message : "The character could not be added to the campaign.");
     } finally {
       setActionBusy(false);
     }
@@ -260,6 +321,54 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           {error && <div className="campaign-error" role="alert">{error}</div>}
 
           <div className="campaign-detail-layout">
+            <section className="campaign-panel campaign-character-panel" aria-labelledby="campaign-characters-title">
+              <div className="campaign-section-heading">
+                <div>
+                  <p className="campaign-kicker">SHARED ROSTER</p>
+                  <h2 id="campaign-characters-title">Campaign Characters</h2>
+                </div>
+                <div className="campaign-character-heading-actions">
+                  <span className="campaign-count" aria-label={`${characters.length} linked characters`}>{characters.length}</span>
+                  {campaign.permissions.canLinkCharacters && (
+                    <button type="button" className="campaign-primary" onClick={() => setAddCharacterOpen(true)}>Add Character</button>
+                  )}
+                </div>
+              </div>
+              {characters.length === 0 ? (
+                <div className="campaign-character-empty">
+                  <span aria-hidden="true">✦</span>
+                  <h3>No characters linked yet</h3>
+                  <p>Members can add characters they own without changing ownership or global visibility.</p>
+                  {campaign.permissions.canLinkCharacters && (
+                    <button type="button" className="campaign-secondary" onClick={() => setAddCharacterOpen(true)}>Add Your Character</button>
+                  )}
+                </div>
+              ) : (
+                <div className="campaign-character-grid">
+                  {characters.map(character => (
+                    <article className="campaign-character-card" key={character.id}>
+                      <div className="campaign-character-level"><span>Level</span><strong>{character.level}</strong></div>
+                      <div className="campaign-character-identity">
+                        <p>{character.isMine ? "MY CHARACTER" : `OWNED BY ${character.ownerName.toUpperCase()}`}</p>
+                        <h3>{character.name}</h3>
+                        <span>{character.classLabel}</span>
+                      </div>
+                      <div className="campaign-character-actions">
+                        <Link className="campaign-open" href={`/campaigns/${campaign.id}/characters/${character.id}`}>
+                          Open Character <span aria-hidden="true">→</span>
+                        </Link>
+                        {character.permissions.canUnlink && (
+                          <button type="button" className="campaign-quiet" onClick={() => setConfirmation({ kind: "unlink", character })}>
+                            Remove from Campaign
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
             <section className="campaign-panel" aria-labelledby="campaign-members-title">
               <div className="campaign-section-heading">
                 <div>
@@ -323,6 +432,35 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         </CampaignDialog>
       )}
 
+      {addCharacterOpen && campaign && (
+        <CampaignDialog
+          title="Add Character"
+          description="Choose one of your characters. Linking does not transfer ownership or change global visibility."
+          onClose={() => setAddCharacterOpen(false)}
+        >
+          {eligibleCharacters.length === 0 ? (
+            <div className="campaign-link-empty" role="status">
+              <strong>All of your characters are already linked.</strong>
+              <p>Create another character from My Characters, or remove one from this campaign before linking it again.</p>
+            </div>
+          ) : (
+            <div className="campaign-link-list" aria-label="Characters eligible to add">
+              {eligibleCharacters.map(character => (
+                <article key={character.id}>
+                  <div>
+                    <h3>{character.name}</h3>
+                    <p>{character.classLabel} · Level {character.level} · {character.visibility}</p>
+                  </div>
+                  <button type="button" className="campaign-primary" onClick={() => void linkCharacter(character)} disabled={actionBusy}>
+                    {actionBusy ? "Adding…" : `Add ${character.name}`}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </CampaignDialog>
+      )}
+
       {invite && (
         <CampaignDialog
           title="Campaign Invite"
@@ -344,13 +482,14 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
       {confirmation && (
         <CampaignDialog
-          title={confirmation.kind === "delete" ? "Delete Campaign" : confirmation.kind === "leave" ? "Leave Campaign" : "Remove Player"}
+          title={confirmation.kind === "delete" ? "Delete Campaign" : confirmation.kind === "leave" ? "Leave Campaign" : confirmation.kind === "unlink" ? "Remove Character" : "Remove Player"}
           onClose={() => setConfirmation(null)}
         >
           <p className="campaign-confirm-copy">
             {confirmation.kind === "delete" && "Delete this private campaign and its membership records? Deleting this campaign does not delete any characters."}
             {confirmation.kind === "leave" && "Leave this campaign? Your characters, ownership, and visibility will not change."}
             {confirmation.kind === "remove" && `Remove ${confirmation.member.name} from this campaign? Their characters will not be deleted and ownership will not change.`}
+            {confirmation.kind === "unlink" && `Remove ${confirmation.character.name} from this campaign? This removes only the campaign association; the character will not be deleted or changed.`}
           </p>
           <div className="campaign-dialog-actions">
             <button type="button" className="campaign-quiet" onClick={() => setConfirmation(null)}>Cancel</button>

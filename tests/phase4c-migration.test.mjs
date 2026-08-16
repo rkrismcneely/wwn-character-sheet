@@ -37,15 +37,12 @@ function results(output) {
 }
 
 function migrationEnvironment(temporaryRoot) {
-  const home = resolve(temporaryRoot, "home");
   const config = resolve(temporaryRoot, "config");
   const logs = resolve(temporaryRoot, "logs");
-  mkdirSync(home, { recursive: true });
   mkdirSync(config, { recursive: true });
   mkdirSync(logs, { recursive: true });
   const environment = {
     ...process.env,
-    HOME: home,
     XDG_CONFIG_HOME: config,
     CI: "true",
     WRANGLER_LOG_PATH: resolve(logs, "wrangler.log"),

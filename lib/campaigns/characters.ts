@@ -95,16 +95,27 @@ function normalizeCharacterId(value: unknown): string {
 function summaryPayload(
   actor: CampaignActor,
   row: CharacterLinkRow,
+  campaignPublicId: string,
 ): CampaignCharacterSummaryPayload {
   const isMine = row.ownerUserId === actor.userId;
+  let cardData: CampaignCharacterCardData = {};
+  try {
+    cardData = JSON.parse(row.data || "{}") as CampaignCharacterCardData;
+  } catch {
+    cardData = {};
+  }
   return {
     id: row.publicId,
     name: row.name,
-    classLabel: row.classLabel,
+    classLabel: campaignCardClassLabel(cardData, row.classLabel),
     level: Number(row.level) || 1,
     visibility: row.visibility,
     updatedAt: row.updatedAt,
     ownerName: effectiveDisplayName(row.customDisplayName, row.providerName),
+    portraitUrl: row.portraitKey ? `/api/campaigns/${campaignPublicId}/characters/${row.publicId}/portrait` : null,
+    hpCurrent: Math.max(0, Number(cardData.hpCurrent) || 0),
+    hpMax: campaignCardHpMax(cardData),
+    armorClass: campaignCardArmorClass(cardData),
     isMine,
     permissions: {
       canUnlink: actor.role !== "admin" && isMine,

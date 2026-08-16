@@ -12,11 +12,13 @@ export async function POST(request: Request): Promise<Response> {
     }
     const body = (await readBoundedJson(request, 8 * 1024)) as {
       token?: unknown;
+      characterId?: unknown;
     };
     const redeemed = await redeemCampaignInvite(
       await getCampaignD1(),
       actor,
       body?.token,
+      body?.characterId,
     );
     return Response.json(redeemed);
   } catch (error) {

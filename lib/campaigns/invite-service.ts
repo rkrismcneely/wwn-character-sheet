@@ -135,9 +135,6 @@ async function loadInviteManagerCampaign(
   if (!campaign) throw inviteNotFound();
   const membership = await getCampaignMembership(db, campaign.id, actor.userId);
 
-  if (actor.role === "admin") {
-    throw new CampaignServiceError("Not permitted.", 403);
-  }
   if (!canInviteCampaignMembers(actor, campaign, membership)) {
     if (!canViewCampaign(actor, campaign, membership)) throw inviteNotFound();
     throw new CampaignServiceError("Not permitted.", 403);

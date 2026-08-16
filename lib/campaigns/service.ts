@@ -177,9 +177,7 @@ function campaignPayload(
     permissions: {
       canManageSettings: canManageCampaignSettings(actor, campaign),
       canDelete: canDeleteCampaign(actor, campaign),
-      canInviteMembers:
-        actor.role !== "admin"
-        && canInviteCampaignMembers(actor, campaign, membership),
+      canInviteMembers: canInviteCampaignMembers(actor, campaign, membership),
       canRemovePlayers: canInviteCampaignMembers(actor, campaign, membership),
       canLeave: canLeaveCampaign(actor, campaign, membership),
       canLinkCharacters: actor.role !== "admin",

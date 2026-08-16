@@ -49,6 +49,16 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
   assert.match(detail, /Administrator read-only view/u);
   assert.match(detail, /Campaign members/u);
   assert.match(detail, /Owner · Game Master/u);
+  assert.match(
+    detail,
+    /campaign\.permissions\.canInviteMembers && \([\s\S]*>Invite Player<\/button>/u,
+    "Invite Player must render from the server-authoritative permission flag",
+  );
+  assert.doesNotMatch(
+    detail,
+    /campaign\.isOwner && \([\s\S]*>Invite Player<\/button>/u,
+    "the client must not invent a separate owner-only invitation rule",
+  );
 });
 
 test("invite UI distinguishes cminv_ codes from campaign IDs and supports copy-once revocation", async () => {

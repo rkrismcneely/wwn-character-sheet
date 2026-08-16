@@ -164,9 +164,9 @@ do not infer their current data state from the older pre-rollout documents.
   returned only at creation.
 - ✅ Initial My Campaigns dashboard and private campaign-management UI: create, open,
   rename, roster, player removal/leave, and owner-confirmed deletion.
-- ✅ Secure invitation UI and signed-in join flow: one-time plaintext display/copy,
-  immediate revocation, seven-day expiry guidance, and server-authoritative redemption.
-- ⬜ Seamless signed-out invite continuation through Google sign-in.
+- ✅ Secure invitation UI and join flow: one-time plaintext display/copy, immediate
+  revocation, seven-day expiry guidance, server-authoritative redemption, and a
+  fragment-based signed-out continuation through Google sign-in that avoids request logs.
 - ⬜ Character-linking UX and shared campaign character library.
 - ⬜ Campaign-scoped read-only character routes; global character visibility and direct
   character-route authorization remain unchanged.

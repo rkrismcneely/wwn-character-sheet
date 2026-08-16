@@ -201,7 +201,7 @@ export async function listEligibleCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.owner_user_id = ? AND ch.public_id IS NOT NULL

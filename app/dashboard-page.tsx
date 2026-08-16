@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { SignedInHeader } from "./app-header";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 import "./dashboard.css";
 
@@ -41,7 +41,6 @@ export function DashboardPage() {
   const [busy, setBusy] = useState(true);
   const [importBusy, setImportBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
-  const [signOutBusy, setSignOutBusy] = useState(false);
   const [claimToken, setClaimToken] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -157,34 +156,10 @@ export function DashboardPage() {
     }
   }
 
-  async function signOut() {
-    setSignOutBusy(true);
-    setError("");
-    try {
-      const { error: signOutError } = await authClient.signOut();
-      if (signOutError) throw new Error(signOutError.message || "The sign-out request could not be completed.");
-      window.location.assign("/");
-    } catch (signOutError) {
-      setSignOutBusy(false);
-      setError(signOutError instanceof Error ? signOutError.message : "The sign-out request could not be completed.");
-    }
-  }
 
   return (
     <main className="dashboard-shell">
-      <header className="dashboard-header">
-        <Link href="/" className="dashboard-brand" aria-label="Tales Without End home">
-          <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
-          <span>Tales Without End</span>
-        </Link>
-        <nav className="dashboard-nav" aria-label="Account navigation">
-          <Link href="/campaigns">My Campaigns</Link>
-          <Link href="/public-characters">Browse Public Characters</Link>
-          <button type="button" onClick={() => void signOut()} disabled={signOutBusy}>
-            {signOutBusy ? "Signing out…" : "Sign Out"}
-          </button>
-        </nav>
-      </header>
+      <SignedInHeader active="characters" />
 
       <section className="dashboard-heading" aria-labelledby="dashboard-title">
         <div>

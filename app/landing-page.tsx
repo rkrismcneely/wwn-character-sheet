@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { TalesBrandLink } from "./app-header";
 import "./landing-density.css";
 
 /* eslint-disable @next/next/no-img-element -- small existing brand SVGs are served directly */
@@ -57,10 +58,7 @@ export function LandingPage() {
   return (
     <main className="landing-shell">
       <header className="landing-header">
-        <Link href="/" className="landing-brand" aria-label="Tales Without End home">
-          <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
-          <span>Tales Without End</span>
-        </Link>
+        <TalesBrandLink href="/" className="landing-brand" />
         <nav aria-label="Primary navigation">
           <Link href="/public-characters">Browse Public Characters</Link>
           <GoogleSignInButton className="landing-button landing-button-small" />

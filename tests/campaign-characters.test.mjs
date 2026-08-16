@@ -78,6 +78,7 @@ async function fixture() {
     CREATE TABLE user (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
+      display_name TEXT,
       email TEXT NOT NULL,
       role TEXT DEFAULT 'user' NOT NULL
     );
@@ -231,12 +232,14 @@ test("one member can link only one character per campaign while a character can 
 });
 
 test("campaign character library is visible only to participants and read-only admin", async () => {
-  const { db, campaign, ids } = await fixture();
+  const { sqlite, db, campaign, ids } = await fixture();
+  sqlite.prepare("UPDATE user SET display_name = ? WHERE id = ?")
+    .run("Warden Rowan", player.userId);
   await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
   for (const actor of [owner, gm, player, admin]) {
     const library = await listCampaignCharacters(db, actor, campaign.id);
     assert.equal(library.length, 1);
-    assert.equal(library[0].ownerName, "Campaign Player");
+    assert.equal(library[0].ownerName, "Warden Rowan");
     assert.equal(library[0].isMine, actor === player);
   }
   const adminView = await listCampaignCharacters(db, admin, campaign.id);

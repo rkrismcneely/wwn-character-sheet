@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
+import { SignedInHeader } from "../app-header";
 import {
   campaignRoleLabel,
   formatCampaignDate,
@@ -273,16 +274,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
   return (
     <main className="campaign-shell">
-      <header className="campaign-header">
-        <Link href="/" className="campaign-brand" aria-label="Tales Without End home">
-          <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
-          <span>Tales Without End</span>
-        </Link>
-        <nav aria-label="Campaign navigation">
-          <Link href="/campaigns">My Campaigns</Link>
-          <Link href="/">My Characters</Link>
-        </nav>
-      </header>
+      <SignedInHeader active="campaigns" />
 
       {busy && <div className="campaign-page-state" role="status">Opening the campaign ledger…</div>}
       {!busy && error && !campaign && (

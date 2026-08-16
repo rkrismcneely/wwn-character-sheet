@@ -11,6 +11,7 @@ import "@fontsource/jost/500.css";
 import "@fontsource/jost/600.css";
 import "@fontsource/jost/700.css";
 import "./globals.css";
+import "./app-header.css";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {

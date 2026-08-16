@@ -28,6 +28,7 @@ import { searchRules, type RuleEntry } from "./rules-search";
 import { rollDice, rollDie, type DiceRoll } from "./dice";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
+import { TalesBrandLink } from "./app-header";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 
@@ -2527,7 +2528,7 @@ export default function Home({
   return (
     <main>
       <div className="topbar">
-        <div className="brand"><img className="brand-logo" src="/assets/tales-without-end-navigation-logo.svg" alt="Tales Without End" /><div><strong>Tales Without End</strong></div></div>
+        <TalesBrandLink href={signedIn ? "/account" : "/"} className="brand" />
         <div className="status">
           <div className="status-meta">
             <span className="save-state"><span className="dot" />{saved}</span>
@@ -2539,12 +2540,11 @@ export default function Home({
               </select>
             </label>
           </div>
-          <button className="library-button" onClick={() => {
-            const scope = signedIn ? "mine" : "public";
-            setLibraryScope(scope);
+          {!signedIn && <button className="library-button" onClick={() => {
+            setLibraryScope("public");
             setLibraryOpen(true);
-            void refreshLibrary(scope);
-          }}>{signedIn ? "My Characters" : "Public Characters"}</button>
+            void refreshLibrary("public");
+          }}>Public Characters</button>}
           {!signedIn && !libraryOpen && <button
             type="button"
             className="primary-action account-signin"
@@ -2569,7 +2569,7 @@ export default function Home({
               }
             }}
           >Sign in with Google</button>}
-          {signedIn && <span className="account-state" aria-label="Signed in">Account</span>}
+          {signedIn && <a className="account-state" href="/account">Account</a>}
           {signedIn && canEdit && (cloudId
             ? <button onClick={() => void saveToCloud()}>Save Now</button>
             : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}

@@ -78,6 +78,7 @@ async function fixture() {
     CREATE TABLE user (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
+      display_name TEXT,
       email TEXT NOT NULL
     );
     CREATE TABLE characters (
@@ -335,8 +336,10 @@ test("privacy-safe roster keys support authorized removal without exposing user 
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Roster" }, now);
   await addMember(sqlite, campaign.id, player);
+  sqlite.prepare("UPDATE user SET display_name = ? WHERE id = ?")
+    .run("Warden Rowan", player.userId);
   const roster = await listCampaignMembers(db, owner, campaign.id);
-  const target = roster.find(member => member.name === "Campaign Player");
+  const target = roster.find(member => member.name === "Warden Rowan");
   assert.match(target.memberKey, /^cmem_[0-9a-f]{32}$/u);
   assert.equal(target.memberKey.includes(player.userId), false);
   await removeCampaignMemberByKey(db, owner, campaign.id, target.memberKey);

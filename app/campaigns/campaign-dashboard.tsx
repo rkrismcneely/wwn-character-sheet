@@ -11,8 +11,6 @@ import {
   type CampaignSummary,
 } from "./campaign-types";
 
-/* eslint-disable @next/next/no-img-element -- the established navigation mark is a static asset */
-
 const INVITE_PATTERN = /^cminv_[A-Za-z0-9_-]{43}$/u;
 
 interface JoinCharacterOption {

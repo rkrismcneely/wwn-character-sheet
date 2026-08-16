@@ -51,7 +51,7 @@ export function AccountPageClient({
     }
   }
 
-  async function useGoogleName() {
+  async function resetToGoogleName() {
     setBusy(true);
     setNotice("");
     setError("");
@@ -125,7 +125,7 @@ export function AccountPageClient({
               <button
                 type="button"
                 className="account-secondary"
-                onClick={() => void useGoogleName()}
+                onClick={() => void resetToGoogleName()}
                 disabled={busy || profile.usesProviderName}
               >
                 Use Google Name

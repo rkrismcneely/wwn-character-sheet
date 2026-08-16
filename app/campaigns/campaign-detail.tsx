@@ -14,8 +14,6 @@ import {
   type CreatedInvite,
 } from "./campaign-types";
 
-/* eslint-disable @next/next/no-img-element -- the established navigation mark is a static asset */
-
 type Confirmation =
   | { kind: "delete" }
   | { kind: "leave" }

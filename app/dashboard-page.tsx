@@ -6,8 +6,6 @@ import { SignedInHeader } from "./app-header";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 import "./dashboard.css";
 
-/* eslint-disable @next/next/no-img-element -- the existing navigation mark is a small static asset */
-
 type DashboardCharacter = {
   id: string;
   name: string;

@@ -6,8 +6,6 @@ import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { getSessionActor } from "@/lib/auth-session";
 import { SignedInHeader, TalesBrandLink } from "../app-header";
 
-/* eslint-disable @next/next/no-img-element -- small existing brand SVGs are served directly */
-
 export const metadata: Metadata = {
   title: "Public Characters | Tales Without End",
   description: "Browse public Worlds Without Number character folios.",

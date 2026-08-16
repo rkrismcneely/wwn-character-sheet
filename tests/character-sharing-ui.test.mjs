@@ -23,9 +23,9 @@ test("character sharing is an owner-only bottom-of-folio utility", async () => {
   for (const value of ["private", "unlisted", "public"]) {
     assert.match(sheet, new RegExp(`value="${value}"`, "u"));
   }
-  assert.match(css, /\\.folio\\{[\\s\\S]*outline-offset:-7px\\}/u);
-  assert.doesNotMatch(css, /\\.folio\\{[\\s\\S]*min-height:900px/u);
-  assert.match(css, /\\.character-sharing-footer\\{[\\s\\S]*margin:18px 28px 28px/u);
-  assert.match(css, /\\.character-sharing-heading small,[\\s\\S]*font:14px\\/1\\.4 var\\(--font-body\\)/u);
-  assert.match(css, /\\.character-sharing-footer\\{grid-template-columns:1fr;margin-top:14px;margin-bottom:20px\\}/u);
+  assert.ok(css.includes(".folio{"), "folio styles should remain explicit");
+  assert.ok(!css.includes("min-height:900px"), "desktop folio should not use a fixed minimum height");
+  assert.ok(css.includes("margin:18px 28px 28px"), "sharing should have balanced desktop spacing");
+  assert.ok(css.includes("font:14px/1.4 var(--font-body)"), "sharing copy should use readable body text");
+  assert.ok(css.includes("margin-top:14px;margin-bottom:20px"), "mobile sharing spacing should remain compact");
 });

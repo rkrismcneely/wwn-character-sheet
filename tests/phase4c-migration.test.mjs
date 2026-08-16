@@ -181,7 +181,7 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
      INSERT INTO campaign_invites
        (id, campaign_id, token_hash, role, created_by_user_id, created_at, expires_at)
      VALUES
-       ('invite-1', 'campaign-1', 'stored-sha256-hash-only', 'player',
+       ('invite-1', 'campaign-1', '${"a".repeat(64)}', 'player',
         'owner-user', '2026-08-15', '2026-08-22');`,
   ]);
 
@@ -200,7 +200,7 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
     "--command",
     "SELECT token_hash AS tokenHash, accepted_at AS acceptedAt, revoked_at AS revokedAt FROM campaign_invites WHERE id = 'invite-1'",
   ])), [{
-    tokenHash: "stored-sha256-hash-only",
+    tokenHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     acceptedAt: null,
     revokedAt: null,
   }]);
@@ -219,10 +219,14 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
   ]));
   assert.throws(() => runWrangler(persistTo, environment, [
     "--command",
-    "INSERT INTO campaign_invites (id, campaign_id, token_hash, role, created_at, expires_at) VALUES ('invite-2', 'campaign-1', 'stored-sha256-hash-only', 'player', '2026-08-15', '2026-08-22')",
+    "INSERT INTO campaign_invites (id, campaign_id, token_hash, role, created_at, expires_at) VALUES ('invite-2', 'campaign-1', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'player', '2026-08-15', '2026-08-22')",
   ]));
   assert.throws(() => runWrangler(persistTo, environment, [
     "--command",
-    "INSERT INTO campaign_invites (id, campaign_id, token_hash, role, created_at, expires_at) VALUES ('invite-3', 'campaign-1', 'different-hash', 'gm', '2026-08-15', '2026-08-22')",
+    "INSERT INTO campaign_invites (id, campaign_id, token_hash, role, created_at, expires_at) VALUES ('invite-3', 'campaign-1', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'gm', '2026-08-15', '2026-08-22')",
+  ]));
+  assert.throws(() => runWrangler(persistTo, environment, [
+    "--command",
+    "INSERT INTO campaign_invites (id, campaign_id, token_hash, role, created_at, expires_at) VALUES ('invite-4', 'campaign-1', 'cminv_plaintext-must-not-be-stored', 'player', '2026-08-15', '2026-08-22')",
   ]));
 });

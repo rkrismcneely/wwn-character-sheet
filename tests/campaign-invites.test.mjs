@@ -1,0 +1,381 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
+import test from "node:test";
+import {
+  CAMPAIGN_INVITE_DEFAULT_TTL_MS,
+  createCampaignInvite,
+  redeemCampaignInvite,
+  revokeCampaignInvite,
+} from "../lib/campaigns/invite-service.ts";
+import {
+  generateCampaignInviteToken,
+  hashCampaignInviteToken,
+} from "../lib/campaigns/identifiers.ts";
+import {
+  CampaignServiceError,
+  createCampaign,
+} from "../lib/campaigns/service.ts";
+
+const owner = { userId: "user-owner", role: "user" };
+const gm = { userId: "user-gm", role: "user" };
+const player = { userId: "user-player", role: "user" };
+const outsider = { userId: "user-outsider", role: "user" };
+const secondOutsider = { userId: "user-second-outsider", role: "user" };
+const admin = { userId: "user-admin", role: "admin" };
+const now = new Date("2026-08-16T12:00:00.000Z");
+
+class TestStatement {
+  constructor(statement) {
+    this.statement = statement;
+    this.values = [];
+  }
+
+  bind(...values) {
+    this.values = values;
+    return this;
+  }
+
+  async first() {
+    return this.statement.get(...this.values) ?? null;
+  }
+
+  async all() {
+    return { results: this.statement.all(...this.values) };
+  }
+
+  async run() {
+    const result = this.statement.run(...this.values);
+    return { success: true, meta: { changes: Number(result.changes) } };
+  }
+}
+
+class TestD1 {
+  constructor(database) {
+    this.database = database;
+  }
+
+  prepare(sql) {
+    return new TestStatement(this.database.prepare(sql));
+  }
+
+  async batch(statements) {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const results = [];
+      for (const statement of statements) results.push(await statement.run());
+      this.database.exec("COMMIT");
+      return results;
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+}
+
+async function fixture() {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE user (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL
+    );
+    CREATE TABLE characters (
+      id TEXT PRIMARY KEY NOT NULL,
+      owner_user_id TEXT,
+      public_id TEXT,
+      visibility TEXT NOT NULL,
+      name TEXT NOT NULL,
+      FOREIGN KEY (owner_user_id) REFERENCES user(id) ON DELETE SET NULL
+    );
+  `);
+  const insertUser = sqlite.prepare(
+    "INSERT INTO user (id, name, email, role) VALUES (?, ?, ?, ?)",
+  );
+  for (const [actor, name] of [
+    [owner, "Campaign Owner"],
+    [gm, "Campaign GM"],
+    [player, "Campaign Player"],
+    [outsider, "Campaign Outsider"],
+    [secondOutsider, "Second Outsider"],
+    [admin, "Site Administrator"],
+  ]) {
+    insertUser.run(
+      actor.userId,
+      name,
+      `${actor.userId}@example.invalid`,
+      actor.role,
+    );
+  }
+  const migration = await readFile(
+    new URL("../drizzle/0006_campaign_foundation.sql", import.meta.url),
+    "utf8",
+  );
+  for (const statement of migration.split("--> statement-breakpoint")) {
+    if (statement.trim()) sqlite.exec(statement);
+  }
+  return { sqlite, db: new TestD1(sqlite) };
+}
+
+async function campaignFixture() {
+  const context = await fixture();
+  const campaign = await createCampaign(
+    context.db,
+    owner,
+    { name: "The Amber Company" },
+    now.toISOString(),
+  );
+  return { ...context, campaign };
+}
+
+async function addMember(sqlite, campaignPublicId, actor, role = "player") {
+  sqlite.prepare(`
+    INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+    SELECT id, ?, ?, ? FROM campaigns WHERE public_id = ?
+  `).run(actor.userId, role, now.toISOString(), campaignPublicId);
+}
+
+async function expectServiceError(promise, status) {
+  await assert.rejects(
+    promise,
+    error => error instanceof CampaignServiceError && error.status === status,
+  );
+}
+
+function storedInvite(sqlite, tokenHash) {
+  return sqlite.prepare(`
+    SELECT id, campaign_id AS campaignId, token_hash AS tokenHash, role,
+           created_by_user_id AS createdByUserId, created_at AS createdAt,
+           expires_at AS expiresAt, accepted_at AS acceptedAt,
+           accepted_by_user_id AS acceptedByUserId, revoked_at AS revokedAt
+    FROM campaign_invites WHERE token_hash = ?
+  `).get(tokenHash);
+}
+
+test("owner creates a seven-day cminv_ invitation stored only as SHA-256", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+
+  assert.match(invite.token, /^cminv_[A-Za-z0-9_-]{43}$/u);
+  assert.equal(
+    Date.parse(invite.expiresAt) - now.getTime(),
+    CAMPAIGN_INVITE_DEFAULT_TTL_MS,
+  );
+  assert.deepEqual(invite.campaign, {
+    id: campaign.id,
+    name: "The Amber Company",
+  });
+
+  const tokenHash = await hashCampaignInviteToken(invite.token);
+  const stored = storedInvite(sqlite, tokenHash);
+  assert.match(stored.tokenHash, /^[0-9a-f]{64}$/u);
+  assert.equal(stored.tokenHash, tokenHash);
+  assert.equal(stored.role, "player");
+  assert.equal(stored.createdByUserId, owner.userId);
+  assert.equal(stored.acceptedAt, null);
+  assert.equal(stored.revokedAt, null);
+  assert.equal(JSON.stringify(stored).includes(invite.token), false);
+  assert.equal(JSON.stringify(invite).includes(tokenHash), false);
+});
+
+test("campaign GM can create a player invitation", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  await addMember(sqlite, campaign.id, gm, "gm");
+  const invite = await createCampaignInvite(db, gm, campaign.id, now);
+  const stored = storedInvite(sqlite, await hashCampaignInviteToken(invite.token));
+  assert.equal(stored.role, "player");
+  assert.equal(stored.createdByUserId, gm.userId);
+});
+
+test("players, site admins, outsiders, and signed-out callers cannot create invites", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  await addMember(sqlite, campaign.id, player);
+  await expectServiceError(createCampaignInvite(db, player, campaign.id, now), 403);
+  await expectServiceError(createCampaignInvite(db, admin, campaign.id, now), 403);
+  await expectServiceError(createCampaignInvite(db, outsider, campaign.id, now), 404);
+  await expectServiceError(createCampaignInvite(db, null, campaign.id, now), 401);
+});
+
+test("valid signed-in redemption consumes the invite and creates one player membership", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const redeemedAt = new Date("2026-08-16T12:30:00.000Z");
+  const redeemed = await redeemCampaignInvite(db, outsider, invite.token, redeemedAt);
+
+  assert.deepEqual(redeemed, {
+    campaign: { id: campaign.id, name: "The Amber Company" },
+    membership: { role: "player", joinedAt: redeemedAt.toISOString() },
+  });
+  const membership = sqlite.prepare(`
+    SELECT cm.role, cm.joined_at AS joinedAt
+    FROM campaign_members cm
+    JOIN campaigns c ON c.id = cm.campaign_id
+    WHERE c.public_id = ? AND cm.user_id = ?
+  `).get(campaign.id, outsider.userId);
+  assert.deepEqual({ ...membership }, {
+    role: "player",
+    joinedAt: redeemedAt.toISOString(),
+  });
+  const stored = storedInvite(
+    sqlite,
+    await hashCampaignInviteToken(invite.token),
+  );
+  assert.equal(stored.acceptedAt, redeemedAt.toISOString());
+  assert.equal(stored.acceptedByUserId, outsider.userId);
+});
+
+test("a consumed invitation cannot be redeemed a second time", async () => {
+  const { db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  await redeemCampaignInvite(db, outsider, invite.token, now);
+  await expectServiceError(
+    redeemCampaignInvite(db, secondOutsider, invite.token, now),
+    409,
+  );
+});
+
+test("concurrent redemption permits exactly one membership", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const attempts = await Promise.allSettled([
+    redeemCampaignInvite(db, outsider, invite.token, now),
+    redeemCampaignInvite(db, secondOutsider, invite.token, now),
+  ]);
+
+  assert.equal(attempts.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(attempts.filter(result => result.status === "rejected").length, 1);
+  const memberships = sqlite.prepare(`
+    SELECT COUNT(*) AS count
+    FROM campaign_members cm
+    JOIN campaigns c ON c.id = cm.campaign_id
+    WHERE c.public_id = ? AND cm.user_id IN (?, ?)
+  `).get(campaign.id, outsider.userId, secondOutsider.userId);
+  assert.equal(Number(memberships.count), 1);
+});
+
+test("expired, revoked, unknown, and malformed invitations are rejected", async () => {
+  const { db, campaign } = await campaignFixture();
+  const expired = await createCampaignInvite(
+    db,
+    owner,
+    campaign.id,
+    new Date(now.getTime() - CAMPAIGN_INVITE_DEFAULT_TTL_MS - 1),
+  );
+  await expectServiceError(redeemCampaignInvite(db, outsider, expired.token, now), 404);
+
+  const revoked = await createCampaignInvite(db, owner, campaign.id, now);
+  await revokeCampaignInvite(db, owner, campaign.id, revoked.token, now);
+  await expectServiceError(redeemCampaignInvite(db, outsider, revoked.token, now), 404);
+
+  await expectServiceError(
+    redeemCampaignInvite(db, outsider, generateCampaignInviteToken(), now),
+    404,
+  );
+  await expectServiceError(redeemCampaignInvite(db, outsider, "not-an-invite", now), 400);
+});
+
+test("already-member redemption rejects without consuming the invitation", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  await addMember(sqlite, campaign.id, player);
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  await expectServiceError(redeemCampaignInvite(db, player, invite.token, now), 409);
+  const stored = storedInvite(
+    sqlite,
+    await hashCampaignInviteToken(invite.token),
+  );
+  assert.equal(stored.acceptedAt, null);
+  assert.equal(stored.acceptedByUserId, null);
+});
+
+test("redemption requires authentication", async () => {
+  const { db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  await expectServiceError(redeemCampaignInvite(db, null, invite.token, now), 401);
+});
+
+test("redemption grants only campaign player membership and preserves site-admin role", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const redeemed = await redeemCampaignInvite(db, admin, invite.token, now);
+  assert.equal(redeemed.membership.role, "player");
+  assert.equal(
+    sqlite.prepare("SELECT role FROM user WHERE id = ?").get(admin.userId).role,
+    "admin",
+  );
+  assert.equal(
+    sqlite.prepare("SELECT owner_user_id AS owner FROM campaigns WHERE public_id = ?")
+      .get(campaign.id).owner,
+    owner.userId,
+  );
+});
+
+test("redemption never changes character ownership, visibility, or campaign links", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  sqlite.prepare(`
+    INSERT INTO characters (id, owner_user_id, public_id, visibility, name)
+    VALUES ('character-outsider', ?, 'chr_outsider', 'private', 'Private Hero')
+  `).run(outsider.userId);
+  const before = sqlite.prepare(`
+    SELECT owner_user_id AS ownerUserId, visibility FROM characters
+    WHERE id = 'character-outsider'
+  `).get();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  await redeemCampaignInvite(db, outsider, invite.token, now);
+  const after = sqlite.prepare(`
+    SELECT owner_user_id AS ownerUserId, visibility FROM characters
+    WHERE id = 'character-outsider'
+  `).get();
+  assert.deepEqual({ ...after }, { ...before });
+  assert.equal(
+    Number(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_characters").get().count),
+    0,
+  );
+});
+
+test("owner and GM can revoke while preserving the historical invite row", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  await addMember(sqlite, campaign.id, gm, "gm");
+  for (const actor of [owner, gm]) {
+    const invite = await createCampaignInvite(db, actor, campaign.id, now);
+    const tokenHash = await hashCampaignInviteToken(invite.token);
+    await revokeCampaignInvite(db, actor, campaign.id, invite.token, now);
+    const stored = storedInvite(sqlite, tokenHash);
+    assert.equal(stored.revokedAt, now.toISOString());
+    assert.equal(stored.acceptedAt, null);
+  }
+  assert.equal(
+    Number(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_invites").get().count),
+    2,
+  );
+});
+
+test("players, site admins, outsiders, and signed-out callers cannot revoke", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  await addMember(sqlite, campaign.id, player);
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  await expectServiceError(revokeCampaignInvite(db, player, campaign.id, invite.token, now), 403);
+  await expectServiceError(revokeCampaignInvite(db, admin, campaign.id, invite.token, now), 403);
+  await expectServiceError(revokeCampaignInvite(db, outsider, campaign.id, invite.token, now), 404);
+  await expectServiceError(revokeCampaignInvite(db, null, campaign.id, invite.token, now), 401);
+});
+
+test("invite payloads expose no hashes, internal user IDs, or email addresses", async () => {
+  const { db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const creationPayload = JSON.stringify(invite);
+  const redeemedPayload = JSON.stringify(
+    await redeemCampaignInvite(db, outsider, invite.token, now),
+  );
+  for (const payload of [creationPayload, redeemedPayload]) {
+    assert.equal(payload.includes("tokenHash"), false);
+    assert.equal(payload.includes("token_hash"), false);
+    assert.equal(payload.includes("@example.invalid"), false);
+    assert.equal(payload.includes(owner.userId), false);
+    assert.equal(payload.includes(outsider.userId), false);
+  }
+  assert.equal(creationPayload.includes(invite.token), true);
+  assert.equal(redeemedPayload.includes(invite.token), false);
+});

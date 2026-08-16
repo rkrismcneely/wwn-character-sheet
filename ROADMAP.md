@@ -15,9 +15,9 @@ subsequent merged and deployed account work; they are not current status checkli
 
 ## Recommended next work
 
-- **Easiest meaningful task:** add explicit regression coverage for the full 18-item
-  Henchkeeper archetype catalogue and its base-stat/modifier invariants. The behavior is
-  implemented, but this would make accidental catalogue regressions immediately visible.
+- **Easiest meaningful task:** improve import duplicate-detection UX now that Henchkeeper
+  regression coverage is locked. Imports are already safe: they are authenticated,
+  sanitized, and always create a fresh private record.
 - **Highest-value task:** add a small Playwright browser smoke suite for the public
   landing/archive and the signed-in dashboard/owner route boundary. Current source and
   Worker tests are strong, but there is no browser E2E suite.
@@ -81,9 +81,9 @@ blocker was found in current source or tests.
 - ✅ Current SRD rules tests cover the corrected focus interactions, unarmed attack
   variants, Spirit Familiar records, background development, class progressions, spells,
   arts, and gated selection behavior.
-- ⬜ The only concrete Phase 2 hardening opportunity is a direct regression test that
-  locks the 18-archetype catalogue and representative modifier calculations. It is not a
-  missing player-facing rules feature.
+- ✅ Focused regression coverage now locks the 18-archetype catalogue, base-stat spreads,
+  representative modifiers, archetype-local selection, and legal HP ranges. No missing
+  player-facing Phase 2 rules feature was found.
 
 ---
 

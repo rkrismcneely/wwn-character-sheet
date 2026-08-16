@@ -94,3 +94,100 @@ export const legacyCharacterClaimItems = sqliteTable(
     index("legacy_character_claim_items_character_idx").on(table.characterId),
   ],
 );
+
+export const campaigns = sqliteTable(
+  "campaigns",
+  {
+    id: text("id").primaryKey(),
+    publicId: text("public_id").notNull(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("campaigns_public_id_unique").on(table.publicId),
+    index("campaigns_owner_updated_idx").on(
+      table.ownerUserId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const campaignMembers = sqliteTable(
+  "campaign_members",
+  {
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["gm", "player"] }).notNull(),
+    joinedAt: text("joined_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.campaignId, table.userId] }),
+    index("campaign_members_user_joined_idx").on(
+      table.userId,
+      table.joinedAt,
+    ),
+    check(
+      "campaign_members_role_check",
+      sql`${table.role} in ('gm', 'player')`,
+    ),
+  ],
+);
+
+export const campaignCharacters = sqliteTable(
+  "campaign_characters",
+  {
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    characterId: text("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    addedAt: text("added_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.campaignId, table.characterId] }),
+    index("campaign_characters_character_idx").on(table.characterId),
+  ],
+);
+
+export const campaignInvites = sqliteTable(
+  "campaign_invites",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    role: text("role", { enum: ["player"] }).notNull().default("player"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    acceptedAt: text("accepted_at"),
+    acceptedByUserId: text("accepted_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: text("revoked_at"),
+  },
+  (table) => [
+    uniqueIndex("campaign_invites_token_hash_unique").on(table.tokenHash),
+    index("campaign_invites_campaign_status_idx").on(
+      table.campaignId,
+      table.acceptedAt,
+      table.revokedAt,
+      table.expiresAt,
+    ),
+    check("campaign_invites_role_check", sql`${table.role} = 'player'`),
+  ],
+);

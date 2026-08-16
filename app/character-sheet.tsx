@@ -276,6 +276,12 @@ export type InitialCharacterPayload = {
   permissions: { canEdit: boolean; adminReadOnly: boolean };
 };
 
+export type CampaignCharacterContext = {
+  id: string;
+  name: string;
+  readOnly: boolean;
+};
+
 const blankCharacter: Sheet = {
   ...initial,
   name: "",
@@ -913,9 +919,11 @@ function DiceControl({
 export default function Home({
   initialCharacter,
   startNew = false,
+  campaignContext,
 }: {
   initialCharacter?: InitialCharacterPayload;
   startNew?: boolean;
+  campaignContext?: CampaignCharacterContext;
 }) {
   const {
     data: session,
@@ -2600,6 +2608,22 @@ export default function Home({
         </div>
       </div>
 
+      {campaignContext && (
+        <div className="campaign-character-context" role="status">
+          <a href={`/campaigns/${campaignContext.id}`}>← Back to {campaignContext.name}</a>
+          <strong>
+            {campaignContext.readOnly
+              ? "Viewing through campaign · Read only"
+              : "Viewing your character through campaign"}
+          </strong>
+          <span>
+            {campaignContext.readOnly
+              ? "Campaign access permits viewing; only the character owner can make changes."
+              : "You remain the owner and retain normal editing access."}
+          </span>
+        </div>
+      )}
+
       {libraryOpen && <div className="library-backdrop" role="presentation">
         <section className="library-panel" role="dialog" aria-modal="true" aria-labelledby="library-title">
           <header className="library-header">
@@ -2695,8 +2719,8 @@ export default function Home({
       <div ref={editableSurface} className={`folio ${canEdit ? "" : "read-only-folio"}`}>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
         {!canEdit && <div className="read-only-banner" role="status">
-          <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
-          <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
+          <strong>{campaignContext?.readOnly ? "Viewing through campaign · Read only" : cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
+          <span>{campaignContext?.readOnly ? "Campaign access allows viewing; only the owner can change this character." : cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
           {!signedIn && <button type="button" data-readonly-interactive="true" onClick={signInWithGoogle}>Sign in with Google</button>}
         </div>}
         {cloudId && canEdit && <div className="character-sharing" data-readonly-interactive="true">

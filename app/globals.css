@@ -1885,6 +1885,22 @@ main,
 }
 .read-only-banner strong{font-size:13px}
 .read-only-banner span{flex:1;color:var(--muted)}
+.campaign-character-context{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin:14px auto 0;
+  width:min(1280px,calc(100% - 48px));
+  padding:11px 14px;
+  border:1px solid #9d8256;
+  background:linear-gradient(90deg,#f4e6c8,#fff9eb);
+  color:#49351d;
+  font:12px/1.4 var(--font-ui);
+}
+.campaign-character-context>*{min-width:0}
+.campaign-character-context a{color:#6e4819;font-weight:700;overflow-wrap:anywhere}
+.campaign-character-context strong{white-space:nowrap}
+.campaign-character-context span{color:var(--muted)}
 .character-sharing{
   margin:14px 28px 0;
   padding:10px 12px;
@@ -1922,6 +1938,8 @@ html[data-theme="dark"] .read-only-banner{
 }
 html[data-theme="dark"] .library-signin,
 html[data-theme="dark"] .character-sharing{background:rgba(207,155,68,.07)}
+html[data-theme="dark"] .campaign-character-context{background:#242119;color:#f0dbb2}
+html[data-theme="dark"] .campaign-character-context a{color:#e7bc74}
 html[data-theme="dark"] .library-search button,
 html[data-theme="dark"] .legacy-claim button,
 html[data-theme="dark"] .library-signin button,
@@ -1946,6 +1964,7 @@ html[data-theme="dark"] .read-only-banner button{
   .library-signin{align-items:stretch;flex-direction:column}
   .read-only-banner,
   .character-sharing{margin-left:16px;margin-right:16px;align-items:stretch;flex-direction:column}
+  .campaign-character-context{width:calc(100% - 24px);align-items:flex-start;flex-direction:column;gap:6px}
   .character-sharing label{align-items:stretch;flex-direction:column}
   .character-sharing select{min-width:0;width:100%}
 }

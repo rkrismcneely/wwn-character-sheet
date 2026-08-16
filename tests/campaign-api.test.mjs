@@ -151,6 +151,7 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
     canInviteMembers: true,
     canRemovePlayers: true,
     canLeave: false,
+    canLinkCharacters: true,
     adminReadOnly: false,
   });
   assert.equal(campaign.memberCount, 1);

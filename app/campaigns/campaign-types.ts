@@ -6,7 +6,24 @@ export type CampaignPermissions = {
   canInviteMembers: boolean;
   canRemovePlayers: boolean;
   canLeave: boolean;
+  canLinkCharacters: boolean;
   adminReadOnly: boolean;
+};
+
+export type CampaignCharacter = {
+  id: string;
+  name: string;
+  classLabel: string;
+  level: number;
+  visibility: "private" | "unlisted" | "public";
+  updatedAt: string;
+  ownerName: string;
+  isMine: boolean;
+  permissions: {
+    canUnlink: boolean;
+    canEdit: boolean;
+    adminReadOnly: boolean;
+  };
 };
 
 export type CampaignSummary = {

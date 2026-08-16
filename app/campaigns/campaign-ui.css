@@ -65,9 +65,35 @@
 .campaign-dashboard-layout{display:grid;grid-template-columns:minmax(0,1fr) 315px;gap:18px;margin-top:18px}
 .campaign-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 315px;gap:18px;margin-top:18px}
 .campaign-panel{padding:22px 23px 25px;border:1px solid #9e8352;background:rgba(244,234,208,.97);box-shadow:0 10px 30px #2e201344}
+.campaign-character-panel{grid-column:1/-1}
 .campaign-section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:15px;border-bottom:3px double #ad8a52}
 .campaign-section-heading h2,.campaign-join h2,.campaign-management h2{margin:0;color:#49351d;font:600 29px/.95 var(--font-display)}
 .campaign-count{min-width:39px;height:39px;display:grid;place-items:center;border:3px double #a98650;background:#fffaf0;color:#6b4e25;font:700 16px var(--font-ui)}
+.campaign-character-heading-actions{display:flex;align-items:center;gap:9px}
+.campaign-character-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-top:18px}
+.campaign-character-card{min-width:0;display:grid;grid-template-columns:56px minmax(0,1fr);gap:13px;padding:15px;border:1px solid #c6b083;background:rgba(255,250,240,.92);box-shadow:inset 0 0 0 3px rgba(255,251,238,.58)}
+.campaign-character-level{display:flex;align-items:center;flex-direction:column;justify-content:center;align-self:start;min-height:58px;border:3px double #a98650;background:#f2e2c1;color:#67471e}
+.campaign-character-level span{font:700 7px var(--font-ui);letter-spacing:.1em;text-transform:uppercase}
+.campaign-character-level strong{font:600 25px/1 var(--font-display)}
+.campaign-character-identity{min-width:0}
+.campaign-character-identity>p{margin:0;color:#8b641f;font:700 8px/1.3 var(--font-ui);letter-spacing:.09em;overflow-wrap:anywhere}
+.campaign-character-identity h3{margin:5px 0 3px;color:#3f2b16;font:600 25px/1 var(--font-display);overflow-wrap:anywhere}
+.campaign-character-identity>span{display:block;color:#756957;font:12px/1.35 var(--font-ui);overflow-wrap:anywhere}
+.campaign-character-actions{grid-column:1/-1;display:flex;align-items:stretch;gap:7px}
+.campaign-character-actions>*{flex:1}
+.campaign-character-actions .campaign-open{margin:0}
+.campaign-character-empty{display:grid;place-items:center;min-height:205px;padding:28px;text-align:center;color:#756957;font:13px/1.45 var(--font-ui)}
+.campaign-character-empty>span{color:#9a6b26;font-size:27px}
+.campaign-character-empty h3{margin:3px 0 0;color:#49351d;font:600 27px/1 var(--font-display)}
+.campaign-character-empty p{max-width:520px;margin:9px 0 16px}
+.campaign-link-list{display:flex;flex-direction:column;margin-top:14px}
+.campaign-link-list article{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:13px 4px;border-bottom:1px solid #d3c19e}
+.campaign-link-list article:last-child{border-bottom:0}
+.campaign-link-list h3{margin:0;color:#49351d;font:600 21px/1 var(--font-display);overflow-wrap:anywhere}
+.campaign-link-list p{margin:5px 0 0;color:#756957;font:11px/1.35 var(--font-ui);text-transform:capitalize}
+.campaign-link-list button{flex:0 0 auto}
+.campaign-link-empty{margin-top:17px;padding:18px;border:1px solid #c6b083;background:#fff9eb;color:#675b49;font:13px/1.45 var(--font-ui)}
+.campaign-link-empty p{margin:7px 0 0}
 .campaign-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:12px;margin-top:18px}
 .campaign-card{display:flex;flex-direction:column;min-height:198px;padding:15px;background:rgba(255,250,240,.9);border:1px solid #c6b083;box-shadow:inset 0 0 0 3px rgba(255,251,238,.58)}
 .campaign-card:hover{border-color:#9d6a27;box-shadow:0 5px 16px #4e361426,inset 0 0 0 3px rgba(255,251,238,.58)}
@@ -136,6 +162,12 @@
   .campaign-hero h1{font-size:46px}
   .campaign-hero-actions{width:100%}.campaign-hero-actions>*{flex:1}
   .campaign-panel{padding:18px 14px 21px}
+  .campaign-character-heading-actions{align-items:stretch;flex-direction:column-reverse}
+  .campaign-character-heading-actions .campaign-count{align-self:flex-end}
+  .campaign-character-grid{grid-template-columns:1fr}
+  .campaign-character-actions{flex-direction:column}
+  .campaign-link-list article{align-items:stretch;flex-direction:column}
+  .campaign-link-list button{width:100%}
   .campaign-card-grid{grid-template-columns:1fr}
   .campaign-member{grid-template-columns:32px minmax(0,1fr)}
   .campaign-member time,.campaign-member-remove{grid-column:2}

@@ -41,6 +41,7 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
     "canRemovePlayers",
     "canLeave",
     "canDelete",
+    "canLinkCharacters",
     "adminReadOnly",
   ]) {
     assert.equal(detail.includes(`campaign.permissions.${permission}`), true, permission);
@@ -99,7 +100,26 @@ test("membership and destructive flows state that characters remain preserved", 
   assert.match(detail, /Leave Campaign/u);
   assert.match(detail, /Deleting this campaign does not delete any characters/u);
   assert.match(detail, /ownership will not change/u);
-  assert.doesNotMatch(detail, /Attach Character|campaign character library|campaign.*character.*fetch/iu);
+});
+
+test("campaign character library uses scoped routes and owner-only link controls", async () => {
+  const detail = await source("app/campaigns/campaign-detail.tsx");
+  const scopedPage = await source("app/campaigns/[id]/characters/[characterId]/page.tsx");
+  const scopedApi = await source("app/api/campaigns/[id]/characters/[characterId]/route.ts");
+  const portraitApi = await source("app/api/campaigns/[id]/characters/[characterId]/portrait/route.ts");
+  assert.match(detail, /Campaign Characters/u);
+  assert.match(detail, /campaign\.permissions\.canLinkCharacters/u);
+  assert.match(detail, /character\.permissions\.canUnlink/u);
+  assert.match(detail, /Linking does not transfer ownership or change global visibility/u);
+  assert.match(detail, /\/campaigns\/\$\{campaign\.id\}\/characters\/\$\{character\.id\}/u);
+  assert.match(scopedPage, /readCampaignLinkedCharacter/u);
+  assert.match(scopedPage, /campaignContext/u);
+  assert.match(scopedApi, /export async function GET/u);
+  assert.doesNotMatch(scopedApi, /export async function (PUT|PATCH|POST|DELETE)/u);
+  assert.match(portraitApi, /readCampaignLinkedCharacter/u);
+  assert.match(portraitApi, /export async function GET/u);
+  assert.doesNotMatch(portraitApi, /export async function (PUT|PATCH|POST|DELETE)/u);
+  assert.doesNotMatch(detail, /ownerUserId|owner_user_id|email|tokenHash|token_hash/u);
 });
 
 test("campaign UI is responsive, keyboard dismissible, and avoids horizontal overflow", async () => {
@@ -109,6 +129,8 @@ test("campaign UI is responsive, keyboard dismissible, and avoids horizontal ove
   assert.match(css, /@media\(max-width:640px\)/u);
   assert.match(css, /minmax\(0,1fr\)/u);
   assert.match(css, /max-height:calc\(100vh - 20px\)/u);
+  assert.match(css, /\.campaign-character-grid\{display:grid/u);
+  assert.match(css, /overflow-wrap:anywhere/u);
   assert.match(dialog, /role="dialog"/u);
   assert.match(dialog, /aria-modal="true"/u);
   assert.match(dialog, /event\.key === "Escape"/u);

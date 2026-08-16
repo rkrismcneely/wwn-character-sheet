@@ -1,35 +1,43 @@
+import {
+  backgroundAttributeBonuses,
+  type BackgroundDevelopmentMethod,
+  type BackgroundDevelopmentRoll,
+} from "../../app/background-development.ts";
+
 export type CampaignCharacterCardData = {
-  name?: string;
   level?: number;
   classMode?: "full" | "adventurer";
   classOne?: string;
   classTwo?: string;
-  attrs?: Partial<Record<"DEX" | "CON", number>>;
+  attrs?: Partial<Record<"STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA", number>>;
+  background?: string;
+  backgroundDevelopmentMethod?: BackgroundDevelopmentMethod;
+  backgroundDevelopmentRolls?: BackgroundDevelopmentRoll[];
   armor?: string;
   shield?: string;
   armorBonus?: number;
   hpCurrent?: number;
   hpMax?: number;
   hpRolls?: number[];
-  focusPicks?: Array<{ name?: string }>;
+  focusPicks?: Array<{ name?: string; choice?: string }>;
   artPicks?: string[];
   artEffort?: boolean[];
 };
 
-const ARMOR_AC: Record<string, { ac: number; enc: number }> = {
-  "No Armor": { ac: 10, enc: 0 },
-  "War Shirt": { ac: 11, enc: 0 },
-  "Buff Coat": { ac: 12, enc: 0 },
-  Linothorax: { ac: 13, enc: 1 },
-  "War Robe": { ac: 14, enc: 3 },
-  "Pieced Armor": { ac: 14, enc: 2 },
-  "Mail Shirt": { ac: 14, enc: 1 },
-  "Cuirass and Greaves": { ac: 15, enc: 2 },
-  "Scaled Armor": { ac: 16, enc: 3 },
-  "Mail Hauberk": { ac: 16, enc: 2 },
-  "Plate Armor": { ac: 17, enc: 2 },
-  "Great Armor": { ac: 19, enc: 3 },
-  "Grand Plate": { ac: 16, enc: 3 },
+const ARMOR_AC: Record<string, number> = {
+  "No Armor": 10,
+  "War Shirt": 11,
+  "Buff Coat": 12,
+  Linothorax: 13,
+  "War Robe": 14,
+  "Pieced Armor": 14,
+  "Mail Shirt": 14,
+  "Cuirass and Greaves": 15,
+  "Scaled Armor": 16,
+  "Mail Hauberk": 16,
+  "Plate Armor": 17,
+  "Great Armor": 19,
+  "Grand Plate": 16,
 };
 
 function modifier(score: unknown): number {
@@ -38,56 +46,98 @@ function modifier(score: unknown): number {
 }
 
 function selectedClasses(data: CampaignCharacterCardData): string[] {
-  return (data.classMode === "adventurer"
-    ? [data.classOne, data.classTwo]
-    : [data.classOne]
+  return (data.classMode === "full"
+    ? [data.classOne]
+    : [data.classOne, data.classTwo]
   ).filter((value): value is string => Boolean(value));
+}
+
+function effectiveLevel(data: CampaignCharacterCardData): number {
+  return Math.min(10, Math.max(1, Number(data.level) || 1));
+}
+
+function selectedFocusPicks(data: CampaignCharacterCardData) {
+  return (data.focusPicks || []).filter(pick => Boolean(pick.name));
+}
+
+function attributeModifier(data: CampaignCharacterCardData, attribute: "DEX" | "CON"): number {
+  const growth = data.background && data.backgroundDevelopmentMethod && data.backgroundDevelopmentRolls
+    ? backgroundAttributeBonuses(
+      data.background,
+      data.backgroundDevelopmentMethod,
+      data.backgroundDevelopmentRolls,
+      data.attrs || {},
+    )
+    : { DEX: 0, CON: 0 };
+  const score = Math.min(18, Math.max(0, Number(data.attrs?.[attribute]) || 0) + Number(growth[attribute] || 0));
+  let value = modifier(score);
+  const focusPicks = selectedFocusPicks(data);
+  const developedAttributes = focusPicks
+    .filter(pick => pick.name === "Developed Attribute")
+    .map(pick => pick.choice)
+    .filter(choice => choice === attribute);
+  if (developedAttributes.length) value = Math.min(3, value + 1);
+  const xenobloodedGravity = focusPicks.find(pick => pick.name === "Xenoblooded")?.choice || "";
+  if (xenobloodedGravity === "STR +1 / DEX -1" && attribute === "DEX") value -= 1;
+  if (xenobloodedGravity === "DEX +1 / STR -1" && attribute === "DEX") value += 1;
+  return Math.min(3, value);
 }
 
 export function campaignCardClassLabel(data: CampaignCharacterCardData, fallback: string): string {
   const classes = selectedClasses(data);
   if (!classes.length) return fallback;
   return data.classMode === "adventurer"
-    ? `${classes[0]}${classes[1] ? ` / ${classes[1]}` : ""} Adventurer`
+    ? classes[0] + (classes[1] ? " / " + classes[1] : "") + " Adventurer"
     : classes[0];
 }
 
 export function campaignCardArmorClass(data: CampaignCharacterCardData): number {
-  const armor = ARMOR_AC[data.armor || "No Armor"] || ARMOR_AC["No Armor"];
-  const shield = data.shield === "Small Shield" ? 13 : data.shield === "Large Shield" ? 14 : 0;
-  const armorBase = shield ? Math.max(armor.ac, shield) + (armor.ac >= shield ? 1 : 0) : armor.ac;
-  const focusNames = new Set((data.focusPicks || []).map(pick => pick.name));
+  const armorBase = ARMOR_AC[data.armor || "No Armor"] ?? ARMOR_AC["No Armor"];
+  const shieldBase = data.shield === "Small Shield" ? 13 : data.shield === "Large Shield" ? 14 : 0;
+  const shieldAdjustedBase = shieldBase
+    ? (armorBase >= shieldBase ? armorBase + 1 : shieldBase)
+    : armorBase;
+  const focusPicks = selectedFocusPicks(data);
   const classes = selectedClasses(data);
-  const level = Math.min(10, Math.max(1, Number(data.level) || 1));
-  const impervious = focusNames.has("Impervious Defense") ? 15 + Math.ceil(level / 2) + (data.shield ? 1 : 0) : 0;
-  const vowed = classes.includes("Vowed") && (data.armor || "No Armor") === "No Armor" && !data.shield ? 13 + Math.floor(level / 2) : 0;
-  const coldFlesh = (data.artPicks || []).includes("Cold Flesh") ? 12 + Math.floor(level / 2) + (data.shield ? 1 : 0) : 0;
-  const base = Math.max(armorBase, impervious, vowed, coldFlesh);
+  const level = effectiveLevel(data);
+  const imperviousDefense = focusPicks.some(pick => pick.name === "Impervious Defense");
+  const naturalArmorBase = imperviousDefense ? 15 + Math.ceil(level / 2) : 0;
+  const bestArmorBase = Math.max(shieldAdjustedBase, naturalArmorBase + (data.shield ? 1 : 0));
+  const vowedArmorBase = classes.includes("Vowed") && (data.armor || "No Armor") === "No Armor" && !data.shield
+    ? 13 + Math.floor(level / 2)
+    : 0;
+  const coldFleshArmorBase = (data.artPicks || []).includes("Cold Flesh") ? 12 + Math.floor(level / 2) : 0;
   const pavisIndex = (data.artPicks || []).indexOf("Pavis of Elements");
-  const pavis = pavisIndex >= 0 && Boolean(data.artEffort?.[pavisIndex]);
-  return pavis ? Math.min(18, base + modifier(data.attrs?.DEX) + Number(data.armorBonus || 0) + 4)
-    : base + modifier(data.attrs?.DEX) + Number(data.armorBonus || 0);
+  const pavisActive = pavisIndex >= 0 && Boolean(data.artEffort?.[pavisIndex]);
+  const defensiveBase = Math.max(
+    bestArmorBase,
+    vowedArmorBase,
+    coldFleshArmorBase + (data.shield ? 1 : 0),
+  );
+  const calculatedAcBeforePavis = defensiveBase + attributeModifier(data, "DEX") + Number(data.armorBonus || 0);
+  return pavisActive ? Math.min(18, calculatedAcBeforePavis + 4) : calculatedAcBeforePavis;
 }
 
 export function campaignCardHpMax(data: CampaignCharacterCardData): number {
-  const level = Math.min(10, Math.max(1, Number(data.level) || 1));
+  const level = effectiveLevel(data);
   const rolls = Array.isArray(data.hpRolls) ? data.hpRolls.slice(0, level) : [];
   const classes = selectedClasses(data);
   const classBonus = classes.includes("Warrior") && !classes.includes("Duelist")
     ? 2
     : classes.includes("Expert") || classes.includes("Vowed") ? 0 : -1;
-  const dieHard = (data.focusPicks || []).some(pick => pick.name === "Die Hard");
-  let total = 0;
+  const hasDieHard = selectedFocusPicks(data).some(pick => pick.name === "Die Hard");
+  let calculatedHp = 0;
   let complete = Boolean(data.level) && rolls.length >= level;
   for (let index = 0; index < level; index += 1) {
-    const raw = Number(rolls[index]);
-    if (!raw) {
+    const rawRoll = Number(rolls[index]);
+    if (!rawRoll) {
       complete = false;
       break;
     }
-    const perDie = modifier(data.attrs?.CON) + classBonus + (dieHard ? 2 : 0);
-    const rolled = Math.max(index + 1, raw + perDie * (index + 1));
-    total = index === 0 ? rolled : Math.max(total + 1, rolled);
+    const dice = index + 1;
+    const perDieModifier = attributeModifier(data, "CON") + classBonus + (hasDieHard ? 2 : 0);
+    const rolledTotal = Math.max(dice, rawRoll + perDieModifier * dice);
+    calculatedHp = index === 0 ? rolledTotal : Math.max(calculatedHp + 1, rolledTotal);
   }
-  return complete ? total : Math.max(0, Number(data.hpMax) || 0);
+  return complete ? calculatedHp : Math.max(0, Number(data.hpMax) || 0);
 }

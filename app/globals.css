@@ -9,8 +9,8 @@ button,input,select,textarea{font:inherit;color:inherit}.topbar{min-height:68px;
 @media print{.topbar,.tabs,.rule-warning,button{display:none!important}.folio{margin:0;box-shadow:none;border:0}.hero{padding:16px}.page-grid{padding:12px}.sheet-section{break-inside:avoid}body{background:white}}
 
 /* Readable magic controls and full-width skill labels. */
-.skills label{grid-template-columns:1fr 104px}
-.skills select{width:104px;padding-right:20px}
+.skills label{grid-template-columns:minmax(0,1fr) minmax(112px,auto)}
+.skills select{width:100%;min-width:112px;padding-right:16px}
 .quiet.rest-button{color:#f6ecd9;background:linear-gradient(#4a3b29,#2f261a);border-color:#9d7b48;font-weight:700}
 
 /* Reorderable spell and art rows */
@@ -1785,15 +1785,9 @@ main,
 
 /* Phase 4B: authenticated ownership, separate libraries, and read-only sharing. */
 .account-state{
-  min-height:31px;
   display:inline-flex;
   align-items:center;
-  padding:0 10px;
-  border-left:1px solid #806944;
-  border-right:1px solid #806944;
-  color:#e1d3bc;
-  font-weight:700;
-  letter-spacing:.04em;
+  text-decoration:none;
 }
 .status .account-signin{border-color:#c5984f;background:linear-gradient(#8f6127,#684318);color:#fff1cf}
 .library-scopes{
@@ -1928,7 +1922,6 @@ main,
 .read-only-folio textarea:disabled{cursor:default}
 .read-only-folio .portrait-frame>button{display:none}
 
-html[data-theme="dark"] .account-state{color:#d9c7a2;border-color:#5f513a}
 html[data-theme="dark"] .library-scopes button.active,
 html[data-theme="dark"] .library-search,
 html[data-theme="dark"] .legacy-claim,
@@ -1954,8 +1947,7 @@ html[data-theme="dark"] .read-only-banner button{
   .topbar{position:static;align-items:flex-start;gap:10px}
   .status{max-width:70%;width:auto}
   .status button{display:inline-flex!important}
-  .account-state{min-height:29px;padding:0 6px;font-size:10px}
-  .library-scopes,
+   .library-scopes,
   .library-search,
   .legacy-claim,
   .library-signin{margin-left:16px;margin-right:16px}

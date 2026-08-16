@@ -60,7 +60,7 @@ export function campaignCardArmorClass(data: CampaignCharacterCardData): number 
   const classes = selectedClasses(data);
   const level = Math.min(10, Math.max(1, Number(data.level) || 1));
   const impervious = focusNames.has("Impervious Defense") ? 15 + Math.ceil(level / 2) + (data.shield ? 1 : 0) : 0;
-  const vowed = classes.includes("Vowed") && armor.name === "No Armor" && !data.shield ? 13 + Math.floor(level / 2) : 0;
+  const vowed = classes.includes("Vowed") && (data.armor || "No Armor") === "No Armor" && !data.shield ? 13 + Math.floor(level / 2) : 0;
   const coldFlesh = (data.artPicks || []).includes("Cold Flesh") ? 12 + Math.floor(level / 2) + (data.shield ? 1 : 0) : 0;
   const base = Math.max(armorBase, impervious, vowed, coldFlesh);
   const pavisIndex = (data.artPicks || []).indexOf("Pavis of Elements");

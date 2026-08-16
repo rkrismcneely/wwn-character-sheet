@@ -133,6 +133,7 @@ async function fixture() {
     owner: generatePublicCharacterId(),
     gm: generatePublicCharacterId(),
     player: generatePublicCharacterId(),
+    playerSecond: generatePublicCharacterId(),
     outsider: generatePublicCharacterId(),
     admin: generatePublicCharacterId(),
   };
@@ -146,6 +147,7 @@ async function fixture() {
     ["owner", owner, "Owner Hero", "private", 4],
     ["gm", gm, "GM Hero", "unlisted", 3],
     ["player", player, "Player Hero", "private", 2],
+    ["playerSecond", player, "Player Second Hero", "private", 1],
     ["outsider", outsider, "Outsider Hero", "public", 5],
     ["admin", admin, "Admin Hero", "private", 1],
   ]) {
@@ -182,8 +184,11 @@ async function expectServiceError(promise, status) {
 test("eligible characters are restricted to the current member's owned, unlinked roster", async () => {
   const { db, campaign, ids } = await fixture();
   const eligible = await listEligibleCampaignCharacters(db, player, campaign.id);
-  assert.deepEqual(eligible.map(character => character.id), [ids.player]);
-  assert.equal(eligible[0].isMine, true);
+  assert.deepEqual(
+    new Set(eligible.map(character => character.id)),
+    new Set([ids.player, ids.playerSecond]),
+  );
+  assert.equal(eligible.every(character => character.isMine), true);
   assert.equal(JSON.stringify(eligible).includes("user-player"), false);
   assert.equal(JSON.stringify(eligible).includes("@example.invalid"), false);
   assert.deepEqual(await listEligibleCampaignCharacters(db, admin, campaign.id), []);
@@ -200,10 +205,23 @@ test("members and GMs link only their own characters", async () => {
   await expectServiceError(linkCharacterToCampaign(db, null, campaign.id, ids.player), 401);
 });
 
-test("duplicate links fail while one character can join multiple campaigns", async () => {
+test("one member can link only one character per campaign while a character can join multiple campaigns", async () => {
   const { sqlite, db, campaign, secondCampaign, ids } = await fixture();
   await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
-  await expectServiceError(linkCharacterToCampaign(db, player, campaign.id, ids.player, now), 409);
+
+  await expectServiceError(
+    linkCharacterToCampaign(db, player, campaign.id, ids.player, now),
+    409,
+  );
+  await expectServiceError(
+    linkCharacterToCampaign(db, player, campaign.id, ids.playerSecond, now),
+    409,
+  );
+  assert.deepEqual(
+    await listEligibleCampaignCharacters(db, player, campaign.id),
+    [],
+  );
+
   await linkCharacterToCampaign(db, player, secondCampaign.id, ids.player, now);
   const linkCount = sqlite.prepare(`
     SELECT count(*) AS count FROM campaign_characters

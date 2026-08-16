@@ -53,13 +53,29 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
 test("invite UI shows the plaintext once, supports copy and immediate revocation, and stores nothing", async () => {
   const detail = await source("app/campaigns/campaign-detail.tsx");
   assert.match(detail, /Campaign Invite/u);
-  assert.match(detail, /navigator\.clipboard\.writeText\(invite\.token\)/u);
+  assert.match(detail, /inviteUrl\.hash = invite\.token/u);
+  assert.match(detail, /navigator\.clipboard\.writeText\(inviteUrl\.toString\(\)\)/u);
+  assert.match(detail, /Copy Invite Link/u);
   assert.match(detail, /value=\{invite\.token\}/u);
   assert.match(detail, /Expires/u);
   assert.match(detail, /The plaintext code cannot be retrieved after this window closes/u);
   assert.match(detail, /method: "DELETE"/u);
   assert.match(detail, /Revoke Invite/u);
   assert.doesNotMatch(detail, /localStorage|sessionStorage|console\.|tokenHash|token_hash/u);
+});
+
+test("signed-out invite continuation keeps the token out of requests and clears temporary state", async () => {
+  const page = await source("app/campaigns/join/page.tsx");
+  const join = await source("app/campaigns/campaign-join.tsx");
+  assert.match(page, /<CampaignJoin/u);
+  assert.match(join, /window\.location\.hash/u);
+  assert.match(join, /sessionStorage\.setItem/u);
+  assert.match(join, /sessionStorage\.removeItem/u);
+  assert.match(join, /callbackURL: "\/campaigns\/join"/u);
+  assert.match(join, /Sign in with Google to Join/u);
+  assert.match(join, /\/api\/campaign-invites\/redeem/u);
+  assert.match(join, /router\.replace\(`\/campaigns\/\$\{payload\.campaign\.id\}`\)/u);
+  assert.doesNotMatch(join, /localStorage|console\.|searchParams\.set\("token"/u);
 });
 
 test("signed-in join flow handles server-authoritative invite outcomes", async () => {

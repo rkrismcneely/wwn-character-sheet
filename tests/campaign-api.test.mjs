@@ -12,6 +12,7 @@ import {
   normalizeCampaignName,
   readCampaign,
   removeCampaignMember,
+  removeCampaignMemberByKey,
   updateCampaignName,
 } from "../lib/campaigns/service.ts";
 
@@ -147,8 +148,12 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
   assert.deepEqual(campaign.permissions, {
     canManageSettings: true,
     canDelete: true,
+    canInviteMembers: true,
+    canRemovePlayers: true,
+    canLeave: false,
     adminReadOnly: false,
   });
+  assert.equal(campaign.memberCount, 1);
   const stored = sqlite.prepare(`
     SELECT c.owner_user_id AS ownerUserId, cm.role
     FROM campaigns c
@@ -186,6 +191,7 @@ test("campaign listing includes memberships and excludes unrelated campaigns", a
   );
   assert.equal(campaigns.find(campaign => campaign.id === owned.id)?.isOwner, true);
   assert.equal(campaigns.find(campaign => campaign.id === joined.id)?.membershipRole, "player");
+  assert.equal(campaigns.find(campaign => campaign.id === joined.id)?.memberCount, 2);
 });
 
 test("private campaign listing requires authentication", async () => {
@@ -202,6 +208,9 @@ test("owner, member, and site admin can read while outsiders cannot enumerate", 
   const adminView = await readCampaign(db, admin, campaign.id);
   assert.equal(adminView.permissions.adminReadOnly, true);
   assert.equal(adminView.permissions.canManageSettings, false);
+  assert.equal(adminView.permissions.canInviteMembers, false);
+  assert.equal(adminView.permissions.canRemovePlayers, false);
+  assert.equal(adminView.permissions.canLeave, false);
   await expectServiceError(readCampaign(db, outsider, campaign.id), 404);
   await expectServiceError(readCampaign(db, null, campaign.id), 401);
 });
@@ -309,6 +318,20 @@ test("member removal cleans only that member's campaign links", async () => {
   );
 });
 
+test("privacy-safe roster keys support authorized removal without exposing user IDs", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Roster" }, now);
+  await addMember(sqlite, campaign.id, player);
+  const roster = await listCampaignMembers(db, owner, campaign.id);
+  const target = roster.find(member => member.name === "Campaign Player");
+  assert.match(target.memberKey, /^cmem_[0-9a-f]{32}$/u);
+  assert.equal(target.memberKey.includes(player.userId), false);
+  await removeCampaignMemberByKey(db, owner, campaign.id, target.memberKey);
+  assert.equal(sqlite.prepare(
+    "SELECT count(*) AS count FROM campaign_members WHERE user_id = ?",
+  ).get(player.userId).count, 0);
+});
+
 test("players and site admins cannot remove members or the owner", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Roster" }, now);
@@ -345,10 +368,14 @@ test("route layer remains authenticated, bounded, and free of client owner IDs",
   const collection = await readFile(new URL("app/api/campaigns/route.ts", root), "utf8");
   const detail = await readFile(new URL("app/api/campaigns/[id]/route.ts", root), "utf8");
   const members = await readFile(new URL("app/api/campaigns/[id]/members/route.ts", root), "utf8");
-  for (const route of [collection, detail, members]) {
+  const membership = await readFile(new URL("app/api/campaigns/[id]/membership/route.ts", root), "utf8");
+  for (const route of [collection, detail, members, membership]) {
     assert.match(route, /getSessionActor\(request\)/u);
     assert.doesNotMatch(route, /ownerUserId|email|tokenHash|token_hash/u);
   }
   assert.match(collection, /readBoundedJson\(request, 16 \* 1024\)/u);
   assert.match(detail, /readBoundedJson\(request, 16 \* 1024\)/u);
+  assert.match(members, /readBoundedJson\(request, 8 \* 1024\)/u);
+  assert.match(members, /removeCampaignMemberByKey/u);
+  assert.match(membership, /leaveCampaign/u);
 });

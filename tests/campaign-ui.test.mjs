@@ -122,6 +122,30 @@ test("campaign character library uses scoped routes and owner-only link controls
   assert.doesNotMatch(detail, /ownerUserId|owner_user_id|email|tokenHash|token_hash/u);
 });
 
+test("campaign dialog focus lifecycle stays stable while a controlled name is typed", async () => {
+  const dashboard = await source("app/campaigns/campaign-dashboard.tsx");
+  const dialog = await source("app/campaigns/campaign-dialog.tsx");
+  assert.match(
+    dashboard,
+    /id="new-campaign-name"[\s\S]*value=\{campaignName\}[\s\S]*onChange=\{event => setCampaignName\(event\.target\.value\)\}[\s\S]*autoFocus/u,
+  );
+  assert.match(dialog, /const onCloseRef = useRef\(onClose\)/u);
+  assert.match(dialog, /onCloseRef\.current = onClose/u);
+  assert.match(dialog, /dialogNode\.querySelector<HTMLElement>\("\[autofocus\]"\)/u);
+  assert.match(dialog, /if \(event\.key !== "Tab"\) return;/u);
+  assert.match(dialog, /previouslyFocused\?\.isConnected/u);
+
+  const focusLifecycle = dialog.match(
+    /useEffect\(\(\) => \{[\s\S]*document\.addEventListener\("keydown", onKeyDown\)[\s\S]*\}, \[\]\);/u,
+  );
+  assert.ok(focusLifecycle, "dialog focus and keyboard lifecycle must initialize once per mount");
+  assert.doesNotMatch(
+    focusLifecycle[0],
+    /closeButton\.current\?\.focus\(\);\s*function onKeyDown/u,
+    "rerenders must not refocus the close button while controlled input state changes",
+  );
+});
+
 test("campaign UI is responsive, keyboard dismissible, and avoids horizontal overflow", async () => {
   const css = await source("app/campaigns/campaign-ui.css");
   const dialog = await source("app/campaigns/campaign-dialog.tsx");

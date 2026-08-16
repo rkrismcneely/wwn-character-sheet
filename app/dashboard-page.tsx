@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
+import {
+  duplicateCharacterSummary,
+  duplicateSummariesMatch,
+  isLikelyDuplicateCharacter,
+} from "@/lib/characters/duplicate-warning";
+import { parseCharacterImport } from "@/lib/characters/sanitize";
 import "./dashboard.css";
 
 /* eslint-disable @next/next/no-img-element -- the existing navigation mark is a small static asset */
@@ -18,6 +24,11 @@ type DashboardCharacter = {
   version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+type PendingImport = {
+  body: unknown;
+  match: DashboardCharacter;
 };
 
 const visibilityLabels: Record<CharacterVisibility, string> = {
@@ -45,6 +56,7 @@ export function DashboardPage() {
   const [claimToken, setClaimToken] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
 
   async function loadCharacters() {
@@ -90,6 +102,59 @@ export function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!pendingImport) return;
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !importBusy) setPendingImport(null);
+    };
+    window.addEventListener("keydown", cancelOnEscape);
+    return () => window.removeEventListener("keydown", cancelOnEscape);
+  }, [pendingImport, importBusy]);
+
+  async function findLikelyDuplicate(
+    importedCharacter: Record<string, unknown>,
+  ): Promise<DashboardCharacter | null> {
+    const incomingSummary = duplicateCharacterSummary(importedCharacter);
+    if (!incomingSummary) return null;
+    const candidates = characters.filter(character =>
+      duplicateSummariesMatch(incomingSummary, character)
+    );
+
+    for (const candidate of candidates) {
+      try {
+        const response = await fetch(`/api/characters/${candidate.id}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) continue;
+        const payload = await response.json() as { character?: unknown };
+        if (
+          payload.character
+          && isLikelyDuplicateCharacter(importedCharacter, payload.character)
+        ) {
+          return candidate;
+        }
+      } catch {
+        // Duplicate detection is a conservative warning only. A failed
+        // comparison must not replace the existing import API behavior.
+      }
+    }
+    return null;
+  }
+
+  async function submitImport(body: unknown) {
+    const response = await fetch("/api/characters/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json() as { id?: string; error?: string };
+    if (!response.ok || !payload.id) {
+      throw new Error(payload.error || "That character could not be imported.");
+    }
+    await loadCharacters();
+    setNotice("Imported as a new private character. Open it from your roster when you are ready.");
+  }
+
   async function importCharacter(file?: File) {
     if (!file) return;
     setImportBusy(true);
@@ -111,20 +176,40 @@ export function DashboardPage() {
       const body = isExport
         ? { ...(parsed as Record<string, unknown>), character }
         : character;
-      const response = await fetch("/api/characters/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const payload = await response.json() as { id?: string; error?: string };
-      if (!response.ok || !payload.id) throw new Error(payload.error || "That character could not be imported.");
-      await loadCharacters();
-      setNotice("Imported as a new private character. Open it from your roster when you are ready.");
+      const supportedImport = parseCharacterImport(parsed);
+      if (supportedImport) {
+        const match = await findLikelyDuplicate(supportedImport.character);
+        if (match) {
+          setPendingImport({ body, match });
+          return;
+        }
+      }
+      await submitImport(body);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "That file could not be imported.");
     } finally {
       setImportBusy(false);
       if (importInput.current) importInput.current.value = "";
+    }
+  }
+
+  function cancelDuplicateImport() {
+    if (!importBusy) setPendingImport(null);
+  }
+
+  async function confirmDuplicateImport() {
+    const pending = pendingImport;
+    if (!pending) return;
+    setPendingImport(null);
+    setImportBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await submitImport(pending.body);
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : "That character could not be imported.");
+    } finally {
+      setImportBusy(false);
     }
   }
 
@@ -193,7 +278,7 @@ export function DashboardPage() {
         </div>
         <div className="dashboard-heading-actions">
           <Link className="dashboard-primary" href="/?new=1">＋ Create New Character</Link>
-          <button type="button" className="dashboard-secondary" onClick={() => importInput.current?.click()} disabled={importBusy}>
+          <button type="button" className="dashboard-secondary" onClick={() => importInput.current?.click()} disabled={importBusy || busy}>
             {importBusy ? "Importing…" : "Import Character"}
           </button>
           <input
@@ -209,6 +294,55 @@ export function DashboardPage() {
 
       {notice && <div className="dashboard-notice" role="status">{notice}</div>}
       {error && <div className="dashboard-error" role="alert">{error}</div>}
+
+      {pendingImport && (
+        <div
+          className="dashboard-confirm-backdrop"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) cancelDuplicateImport();
+          }}
+        >
+          <section
+            className="dashboard-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duplicate-import-title"
+            aria-describedby="duplicate-import-description"
+          >
+            <p className="dashboard-kicker">IMPORT REVIEW</p>
+            <h2 id="duplicate-import-title">Possible Duplicate Character</h2>
+            <p id="duplicate-import-description">
+              You already have a character that appears to match this import.
+            </p>
+            <dl>
+              <div><dt>Name</dt><dd>{pendingImport.match.name}</dd></div>
+              <div><dt>Class</dt><dd>{pendingImport.match.classLabel}</dd></div>
+              <div><dt>Level</dt><dd>{pendingImport.match.level}</dd></div>
+            </dl>
+            <p>Importing anyway creates a separate private character and leaves the existing character unchanged.</p>
+            <div className="dashboard-confirm-actions">
+              <button
+                type="button"
+                className="dashboard-primary"
+                onClick={() => void confirmDuplicateImport()}
+                disabled={importBusy}
+              >
+                {importBusy ? "Importing…" : "Import Anyway"}
+              </button>
+              <button
+                type="button"
+                className="dashboard-secondary"
+                onClick={cancelDuplicateImport}
+                disabled={importBusy}
+                autoFocus
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div className="dashboard-layout">
         <section className="dashboard-roster" aria-labelledby="roster-title">

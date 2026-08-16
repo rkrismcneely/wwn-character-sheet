@@ -12,6 +12,20 @@ import {
 
 /* eslint-disable @next/next/no-img-element -- the established navigation mark is a static asset */
 
+const INVITE_PATTERN = /^cminv_[A-Za-z0-9_-]{43}$/u;
+
+interface JoinCharacterOption {
+  id: string;
+  name: string;
+  classLabel: string;
+  level: number;
+}
+
+interface JoinPreview {
+  campaign: { id: string; name: string };
+  characters: JoinCharacterOption[];
+}
+
 function redemptionMessage(status: number, message?: string): string {
   if (status === 400) return "This campaign invitation is invalid.";
   if (status === 401) return "Sign in before joining a campaign.";
@@ -32,6 +46,8 @@ export function CampaignDashboard() {
   const [campaignName, setCampaignName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinBusy, setJoinBusy] = useState(false);
+  const [joinPreview, setJoinPreview] = useState<JoinPreview | null>(null);
+  const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -92,11 +108,51 @@ export function CampaignDashboard() {
     }
   }
 
-  async function joinCampaign(event: React.FormEvent<HTMLFormElement>) {
+  function resetJoin() {
+    setJoinPreview(null);
+    setSelectedCharacterId("");
+  }
+
+  async function previewInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = inviteCode.trim();
-    if (!token) {
-      setError("Enter the campaign invite code you received.");
+    if (!INVITE_PATTERN.test(token)) {
+      setError(
+        token.startsWith("cmp_")
+          ? "Campaign IDs beginning cmp_ are not invite codes. Ask the Game Master for a private code beginning cminv_."
+          : "Enter the private cminv_ invitation code supplied by the Game Master.",
+      );
+      return;
+    }
+    setJoinBusy(true);
+    setError("");
+    setNotice("");
+    resetJoin();
+    try {
+      const response = await fetch("/api/campaign-invites/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const payload = await response.json() as JoinPreview & { error?: string };
+      if (!response.ok || !payload.campaign || !Array.isArray(payload.characters)) {
+        throw new Error(redemptionMessage(response.status, payload.error));
+      }
+      setJoinPreview({
+        campaign: payload.campaign,
+        characters: payload.characters,
+      });
+    } catch (joinError) {
+      setError(joinError instanceof Error ? joinError.message : "The campaign invitation could not be verified.");
+    } finally {
+      setJoinBusy(false);
+    }
+  }
+
+  async function joinCampaign(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!joinPreview || !selectedCharacterId) {
+      setError("Choose one of your characters to join this campaign.");
       return;
     }
     setJoinBusy(true);
@@ -106,17 +162,22 @@ export function CampaignDashboard() {
       const response = await fetch("/api/campaign-invites/redeem", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({
+          token: inviteCode.trim(),
+          characterId: selectedCharacterId,
+        }),
       });
       const payload = await response.json() as {
         campaign?: { id: string; name: string };
         membership?: { role: "player" };
+        character?: JoinCharacterOption;
         error?: string;
       };
-      if (!response.ok || !payload.campaign) {
+      if (!response.ok || !payload.campaign || !payload.character) {
         throw new Error(redemptionMessage(response.status, payload.error));
       }
       setInviteCode("");
+      resetJoin();
       router.push(`/campaigns/${payload.campaign.id}`);
     } catch (joinError) {
       setError(joinError instanceof Error ? joinError.message : "The campaign invitation could not be redeemed.");
@@ -192,23 +253,69 @@ export function CampaignDashboard() {
 
         <aside className="campaign-panel campaign-join" aria-labelledby="join-campaign-title">
           <p className="campaign-kicker">ANSWER THE CALL</p>
-          <h2 id="join-campaign-title">Join a campaign</h2>
-          <p>Enter the private, single-use invite code supplied by the campaign’s Game Master.</p>
-          <form onSubmit={joinCampaign}>
-            <label htmlFor="campaign-invite-code">Campaign invite code</label>
-            <input
-              id="campaign-invite-code"
-              value={inviteCode}
-              onChange={event => setInviteCode(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="cminv_…"
-            />
-            <button type="submit" className="campaign-secondary" disabled={joinBusy}>
-              {joinBusy ? "Joining…" : "Join Campaign"}
-            </button>
-          </form>
-          <small>Invite codes expire after seven days and can be used only once.</small>
+          {!joinPreview ? (
+            <>
+              <h2 id="join-campaign-title">Join a campaign</h2>
+              <p>Enter the private, single-use invitation code supplied by the campaign’s Game Master.</p>
+              <form onSubmit={previewInvite}>
+                <label htmlFor="campaign-invite-code">Campaign invite code</label>
+                <input
+                  id="campaign-invite-code"
+                  value={inviteCode}
+                  onChange={event => {
+                    setInviteCode(event.target.value);
+                    resetJoin();
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="cminv_…"
+                />
+                <button type="submit" className="campaign-secondary" disabled={joinBusy}>
+                  {joinBusy ? "Checking…" : "Continue"}
+                </button>
+              </form>
+              <small>Invite codes begin with cminv_, expire after seven days, and can be used only once. A cmp_ Campaign ID is not an invite code.</small>
+            </>
+          ) : (
+            <>
+              <h2 id="join-campaign-title">Choose Your Character</h2>
+              <p>Select the one character who will join <strong>{joinPreview.campaign.name}</strong>. Your other characters remain unrelated to this campaign.</p>
+              {joinPreview.characters.length === 0 ? (
+                <div className="campaign-link-empty" role="status">
+                  <strong>You need an owned character to join.</strong>
+                  <p>Create or claim a character from My Characters, then return with this invitation.</p>
+                </div>
+              ) : (
+                <form onSubmit={joinCampaign}>
+                  <fieldset className="campaign-join-character-list">
+                    <legend>Choose one character</legend>
+                    {joinPreview.characters.map(character => (
+                      <label key={character.id} className="campaign-join-character">
+                        <input
+                          type="radio"
+                          name="campaign-character"
+                          value={character.id}
+                          checked={selectedCharacterId === character.id}
+                          onChange={() => setSelectedCharacterId(character.id)}
+                        />
+                        <span><strong>{character.name}</strong><small>{character.classLabel} · Level {character.level}</small></span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <div className="campaign-dialog-actions">
+                    <button type="button" className="campaign-quiet" onClick={resetJoin}>Back</button>
+                    <button type="submit" className="campaign-secondary" disabled={joinBusy || !selectedCharacterId}>
+                      {joinBusy
+                        ? "Joining…"
+                        : selectedCharacterId
+                          ? `Join ${joinPreview.campaign.name} as ${joinPreview.characters.find(character => character.id === selectedCharacterId)?.name || "Character"}`
+                          : "Choose a Character"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
+          )}
         </aside>
       </div>
 

@@ -13,7 +13,7 @@ ownership and global visibility model.
 - A campaign has one owner and two membership roles: `gm` and `player`.
 - Campaign membership grants read-only access to characters explicitly linked to that
   campaign; it never transfers ownership or broadens a character's global visibility.
-- Links are many-to-many: a character may join more than one campaign.
+- Links remain many-to-many across campaigns, while the private-campaign MVP permits at most one linked character per member in each campaign.
 - Invitations are authenticated, single-use, expiring capability links. Only a hash is
   stored.
 - The first release has private campaigns only. Public or guest view-only campaign
@@ -124,7 +124,9 @@ destructive ownership-level changes in the MVP.
 | `added_at` | Link ordering/audit. |
 
 Primary key: `(campaign_id, character_id)`; add an index on `character_id` for
-showing a character's campaign affiliations.
+showing a character's campaign affiliations. The MVP's one-character-per-member rule is
+enforced by server-side conditional writes that join the linked character back to its
+owner; the same character may still join multiple campaigns.
 
 This is deliberately a many-to-many join table. There is no `campaign_id` column on
 `characters`, no character backfill, and no duplicate owner field. Application
@@ -185,9 +187,10 @@ tokens.
    owner + `gm` membership.
 2. The owner/GM creates a one-use player invite with a short expiry (seven days is a
    sensible initial default). The UI displays/copies the token once.
-3. A recipient signs in and redeems the invite on the dashboard. The service atomically
-   verifies the hash, expiry, revocation state, and unused state; records acceptance; and
-   inserts one membership row.
+3. A recipient signs in and previews the invite without consuming it, selects exactly one
+   owned character, then confirms. The service atomically verifies the hash, expiry,
+   revocation state, unused state, and character ownership; records acceptance; inserts
+   one player membership row; and links only the selected character.
 4. Replays, expiry, revocation, or a pre-existing membership return a safe generic
    outcome and create no extra membership.
 5. A player may leave. A GM may remove a player. The operation removes that user's
@@ -202,6 +205,8 @@ later enhancements, not requirements for the first useful release.
 
 - Only a character's owner can attach or detach it.
 - The owner must be an active member of the target campaign.
+- Each member may link at most one owned character to a particular campaign; an owner/GM
+  may remain a member with no linked character.
 - A character can appear in multiple campaigns.
 - Linking does not modify `owner_user_id`, visibility, public ID, exported data, or
   legacy-claim state.
@@ -258,7 +263,8 @@ implicit campaign or attach an existing character.
 - Owner/GM and player membership roles.
 - Single-use, expiring, hash-only player invitation acceptance.
 - Member roster, leave/removal, and invitation revocation.
-- Owner-controlled many-to-many linking of owned characters.
+- Owner-controlled linking of one owned character per member per campaign, while allowing
+  the same character to participate in multiple campaigns.
 - Private shared campaign character library.
 - Campaign-scoped read-only viewing of other members' linked characters.
 - Server-side authorization tests and local built-Worker coverage.
@@ -316,8 +322,8 @@ a large UI redesign.
 - Role and ownership policy matrix, including admin read-only behavior.
 - Invite expiry, revocation, one-time acceptance, duplicate membership, and concurrent
   acceptance handling.
-- Attach eligibility: owner + active membership only; a character can link to multiple
-  campaigns.
+- Attach eligibility: owner + active membership only; one linked character per member in
+  each campaign; a character can link to multiple campaigns.
 
 ### API and local Worker/runtime
 

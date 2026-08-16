@@ -150,13 +150,18 @@ do not infer their current data state from the older pre-rollout documents.
 
 ## Phase 4C — Campaigns and sharing
 
-**Status: planned; no campaign/shared-party implementation was found.**
+**Status: foundation underway; no user-facing campaign functionality yet.**
 
-- ⬜ Campaigns, invitations, GM/player roles, and campaign-specific permissions.
-- ⬜ Campaign character links and a shared campaign library.
-- ⬜ GM view access that does not silently confer ownership.
-- ⬜ Campaign-aware sharing, maps, notes, handouts, encounters, and related VTT
-  foundations.
+- ✅ Additive campaign schema/domain foundation: private campaign records, GM/player
+  membership, many-to-many character links, hash-only expiring/single-use invite state,
+  opaque campaign IDs, and pure permission helpers. The new migration remains pending
+  production rollout.
+- ⬜ Campaign APIs, private campaign creation/listing, and membership/invite flows.
+- ⬜ Campaign dashboard, character-linking UX, and shared member character library.
+- ⬜ Campaign-scoped read-only character routes; global character visibility and direct
+  character-route authorization remain unchanged.
+- ⬜ Later sharing/VTT work: guest links, maps, notes, handouts, encounters, and realtime
+  features.
 
 ---
 

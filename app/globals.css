@@ -1910,7 +1910,7 @@ main,
 .character-sharing-footer{
   margin:26px 28px 0;
   display:grid;
-  grid-template-columns:minmax(190px,1fr) auto auto minmax(220px,1.4fr);
+  grid-template-columns:minmax(180px,1fr) auto auto;
   align-items:center;
   gap:10px 14px;
 }
@@ -1930,7 +1930,7 @@ main,
 .character-sharing label>span{text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .character-sharing select{min-width:210px;padding:7px}
 .character-sharing small{color:var(--muted)}
-.character-sharing-footer .character-sharing-status{min-width:0}
+.character-sharing-footer .character-sharing-status{grid-column:1/-1;min-width:0}
 .read-only-folio input:disabled,
 .read-only-folio select:disabled,
 .read-only-folio textarea:disabled,

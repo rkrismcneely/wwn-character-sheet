@@ -51,7 +51,7 @@ test("signed-in header and canonical brand unify Account, characters, campaigns,
   assert.match(campaigns, /<SignedInHeader active="campaigns"/u);
   assert.match(detail, /<SignedInHeader active="campaigns"/u);
   assert.match(sheet, /<TalesBrandLink href=\{signedIn \? "\/account" : "\/"\}/u);
-  assert.match(sheet, /className="account-state" href="\/account">Account<\/a>/u);
+  assert.match(sheet, /className="quiet account-state" href="\/account">Account<\/a>/u);
   assert.match(sheet, /\{!signedIn && <button className="library-button"/u);
 });
 

@@ -2569,7 +2569,7 @@ export default function Home({
               }
             }}
           >Sign in with Google</button>}
-          {signedIn && <a className="account-state" href="/account">Account</a>}
+          {signedIn && <a className="quiet account-state" href="/account">Account</a>}
           {signedIn && canEdit && (cloudId
             ? <button onClick={() => void saveToCloud()}>Save Now</button>
             : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}

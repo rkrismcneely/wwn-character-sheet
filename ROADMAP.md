@@ -156,7 +156,10 @@ do not infer their current data state from the older pre-rollout documents.
   membership, many-to-many character links, hash-only expiring/single-use invite state,
   opaque campaign IDs, and pure permission helpers. The new migration remains pending
   production rollout.
-- ⬜ Campaign APIs, private campaign creation/listing, and membership/invite flows.
+- ✅ Private campaign create/list/read/settings/delete API foundation, privacy-safe member
+  roster reads, and server-side member removal/leave services. The campaign APIs remain
+  undeployed until the approved production migration and user-facing slice are ready.
+- ⬜ Invite generation/redemption and the user-facing membership flows.
 - ⬜ Campaign dashboard, character-linking UX, and shared member character library.
 - ⬜ Campaign-scoped read-only character routes; global character visibility and direct
   character-route authorization remain unchanged.

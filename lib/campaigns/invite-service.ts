@@ -8,6 +8,7 @@ import {
   isPlausibleCampaignInviteToken,
   isPlausiblePublicCampaignId,
 } from "./identifiers.ts";
+import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
 import { evaluateCampaignInvite } from "./invites.ts";
 import {
   CampaignServiceError,
@@ -36,6 +37,21 @@ interface CampaignInviteRow {
   revokedAt: string | null;
 }
 
+interface InviteCharacterRow {
+  id: string;
+  publicId: string;
+  name: string;
+  classLabel: string;
+  level: number;
+}
+
+export interface InviteCharacterOption {
+  id: string;
+  name: string;
+  classLabel: string;
+  level: number;
+}
+
 export interface CreatedCampaignInvite {
   token: string;
   expiresAt: string;
@@ -43,6 +59,14 @@ export interface CreatedCampaignInvite {
     id: string;
     name: string;
   };
+}
+
+export interface CampaignInvitePreview {
+  campaign: {
+    id: string;
+    name: string;
+  };
+  characters: InviteCharacterOption[];
 }
 
 export interface RedeemedCampaignInvite {
@@ -54,6 +78,7 @@ export interface RedeemedCampaignInvite {
     role: "player";
     joinedAt: string;
   };
+  character: InviteCharacterOption;
 }
 
 function requireActor(actor: CampaignActor | null): CampaignActor {
@@ -74,6 +99,13 @@ export function normalizeCampaignInviteToken(value: unknown): string {
     throw new CampaignServiceError("Invalid campaign invitation token.", 400);
   }
   return token;
+}
+
+function normalizeInviteCharacterId(value: unknown): string {
+  if (typeof value !== "string" || !isPlausiblePublicCharacterId(value.trim())) {
+    throw new CampaignServiceError("Choose a valid character.", 422);
+  }
+  return value.trim();
 }
 
 async function findCampaign(
@@ -103,8 +135,6 @@ async function loadInviteManagerCampaign(
   if (!campaign) throw inviteNotFound();
   const membership = await getCampaignMembership(db, campaign.id, actor.userId);
 
-  // Site-admin status is never a campaign mutation override, including when
-  // an administrator can otherwise inspect this private campaign.
   if (actor.role === "admin") {
     throw new CampaignServiceError("Not permitted.", 403);
   }
@@ -134,6 +164,94 @@ async function findInviteByHash(
     )
     .bind(tokenHash)
     .first<CampaignInviteRow>();
+}
+
+async function loadRedeemableInvite(
+  db: D1Database,
+  actor: CampaignActor | null,
+  rawToken: unknown,
+  now: Date,
+): Promise<{
+  actor: CampaignActor;
+  invite: CampaignInviteRow;
+  tokenHash: string;
+}> {
+  const authenticatedActor = requireActor(actor);
+  const token = normalizeCampaignInviteToken(rawToken);
+  const tokenHash = await hashCampaignInviteToken(token);
+  const invite = await findInviteByHash(db, tokenHash);
+  if (!invite) throw inviteNotFound();
+
+  const decision = evaluateCampaignInvite(invite, now);
+  if (!decision.allowed) {
+    if (decision.reason === "redeemed") {
+      throw new CampaignServiceError(
+        "This campaign invitation has already been used.",
+        409,
+      );
+    }
+    throw inviteNotFound();
+  }
+  const existingMembership = await getCampaignMembership(
+    db,
+    invite.campaignId,
+    authenticatedActor.userId,
+  );
+  if (existingMembership) {
+    throw new CampaignServiceError(
+      "You are already a member of this campaign.",
+      409,
+    );
+  }
+  return { actor: authenticatedActor, invite, tokenHash };
+}
+
+async function listInviteCharacterOptions(
+  db: D1Database,
+  actor: CampaignActor,
+): Promise<InviteCharacterOption[]> {
+  const result = await db
+    .prepare(
+      `SELECT id, public_id AS publicId, name,
+              class_label AS classLabel, level
+       FROM characters
+       WHERE owner_user_id = ? AND public_id IS NOT NULL
+       ORDER BY updated_at DESC, lower(name)`,
+    )
+    .bind(actor.userId)
+    .all<InviteCharacterRow>();
+  return result.results
+    .filter(character => isPlausiblePublicCharacterId(character.publicId))
+    .map(character => ({
+      id: character.publicId,
+      name: character.name,
+      classLabel: character.classLabel,
+      level: Number(character.level) || 1,
+    }));
+}
+
+async function findOwnedInviteCharacter(
+  db: D1Database,
+  actor: CampaignActor,
+  rawCharacterId: unknown,
+): Promise<InviteCharacterRow> {
+  const characterPublicId = normalizeInviteCharacterId(rawCharacterId);
+  const character = await db
+    .prepare(
+      `SELECT id, public_id AS publicId, name,
+              class_label AS classLabel, level
+       FROM characters
+       WHERE public_id = ? AND owner_user_id = ?`,
+    )
+    .bind(characterPublicId, actor.userId)
+    .first<InviteCharacterRow>();
+  if (!character) {
+    throw new CampaignServiceError(
+      "You may join only with a character you own.",
+      403,
+    );
+  }
+  return character;
 }
 
 export async function createCampaignInvite(
@@ -188,84 +306,108 @@ export async function createCampaignInvite(
   throw new Error("Could not allocate a campaign invitation token.");
 }
 
-export async function redeemCampaignInvite(
+export async function previewCampaignInvite(
   db: D1Database,
   actor: CampaignActor | null,
   rawToken: unknown,
   now = new Date(),
-): Promise<RedeemedCampaignInvite> {
-  const authenticatedActor = requireActor(actor);
-  const token = normalizeCampaignInviteToken(rawToken);
-  const tokenHash = await hashCampaignInviteToken(token);
-  const invite = await findInviteByHash(db, tokenHash);
-  if (!invite) throw inviteNotFound();
-
-  const decision = evaluateCampaignInvite(invite, now);
-  if (!decision.allowed) {
-    if (decision.reason === "redeemed") {
-      throw new CampaignServiceError(
-        "This campaign invitation has already been used.",
-        409,
-      );
-    }
-    throw inviteNotFound();
-  }
-  const existingMembership = await getCampaignMembership(
+): Promise<CampaignInvitePreview> {
+  const { actor: authenticatedActor, invite } = await loadRedeemableInvite(
     db,
-    invite.campaignId,
-    authenticatedActor.userId,
+    actor,
+    rawToken,
+    now,
   );
-  if (existingMembership) {
-    throw new CampaignServiceError(
-      "You are already a member of this campaign.",
-      409,
-    );
-  }
+  return {
+    campaign: {
+      id: invite.campaignPublicId,
+      name: invite.campaignName,
+    },
+    characters: await listInviteCharacterOptions(db, authenticatedActor),
+  };
+}
 
+export async function redeemCampaignInvite(
+  db: D1Database,
+  actor: CampaignActor | null,
+  rawToken: unknown,
+  rawCharacterId: unknown,
+  now = new Date(),
+): Promise<RedeemedCampaignInvite> {
+  const {
+    actor: authenticatedActor,
+    invite,
+    tokenHash,
+  } = await loadRedeemableInvite(db, actor, rawToken, now);
+  const character = await findOwnedInviteCharacter(
+    db,
+    authenticatedActor,
+    rawCharacterId,
+  );
   const nowText = now.toISOString();
-  const results = await db.batch([
-    db
-      .prepare(
-        `UPDATE campaign_invites
-         SET accepted_at = ?, accepted_by_user_id = ?
-         WHERE id = ? AND token_hash = ? AND role = 'player'
-           AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?
-           AND NOT EXISTS (
-             SELECT 1 FROM campaign_members
-             WHERE campaign_id = campaign_invites.campaign_id AND user_id = ?
-           )`,
-      )
-      .bind(
-        nowText,
-        authenticatedActor.userId,
-        invite.id,
-        tokenHash,
-        nowText,
-        authenticatedActor.userId,
-      ),
-    db
-      .prepare(
-        `INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
-         SELECT campaign_id, ?, 'player', ?
-         FROM campaign_invites
-         WHERE id = ? AND token_hash = ? AND role = 'player'
-           AND accepted_at = ? AND accepted_by_user_id = ?
-         ON CONFLICT (campaign_id, user_id) DO NOTHING`,
-      )
-      .bind(
-        authenticatedActor.userId,
-        nowText,
-        invite.id,
-        tokenHash,
-        nowText,
-        authenticatedActor.userId,
-      ),
-  ]);
 
-  if (
-    results[0]?.meta.changes !== 1
-    || results[1]?.meta.changes !== 1
-  ) {
+  let results: D1Result<unknown>[];
+  try {
+    results = await db.batch([
+      db
+        .prepare(
+          `UPDATE campaign_invites
+           SET accepted_at = ?, accepted_by_user_id = ?
+           WHERE id = ? AND token_hash = ? AND role = 'player'
+             AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?
+             AND NOT EXISTS (
+               SELECT 1 FROM campaign_members
+               WHERE campaign_id = campaign_invites.campaign_id AND user_id = ?
+             )`,
+        )
+        .bind(
+          nowText,
+          authenticatedActor.userId,
+          invite.id,
+          tokenHash,
+          nowText,
+          authenticatedActor.userId,
+        ),
+      db
+        .prepare(
+          `INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+           VALUES (
+             (SELECT campaign_id FROM campaign_invites
+              WHERE id = ? AND token_hash = ? AND role = 'player'
+                AND accepted_at = ? AND accepted_by_user_id = ?),
+             ?, 'player', ?
+           )`,
+        )
+        .bind(
+          invite.id,
+          tokenHash,
+          nowText,
+          authenticatedActor.userId,
+          authenticatedActor.userId,
+          nowText,
+        ),
+      db
+        .prepare(
+          `INSERT INTO campaign_characters (campaign_id, character_id, added_at)
+           VALUES (
+             (SELECT campaign_id FROM campaign_invites
+              WHERE id = ? AND token_hash = ? AND role = 'player'
+                AND accepted_at = ? AND accepted_by_user_id = ?),
+             (SELECT id FROM characters WHERE id = ? AND owner_user_id = ?),
+             ?
+           )`,
+        )
+        .bind(
+          invite.id,
+          tokenHash,
+          nowText,
+          authenticatedActor.userId,
+          character.id,
+          authenticatedActor.userId,
+          nowText,
+        ),
+    ]);
+  } catch {
     const membership = await getCampaignMembership(
       db,
       invite.campaignId,
@@ -277,8 +419,19 @@ export async function redeemCampaignInvite(
         409,
       );
     }
+    const latestInvite = await findInviteByHash(db, tokenHash);
+    if (latestInvite?.acceptedAt) {
+      throw new CampaignServiceError(
+        "This campaign invitation has already been used.",
+        409,
+      );
+    }
+    throw inviteNotFound();
+  }
+
+  if (results.some(result => result.meta.changes !== 1)) {
     throw new CampaignServiceError(
-      "This campaign invitation has already been used.",
+      "This campaign invitation could not be completed.",
       409,
     );
   }
@@ -289,6 +442,12 @@ export async function redeemCampaignInvite(
       name: invite.campaignName,
     },
     membership: { role: "player", joinedAt: nowText },
+    character: {
+      id: character.publicId,
+      name: character.name,
+      classLabel: character.classLabel,
+      level: Number(character.level) || 1,
+    },
   };
 }
 
@@ -335,3 +494,4 @@ export async function revokeCampaignInvite(
   }
   throw inviteNotFound();
 }
+

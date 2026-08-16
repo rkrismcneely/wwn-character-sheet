@@ -248,6 +248,7 @@ test("campaign character library is visible only to participants and read-only a
     const library = await listCampaignCharacters(db, actor, campaign.id);
     assert.equal(library.length, 1);
     assert.equal(library[0].ownerName, "Warden Rowan");
+    assert.equal(library[0].classLabel, "Expert");
     assert.equal(library[0].portraitUrl, `/api/campaigns/${campaign.id}/characters/${ids.player}/portrait`);
     assert.equal(library[0].hpCurrent, 2);
     assert.equal(library[0].hpMax, 7);

@@ -3648,7 +3648,7 @@ export default function Home({
           </div>;
         })()}
 
-                {cloudId && canEdit && <section className="character-sharing character-sharing-footer" data-readonly-interactive="true" aria-labelledby="character-sharing-title">
+        {cloudId && canEdit && <section className="character-sharing character-sharing-footer" data-readonly-interactive="true" aria-labelledby="character-sharing-title">
           <div className="character-sharing-heading">
             <strong id="character-sharing-title">Privacy & Sharing</strong>
             <small>Choose who can view this character.</small>

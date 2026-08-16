@@ -9,6 +9,7 @@ CREATE TABLE `campaigns` (
 	`version` integer DEFAULT 1 NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
+	CHECK (length(`public_id`) = 26 AND substr(`public_id`, 1, 4) = 'cmp_'),
 	FOREIGN KEY (`owner_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE restrict
 );
 --> statement-breakpoint
@@ -54,6 +55,7 @@ CREATE TABLE `campaign_invites` (
 	`accepted_at` text,
 	`accepted_by_user_id` text,
 	`revoked_at` text,
+	CHECK (length(`token_hash`) = 64 AND `token_hash` NOT GLOB '*[^0-9a-f]*'),
 	FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`created_by_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`accepted_by_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null

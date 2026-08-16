@@ -339,7 +339,9 @@ a large UI redesign.
 - Public/unlisted behavior, imports, claims, portrait authorization, and existing
   owner/admin mutation rules remain unchanged.
 - Site admin receives read-only campaign/character access and no campaign write
-  override.
+  override. When the same account is an actual campaign owner or GM, those explicit
+  campaign-scoped permissions still apply; site-admin status alone grants no mutation
+  permission.
 - API payloads never expose emails, internal account IDs, sessions, OAuth values, raw
   invitation tokens, or SQL parameters.
 

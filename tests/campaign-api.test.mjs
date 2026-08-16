@@ -216,6 +216,18 @@ test("owner, member, and site admin can read while outsiders cannot enumerate", 
   await expectServiceError(readCampaign(db, null, campaign.id), 401);
 });
 
+test("campaign ownership remains authoritative when the owner also has the site-admin role", async () => {
+  const { db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Owner Admin" }, now);
+  const ownerAsAdmin = { ...owner, role: "admin" };
+  const ownerView = await readCampaign(db, ownerAsAdmin, campaign.id);
+
+  assert.equal(ownerView.isOwner, true);
+  assert.equal(ownerView.membershipRole, "gm");
+  assert.equal(ownerView.permissions.canInviteMembers, true);
+  assert.equal(ownerView.permissions.adminReadOnly, false);
+});
+
 test("campaign and roster payloads omit emails, internal user IDs, and invite data", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Private" }, now);

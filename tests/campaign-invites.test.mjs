@@ -223,7 +223,18 @@ test("campaign GM can create a player invitation", async () => {
   assert.equal(stored.createdByUserId, gm.userId);
 });
 
-test("players, site admins, outsiders, and signed-out callers cannot create invites", async () => {
+test("a campaign owner can create and revoke invites when the same account is also a site admin", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const ownerAsAdmin = { ...owner, role: "admin" };
+  const invite = await createCampaignInvite(db, ownerAsAdmin, campaign.id, now);
+  const tokenHash = await hashCampaignInviteToken(invite.token);
+  assert.equal(storedInvite(sqlite, tokenHash).createdByUserId, owner.userId);
+
+  await revokeCampaignInvite(db, ownerAsAdmin, campaign.id, invite.token, now);
+  assert.equal(storedInvite(sqlite, tokenHash).revokedAt, now.toISOString());
+});
+
+test("players, unrelated site admins, outsiders, and signed-out callers cannot create invites", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   await addMember(sqlite, campaign.id, player);
   await expectServiceError(createCampaignInvite(db, player, campaign.id, now), 403);

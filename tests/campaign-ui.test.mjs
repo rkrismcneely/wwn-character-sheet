@@ -199,5 +199,5 @@ test("campaign character cards show the authorized party-at-a-glance summary", a
   assert.doesNotMatch(characters, /systemStrain|System Strain/u);
   assert.match(css, /\.campaign-character-portrait/u);
   assert.match(css, /\.campaign-character-vitals/u);
-  assert.match(css, /@media\(max-width:640px\)[\\s\\S]*\.campaign-character-card/u);
+  assert.ok(css.includes(".campaign-character-card{grid-template-columns:58px"), "mobile campaign card layout");
 });

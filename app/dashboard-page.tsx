@@ -178,6 +178,7 @@ export function DashboardPage() {
           <span>Tales Without End</span>
         </Link>
         <nav className="dashboard-nav" aria-label="Account navigation">
+          <Link href="/campaigns">My Campaigns</Link>
           <Link href="/public-characters">Browse Public Characters</Link>
           <button type="button" onClick={() => void signOut()} disabled={signOutBusy}>
             {signOutBusy ? "Signing out…" : "Sign Out"}

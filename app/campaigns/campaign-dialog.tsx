@@ -36,13 +36,14 @@ export function CampaignDialog({
       ? document.activeElement
       : null;
     if (!dialogElement) return;
+    const dialogNode = dialogElement;
 
     const focusableElements = () => Array.from(
-      dialogElement.querySelectorAll<HTMLElement>(focusableSelector),
+      dialogNode.querySelectorAll<HTMLElement>(focusableSelector),
     ).filter(element => element.getAttribute("aria-hidden") !== "true");
 
-    if (!dialogElement.contains(document.activeElement)) {
-      const preferredFocus = dialogElement.querySelector<HTMLElement>("[autofocus]")
+    if (!dialogNode.contains(document.activeElement)) {
+      const preferredFocus = dialogNode.querySelector<HTMLElement>("[autofocus]")
         ?? focusableElements()[0]
         ?? closeButton.current;
       preferredFocus?.focus();
@@ -66,7 +67,7 @@ export function CampaignDialog({
       }
 
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || !dialogElement.contains(active))) {
+      if (event.shiftKey && (active === first || !dialogNode.contains(active))) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {

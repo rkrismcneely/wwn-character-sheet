@@ -153,13 +153,11 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   async function copyInvite() {
     if (!invite) return;
     try {
-      const inviteUrl = new URL("/campaigns/join", window.location.origin);
-      inviteUrl.hash = invite.token;
-      await navigator.clipboard.writeText(inviteUrl.toString());
+      await navigator.clipboard.writeText(invite.token);
       setInviteCopied(true);
     } catch {
       setInviteCopied(false);
-      setNotice("Select the invite code and copy it manually.");
+      setNotice("Select the cminv_ invitation code and copy it manually.");
     }
   }
 
@@ -258,7 +256,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         throw new Error(payload.error || "The character could not be added to the campaign.");
       }
       setCharacters(current => [...current, payload.character!].sort((left, right) => left.name.localeCompare(right.name)));
-      setEligibleCharacters(current => current.filter(candidate => candidate.id !== character.id));
+      setEligibleCharacters([]);
       setNotice(`${payload.character.name} was added to the campaign library. Ownership and visibility were not changed.`);
       setAddCharacterOpen(false);
     } catch (linkError) {
@@ -329,7 +327,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                 </div>
                 <div className="campaign-character-heading-actions">
                   <span className="campaign-count" aria-label={`${characters.length} linked characters`}>{characters.length}</span>
-                  {campaign.permissions.canLinkCharacters && (
+                  {campaign.permissions.canLinkCharacters && !characters.some(character => character.isMine) && (
                     <button type="button" className="campaign-primary" onClick={() => setAddCharacterOpen(true)}>Add Character</button>
                   )}
                 </div>
@@ -339,7 +337,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                   <span aria-hidden="true">✦</span>
                   <h3>No characters linked yet</h3>
                   <p>Members can add characters they own without changing ownership or global visibility.</p>
-                  {campaign.permissions.canLinkCharacters && (
+                  {campaign.permissions.canLinkCharacters && !characters.some(character => character.isMine) && (
                     <button type="button" className="campaign-secondary" onClick={() => setAddCharacterOpen(true)}>Add Your Character</button>
                   )}
                 </div>
@@ -401,7 +399,6 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               <h2 id="campaign-management-title">Your access</h2>
               <dl>
                 <div><dt>Role</dt><dd>{campaignRoleLabel(campaign)}</dd></div>
-                <div><dt>Campaign ID</dt><dd>{campaign.id}</dd></div>
               </dl>
               {!campaign.permissions.adminReadOnly && (
                 <div className="campaign-management-actions">
@@ -435,13 +432,13 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       {addCharacterOpen && campaign && (
         <CampaignDialog
           title="Add Character"
-          description="Choose one of your characters. Linking does not transfer ownership or change global visibility."
+          description="Choose your one character for this campaign. Ownership and global visibility will not change."
           onClose={() => setAddCharacterOpen(false)}
         >
           {eligibleCharacters.length === 0 ? (
             <div className="campaign-link-empty" role="status">
-              <strong>All of your characters are already linked.</strong>
-              <p>Create another character from My Characters, or remove one from this campaign before linking it again.</p>
+              <strong>Your campaign character is already linked.</strong>
+              <p>Each member may have one character in a campaign. Remove your current character before choosing a different one.</p>
             </div>
           ) : (
             <div className="campaign-link-list" aria-label="Characters eligible to add">
@@ -463,8 +460,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
       {invite && (
         <CampaignDialog
-          title="Campaign Invite"
-          description="Share this link or code with the player you want to invite. It is displayed only now."
+          title="Campaign Invitation"
+          description="Share this private cminv_ invitation code with the player you want to invite. It is displayed only now."
           onClose={closeInvite}
         >
           <div className="campaign-invite-code">
@@ -474,9 +471,9 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           <p className="campaign-invite-expiry">Expires <time dateTime={invite.expiresAt}>{formatCampaignDate(invite.expiresAt)}</time>. The code can be redeemed once.</p>
           <div className="campaign-dialog-actions">
             <button type="button" className="campaign-danger" onClick={() => void revokeInvite()} disabled={actionBusy}>Revoke Invite</button>
-            <button type="button" className="campaign-primary" onClick={() => void copyInvite()}>{inviteCopied ? "Copied" : "Copy Invite Link"}</button>
+            <button type="button" className="campaign-primary" onClick={() => void copyInvite()}>{inviteCopied ? "Copied" : "Copy Invite Code"}</button>
           </div>
-          <p className="campaign-invite-note" role="status">{inviteCopied ? "Invite link copied to your clipboard." : "The plaintext code cannot be retrieved after this window closes."}</p>
+          <p className="campaign-invite-note" role="status">{inviteCopied ? "Invitation code copied to your clipboard." : "The plaintext code cannot be retrieved after this window closes. Campaign IDs beginning cmp_ are not invite codes."}</p>
         </CampaignDialog>
       )}
 

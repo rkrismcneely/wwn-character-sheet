@@ -131,7 +131,7 @@ test("campaign dialog focus lifecycle stays stable while a controlled name is ty
   );
   assert.match(dialog, /const onCloseRef = useRef\(onClose\)/u);
   assert.match(dialog, /onCloseRef\.current = onClose/u);
-  assert.match(dialog, /dialogElement\.querySelector<HTMLElement>\("\[autofocus\]"\)/u);
+  assert.match(dialog, /dialogNode\.querySelector<HTMLElement>\("\[autofocus\]"\)/u);
   assert.match(dialog, /if \(event\.key !== "Tab"\) return;/u);
   assert.match(dialog, /previouslyFocused\?\.isConnected/u);
 

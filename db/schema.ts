@@ -115,6 +115,10 @@ export const campaigns = sqliteTable(
       table.ownerUserId,
       table.updatedAt,
     ),
+    check(
+      "campaigns_public_id_check",
+      sql`length(${table.publicId}) = 26 and substr(${table.publicId}, 1, 4) = 'cmp_'`,
+    ),
   ],
 );
 
@@ -189,5 +193,9 @@ export const campaignInvites = sqliteTable(
       table.expiresAt,
     ),
     check("campaign_invites_role_check", sql`${table.role} = 'player'`),
+    check(
+      "campaign_invites_token_hash_check",
+      sql`length(${table.tokenHash}) = 64 and ${table.tokenHash} not glob '*[^0-9a-f]*'`,
+    ),
   ],
 );

@@ -120,7 +120,7 @@ test("campaign character library uses scoped routes and owner-only link controls
   assert.match(detail, /!characters\.some\(character => character\.isMine\)/u);
   assert.match(detail, /Each member may have one character in a campaign/u);
   assert.match(detail, /character\.permissions\.canUnlink/u);
-  assert.match(detail, /Linking does not transfer ownership or change global visibility/u);
+  assert.match(detail, /Ownership and global visibility will not change/u);
   assert.match(detail, /\/campaigns\/\$\{campaign\.id\}\/characters\/\$\{character\.id\}/u);
   assert.match(scopedPage, /readCampaignLinkedCharacter/u);
   assert.match(scopedPage, /campaignContext/u);

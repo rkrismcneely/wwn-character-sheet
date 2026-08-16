@@ -335,11 +335,19 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                 <div className="campaign-character-grid">
                   {characters.map(character => (
                     <article className="campaign-character-card" key={character.id}>
-                      <div className="campaign-character-level"><span>Level</span><strong>{character.level}</strong></div>
+                      <div className="campaign-character-portrait">
+                        {character.portraitUrl
+                          ? <img src={character.portraitUrl} alt={`${character.name} portrait`} />
+                          : <span aria-hidden="true">✦</span>}
+                      </div>
                       <div className="campaign-character-identity">
-                        <p>{character.isMine ? "MY CHARACTER" : `OWNED BY ${character.ownerName.toUpperCase()}`}</p>
+                        <p>PLAYER · {character.ownerName}</p>
                         <h3>{character.name}</h3>
-                        <span>{character.classLabel}</span>
+                        <span>{character.classLabel} · Level {character.level}</span>
+                      </div>
+                      <div className="campaign-character-vitals" aria-label={`${character.name} combat summary`}>
+                        <div><span>HP</span><strong>{character.hpCurrent} / {character.hpMax}</strong></div>
+                        <div><span>AC</span><strong>{character.armorClass}</strong></div>
                       </div>
                       <div className="campaign-character-actions">
                         <Link className="campaign-open" href={`/campaigns/${campaign.id}/characters/${character.id}`}>

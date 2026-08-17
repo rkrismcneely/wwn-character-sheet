@@ -233,6 +233,18 @@ function authenticatedHeaders(worker, sessionToken) {
   };
 }
 
+async function fetchAfterWorkerRestart(input, init) {
+  let response;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(input, init);
+    if (response.status !== 503) return response;
+    const body = await response.clone().text();
+    if (!body.includes("worker restarted mid-request")) return response;
+    await new Promise(resolveWait => setTimeout(resolveWait, 100));
+  }
+  return response;
+}
+
 test("local Worker renders the signed-out UI and rejects protected writes", { timeout: 90_000 }, async () => {
   const worker = await startLocalWorker();
   try {
@@ -529,7 +541,7 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
       assert.equal(response.status, expectedStatus, `admin ${method} other character`);
     }
     for (const method of ["POST", "DELETE"]) {
-      const response = await fetch(
+      const response = await fetchAfterWorkerRestart(
         `${worker.origin}/api/characters/${worker.fixtureIds.public}/portrait`,
         {
           method,

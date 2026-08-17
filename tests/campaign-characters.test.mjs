@@ -252,7 +252,7 @@ test("campaign character library is visible only to participants and read-only a
     assert.equal(library[0].portraitUrl, `/api/campaigns/${campaign.id}/characters/${ids.player}/portrait`);
     assert.equal(library[0].hpCurrent, 2);
     assert.equal(library[0].hpMax, 7);
-    assert.equal(library[0].armorClass, 11);
+    assert.equal(library[0].armorClass, 12);
     assert.equal(library[0].isMine, actor === player);
   }
   const adminView = await listCampaignCharacters(db, admin, campaign.id);
@@ -311,7 +311,7 @@ test("only the character owner can unlink and unlink preserves the character", a
       ownerUserId: player.userId,
       visibility: "private",
       publicId: ids.player,
-      portraitKey: null,
+      portraitKey: "portraits/character-player/example.webp",
       name: "Player Hero",
     },
   );

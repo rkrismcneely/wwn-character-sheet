@@ -164,7 +164,14 @@ async function fixture() {
       JSON.stringify({
         name,
         classOne: "Expert",
+        classMode: "full",
         level,
+        attrs: { DEX: 12, CON: 10 },
+        armor: "War Shirt",
+        shield: "",
+        armorBonus: 0,
+        hpCurrent: level,
+        hpMax: level + 5,
         portrait: key === "player" ? "/api/portraits/portraits/character-player/example.webp" : "",
         secretNote: `${name} secret`,
       }),
@@ -172,6 +179,7 @@ async function fixture() {
       now,
     );
   }
+  sqlite.prepare("UPDATE characters SET portrait_key = ? WHERE id = ?").run("portraits/character-player/example.webp", "character-player");
   return { sqlite, db, campaign, secondCampaign, ids };
 }
 
@@ -240,6 +248,11 @@ test("campaign character library is visible only to participants and read-only a
     const library = await listCampaignCharacters(db, actor, campaign.id);
     assert.equal(library.length, 1);
     assert.equal(library[0].ownerName, "Warden Rowan");
+    assert.equal(library[0].classLabel, "Expert");
+    assert.equal(library[0].portraitUrl, `/api/campaigns/${campaign.id}/characters/${ids.player}/portrait`);
+    assert.equal(library[0].hpCurrent, 2);
+    assert.equal(library[0].hpMax, 7);
+    assert.equal(library[0].armorClass, 12);
     assert.equal(library[0].isMine, actor === player);
   }
   const adminView = await listCampaignCharacters(db, admin, campaign.id);
@@ -298,7 +311,7 @@ test("only the character owner can unlink and unlink preserves the character", a
       ownerUserId: player.userId,
       visibility: "private",
       publicId: ids.player,
-      portraitKey: null,
+      portraitKey: "portraits/character-player/example.webp",
       name: "Player Hero",
     },
   );
@@ -330,4 +343,5 @@ test("campaign character payloads omit account IDs, emails, and unrelated privat
     "Outsider Hero",
     "secretNote",
   ]) assert.equal(payload.includes(forbidden), false, forbidden);
+  assert.equal(payload.includes("systemStrain"), false);
 });

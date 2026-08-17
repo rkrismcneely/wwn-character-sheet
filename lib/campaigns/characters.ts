@@ -16,6 +16,7 @@ import type { CharacterVisibility } from "../characters/authorization.ts";
 import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
 import { parseCharacter } from "../characters/sanitize.ts";
 import { effectiveDisplayName } from "../account/display-name.ts";
+import { campaignCardArmorClass, campaignCardClassLabel, campaignCardHpMax, type CampaignCharacterCardData } from "./character-card.ts";
 
 interface CharacterLinkRow extends CampaignCharacterRecord {
   publicId: string;
@@ -26,6 +27,8 @@ interface CharacterLinkRow extends CampaignCharacterRecord {
   updatedAt: string;
   providerName: string;
   customDisplayName: string | null;
+  portraitKey: string | null;
+  data: string;
 }
 
 interface CampaignLinkedCharacterRow extends CharacterLinkRow {
@@ -43,6 +46,10 @@ export interface CampaignCharacterSummaryPayload {
   visibility: CharacterVisibility;
   updatedAt: string;
   ownerName: string;
+  portraitUrl: string | null;
+  hpCurrent: number;
+  hpMax: number;
+  armorClass: number;
   isMine: boolean;
   permissions: {
     canUnlink: boolean;
@@ -88,16 +95,27 @@ function normalizeCharacterId(value: unknown): string {
 function summaryPayload(
   actor: CampaignActor,
   row: CharacterLinkRow,
+  campaignPublicId: string,
 ): CampaignCharacterSummaryPayload {
   const isMine = row.ownerUserId === actor.userId;
+  let cardData: CampaignCharacterCardData = {};
+  try {
+    cardData = JSON.parse(row.data || "{}") as CampaignCharacterCardData;
+  } catch {
+    cardData = {};
+  }
   return {
     id: row.publicId,
     name: row.name,
-    classLabel: row.classLabel,
+    classLabel: campaignCardClassLabel(cardData, row.classLabel),
     level: Number(row.level) || 1,
     visibility: row.visibility,
     updatedAt: row.updatedAt,
     ownerName: effectiveDisplayName(row.customDisplayName, row.providerName),
+    portraitUrl: row.portraitKey ? `/api/campaigns/${campaignPublicId}/characters/${row.publicId}/portrait` : null,
+    hpCurrent: Math.max(0, Number(cardData.hpCurrent) || 0),
+    hpMax: campaignCardHpMax(cardData),
+    armorClass: campaignCardArmorClass(cardData),
     isMine,
     permissions: {
       canUnlink: actor.role !== "admin" && isMine,
@@ -116,7 +134,7 @@ async function findCharacterForCampaign(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.public_id = ?`,
@@ -141,7 +159,7 @@ export async function listCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_characters cc
        INNER JOIN characters ch ON ch.id = cc.character_id
        INNER JOIN user u ON u.id = ch.owner_user_id
@@ -150,7 +168,7 @@ export async function listCampaignCharacters(
     )
     .bind(campaign.id)
     .all<CharacterLinkRow>();
-  return result.results.map(row => summaryPayload(authenticatedActor, row));
+  return result.results.map(row => summaryPayload(authenticatedActor, row, campaignPublicId));
 }
 
 export async function listEligibleCampaignCharacters(
@@ -183,7 +201,7 @@ export async function listEligibleCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.owner_user_id = ? AND ch.public_id IS NOT NULL
@@ -202,7 +220,7 @@ export async function listEligibleCampaignCharacters(
       membership,
       row,
     ))
-    .map(row => summaryPayload(authenticatedActor, row));
+    .map(row => summaryPayload(authenticatedActor, row, campaignPublicId));
 }
 
 export async function linkCharacterToCampaign(
@@ -270,7 +288,7 @@ export async function linkCharacterToCampaign(
     }
     throw error;
   }
-  return summaryPayload(authenticatedActor, character);
+  return summaryPayload(authenticatedActor, character, campaignPublicId);
 }
 
 export async function unlinkCharacterFromCampaign(

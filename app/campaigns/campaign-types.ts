@@ -18,6 +18,10 @@ export type CampaignCharacter = {
   visibility: "private" | "unlisted" | "public";
   updatedAt: string;
   ownerName: string;
+  portraitUrl: string | null;
+  hpCurrent: number;
+  hpMax: number;
+  armorClass: number;
   isMine: boolean;
   permissions: {
     canUnlink: boolean;

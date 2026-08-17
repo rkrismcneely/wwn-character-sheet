@@ -182,3 +182,22 @@ test("campaign UI is responsive, keyboard dismissible, and avoids horizontal ove
   assert.match(dialog, /aria-modal="true"/u);
   assert.match(dialog, /event\.key === "Escape"/u);
 });
+
+test("campaign character cards show the authorized party-at-a-glance summary", async () => {
+  const detail = await source("app/campaigns/campaign-detail.tsx");
+  const types = await source("app/campaigns/campaign-types.ts");
+  const characters = await source("lib/campaigns/characters.ts");
+  const css = await source("app/campaigns/campaign-ui.css");
+  for (const marker of ["character.portraitUrl", "character.ownerName", "character.hpCurrent", "character.hpMax", "character.armorClass", "Open Character"]) {
+    assert.equal(detail.includes(marker), true, marker);
+  }
+  assert.match(detail, /\/campaigns\/\$\{campaign\.id\}\/characters\/\$\{character\.id\}/u);
+  assert.match(types, /portraitUrl: string \| null/u);
+  assert.match(characters, /\/api\/campaigns\/\$\{campaignPublicId\}\/characters\/\$\{row\.publicId\}\/portrait/u);
+  assert.match(characters, /campaignCardArmorClass|campaignCardHpMax/u);
+  assert.doesNotMatch(detail, /systemStrain|System Strain/u);
+  assert.doesNotMatch(characters, /systemStrain|System Strain/u);
+  assert.match(css, /\.campaign-character-portrait/u);
+  assert.match(css, /\.campaign-character-vitals/u);
+  assert.ok(css.includes(".campaign-character-grid{grid-template-columns:1fr}"), "mobile campaign card layout");
+});

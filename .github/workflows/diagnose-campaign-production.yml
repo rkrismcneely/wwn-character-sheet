@@ -89,3 +89,29 @@ jobs:
             --output /dev/null \
             --write-out 'Production health check: HTTP %{http_code}\n' \
             https://taleswithoutend.com
+
+  validate:
+    name: Focused tests, build, and Worker artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repair commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run focused campaign regression tests
+        run: node --test tests/campaign-api.test.mjs
+
+      - name: Build production artifact
+        run: npm run build
+
+      - name: Validate Worker artifact
+        run: npm run validate:artifact

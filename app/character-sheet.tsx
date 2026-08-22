@@ -2719,8 +2719,8 @@ export default function Home({
       <div ref={editableSurface} className={`folio ${canEdit ? "" : "read-only-folio"}`}>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
-          <strong>{campaignContext?.readOnly ? "Viewing through campaign · Read only" : cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
-          <span>{campaignContext?.readOnly ? "Campaign access allows viewing; only the owner can change this character." : cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
+          <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
+          <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
           {!signedIn && <button type="button" data-readonly-interactive="true" onClick={signInWithGoogle}>Sign in with Google</button>}
         </div>}
         <div className="hero">

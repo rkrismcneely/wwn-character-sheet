@@ -17,6 +17,13 @@ import {
   updateCampaignDescription,
   updateCampaignName,
 } from "../lib/campaigns/service.ts";
+import {
+  createCampaignResource,
+  deleteCampaignResource,
+  listCampaignResources,
+  reorderCampaignResource,
+  updateCampaignResource,
+} from "../lib/campaigns/resources.ts";
 
 const owner = { userId: "user-owner", role: "user" };
 const gm = { userId: "user-gm", role: "user" };
@@ -182,6 +189,30 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
     WHERE c.public_id = ? AND cm.user_id = c.owner_user_id
   `).get(campaign.id);
   assert.deepEqual({ ...stored }, { ownerUserId: owner.userId, role: "gm" });
+});
+
+test("campaign resources are private, ordered, and mutable only by owner or GM", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Resources" }, now);
+  await addMember(sqlite, campaign.id, gm, "gm");
+  await addMember(sqlite, campaign.id, player);
+  const first = await createCampaignResource(db, owner, campaign.id, { title: "Discord", type: "link", content: "https://discord.com/example" }, now);
+  assert.equal(first.length, 1);
+  assert.match(first[0].resourceKey, /^cres_[0-9a-f]{32}$/u);
+  assert.equal(first[0].resourceKey.includes(campaign.id), false);
+  await createCampaignResource(db, gm, campaign.id, { title: "Briefing", type: "text", content: "Meet at dusk." }, now);
+  const playerResources = await listCampaignResources(db, player, campaign.id);
+  assert.deepEqual(playerResources.map(resource => resource.title), ["Discord", "Briefing"]);
+  await expectServiceError(createCampaignResource(db, player, campaign.id, { title: "No", type: "text", content: "No" }), 403);
+  await expectServiceError(createCampaignResource(db, admin, campaign.id, { title: "No", type: "text", content: "No" }), 403);
+  await expectServiceError(listCampaignResources(db, outsider, campaign.id), 404);
+  const moved = await reorderCampaignResource(db, gm, campaign.id, playerResources[1].resourceKey, "up");
+  assert.deepEqual(moved.map(resource => resource.title), ["Briefing", "Discord"]);
+  const edited = await updateCampaignResource(db, owner, campaign.id, moved[0].resourceKey, { title: "Session Notes", type: "text", content: "Updated." });
+  assert.equal(edited[0].title, "Session Notes");
+  const deleted = await deleteCampaignResource(db, owner, campaign.id, moved[1].resourceKey);
+  assert.deepEqual(deleted.map(resource => resource.title), ["Session Notes"]);
+  await assert.rejects(() => createCampaignResource(db, owner, campaign.id, { title: "Unsafe", type: "link", content: "javascript:alert(1)" }), CampaignServiceError);
 });
 
 test("unauthenticated users cannot create campaigns", async () => {

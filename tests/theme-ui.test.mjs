@@ -12,7 +12,13 @@ test("the display theme is a root-level persistent preference", async () => {
   assert.match(layout, /dangerouslySetInnerHTML/u);
   assert.match(layout, /localStorage\.getItem\("wwn-display-theme"\)/u);
   assert.match(provider, /DISPLAY_THEME_STORAGE_KEY = "wwn-display-theme"/u);
-  assert.match(provider, /localStorage\.setItem\(DISPLAY_THEME_STORAGE_KEY, nextTheme\)/u);
+  assert.match(provider, /useSyncExternalStore/u);
+  assert.match(provider, /window\.localStorage\.getItem\(DISPLAY_THEME_STORAGE_KEY\)/u);
+  assert.match(provider, /window\.localStorage\.setItem\(DISPLAY_THEME_STORAGE_KEY, theme\)/u);
+  assert.match(provider, /value=\{theme\}/u);
+  assert.match(provider, /<option value="light">Light mode<\/option>/u);
+  assert.match(provider, /<option value="dark">Dark mode<\/option>/u);
+  assert.doesNotMatch(provider, /useState<DisplayTheme>|setThemeState/u);
   assert.match(provider, /document\.documentElement\.dataset\.theme = theme/u);
   assert.match(provider, /document\.documentElement\.style\.colorScheme = theme/u);
 });
@@ -61,4 +67,16 @@ test("sitewide dark styling covers signed-in, public, and campaign surfaces with
     assert.ok(sheet.includes(control), `character header must retain ${control}`);
   }
   assert.doesNotMatch(header, /removeItem\("wwn-display-theme"\)|clear\(\)/u);
+});
+
+
+test("the Account theme field restores the same persisted source used by the site", async () => {
+  const provider = await source("app/theme-provider.tsx");
+
+  assert.match(provider, /readStoredTheme\(\): DisplayTheme/u);
+  assert.match(provider, /window\.localStorage\.getItem\(DISPLAY_THEME_STORAGE_KEY\) === "dark"/u);
+  assert.match(provider, /subscribeToTheme/u);
+  assert.match(provider, /event\.key === DISPLAY_THEME_STORAGE_KEY/u);
+  assert.match(provider, /notifyThemeListeners\(\)/u);
+  assert.match(provider, /onChange=\{event => setTheme\(event\.target\.value as DisplayTheme\)\}/u);
 });

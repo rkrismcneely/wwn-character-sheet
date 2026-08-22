@@ -90,7 +90,7 @@ test("campaign overview and resources stay member-readable with owner/GM control
   assert.match(detail, /Move down/u);
   assert.match(detail, /target="_blank" rel="noreferrer"/u);
   assert.match(css, /white-space: pre-wrap/u);
-  assert.match(css, /\.campaign-overview-panel\{grid-column:1\/-1\}/u);
+  assert.match(css, /\.campaign-overview-panel\s*\{[\s\S]*?grid-column:1\/-1/u);
   assert.ok(
     detail.indexOf('<div className="campaign-detail-layout">')
       < detail.indexOf('<section className="campaign-panel campaign-overview-panel"'),

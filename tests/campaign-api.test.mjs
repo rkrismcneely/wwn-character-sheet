@@ -148,10 +148,10 @@ test("campaign names are bounded, trimmed application text", () => {
 });
 
 test("campaign descriptions stay bounded plain text and owner/GM mutation is protected", async () => {
-  assert.equal(normalizeCampaignDescription("  First line\\nSecond line  "), "First line\\nSecond line");
+  assert.equal(normalizeCampaignDescription("  First line\nSecond line  "), "First line\nSecond line");
   assert.equal(normalizeCampaignDescription(""), null);
   assert.throws(() => normalizeCampaignDescription("x".repeat(4001)), CampaignServiceError);
-  assert.throws(() => normalizeCampaignDescription("bad\\u0000text"), CampaignServiceError);
+  assert.throws(() => normalizeCampaignDescription("bad\u0000text"), CampaignServiceError);
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Briefing" }, now);
   await addMember(sqlite, campaign.id, gm, "gm");

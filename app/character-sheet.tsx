@@ -2540,6 +2540,7 @@ export default function Home({
               </select>
             </label>
           </div>
+          <div className="header-actions">
           {!signedIn && <button className="library-button" onClick={() => {
             setLibraryScope("public");
             setLibraryOpen(true);
@@ -2605,6 +2606,7 @@ export default function Home({
             }}
           >Sign Out</button>}
           <button className="print-button" onClick={() => window.print()}>Print / PDF</button>
+          </div>
         </div>
       </div>
 

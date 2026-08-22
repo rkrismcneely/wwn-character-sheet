@@ -68,8 +68,52 @@ try {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
 
-const table = query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_resources'");
-if (!table.some((row) => row.name === "campaign_resources")) {
-  throw new Error("Campaign resources migration did not create its table.");
+function verifyResourcesSchema() {
+  const table = query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_resources'");
+  if (!table.some((row) => row.name === "campaign_resources")) {
+    throw new Error("Campaign resources migration did not create its table.");
+  }
+  const columns = new Set(query("PRAGMA table_info(campaign_resources)").map((row) => row.name));
+  for (const column of ["id", "campaign_id", "title", "type", "content", "position", "created_at", "updated_at"]) {
+    if (!columns.has(column)) {
+      throw new Error(`Production campaign_resources is missing expected column ${column}.`);
+    }
+  }
+  const indexes = query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'campaign_resources'");
+  if (!indexes.some((row) => row.name === "campaign_resources_campaign_position_idx")) {
+    throw new Error("Production campaign_resources is missing its ordering index.");
+  }
 }
+
+const resourceTable = query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_resources'");
+if (resourceTable.length === 0) {
+  console.log("campaign_resources is absent; applying only the reviewed 0008 migration.");
+  const temporaryRoot = mkdtempSync(join(process.cwd(), ".phase4c-resources-"));
+  try {
+    const migrationDir = join(temporaryRoot, "migrations");
+    const temporaryConfig = join(temporaryRoot, "wrangler.jsonc");
+    const source = join(process.cwd(), "drizzle", migrationName);
+    const target = join(migrationDir, migrationName);
+    mkdirSync(migrationDir, { recursive: true });
+    writeFileSync(join(temporaryRoot, "placeholder"), "");
+    // Wrangler resolves the configured directory relative to this temporary config.
+    copyFileSync(source, target);
+    writeFileSync(temporaryConfig, JSON.stringify({
+      name: "wwn-character-sheet",
+      d1_databases: [{
+        binding: "DB",
+        database_name: DATABASE_NAME,
+        database_id: DATABASE_ID,
+        migrations_dir: "./migrations",
+      }],
+    }, null, 2));
+    run(["d1", "migrations", "apply", DATABASE_NAME, "--remote", "--config", temporaryConfig]);
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+} else {
+  console.log("campaign_resources already exists; no migration was rerun.");
+}
+
+verifyResourcesSchema();
 console.log("Campaign resources migration verified.");

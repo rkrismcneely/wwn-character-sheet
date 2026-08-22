@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -20,12 +19,6 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readStoredTheme(): DisplayTheme {
-  return localStorage.getItem(DISPLAY_THEME_STORAGE_KEY) === "dark"
-    ? "dark"
-    : "light";
-}
-
 function applyTheme(theme: DisplayTheme) {
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
@@ -36,13 +29,11 @@ export function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [theme, setThemeState] = useState<DisplayTheme>("light");
-
-  useEffect(() => {
-    const restoredTheme = readStoredTheme();
-    applyTheme(restoredTheme);
-    setThemeState(restoredTheme);
-  }, []);
+  const [theme, setThemeState] = useState<DisplayTheme>(() =>
+    typeof document !== "undefined" && document.documentElement.dataset.theme === "dark"
+      ? "dark"
+      : "light",
+  );
 
   const setTheme = useCallback((nextTheme: DisplayTheme) => {
     localStorage.setItem(DISPLAY_THEME_STORAGE_KEY, nextTheme);

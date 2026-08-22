@@ -4,6 +4,7 @@ import {
   deleteCampaign,
   getCampaignD1,
   readCampaign,
+  updateCampaignDescription,
   updateCampaignName,
 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
@@ -40,14 +41,22 @@ export async function PATCH(
     const { id } = await context.params;
     const body = (await readBoundedJson(request, 16 * 1024)) as {
       name?: unknown;
+      description?: unknown;
       version?: unknown;
     };
-    const campaign = await updateCampaignName(
-      await getCampaignD1(),
-      actor,
-      id,
-      { name: body?.name, version: body?.version },
-    );
+    const campaign = body && Object.prototype.hasOwnProperty.call(body, "description")
+      ? await updateCampaignDescription(
+        await getCampaignD1(),
+        actor,
+        id,
+        { description: body.description, version: body.version },
+      )
+      : await updateCampaignName(
+        await getCampaignD1(),
+        actor,
+        id,
+        { name: body?.name, version: body?.version },
+      );
     return Response.json({ campaign });
   } catch (error) {
     if (error instanceof RequestBodyError) {

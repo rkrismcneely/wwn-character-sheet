@@ -1,7 +1,17 @@
 export type CampaignRole = "gm" | "player";
 
+export type CampaignResource = {
+  resourceKey: string;
+  title: string;
+  type: "text" | "link";
+  content: string;
+  position: number;
+  updatedAt: string;
+};
+
 export type CampaignPermissions = {
   canManageSettings: boolean;
+  canManageContent: boolean;
   canDelete: boolean;
   canInviteMembers: boolean;
   canRemovePlayers: boolean;
@@ -33,6 +43,7 @@ export type CampaignCharacter = {
 export type CampaignSummary = {
   id: string;
   name: string;
+  description: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;

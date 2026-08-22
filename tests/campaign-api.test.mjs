@@ -9,12 +9,21 @@ import {
   leaveCampaign,
   listCampaignMembers,
   listCampaigns,
+  normalizeCampaignDescription,
   normalizeCampaignName,
   readCampaign,
   removeCampaignMember,
   removeCampaignMemberByKey,
+  updateCampaignDescription,
   updateCampaignName,
 } from "../lib/campaigns/service.ts";
+import {
+  createCampaignResource,
+  deleteCampaignResource,
+  listCampaignResources,
+  reorderCampaignResource,
+  updateCampaignResource,
+} from "../lib/campaigns/resources.ts";
 
 const owner = { userId: "user-owner", role: "user" };
 const gm = { userId: "user-gm", role: "user" };
@@ -102,12 +111,11 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  const migration = await readFile(
-    new URL("../drizzle/0006_campaign_foundation.sql", import.meta.url),
-    "utf8",
-  );
-  for (const statement of migration.split("--> statement-breakpoint")) {
-    if (statement.trim()) sqlite.exec(statement);
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql"]) {
+    const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
+    for (const statement of migration.split("--> statement-breakpoint")) {
+      if (statement.trim()) sqlite.exec(statement);
+    }
   }
   return { sqlite, db: new TestD1(sqlite) };
 }
@@ -139,6 +147,23 @@ test("campaign names are bounded, trimmed application text", () => {
   assert.throws(() => normalizeCampaignName("unsafe\u0000name"), CampaignServiceError);
 });
 
+test("campaign descriptions stay bounded plain text and owner/GM mutation is protected", async () => {
+  assert.equal(normalizeCampaignDescription("  First line\nSecond line  "), "First line\nSecond line");
+  assert.equal(normalizeCampaignDescription(""), null);
+  assert.throws(() => normalizeCampaignDescription("x".repeat(4001)), CampaignServiceError);
+  assert.throws(() => normalizeCampaignDescription("bad\u0000text"), CampaignServiceError);
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Briefing" }, now);
+  await addMember(sqlite, campaign.id, gm, "gm");
+  const updated = await updateCampaignDescription(db, gm, campaign.id, { description: "Meet at dusk.", version: 1 }, now);
+  assert.equal(updated.description, "Meet at dusk.");
+  assert.equal(updated.version, 2);
+  await expectServiceError(updateCampaignDescription(db, player, campaign.id, { description: "No", version: 2 }), 404);
+  await expectServiceError(updateCampaignDescription(db, admin, campaign.id, { description: "No", version: 2 }), 403);
+  const playerView = await readCampaign(db, gm, campaign.id);
+  assert.equal(playerView.description, "Meet at dusk.");
+});
+
 test("signed-in creation atomically establishes the creator as owner and GM", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Amber Company" }, now);
@@ -148,6 +173,7 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
   assert.equal(campaign.isOwner, true);
   assert.deepEqual(campaign.permissions, {
     canManageSettings: true,
+    canManageContent: true,
     canDelete: true,
     canInviteMembers: true,
     canRemovePlayers: true,
@@ -163,6 +189,30 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
     WHERE c.public_id = ? AND cm.user_id = c.owner_user_id
   `).get(campaign.id);
   assert.deepEqual({ ...stored }, { ownerUserId: owner.userId, role: "gm" });
+});
+
+test("campaign resources are private, ordered, and mutable only by owner or GM", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Resources" }, now);
+  await addMember(sqlite, campaign.id, gm, "gm");
+  await addMember(sqlite, campaign.id, player);
+  const first = await createCampaignResource(db, owner, campaign.id, { title: "Discord", type: "link", content: "https://discord.com/example" }, now);
+  assert.equal(first.length, 1);
+  assert.match(first[0].resourceKey, /^cres_[0-9a-f]{32}$/u);
+  assert.equal(first[0].resourceKey.includes(campaign.id), false);
+  await createCampaignResource(db, gm, campaign.id, { title: "Briefing", type: "text", content: "Meet at dusk." }, now);
+  const playerResources = await listCampaignResources(db, player, campaign.id);
+  assert.deepEqual(playerResources.map(resource => resource.title), ["Discord", "Briefing"]);
+  await expectServiceError(createCampaignResource(db, player, campaign.id, { title: "No", type: "text", content: "No" }), 403);
+  await expectServiceError(createCampaignResource(db, admin, campaign.id, { title: "No", type: "text", content: "No" }), 403);
+  await expectServiceError(listCampaignResources(db, outsider, campaign.id), 404);
+  const moved = await reorderCampaignResource(db, gm, campaign.id, playerResources[1].resourceKey, "up");
+  assert.deepEqual(moved.map(resource => resource.title), ["Briefing", "Discord"]);
+  const edited = await updateCampaignResource(db, owner, campaign.id, moved[0].resourceKey, { title: "Session Notes", type: "text", content: "Updated." });
+  assert.equal(edited[0].title, "Session Notes");
+  const deleted = await deleteCampaignResource(db, owner, campaign.id, moved[1].resourceKey);
+  assert.deepEqual(deleted.map(resource => resource.title), ["Session Notes"]);
+  await assert.rejects(() => createCampaignResource(db, owner, campaign.id, { title: "Unsafe", type: "link", content: "javascript:alert(1)" }), CampaignServiceError);
 });
 
 test("unauthenticated users cannot create campaigns", async () => {
@@ -385,7 +435,9 @@ test("route layer remains authenticated, bounded, and free of client owner IDs",
   const detail = await readFile(new URL("app/api/campaigns/[id]/route.ts", root), "utf8");
   const members = await readFile(new URL("app/api/campaigns/[id]/members/route.ts", root), "utf8");
   const membership = await readFile(new URL("app/api/campaigns/[id]/membership/route.ts", root), "utf8");
-  for (const route of [collection, detail, members, membership]) {
+  const resources = await readFile(new URL("app/api/campaigns/[id]/resources/route.ts", root), "utf8");
+  const resourceItem = await readFile(new URL("app/api/campaigns/[id]/resources/[resourceKey]/route.ts", root), "utf8");
+  for (const route of [collection, detail, members, membership, resources, resourceItem]) {
     assert.match(route, /getSessionActor\(request\)/u);
     assert.doesNotMatch(route, /ownerUserId|email|tokenHash|token_hash/u);
   }
@@ -394,4 +446,6 @@ test("route layer remains authenticated, bounded, and free of client owner IDs",
   assert.match(members, /readBoundedJson\(request, 8 \* 1024\)/u);
   assert.match(members, /removeCampaignMemberByKey/u);
   assert.match(membership, /leaveCampaign/u);
+  assert.match(resources, /listCampaignResources|createCampaignResource/u);
+  assert.match(resourceItem, /reorderCampaignResource|deleteCampaignResource/u);
 });

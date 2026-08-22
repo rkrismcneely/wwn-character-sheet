@@ -10,6 +10,7 @@ import {
   formatCampaignDate,
   type CampaignCharacter,
   type CampaignMember,
+  type CampaignResource,
   type CampaignSummary,
   type CreatedInvite,
 } from "./campaign-types";
@@ -18,19 +19,26 @@ type Confirmation =
   | { kind: "delete" }
   | { kind: "leave" }
   | { kind: "remove"; member: CampaignMember }
-  | { kind: "unlink"; character: CampaignCharacter };
+  | { kind: "unlink"; character: CampaignCharacter }
+  | { kind: "resource"; resource: CampaignResource };
 
 export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const router = useRouter();
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
   const [members, setMembers] = useState<CampaignMember[]>([]);
   const [characters, setCharacters] = useState<CampaignCharacter[]>([]);
+  const [resources, setResources] = useState<CampaignResource[]>([]);
   const [eligibleCharacters, setEligibleCharacters] = useState<CampaignCharacter[]>([]);
   const [busy, setBusy] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [descriptionValue, setDescriptionValue] = useState("");
+  const [resourceOpen, setResourceOpen] = useState(false);
+  const [resourceEditing, setResourceEditing] = useState<CampaignResource | null>(null);
+  const [resourceDraft, setResourceDraft] = useState({ title: "", type: "text" as "text" | "link", content: "" });
   const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [invite, setInvite] = useState<CreatedInvite | null>(null);
@@ -39,10 +47,11 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
   async function loadCampaign() {
     try {
-      const [campaignResponse, memberResponse, characterResponse] = await Promise.all([
+      const [campaignResponse, memberResponse, characterResponse, resourceResponse] = await Promise.all([
         fetch(`/api/campaigns/${campaignId}`, { cache: "no-store" }),
         fetch(`/api/campaigns/${campaignId}/members`, { cache: "no-store" }),
         fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" }),
+        fetch(`/api/campaigns/${campaignId}/resources`, { cache: "no-store" }),
       ]);
       const campaignPayload = await campaignResponse.json() as {
         campaign?: CampaignSummary;
@@ -57,6 +66,10 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         eligibleCharacters?: CampaignCharacter[];
         error?: string;
       };
+      const resourcePayload = await resourceResponse.json() as {
+        resources?: CampaignResource[];
+        error?: string;
+      };
       if (!campaignResponse.ok || !campaignPayload.campaign) {
         throw new Error(campaignPayload.error || "This campaign could not be opened.");
       }
@@ -66,16 +79,22 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       if (!characterResponse.ok) {
         throw new Error(characterPayload.error || "The campaign character library could not be loaded.");
       }
+      if (!resourceResponse.ok) {
+        throw new Error(resourcePayload.error || "The campaign resources could not be loaded.");
+      }
       setCampaign(campaignPayload.campaign);
       setMembers(Array.isArray(memberPayload.members) ? memberPayload.members : []);
       setCharacters(Array.isArray(characterPayload.characters) ? characterPayload.characters : []);
       setEligibleCharacters(Array.isArray(characterPayload.eligibleCharacters) ? characterPayload.eligibleCharacters : []);
+      setResources(Array.isArray(resourcePayload.resources) ? resourcePayload.resources : []);
       setRenameValue(campaignPayload.campaign.name);
+      setDescriptionValue(campaignPayload.campaign.description ?? "");
     } catch (loadError) {
       setCampaign(null);
       setMembers([]);
       setCharacters([]);
       setEligibleCharacters([]);
+      setResources([]);
       setError(loadError instanceof Error ? loadError.message : "This campaign could not be opened.");
     } finally {
       setBusy(false);
@@ -119,6 +138,79 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       setNotice("Campaign name updated.");
     } catch (renameError) {
       setError(renameError instanceof Error ? renameError.message : "The campaign could not be renamed.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function saveDescription(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!campaign) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ description: descriptionValue, version: campaign.version }),
+      });
+      const payload = await response.json() as { campaign?: CampaignSummary; error?: string };
+      if (!response.ok || !payload.campaign) throw new Error(payload.error || "The campaign description could not be saved.");
+      setCampaign(payload.campaign);
+      setDescriptionValue(payload.campaign.description ?? "");
+      setDescriptionOpen(false);
+      setNotice("Campaign description updated.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "The campaign description could not be saved.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  function openResource(resource?: CampaignResource) {
+    setResourceEditing(resource ?? null);
+    setResourceDraft(resource ? { title: resource.title, type: resource.type, content: resource.content } : { title: "", type: "text", content: "" });
+    setResourceOpen(true);
+  }
+
+  async function saveResource(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!campaign) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      const response = await fetch(resourceEditing ? `/api/campaigns/${campaign.id}/resources/${resourceEditing.resourceKey}` : `/api/campaigns/${campaign.id}/resources`, {
+        method: resourceEditing ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(resourceDraft),
+      });
+      const payload = await response.json() as { resources?: CampaignResource[]; error?: string };
+      if (!response.ok || !payload.resources) throw new Error(payload.error || "The campaign resource could not be saved.");
+      setResources(payload.resources);
+      setResourceOpen(false);
+      setNotice(resourceEditing ? "Campaign resource updated." : "Campaign resource added.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "The campaign resource could not be saved.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function moveResource(resource: CampaignResource, direction: "up" | "down") {
+    if (!campaign) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/resources/${resource.resourceKey}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ direction }),
+      });
+      const payload = await response.json() as { resources?: CampaignResource[]; error?: string };
+      if (!response.ok || !payload.resources) throw new Error(payload.error || "The campaign resource could not be reordered.");
+      setResources(payload.resources);
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : "The campaign resource could not be reordered.");
     } finally {
       setActionBusy(false);
     }
@@ -199,6 +291,15 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         const payload = await response.json() as { error?: string };
         if (!response.ok) throw new Error(payload.error || "The campaign could not be left.");
         router.push("/campaigns");
+        return;
+      }
+      if (confirmation.kind === "resource") {
+        const response = await fetch(`/api/campaigns/${campaign.id}/resources/${confirmation.resource.resourceKey}`, { method: "DELETE" });
+        const payload = await response.json() as { resources?: CampaignResource[]; error?: string };
+        if (!response.ok || !payload.resources) throw new Error(payload.error || "The campaign resource could not be deleted.");
+        setResources(payload.resources);
+        setNotice(`${confirmation.resource.title} was removed from this campaign.`);
+        setConfirmation(null);
         return;
       }
       if (confirmation.kind === "unlink") {
@@ -308,7 +409,34 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           {notice && <div className="campaign-notice" role="status">{notice}</div>}
           {error && <div className="campaign-error" role="alert">{error}</div>}
 
+          <section className="campaign-panel campaign-overview-panel" aria-labelledby="campaign-overview-title">
+            <div className="campaign-section-heading">
+              <div>
+                <p className="campaign-kicker">CAMPAIGN OVERVIEW</p>
+                <h2 id="campaign-overview-title">About this campaign</h2>
+              </div>
+              {campaign.permissions.canManageContent && <button type="button" className="campaign-secondary" onClick={() => { setDescriptionValue(campaign.description ?? ""); setDescriptionOpen(true); }}>{campaign.description ? "Edit Description" : "Add Description"}</button>}
+            </div>
+            {campaign.description ? <p className="campaign-description">{campaign.description}</p> : <p className="campaign-empty-copy">{campaign.permissions.canManageContent ? "Add a short briefing so members know what this campaign is about." : "The campaign owner has not added a description yet."}</p>}
+          </section>
+
           <div className="campaign-detail-layout">
+            <section className="campaign-panel campaign-resources-panel" aria-labelledby="campaign-resources-title">
+              <div className="campaign-section-heading">
+                <div>
+                  <p className="campaign-kicker">REFERENCE DESK</p>
+                  <h2 id="campaign-resources-title">Campaign Resources</h2>
+                </div>
+                {campaign.permissions.canManageContent && <button type="button" className="campaign-primary" onClick={() => openResource()}>Add Resource</button>}
+              </div>
+              {resources.length === 0 ? <p className="campaign-empty-copy">{campaign.permissions.canManageContent ? "Add a Discord, VTT, document, wiki, or rules link for the company." : "No campaign resources have been added yet."}</p> : <div className="campaign-resource-list">
+                {resources.map((resource, index) => <article className="campaign-resource-card" key={resource.resourceKey}>
+                  <div className="campaign-resource-card-body"><p className="campaign-kicker">{resource.type === "link" ? "EXTERNAL LINK" : "CAMPAIGN NOTE"}</p><h3>{resource.title}</h3>{resource.type === "link" ? <a href={resource.content} target="_blank" rel="noreferrer">{resource.content}</a> : <p className="campaign-resource-text">{resource.content}</p>}</div>
+                  {campaign.permissions.canManageContent && <div className="campaign-resource-actions"><button type="button" className="campaign-quiet" onClick={() => openResource(resource)}>Edit</button><button type="button" className="campaign-quiet" onClick={() => void moveResource(resource, "up")} disabled={index === 0 || actionBusy}>Move up</button><button type="button" className="campaign-quiet" onClick={() => void moveResource(resource, "down")} disabled={index === resources.length - 1 || actionBusy}>Move down</button><button type="button" className="campaign-danger" onClick={() => setConfirmation({ kind: "resource", resource })}>Delete</button></div>}
+                </article>)}
+              </div>}
+            </section>
+
             <section className="campaign-panel campaign-character-panel" aria-labelledby="campaign-characters-title">
               <div className="campaign-section-heading">
                 <div>
@@ -427,6 +555,27 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         </CampaignDialog>
       )}
 
+      {descriptionOpen && campaign && (
+        <CampaignDialog title={campaign.description ? "Edit Campaign Description" : "Add Campaign Description"} onClose={() => setDescriptionOpen(false)}>
+          <form className="campaign-dialog-form" onSubmit={saveDescription}>
+            <label htmlFor="campaign-description">Description</label>
+            <textarea id="campaign-description" value={descriptionValue} onChange={event => setDescriptionValue(event.target.value)} maxLength={4000} rows={8} placeholder="A short briefing for the company…" autoFocus />
+            <div className="campaign-dialog-actions"><button type="button" className="campaign-quiet" onClick={() => setDescriptionOpen(false)}>Cancel</button><button type="submit" className="campaign-primary" disabled={actionBusy}>{actionBusy ? "Saving…" : "Save Description"}</button></div>
+          </form>
+        </CampaignDialog>
+      )}
+
+      {resourceOpen && campaign && (
+        <CampaignDialog title={resourceEditing ? "Edit Campaign Resource" : "Add Campaign Resource"} description="Keep this to a useful note or a safe external HTTPS link for campaign members." onClose={() => setResourceOpen(false)}>
+          <form className="campaign-dialog-form" onSubmit={saveResource}>
+            <label htmlFor="campaign-resource-title">Title</label><input id="campaign-resource-title" value={resourceDraft.title} onChange={event => setResourceDraft(current => ({ ...current, title: event.target.value }))} maxLength={120} autoFocus />
+            <label htmlFor="campaign-resource-type">Type</label><select id="campaign-resource-type" value={resourceDraft.type} onChange={event => setResourceDraft(current => ({ ...current, type: event.target.value as "text" | "link", content: "" }))}><option value="text">Campaign note</option><option value="link">External HTTPS link</option></select>
+            <label htmlFor="campaign-resource-content">{resourceDraft.type === "link" ? "HTTPS URL" : "Note"}</label>{resourceDraft.type === "link" ? <input id="campaign-resource-content" type="url" value={resourceDraft.content} onChange={event => setResourceDraft(current => ({ ...current, content: event.target.value }))} placeholder="https://…" maxLength={2048} /> : <textarea id="campaign-resource-content" value={resourceDraft.content} onChange={event => setResourceDraft(current => ({ ...current, content: event.target.value }))} rows={6} maxLength={4000} />}
+            <div className="campaign-dialog-actions"><button type="button" className="campaign-quiet" onClick={() => setResourceOpen(false)}>Cancel</button><button type="submit" className="campaign-primary" disabled={actionBusy}>{actionBusy ? "Saving…" : resourceEditing ? "Save Resource" : "Add Resource"}</button></div>
+          </form>
+        </CampaignDialog>
+      )}
+
       {addCharacterOpen && campaign && (
         <CampaignDialog
           title="Add Character"
@@ -477,7 +626,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
       {confirmation && (
         <CampaignDialog
-          title={confirmation.kind === "delete" ? "Delete Campaign" : confirmation.kind === "leave" ? "Leave Campaign" : confirmation.kind === "unlink" ? "Remove Character" : "Remove Player"}
+          title={confirmation.kind === "delete" ? "Delete Campaign" : confirmation.kind === "leave" ? "Leave Campaign" : confirmation.kind === "unlink" ? "Remove Character" : confirmation.kind === "resource" ? "Delete Resource" : "Remove Player"}
           onClose={() => setConfirmation(null)}
         >
           <p className="campaign-confirm-copy">
@@ -485,11 +634,12 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
             {confirmation.kind === "leave" && "Leave this campaign? Your characters, ownership, and visibility will not change."}
             {confirmation.kind === "remove" && `Remove ${confirmation.member.name} from this campaign? Their characters will not be deleted and ownership will not change.`}
             {confirmation.kind === "unlink" && `Remove ${confirmation.character.name} from this campaign? This removes only the campaign association; the character will not be deleted or changed.`}
+            {confirmation.kind === "resource" && `Delete ${confirmation.resource.title} from this campaign? This cannot be undone.`}
           </p>
           <div className="campaign-dialog-actions">
             <button type="button" className="campaign-quiet" onClick={() => setConfirmation(null)}>Cancel</button>
             <button type="button" className="campaign-danger" onClick={() => void confirmDestructiveAction()} disabled={actionBusy}>
-              {actionBusy ? "Working…" : confirmation.kind === "delete" ? "Delete Campaign" : confirmation.kind === "leave" ? "Leave Campaign" : "Remove from Campaign"}
+              {actionBusy ? "Working…" : confirmation.kind === "delete" ? "Delete Campaign" : confirmation.kind === "leave" ? "Leave Campaign" : confirmation.kind === "resource" ? "Delete Resource" : "Remove from Campaign"}
             </button>
           </div>
         </CampaignDialog>

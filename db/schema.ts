@@ -199,3 +199,31 @@ export const campaignInvites = sqliteTable(
     ),
   ],
 );
+
+
+export const campaignResources = sqliteTable(
+  "campaign_resources",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    type: text("type", { enum: ["text", "link"] }).notNull(),
+    content: text("content").notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("campaign_resources_campaign_position_idx").on(
+      table.campaignId,
+      table.position,
+      table.createdAt,
+    ),
+    check(
+      "campaign_resources_type_check",
+      sql`${table.type} in ('text', 'link')`,
+    ),
+  ],
+);

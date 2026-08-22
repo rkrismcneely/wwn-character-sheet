@@ -1,6 +1,7 @@
 import {
   canDeleteCampaign,
   canInviteCampaignMembers,
+  canManageCampaignContent,
   canLeaveCampaign,
   canManageCampaignSettings,
   canRemoveCampaignMember,
@@ -34,6 +35,7 @@ export class CampaignServiceError extends Error {
 export interface CampaignRow extends CampaignAccessRecord {
   publicId: string;
   name: string;
+  description: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -56,6 +58,7 @@ interface CampaignMemberRow extends CampaignMembershipRow {
 export interface CampaignPayload {
   id: string;
   name: string;
+  description: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -64,6 +67,7 @@ export interface CampaignPayload {
   isOwner: boolean;
   permissions: {
     canManageSettings: boolean;
+    canManageContent: boolean;
     canDelete: boolean;
     canInviteMembers: boolean;
     canRemovePlayers: boolean;
@@ -134,7 +138,7 @@ async function findCampaignByPublicId(
   return db
     .prepare(
       `SELECT c.id, c.public_id AS publicId, c.owner_user_id AS ownerUserId,
-              c.name, c.version, c.created_at AS createdAt,
+              c.name, c.description, c.version, c.created_at AS createdAt,
               c.updated_at AS updatedAt,
               (SELECT COUNT(*) FROM campaign_members cm
                WHERE cm.campaign_id = c.id) AS memberCount
@@ -170,6 +174,7 @@ function campaignPayload(
   return {
     id: campaign.publicId,
     name: campaign.name,
+    description: campaign.description ?? null,
     version: campaign.version,
     createdAt: campaign.createdAt,
     updatedAt: campaign.updatedAt,
@@ -178,6 +183,7 @@ function campaignPayload(
     isOwner,
     permissions: {
       canManageSettings: canManageCampaignSettings(actor, campaign),
+      canManageContent: canManageCampaignContent(actor, campaign, membership),
       canDelete: canDeleteCampaign(actor, campaign),
       canInviteMembers: canInviteCampaignMembers(actor, campaign, membership),
       canRemovePlayers: canInviteCampaignMembers(actor, campaign, membership),
@@ -222,6 +228,7 @@ export async function createCampaign(
       publicId: generatePublicCampaignId(),
       ownerUserId: authenticatedActor.userId,
       name,
+      description: null,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -273,7 +280,7 @@ export async function listCampaigns(
   const result = await db
     .prepare(
       `SELECT c.id, c.public_id AS publicId, c.owner_user_id AS ownerUserId,
-              c.name, c.version, c.created_at AS createdAt,
+              c.name, c.description, c.version, c.created_at AS createdAt,
               c.updated_at AS updatedAt, cm.role AS membershipRole,
               (SELECT COUNT(*) FROM campaign_members roster
                WHERE roster.campaign_id = c.id) AS memberCount
@@ -394,6 +401,54 @@ export async function updateCampaignName(
   return campaignPayload(authenticatedActor, {
     ...campaign,
     name,
+    version: campaign.version + 1,
+    updatedAt: now,
+  }, membership);
+}
+
+export function normalizeCampaignDescription(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") {
+    throw new CampaignServiceError("Campaign descriptions must be plain text.", 422);
+  }
+  const description = value.trim();
+  if (description.length === 0) return null;
+  if (description.length > 4000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(description)) {
+    throw new CampaignServiceError("Campaign descriptions must be plain text up to 4000 characters.", 422);
+  }
+  return description;
+}
+
+export async function updateCampaignDescription(
+  db: D1Database,
+  actor: CampaignActor | null,
+  publicId: string,
+  input: { description?: unknown; version?: unknown },
+  now = new Date().toISOString(),
+): Promise<CampaignPayload> {
+  const authenticatedActor = requireActor(actor);
+  const { campaign, membership } = await loadCampaignAccess(db, authenticatedActor, publicId);
+  if (!canManageCampaignContent(authenticatedActor, campaign, membership)) {
+    throw new CampaignServiceError("Not permitted.", 403);
+  }
+  const description = normalizeCampaignDescription(input.description);
+  const expectedVersion = Number(input.version);
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+    throw new CampaignServiceError("A valid campaign version is required.", 422);
+  }
+  if (campaign.version !== expectedVersion) {
+    throw new CampaignServiceError("This campaign was updated elsewhere.", 409);
+  }
+  const result = await db.prepare(
+    `UPDATE campaigns SET description = ?, version = ?, updated_at = ?
+     WHERE id = ? AND version = ?`,
+  ).bind(description, campaign.version + 1, now, campaign.id, expectedVersion).run();
+  if (result.meta.changes !== 1) {
+    throw new CampaignServiceError("This campaign was updated elsewhere.", 409);
+  }
+  return campaignPayload(authenticatedActor, {
+    ...campaign,
+    description,
     version: campaign.version + 1,
     updatedAt: now,
   }, membership);

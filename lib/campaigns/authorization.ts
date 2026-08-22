@@ -61,6 +61,15 @@ export function canManageCampaignSettings(
   return isCampaignOwner(actor, campaign);
 }
 
+/** Campaign description and resource content is managed by the owner or a GM member. */
+export function canManageCampaignContent(
+  actor: CampaignActor | null,
+  campaign: CampaignAccessRecord,
+  membership: CampaignMembershipRecord | null,
+): boolean {
+  return canInviteCampaignMembers(actor, campaign, membership);
+}
+
 export function canDeleteCampaign(
   actor: CampaignActor | null,
   campaign: CampaignAccessRecord,

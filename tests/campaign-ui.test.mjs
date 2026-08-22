@@ -229,3 +229,22 @@ test("campaign read-only sheets keep one context notice and a complete responsiv
   assert.match(css, /\.status\{[\s\S]*width:100%;[\s\S]*max-width:none/u);
   assert.match(css, /min-width:max-content/u);
 });
+
+test("character-sheet learning choices and privacy footer use responsive layout", async () => {
+  const sheet = await source("app/character-sheet.tsx");
+  const css = await source("app/globals.css");
+
+  assert.match(sheet, /background-learning-rows/u);
+  assert.match(sheet, /sheet\.backgroundLearningPicks\.map/u);
+  assert.match(sheet, /Learning \{index \+ 1\}/u);
+  assert.match(sheet, /Privacy & Sharing/u);
+  assert.match(sheet, /<footer>Rules authority:/u);
+
+  assert.match(css, /\.background-learning-rows\{[\s\S]*display:grid/u);
+  assert.match(
+    css,
+    /@media \(min-width:901px\)[\s\S]*\.background-learning-rows\{[\s\S]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u,
+  );
+  assert.match(css, /\.core-grid\{align-items:start\}/u);
+  assert.doesNotMatch(css, /\.background-learning-rows[^}]*overflow/u);
+});

@@ -79,9 +79,10 @@ test("campaign overview and resources stay member-readable with owner/GM control
     /campaign\.permissions\.canManageContent && <button[^>]*>[\s\S]*campaign\.description \? "Edit Description" : "Add Description"/u,
     "description controls must come from the authoritative content permission",
   );
-  assert.match(
-    detail,
-    /campaign\.permissions\.canManageContent && <button[^>]*>Add Resource<\/button>/u,
+  assert.ok(
+    detail.includes(
+      '{campaign.permissions.canManageContent && <button type="button" className="campaign-primary" onClick={() => openResource()}>Add Resource</button>}',
+    ),
     "resource creation must come from the authoritative content permission",
   );
   assert.match(detail, /Add Resource/u);

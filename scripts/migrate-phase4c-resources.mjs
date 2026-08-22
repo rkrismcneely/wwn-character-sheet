@@ -31,43 +31,6 @@ function requireAppliedMigration(rows, name) {
   }
 }
 
-const info = JSON.parse(run(["d1", "info", DATABASE_NAME, "--json", "--config", config]));
-if (JSON.stringify(info).includes(DATABASE_ID) === false) {
-  throw new Error("The resolved remote D1 database ID does not match the expected production database.");
-}
-const migrationRows = query("SELECT name FROM d1_migrations ORDER BY id");
-requireAppliedMigration(migrationRows, "0006_campaign_foundation.sql");
-requireAppliedMigration(migrationRows, "0007_user_display_name.sql");
-const campaignColumns = query("PRAGMA table_info(campaigns)");
-if (!campaignColumns.some((row) => row.name === "description")) {
-  throw new Error("Production campaigns table is missing its existing description column; no feature migration was applied.");
-}
-
-const temporaryRoot = mkdtempSync(join(process.cwd(), ".phase4c-resources-"));
-try {
-  const migrationDir = join(temporaryRoot, "migrations");
-  const temporaryConfig = join(temporaryRoot, "wrangler.jsonc");
-  const source = join(process.cwd(), "drizzle", migrationName);
-  const target = join(migrationDir, migrationName);
-  mkdirSync(migrationDir, { recursive: true });
-  writeFileSync(join(temporaryRoot, "placeholder"), "");
-  // Wrangler resolves the configured directory relative to this temporary config.
-  copyFileSync(source, target);
-  writeFileSync(temporaryConfig, JSON.stringify({
-    name: "wwn-character-sheet",
-    d1_databases: [{
-      binding: "DB",
-      database_name: DATABASE_NAME,
-      database_id: DATABASE_ID,
-      migrations_dir: "./migrations",
-    }],
-  }, null, 2));
-  console.log("Applying only the reviewed campaign resources migration to the verified production D1 database.");
-  run(["d1", "migrations", "apply", DATABASE_NAME, "--remote", "--config", temporaryConfig]);
-} finally {
-  rmSync(temporaryRoot, { recursive: true, force: true });
-}
-
 function verifyResourcesSchema() {
   const table = query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_resources'");
   if (!table.some((row) => row.name === "campaign_resources")) {
@@ -85,9 +48,7 @@ function verifyResourcesSchema() {
   }
 }
 
-const resourceTable = query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_resources'");
-if (resourceTable.length === 0) {
-  console.log("campaign_resources is absent; applying only the reviewed 0008 migration.");
+function applyReviewedMigration() {
   const temporaryRoot = mkdtempSync(join(process.cwd(), ".phase4c-resources-"));
   try {
     const migrationDir = join(temporaryRoot, "migrations");
@@ -111,6 +72,24 @@ if (resourceTable.length === 0) {
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+const info = JSON.parse(run(["d1", "info", DATABASE_NAME, "--json", "--config", config]));
+if (JSON.stringify(info).includes(DATABASE_ID) === false) {
+  throw new Error("The resolved remote D1 database ID does not match the expected production database.");
+}
+const migrationRows = query("SELECT name FROM d1_migrations ORDER BY id");
+requireAppliedMigration(migrationRows, "0006_campaign_foundation.sql");
+requireAppliedMigration(migrationRows, "0007_user_display_name.sql");
+const campaignColumns = query("PRAGMA table_info(campaigns)");
+if (!campaignColumns.some((row) => row.name === "description")) {
+  throw new Error("Production campaigns table is missing its existing description column; no feature migration was applied.");
+}
+
+const resourceTable = query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_resources'");
+if (resourceTable.length === 0) {
+  console.log("campaign_resources is absent; applying only the reviewed 0008 migration.");
+  applyReviewedMigration();
 } else {
   console.log("campaign_resources already exists; no migration was rerun.");
 }

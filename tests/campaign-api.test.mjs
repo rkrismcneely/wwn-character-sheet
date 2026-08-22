@@ -276,6 +276,7 @@ test("campaign ownership remains authoritative when the owner also has the site-
   assert.equal(ownerView.isOwner, true);
   assert.equal(ownerView.membershipRole, "gm");
   assert.equal(ownerView.permissions.canInviteMembers, true);
+  assert.equal(ownerView.permissions.canManageContent, false);
   assert.equal(ownerView.permissions.adminReadOnly, false);
 });
 

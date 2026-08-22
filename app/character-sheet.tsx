@@ -2540,71 +2540,73 @@ export default function Home({
               </select>
             </label>
           </div>
-          {!signedIn && <button className="library-button" onClick={() => {
-            setLibraryScope("public");
-            setLibraryOpen(true);
-            void refreshLibrary("public");
-          }}>Public Characters</button>}
-          {!signedIn && !libraryOpen && <button
-            type="button"
-            className="primary-action account-signin"
-            onClick={async () => {
-              setTransferMessage("Opening Google sign-in…");
-              setLibraryError("");
-              try {
-                const { error } = await authClient.signIn.social({
-                  provider: "google",
-                  callbackURL: "/",
-                });
-                if (error) {
-                  throw new Error(error.message || "Better Auth rejected Google sign-in.");
+          <div className="header-actions">
+            {!signedIn && <button className="library-button" onClick={() => {
+              setLibraryScope("public");
+              setLibraryOpen(true);
+              void refreshLibrary("public");
+            }}>Public Characters</button>}
+            {!signedIn && !libraryOpen && <button
+              type="button"
+              className="primary-action account-signin"
+              onClick={async () => {
+                setTransferMessage("Opening Google sign-in…");
+                setLibraryError("");
+                try {
+                  const { error } = await authClient.signIn.social({
+                    provider: "google",
+                    callbackURL: "/",
+                  });
+                  if (error) {
+                    throw new Error(error.message || "Better Auth rejected Google sign-in.");
+                  }
+                } catch (error) {
+                  const detail = error instanceof Error
+                    ? error.message
+                    : "The request could not be started.";
+                  const feedback = `Google sign-in failed: ${detail}`;
+                  setTransferMessage(feedback);
+                  setLibraryError(feedback);
                 }
-              } catch (error) {
-                const detail = error instanceof Error
-                  ? error.message
-                  : "The request could not be started.";
-                const feedback = `Google sign-in failed: ${detail}`;
-                setTransferMessage(feedback);
-                setLibraryError(feedback);
-              }
-            }}
-          >Sign in with Google</button>}
-          {signedIn && <a className="quiet account-state" href="/account">Account</a>}
-          {signedIn && canEdit && (cloudId
-            ? <button onClick={() => void saveToCloud()}>Save Now</button>
-            : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
-          {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
-          {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}
-          <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
-          {signedIn && <button
-            type="button"
-            className="account-signout"
-            onClick={async () => {
-              setLibraryError("");
-              try {
-                const { error } = await authClient.signOut();
-                if (error) {
-                  throw new Error(error.message || "Better Auth rejected sign out.");
+              }}
+            >Sign in with Google</button>}
+            {signedIn && <a className="quiet account-state" href="/account">Account</a>}
+            {signedIn && canEdit && (cloudId
+              ? <button onClick={() => void saveToCloud()}>Save Now</button>
+              : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
+            {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
+            {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}
+            <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
+            {signedIn && <button
+              type="button"
+              className="account-signout"
+              onClick={async () => {
+                setLibraryError("");
+                try {
+                  const { error } = await authClient.signOut();
+                  if (error) {
+                    throw new Error(error.message || "Better Auth rejected sign out.");
+                  }
+                  setLocallySignedOut(true);
+                  setCloudCanEdit(false);
+                  setCloudAdminReadOnly(false);
+                  setLibraryScope("public");
+                  setSaved(cloudId ? "Read-only" : "Sign in to edit");
+                  setTransferMessage("Signed out. Owner-only controls have been disabled.");
+                  await refetchSession();
+                  void refreshLibrary("public");
+                } catch (error) {
+                  const detail = error instanceof Error
+                    ? error.message
+                    : "The request could not be completed.";
+                  const feedback = `Sign out failed: ${detail}`;
+                  setTransferMessage(feedback);
+                  setLibraryError(feedback);
                 }
-                setLocallySignedOut(true);
-                setCloudCanEdit(false);
-                setCloudAdminReadOnly(false);
-                setLibraryScope("public");
-                setSaved(cloudId ? "Read-only" : "Sign in to edit");
-                setTransferMessage("Signed out. Owner-only controls have been disabled.");
-                await refetchSession();
-                void refreshLibrary("public");
-              } catch (error) {
-                const detail = error instanceof Error
-                  ? error.message
-                  : "The request could not be completed.";
-                const feedback = `Sign out failed: ${detail}`;
-                setTransferMessage(feedback);
-                setLibraryError(feedback);
-              }
-            }}
-          >Sign Out</button>}
-          <button className="print-button" onClick={() => window.print()}>Print / PDF</button>
+              }}
+            >Sign Out</button>}
+            <button className="print-button" onClick={() => window.print()}>Print / PDF</button>
+          </div>
         </div>
       </div>
 

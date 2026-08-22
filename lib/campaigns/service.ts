@@ -413,7 +413,7 @@ export function normalizeCampaignDescription(value: unknown): string | null {
   }
   const description = value.trim();
   if (description.length === 0) return null;
-  if (description.length > 4000 || /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]/u.test(description)) {
+  if (description.length > 4000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(description)) {
     throw new CampaignServiceError("Campaign descriptions must be plain text up to 4000 characters.", 422);
   }
   return description;

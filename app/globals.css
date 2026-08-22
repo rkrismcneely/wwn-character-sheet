@@ -2063,3 +2063,18 @@ html[data-theme="dark"] .read-only-banner button{
     padding-inline:6px;
   }
 }
+
+/* Keep the core columns at their natural height so the sharing footer follows
+   the final sheet content instead of an artificially stretched grid row. */
+.core-grid{align-items:start}
+
+/* Learning choices share a balanced row when the benefits column has room. */
+.background-learning-rows{
+  display:grid;
+  gap:8px;
+}
+@media (min-width:901px){
+  .background-learning-rows{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}

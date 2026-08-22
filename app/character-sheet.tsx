@@ -2997,6 +2997,7 @@ export default function Home({
                     </div>}
                     {sheet.backgroundDevelopmentMethod === "choose-learning" && <div className="background-growth">
                       <div className="background-growth-heading"><strong>Choose Learning</strong><span>Choose exactly two results from this background’s Learning table. Any Skill cannot be deliberately selected.</span></div>
+                      <div className="background-learning-rows">
                       {sheet.backgroundLearningPicks.map((pick, index) => {
                         const grantId = `learning-${index}`;
                         const resolution = backgroundGrantResolution(grantId);
@@ -3020,6 +3021,7 @@ export default function Home({
                           })}
                         </div>;
                       })}
+                      </div>
                     </div>}
                     {sheet.backgroundDevelopmentMethod === "roll-growth-learning" && <div className="background-growth">
                       <div className="background-growth-heading"><strong>Roll Growth & Learning</strong><span>For each of the three independent rolls, choose Growth or Learning first, then roll that table’s die.</span></div>

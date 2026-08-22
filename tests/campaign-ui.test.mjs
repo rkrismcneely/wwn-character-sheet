@@ -41,6 +41,7 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
   for (const permission of [
     "canInviteMembers",
     "canManageSettings",
+    "canManageContent",
     "canRemovePlayers",
     "canLeave",
     "canDelete",
@@ -62,6 +63,27 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
     /campaign\.isOwner && \([\s\S]*>Invite Player<\/button>/u,
     "the client must not invent a separate owner-only invitation rule",
   );
+});
+
+test("campaign overview and resources stay member-readable with owner/GM controls", async () => {
+  const detail = await source("app/campaigns/campaign-detail.tsx");
+  const types = await source("app/campaigns/campaign-types.ts");
+  const resourceList = await source("app/api/campaigns/[id]/resources/route.ts");
+  const resourceItem = await source("app/api/campaigns/[id]/resources/[resourceKey]/route.ts");
+  assert.match(detail, /Campaign Overview/u);
+  assert.match(detail, /campaign\.description/u);
+  assert.match(detail, /Campaign Resources/u);
+  assert.match(detail, /Add Resource/u);
+  assert.match(detail, /Move up/u);
+  assert.match(detail, /Move down/u);
+  assert.match(detail, /target="_blank" rel="noreferrer"/u);
+  assert.match(detail, /white-space/u);
+  assert.match(types, /description: string \| null/u);
+  assert.match(types, /canManageContent: boolean/u);
+  assert.match(resourceList, /getSessionActor\(request\)/u);
+  assert.match(resourceItem, /reorderCampaignResource/u);
+  assert.match(resourceItem, /deleteCampaignResource/u);
+  assert.doesNotMatch(detail, /ownerUserId|owner_user_id|email|tokenHash|token_hash/u);
 });
 
 test("invite UI distinguishes cminv_ codes from campaign IDs and supports copy-once revocation", async () => {

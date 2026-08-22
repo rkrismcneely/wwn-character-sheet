@@ -5,6 +5,7 @@ import { useState } from "react";
 import { SignedInHeader } from "../app-header";
 import type { AccountProfilePayload } from "@/lib/account/profile";
 import { DISPLAY_NAME_MAX_LENGTH } from "@/lib/account/display-name";
+import { ThemeSelect } from "../theme-provider";
 
 export function AccountPageClient({
   initialProfile,
@@ -137,6 +138,28 @@ export function AccountPageClient({
             <div><dt>Google profile name</dt><dd>{profile.providerName}</dd></div>
             <div><dt>Signed in as</dt><dd>{profile.email}</dd></div>
           </dl>
+        </section>
+
+        <section className="account-panel account-appearance" aria-labelledby="appearance-title">
+          <div className="account-section-heading">
+            <div>
+              <p className="account-kicker">PREFERENCES</p>
+              <h2 id="appearance-title">Appearance</h2>
+            </div>
+          </div>
+          <p className="account-explanation">
+            Choose the Tales Without End presentation used throughout this browser.
+          </p>
+          <div className="account-theme-control">
+            <label htmlFor="account-display-theme">Theme</label>
+            <ThemeSelect
+              id="account-display-theme"
+              describedBy="account-theme-guidance"
+            />
+            <small id="account-theme-guidance">
+              Applies immediately across your characters, campaigns, account, and public archive.
+            </small>
+          </div>
         </section>
 
         <aside className="account-destinations" aria-label="Signed-in destinations">

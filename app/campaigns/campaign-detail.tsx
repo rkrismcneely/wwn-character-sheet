@@ -409,7 +409,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           {notice && <div className="campaign-notice" role="status">{notice}</div>}
           {error && <div className="campaign-error" role="alert">{error}</div>}
 
-          <section className="campaign-panel campaign-overview-panel" aria-labelledby="campaign-overview-title">
+          <div className="campaign-detail-layout">
+            <section className="campaign-panel campaign-overview-panel" aria-labelledby="campaign-overview-title">
             <div className="campaign-section-heading">
               <div>
                 <p className="campaign-kicker">CAMPAIGN OVERVIEW</p>
@@ -418,9 +419,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               {campaign.permissions.canManageContent && <button type="button" className="campaign-secondary" onClick={() => { setDescriptionValue(campaign.description ?? ""); setDescriptionOpen(true); }}>{campaign.description ? "Edit Description" : "Add Description"}</button>}
             </div>
             {campaign.description ? <p className="campaign-description">{campaign.description}</p> : <p className="campaign-empty-copy">{campaign.permissions.canManageContent ? "Add a short briefing so members know what this campaign is about." : "The campaign owner has not added a description yet."}</p>}
-          </section>
+            </section>
 
-          <div className="campaign-detail-layout">
             <section className="campaign-panel campaign-resources-panel" aria-labelledby="campaign-resources-title">
               <div className="campaign-section-heading">
                 <div>

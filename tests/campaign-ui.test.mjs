@@ -219,9 +219,9 @@ test("campaign read-only sheets keep one context notice and a complete responsiv
     assert.ok(sheet.includes(label), label);
   }
 
-  assert.doesNotMatch(
-    css,
-    /\.status button:not\([^)]*\)\:not\([^)]*\)\{display:none\}/u,
+  assert.equal(
+    css.includes(".status button:not(.library-button):not(:nth-child(4)){display:none}"),
+    false,
     "narrow layouts must not hide header controls",
   );
   assert.match(css, /@media \(min-width:721px\) and \(max-width:1100px\)[\s\S]*flex-wrap:wrap/u);

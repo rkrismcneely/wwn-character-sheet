@@ -64,7 +64,7 @@ export function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const theme = useSyncExternalStore(
+  const theme = useSyncExternalStore<DisplayTheme>(
     subscribeToTheme,
     readStoredTheme,
     () => "light",

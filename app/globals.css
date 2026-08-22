@@ -45,7 +45,7 @@ button,input,select,textarea{font:inherit;color:inherit}.topbar{min-height:68px;
   .art-card{grid-template-columns:30px 1fr 55px}
   .art-card .check{grid-column:2/-1}
   .class-benefit-card dl,.background-benefit-card dl,.vowed-controls{grid-template-columns:1fr}.vowed-controls>div{border-left:0;border-top:1px solid #c5b28e;padding-top:8px}
-  .library-backdrop{padding:0}.library-panel{max-height:100vh;height:100vh;outline:0}.library-header{padding:25px 20px 18px}.library-header h1{font-size:27px}.library-actions{padding:12px 16px;overflow-x:auto}.library-actions button{white-space:nowrap}.library-list{padding:16px}.library-card{grid-template-columns:1fr}.library-card-main{grid-template-columns:52px 1fr}.library-card-main time{grid-column:2}.library-card-actions{border-left:0;border-top:1px solid #ded0b4;justify-content:flex-end}.library-footer{padding:12px 16px}.status{max-width:67%}.status button:not(.library-button):not(:nth-child(4)){display:none}
+  .library-backdrop{padding:0}.library-panel{max-height:100vh;height:100vh;outline:0}.library-header{padding:25px 20px 18px}.library-header h1{font-size:27px}.library-actions{padding:12px 16px;overflow-x:auto}.library-actions button{white-space:nowrap}.library-list{padding:16px}.library-card{grid-template-columns:1fr}.library-card-main{grid-template-columns:52px 1fr}.library-card-main time{grid-column:2}.library-card-actions{border-left:0;border-top:1px solid #ded0b4;justify-content:flex-end}.library-footer{padding:12px 16px}.status{max-width:none}
 }
 
 /* Phase 1 polish: final containment and print-safe folio rules. */
@@ -455,27 +455,32 @@ html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#7
   html[data-theme="dark"] body{background-attachment:scroll}
 }
 
-/* iPad and other compact landscape screens: use a deliberate toolbar grid. */
+/* Tablet header: keep the wordmark prominent and let the complete control
+   group wrap naturally instead of squeezing or hiding controls. */
 @media (min-width:721px) and (max-width:1100px){
   .topbar{
-    display:grid;
-    grid-template-columns:minmax(245px,30%) minmax(0,1fr);
-    gap:18px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:flex-start;
+    gap:10px 18px;
     padding:10px 18px;
   }
-  .brand{min-width:0}
+  .brand{flex:0 0 auto;min-width:0}
   .brand strong{font-size:13px;line-height:1.25}
   .status{
-    display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:8px 10px;
+    display:flex;
+    flex:1 1 520px;
+    min-width:min(100%,460px);
     max-width:none;
-    width:100%;
+    width:auto;
+    justify-content:flex-end;
+    gap:6px;
   }
   .status-meta{
-    grid-column:1;
+    flex:0 0 auto;
+    min-width:max-content;
     justify-content:space-between;
-    min-width:0;
   }
   .save-state{white-space:nowrap}
   .theme-picker{margin:0}
@@ -483,8 +488,8 @@ html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#7
   .theme-picker select{width:76px;padding:7px 22px 7px 8px}
   .status button,
   .status .account-state{
-    width:100%;
-    min-width:0;
+    flex:0 1 auto;
+    min-width:max-content;
     min-height:36px;
     padding:7px 9px;
     white-space:nowrap;
@@ -2009,4 +2014,52 @@ html[data-theme="dark"] .read-only-banner button{
 @media(max-width:420px){
   .brand-logo{width:44px;height:30px}
   .brand strong{font-size:16px;letter-spacing:.02em}
+}
+
+
+/* Keep the complete header control set available at narrow widths. The
+   wordmark gets its own row, while status and actions wrap into intentional
+   touch-friendly rows below it. */
+@media(max-width:720px){
+  .topbar{
+    position:static;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:8px;
+    padding:10px 14px;
+  }
+  .brand{
+    align-self:flex-start;
+    min-width:0;
+  }
+  .status{
+    display:flex;
+    width:100%;
+    max-width:none;
+    align-items:center;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .status-meta{
+    flex:1 1 100%;
+    min-width:0;
+    justify-content:space-between;
+  }
+  .status button,
+  .status .account-state{
+    display:inline-flex!important;
+    flex:0 1 auto;
+    min-width:max-content;
+    min-height:36px;
+    padding:7px 8px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+  .theme-picker select{
+    width:72px;
+    padding-inline:6px;
+  }
 }

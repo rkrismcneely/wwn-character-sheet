@@ -2997,6 +2997,7 @@ export default function Home({
                     </div>}
                     {sheet.backgroundDevelopmentMethod === "choose-learning" && <div className="background-growth">
                       <div className="background-growth-heading"><strong>Choose Learning</strong><span>Choose exactly two results from this background’s Learning table. Any Skill cannot be deliberately selected.</span></div>
+                      <div className="background-learning-rows">
                       {sheet.backgroundLearningPicks.map((pick, index) => {
                         const grantId = `learning-${index}`;
                         const resolution = backgroundGrantResolution(grantId);
@@ -3007,7 +3008,8 @@ export default function Home({
                             const candidateResolution = backgroundGrantResolution(grantId, candidate);
                             const available = result === "Any Combat" || !candidateResolution?.needsReplacement;
                             return <option key={result} value={result} disabled={!available}>{result}{available ? "" : " — already level 1"}</option>;
-                          })}</select></label>
+                          })}
+                      </div></select></label>
                           {renderBackgroundSkillFollowUp({
                             result: pick.result,
                             choice: pick.choice || "",

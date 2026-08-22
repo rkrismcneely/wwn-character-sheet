@@ -294,4 +294,9 @@ test("character-sheet learning choices and privacy footer use responsive layout"
   );
   assert.match(css, /\.core-grid\{align-items:start\}/u);
   assert.doesNotMatch(css, /\.background-learning-rows[^}]*overflow/u);
+  assert.match(
+    css,
+    /\.background-learning-rows \.background-result-row select\{[\s\S]*width:100%;[\s\S]*min-width:0;[\s\S]*max-width:100%/u,
+    "Learning selects should fill their responsive card column",
+  );
 });

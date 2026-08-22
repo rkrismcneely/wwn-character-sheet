@@ -2078,3 +2078,14 @@ html[data-theme="dark"] .read-only-banner button{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 }
+
+/* Let Learning controls use the full width of their responsive card columns. */
+.background-learning-rows .background-result-row,
+.background-learning-rows .background-result-row > *{
+  min-width:0;
+}
+.background-learning-rows .background-result-row select{
+  width:100%;
+  min-width:0;
+  max-width:100%;
+}

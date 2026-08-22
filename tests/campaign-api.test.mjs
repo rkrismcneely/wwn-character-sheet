@@ -191,6 +191,16 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
   assert.deepEqual({ ...stored }, { ownerUserId: owner.userId, role: "gm" });
 });
 
+test("new and existing campaigns with no resources return a valid empty list", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Empty Resources" }, now);
+  await addMember(sqlite, campaign.id, player);
+
+  assert.equal((await readCampaign(db, owner, campaign.id)).description, null);
+  assert.deepEqual(await listCampaignResources(db, owner, campaign.id), []);
+  assert.deepEqual(await listCampaignResources(db, player, campaign.id), []);
+});
+
 test("campaign resources are private, ordered, and mutable only by owner or GM", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Resources" }, now);

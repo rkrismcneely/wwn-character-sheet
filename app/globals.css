@@ -272,10 +272,6 @@ body{
 .language-chip button:hover,.language-chip button:focus{background:#74441d;color:#fffaf0}
 
 /* The display theme is a browser-local preference, separate from character data. */
-.theme-picker{display:flex;align-items:center;gap:6px;margin:0 2px;color:#d8ccb8}
-.theme-picker>span{font:700 9px Arial,sans-serif;letter-spacing:.11em;text-transform:uppercase}
-.theme-picker select{width:82px;padding:7px 24px 7px 8px;border:1px solid #806944;background:#292116;color:#f6ecd9;border-radius:2px;cursor:pointer}
-
 /* Amber Codex — nocturnal vellum, brass instruments, and ember-lit ink. */
 html[data-theme="dark"]{
   --ink:#f0dfbd;
@@ -300,12 +296,6 @@ html[data-theme="dark"] body{
 }
 html[data-theme="dark"] .topbar{background:linear-gradient(180deg,#131412,#080909);border-bottom-color:#8b672c}
 html[data-theme="dark"] .brand strong{color:#f2c76f}
-html[data-theme="dark"] .brand small,
-html[data-theme="dark"] .status,
-html[data-theme="dark"] .theme-picker{color:#bdad92}
-html[data-theme="dark"] .status button,
-html[data-theme="dark"] .theme-picker select,
-html[data-theme="dark"] .quiet{background:linear-gradient(#27231b,#171612);border-color:#765b30;color:#f1dfbb}
 html[data-theme="dark"] .folio{
   background-color:#171713;
   background-image:linear-gradient(rgba(17,17,15,.86),rgba(13,14,13,.92)),url("/assets/amber-codex-observatory.png");
@@ -450,8 +440,6 @@ html[data-theme="dark"] .plain-summary{background:#d8942618;border-left-color:#d
 html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#715c3a;color:#e7c98b}
 
 @media(max-width:720px){
-  .theme-picker>span{display:none}
-  .theme-picker select{width:72px;padding-inline:6px}
   html[data-theme="dark"] body{background-attachment:scroll}
 }
 
@@ -483,9 +471,6 @@ html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#7
     justify-content:space-between;
   }
   .save-state{white-space:nowrap}
-  .theme-picker{margin:0}
-  .theme-picker>span{display:none}
-  .theme-picker select{width:76px;padding:7px 22px 7px 8px}
   .status button,
   .status .account-state{
     flex:0 1 auto;
@@ -2088,4 +2073,275 @@ html[data-theme="dark"] .read-only-banner button{
   width:100%;
   min-width:0;
   max-width:100%;
+}
+
+
+/* Sitewide Amber Codex surfaces. The root data-theme value is shared by every route. */
+html[data-theme="dark"] .app-header{
+  background:linear-gradient(180deg,#131412,#080909);
+  border-bottom-color:#8b672c;
+  color:#f1dfbb;
+}
+html[data-theme="dark"] .app-header nav a,
+html[data-theme="dark"] .app-header nav button,
+html[data-theme="dark"] .status button,
+html[data-theme="dark"] .status .account-state{
+  background:linear-gradient(#27231b,#171612);
+  border-color:#765b30;
+  color:#f1dfbb;
+}
+html[data-theme="dark"] .app-header nav a[aria-current="page"]{
+  border-color:#d3a45d;
+  color:#ffe4ac;
+}
+html[data-theme="dark"] .app-header-error{
+  background:#3a2a18;
+  border-left-color:#c18a36;
+  color:#f2d5a0;
+}
+
+html[data-theme="dark"] .account-shell,
+html[data-theme="dark"] .dashboard-shell,
+html[data-theme="dark"] .campaign-shell{
+  color:#f0dfbd;
+  background-image:linear-gradient(rgba(5,7,8,.58),rgba(5,6,7,.8)),url("/assets/amber-codex-observatory.png");
+}
+html[data-theme="dark"] .account-hero,
+html[data-theme="dark"] .dashboard-heading,
+html[data-theme="dark"] .campaign-hero{
+  background:linear-gradient(105deg,rgba(28,27,23,.97),rgba(43,36,25,.95));
+  border-color:#765b30;
+  outline-color:#46391f;
+  box-shadow:0 10px 30px #0008;
+}
+html[data-theme="dark"] .account-hero h1,
+html[data-theme="dark"] .dashboard-heading h1,
+html[data-theme="dark"] .campaign-hero h1,
+html[data-theme="dark"] .account-section-heading h2,
+html[data-theme="dark"] .dashboard-section-heading h2,
+html[data-theme="dark"] .dashboard-tool h2,
+html[data-theme="dark"] .campaign-section-heading h2,
+html[data-theme="dark"] .campaign-management h2,
+html[data-theme="dark"] .campaign-join h2{
+  color:#f1d59f;
+}
+html[data-theme="dark"] .account-hero>p:last-child,
+html[data-theme="dark"] .dashboard-heading p:not(.dashboard-kicker),
+html[data-theme="dark"] .campaign-hero>div>p:not(.campaign-kicker),
+html[data-theme="dark"] .account-explanation,
+html[data-theme="dark"] .dashboard-tool>p:not(.dashboard-kicker),
+html[data-theme="dark"] .campaign-management-note,
+html[data-theme="dark"] .campaign-join>p:not(.campaign-kicker){
+  color:#c0ae8d;
+}
+html[data-theme="dark"] .account-kicker,
+html[data-theme="dark"] .dashboard-kicker,
+html[data-theme="dark"] .campaign-kicker{
+  color:#e0a746;
+}
+html[data-theme="dark"] .account-panel,
+html[data-theme="dark"] .account-destination,
+html[data-theme="dark"] .dashboard-roster,
+html[data-theme="dark"] .dashboard-tool,
+html[data-theme="dark"] .campaign-panel,
+html[data-theme="dark"] .campaign-join,
+html[data-theme="dark"] .campaign-management{
+  background:rgba(24,24,21,.96);
+  border-color:#665431;
+  box-shadow:0 10px 30px #0007;
+  color:#f0dfbd;
+}
+html[data-theme="dark"] .account-section-heading,
+html[data-theme="dark"] .dashboard-section-heading,
+html[data-theme="dark"] .campaign-section-heading{
+  border-bottom-color:#6f5934;
+}
+html[data-theme="dark"] .account-section-heading>span,
+html[data-theme="dark"] .dashboard-count,
+html[data-theme="dark"] .campaign-count{
+  background:#242119;
+  border-color:#82683b;
+  color:#e7c886;
+}
+html[data-theme="dark"] .account-form label,
+html[data-theme="dark"] .account-theme-control label,
+html[data-theme="dark"] .dashboard-tool label,
+html[data-theme="dark"] .campaign-join label,
+html[data-theme="dark"] .campaign-dialog-form label,
+html[data-theme="dark"] .campaign-invite-code label,
+html[data-theme="dark"] .account-form small,
+html[data-theme="dark"] .account-theme-control small,
+html[data-theme="dark"] .campaign-member p,
+html[data-theme="dark"] .campaign-card>p,
+html[data-theme="dark"] .campaign-link-list p,
+html[data-theme="dark"] .campaign-character-identity>span,
+html[data-theme="dark"] .campaign-character-vitals span{
+  color:#b9a98d;
+}
+html[data-theme="dark"] .account-form input,
+html[data-theme="dark"] .account-theme-control select,
+html[data-theme="dark"] .dashboard-tool input,
+html[data-theme="dark"] .campaign-join input,
+html[data-theme="dark"] .campaign-dialog-form input,
+html[data-theme="dark"] .campaign-dialog-form textarea,
+html[data-theme="dark"] .campaign-invite-code input{
+  background:#22211c;
+  border-color:#665a42;
+  color:#f0dfbd;
+}
+html[data-theme="dark"] .account-provider div,
+html[data-theme="dark"] .dashboard-card,
+html[data-theme="dark"] .campaign-card,
+html[data-theme="dark"] .campaign-character-card,
+html[data-theme="dark"] .campaign-link-empty,
+html[data-theme="dark"] .campaign-character-vitals>div{
+  background:#211f19;
+  border-color:#645537;
+  color:#ead9b8;
+  box-shadow:none;
+}
+html[data-theme="dark"] .account-provider dt,
+html[data-theme="dark"] .dashboard-level,
+html[data-theme="dark"] .dashboard-card dt,
+html[data-theme="dark"] .campaign-member time,
+html[data-theme="dark"] .campaign-card-topline,
+html[data-theme="dark"] .campaign-character-empty,
+html[data-theme="dark"] .campaign-empty-copy{
+  color:#b9a98d;
+}
+html[data-theme="dark"] .account-destination,
+html[data-theme="dark"] .dashboard-card h3,
+html[data-theme="dark"] .campaign-card h3,
+html[data-theme="dark"] .campaign-link-list h3,
+html[data-theme="dark"] .campaign-member h3,
+html[data-theme="dark"] .campaign-character-identity h3,
+html[data-theme="dark"] .campaign-character-empty h3{
+  color:#f0dbb2;
+}
+html[data-theme="dark"] .account-primary,
+html[data-theme="dark"] .dashboard-primary,
+html[data-theme="dark"] .campaign-primary{
+  background:#9b641f;
+  border-color:#d5a24d;
+  color:#fff2d2;
+}
+html[data-theme="dark"] .account-secondary,
+html[data-theme="dark"] .dashboard-secondary,
+html[data-theme="dark"] .dashboard-open,
+html[data-theme="dark"] .campaign-secondary,
+html[data-theme="dark"] .campaign-quiet,
+html[data-theme="dark"] .campaign-open,
+html[data-theme="dark"] .campaign-member-remove{
+  background:#29261f;
+  border-color:#755f3b;
+  color:#ecd8af;
+}
+html[data-theme="dark"] .account-notice,
+html[data-theme="dark"] .dashboard-notice,
+html[data-theme="dark"] .campaign-notice{
+  background:#213122;
+  border-left-color:#78916c;
+  color:#d9ead3;
+}
+html[data-theme="dark"] .account-error,
+html[data-theme="dark"] .dashboard-error,
+html[data-theme="dark"] .campaign-error{
+  background:#3a2a18;
+  border-left-color:#c18a36;
+  color:#f2d5a0;
+}
+html[data-theme="dark"] .campaign-readonly{
+  background:#2b281f;
+  border-left-color:#8b744f;
+  color:#ded0b3;
+}
+html[data-theme="dark"] .campaign-dialog-backdrop{background:rgba(3,4,4,.88)}
+html[data-theme="dark"] .campaign-dialog,
+html[data-theme="dark"] .campaign-page-state,
+html[data-theme="dark"] .campaign-join-card{
+  background:#181714;
+  border-color:#765b30;
+  outline-color:#40371f;
+  color:#f0dfbd;
+}
+html[data-theme="dark"] .campaign-dialog h2,
+html[data-theme="dark"] .campaign-page-state h1,
+html[data-theme="dark"] .campaign-join-card h1{
+  color:#f1d59f;
+}
+html[data-theme="dark"] .campaign-dialog-description,
+html[data-theme="dark"] .campaign-confirm-copy,
+html[data-theme="dark"] .campaign-invite-expiry,
+html[data-theme="dark"] .campaign-join-card>p,
+html[data-theme="dark"] .campaign-page-state{
+  color:#c0ae8d;
+}
+
+html[data-theme="dark"] .landing-shell,
+html[data-theme="dark"] .public-library-page{
+  --landing-ink:#f0dfbd;
+  --landing-muted:#c0ae8d;
+  --landing-amber:#e0a746;
+  --landing-gold:#f0c36e;
+  color:var(--landing-ink);
+  background-color:#11120f;
+  background-image:linear-gradient(rgba(8,9,8,.88),rgba(12,13,11,.94)),url("/assets/amber-codex-observatory.png");
+}
+html[data-theme="dark"] .landing-detail{border-bottom-color:#645537}
+html[data-theme="dark"] .landing-preview{
+  background:#211f19;
+  border-color:#76613b;
+  outline-color:#594a36;
+  box-shadow:0 30px 70px #0009;
+}
+html[data-theme="dark"] .preview-hero{border-bottom-color:#6f5934}
+html[data-theme="dark"] .preview-portrait,
+html[data-theme="dark"] .preview-vital,
+html[data-theme="dark"] .preview-grid section,
+html[data-theme="dark"] .privacy-card,
+html[data-theme="dark"] .public-card-grid article,
+html[data-theme="dark"] .public-state{
+  background:#211f19;
+  border-color:#645537;
+  color:#ead9b8;
+  box-shadow:none;
+}
+html[data-theme="dark"] .preview-hero small,
+html[data-theme="dark"] .preview-hero span,
+html[data-theme="dark"] .preview-grid p,
+html[data-theme="dark"] .privacy-card span,
+html[data-theme="dark"] .public-card-grid p{
+  color:#c0ae8d;
+}
+html[data-theme="dark"] .public-library-intro{
+  background:linear-gradient(105deg,rgba(28,27,23,.97),rgba(43,36,25,.95));
+  border-color:#765b30;
+}
+html[data-theme="dark"] .public-library-intro h1,
+html[data-theme="dark"] .public-card-grid h3{
+  color:#f1d59f;
+}
+html[data-theme="dark"] .public-browser form label,
+html[data-theme="dark"] .public-card-grid article>span{
+  color:#e0a746;
+}
+html[data-theme="dark"] .public-browser input{
+  background:#22211c;
+  border-color:#665a42;
+  color:#f0dfbd;
+}
+html[data-theme="dark"] .public-browser button{
+  background:#9b641f;
+  border-color:#d5a24d;
+  color:#fff2d2;
+}
+html[data-theme="dark"] .landing-button-secondary{
+  background:#29261f;
+  border-color:#755f3b;
+  color:#ecd8af;
+}
+html[data-theme="dark"] .landing-final .landing-button-secondary{
+  background:#29261f;
+  border-color:#755f3b;
+  color:#ecd8af;
 }

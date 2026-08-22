@@ -2345,3 +2345,14 @@ html[data-theme="dark"] .landing-final .landing-button-secondary{
   border-color:#755f3b;
   color:#ecd8af;
 }
+
+
+html[data-theme="dark"] .campaign-resource-card{
+  background:#211f19;
+  border-color:#645537;
+  color:#ead9b8;
+}
+html[data-theme="dark"] .campaign-resource-card a{color:#f0c36e}
+html[data-theme="dark"] .campaign-resource-card p,
+html[data-theme="dark"] .campaign-description,
+html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}

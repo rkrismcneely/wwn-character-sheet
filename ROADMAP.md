@@ -180,6 +180,7 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Campaign-scoped read-only character and portrait routes for members, GMs, and
   read-only site administrators; global visibility and direct character-route
   authorization remain unchanged.
+- ✅ Campaign read-only sheet cleanup + responsive global header: campaign-scoped read-only views show one context banner above the folio, and the global character-sheet controls wrap accessibly across desktop, tablet, and mobile without hiding labels or introducing horizontal overflow.
 
 ### Remaining private-campaign usability
 

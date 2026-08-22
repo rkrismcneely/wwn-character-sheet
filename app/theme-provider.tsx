@@ -5,7 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
+  useSyncExternalStore,
 } from "react";
 
 export type DisplayTheme = "light" | "dark";
@@ -18,10 +18,45 @@ type ThemeContextValue = {
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+const themeListeners = new Set<() => void>();
+
+function readStoredTheme(): DisplayTheme {
+  return typeof window !== "undefined"
+    && window.localStorage.getItem(DISPLAY_THEME_STORAGE_KEY) === "dark"
+    ? "dark"
+    : "light";
+}
 
 function applyTheme(theme: DisplayTheme) {
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
+}
+
+function notifyThemeListeners() {
+  themeListeners.forEach(listener => listener());
+}
+
+function subscribeToTheme(listener: () => void) {
+  themeListeners.add(listener);
+
+  function syncStoredTheme(event: StorageEvent) {
+    if (event.key === DISPLAY_THEME_STORAGE_KEY) {
+      applyTheme(readStoredTheme());
+      listener();
+    }
+  }
+
+  window.addEventListener("storage", syncStoredTheme);
+  return () => {
+    themeListeners.delete(listener);
+    window.removeEventListener("storage", syncStoredTheme);
+  };
+}
+
+function updateStoredTheme(theme: DisplayTheme) {
+  window.localStorage.setItem(DISPLAY_THEME_STORAGE_KEY, theme);
+  applyTheme(theme);
+  notifyThemeListeners();
 }
 
 export function ThemeProvider({
@@ -29,16 +64,14 @@ export function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [theme, setThemeState] = useState<DisplayTheme>(() =>
-    typeof document !== "undefined" && document.documentElement.dataset.theme === "dark"
-      ? "dark"
-      : "light",
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    readStoredTheme,
+    () => "light",
   );
 
   const setTheme = useCallback((nextTheme: DisplayTheme) => {
-    localStorage.setItem(DISPLAY_THEME_STORAGE_KEY, nextTheme);
-    applyTheme(nextTheme);
-    setThemeState(nextTheme);
+    updateStoredTheme(nextTheme);
   }, []);
 
   const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
@@ -68,8 +101,8 @@ export function ThemeSelect({
       onChange={event => setTheme(event.target.value as DisplayTheme)}
       aria-describedby={describedBy}
     >
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
+      <option value="light">Light mode</option>
+      <option value="dark">Dark mode</option>
     </select>
   );
 }

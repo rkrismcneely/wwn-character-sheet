@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DATABASE_ID, DATABASE_NAME } from "./d1-admin.mjs";
 
@@ -49,6 +49,7 @@ try {
   const temporaryConfig = join(temporaryRoot, "wrangler.jsonc");
   const source = join(process.cwd(), "drizzle", migrationName);
   const target = join(migrationDir, migrationName);
+  mkdirSync(migrationDir, { recursive: true });
   writeFileSync(join(temporaryRoot, "placeholder"), "");
   // Wrangler resolves the configured directory relative to this temporary config.
   copyFileSync(source, target);

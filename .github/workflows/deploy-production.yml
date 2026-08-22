@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "drizzle/0008_campaign_resources.sql"
   workflow_dispatch:
 
 permissions:

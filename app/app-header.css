@@ -233,15 +233,6 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
     padding:7px 8px;
     font-size:11px;
   }
-
-  .theme-picker select{
-    width:72px;
-    padding-inline:6px;
-  }
-
-  .app-header-error{
-    width:calc(100% - 28px);
-  }
 }
 
 @media(max-width:360px){

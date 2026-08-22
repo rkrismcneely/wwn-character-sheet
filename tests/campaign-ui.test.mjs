@@ -70,6 +70,7 @@ test("campaign overview and resources stay member-readable with owner/GM control
   const types = await source("app/campaigns/campaign-types.ts");
   const resourceList = await source("app/api/campaigns/[id]/resources/route.ts");
   const resourceItem = await source("app/api/campaigns/[id]/resources/[resourceKey]/route.ts");
+  const css = await source("app/campaigns/campaign-ui.css");
   assert.match(detail, /Campaign Overview/u);
   assert.match(detail, /campaign\.description/u);
   assert.match(detail, /Campaign Resources/u);
@@ -77,7 +78,7 @@ test("campaign overview and resources stay member-readable with owner/GM control
   assert.match(detail, /Move up/u);
   assert.match(detail, /Move down/u);
   assert.match(detail, /target="_blank" rel="noreferrer"/u);
-  assert.match(detail, /white-space/u);
+  assert.match(css, /white-space: pre-wrap/u);
   assert.match(types, /description: string \| null/u);
   assert.match(types, /canManageContent: boolean/u);
   assert.match(resourceList, /getSessionActor\(request\)/u);

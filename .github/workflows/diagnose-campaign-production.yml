@@ -1,4 +1,4 @@
-name: Diagnose Production Campaign Loading
+name: Repair Production Campaign Resources
 
 on:
   pull_request:
@@ -14,13 +14,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
 jobs:
-  diagnose:
-    name: Read-only production diagnosis
+  repair:
+    name: Apply and verify migration 0008
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
-      - name: Check out diagnostic commit
+      - name: Check out repair commit
         uses: actions/checkout@v4
 
       - name: Set up Node.js
@@ -32,28 +36,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Confirm repository production target
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
-          const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
-          const database = config.d1_databases?.find((entry) => entry.binding === "DB");
-          if (!database) throw new Error("DB binding is missing from wrangler.jsonc.");
-          console.log(JSON.stringify({
-            workerName: config.name,
-            binding: database.binding,
-            databaseName: database.database_name,
-            databaseId: database.database_id,
-          }, null, 2));
-          NODE
-
-      - name: Inspect active Worker deployment
-        run: npx wrangler deployments status --name wwn-character-sheet --config wrangler.jsonc --json
+      - name: Apply only the reviewed campaign resources migration
+        run: node scripts/migrate-phase4c-resources.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Inspect exact production D1 schema and failing query
+      - name: Verify exact production schema and resource query
         shell: bash
         run: |
           set -euo pipefail
@@ -75,64 +64,28 @@ jobs:
 
           run_query "Migration state" "SELECT id, name, applied_at FROM d1_migrations ORDER BY id"
           run_query "Campaign columns" "PRAGMA table_info('campaigns')"
-          run_query "Campaign table definition" "SELECT name, sql FROM sqlite_schema WHERE type = 'table' AND name = 'campaigns'"
           run_query "Campaign resource columns" "PRAGMA table_info('campaign_resources')"
           run_query "Campaign resource table definition" "SELECT name, sql FROM sqlite_schema WHERE type = 'table' AND name = 'campaign_resources'"
-          run_query "Campaign resource indexes" "PRAGMA index_list('campaign_resources')"
-          run_query "Campaign resource index definitions" "SELECT name, sql FROM sqlite_schema WHERE type = 'index' AND tbl_name = 'campaign_resources' ORDER BY name"
+          run_query "Campaign resource indexes" "SELECT name, sql FROM sqlite_schema WHERE type = 'index' AND tbl_name = 'campaign_resources' ORDER BY name"
           run_query "Campaign resource foreign keys" "PRAGMA foreign_key_list('campaign_resources')"
-          run_query "Schema-only aggregate verification" "SELECT (SELECT COUNT(*) FROM campaigns) AS campaignCount, (SELECT COUNT(*) FROM campaign_resources) AS resourceCount, (SELECT COUNT(*) FROM campaigns WHERE description IS NULL OR trim(description) = '') AS emptyDescriptionCount"
-          run_query "Exact empty-resource query used by production" "SELECT id, title, type, content, position, updated_at AS updatedAt FROM campaign_resources WHERE campaign_id = '__production_schema_probe__' ORDER BY position ASC, created_at ASC"
+          run_query "Exact production list query" "SELECT id, title, type, content, position, updated_at AS updatedAt FROM campaign_resources WHERE campaign_id = '__production_schema_probe__' ORDER BY position ASC, created_at ASC"
+          run_query "Production aggregate integrity" "SELECT (SELECT COUNT(*) FROM campaigns) AS campaignCount, (SELECT COUNT(*) FROM campaign_members) AS memberCount, (SELECT COUNT(*) FROM campaign_characters) AS characterLinkCount, (SELECT COUNT(*) FROM campaign_resources) AS resourceCount"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  tail-access:
-    name: Verify production tail access
-    runs-on: ubuntu-latest
-    timeout-minutes: 6
-    steps:
-      - name: Check out diagnostic commit
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.13.0
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Capture a known production request in Worker tail
-        shell: bash
+      - name: Verify production health
         run: |
-          set -euo pipefail
-          tail_log="$(mktemp)"
-          cleanup() {
-            if [[ -n "${tail_pid:-}" ]]; then
-              kill -INT "${tail_pid}" 2>/dev/null || true
-              wait "${tail_pid}" 2>/dev/null || true
-            fi
-          }
-          trap cleanup EXIT
-
-          timeout --signal=INT 120s npx wrangler tail wwn-character-sheet --config wrangler.jsonc --format json >"${tail_log}" 2>&1 &
-          tail_pid=$!
-          sleep 12
-
-          curl --silent --show-error --output /dev/null --write-out "Probe HTTP %{http_code}\n" \
-            https://taleswithoutend.com/api/campaigns/__tail_probe__/resources
-
-          sleep 18
-          cleanup
-          tail_pid=""
-
-          sed -E 's/(authorization|cookie|set-cookie)("[[:space:]]*:[[:space:]]*"[^"]*")/\1:"[redacted]"/Ig' "${tail_log}"
-          grep -q "__tail_probe__" "${tail_log}" || {
-            echo "::error::Worker tail connected but did not capture the known production probe."
-            exit 1
-          }
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --retry 12 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            --connect-timeout 15 \
+            --max-time 30 \
+            --output /dev/null \
+            --write-out 'Production health check: HTTP %{http_code}\n' \
+            https://taleswithoutend.com

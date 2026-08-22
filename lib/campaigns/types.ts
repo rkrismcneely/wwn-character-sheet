@@ -31,6 +31,8 @@ export interface CampaignCharacterRecord {
   visibility: CharacterVisibility;
 }
 
+export type CampaignResourceType = "text" | "link";
+
 export function isCampaignRole(value: unknown): value is CampaignRole {
   return (
     typeof value === "string" &&

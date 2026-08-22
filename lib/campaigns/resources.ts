@@ -1,5 +1,5 @@
 import { canManageCampaignContent } from "./authorization.ts";
-import { CampaignServiceError, getCampaignD1, loadCampaignAccess } from "./service.ts";
+import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
 import type { CampaignActor, CampaignResourceType } from "./types.ts";
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
 
@@ -150,7 +150,6 @@ export async function updateCampaignResource(
     throw new CampaignServiceError("A valid campaign resource is required.", 422);
   }
   const rows = await listRows(db, campaign.id);
-  const row = rows.find(async (candidate) => (await resourceKey(campaign.publicId, candidate.id)) === rawResourceKey);
   let target: CampaignResourceRow | undefined;
   for (const candidate of rows) {
     if (await resourceKey(campaign.publicId, candidate.id) === rawResourceKey) {
@@ -223,4 +222,3 @@ export async function reorderCampaignResource(
   return listCampaignResources(db, actor, publicId);
 }
 
-export { getCampaignD1 };

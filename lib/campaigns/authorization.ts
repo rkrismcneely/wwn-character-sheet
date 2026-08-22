@@ -67,6 +67,7 @@ export function canManageCampaignContent(
   campaign: CampaignAccessRecord,
   membership: CampaignMembershipRecord | null,
 ): boolean {
+  if (actor?.role === "admin") return false;
   return canInviteCampaignMembers(actor, campaign, membership);
 }
 

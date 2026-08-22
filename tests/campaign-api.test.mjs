@@ -270,6 +270,7 @@ test("owner, member, and site admin can read while outsiders cannot enumerate", 
   const adminView = await readCampaign(db, admin, campaign.id);
   assert.equal(adminView.permissions.adminReadOnly, true);
   assert.equal(adminView.permissions.canManageSettings, false);
+  assert.equal(adminView.permissions.canManageContent, false);
   assert.equal(adminView.permissions.canInviteMembers, false);
   assert.equal(adminView.permissions.canRemovePlayers, false);
   assert.equal(adminView.permissions.canLeave, false);
@@ -286,8 +287,47 @@ test("campaign ownership remains authoritative when the owner also has the site-
   assert.equal(ownerView.isOwner, true);
   assert.equal(ownerView.membershipRole, "gm");
   assert.equal(ownerView.permissions.canInviteMembers, true);
-  assert.equal(ownerView.permissions.canManageContent, false);
+  assert.equal(ownerView.permissions.canManageContent, true);
   assert.equal(ownerView.permissions.adminReadOnly, false);
+
+  const described = await updateCampaignDescription(db, ownerAsAdmin, campaign.id, {
+    description: "Owner-authored briefing.",
+    version: ownerView.version,
+  }, now);
+  assert.equal(described.description, "Owner-authored briefing.");
+
+  let resources = await createCampaignResource(db, ownerAsAdmin, campaign.id, {
+    title: "Table Rules",
+    type: "text",
+    content: "Bring a character.",
+  }, now);
+  resources = await createCampaignResource(db, ownerAsAdmin, campaign.id, {
+    title: "Campaign Map",
+    type: "link",
+    content: "https://example.com/map",
+  }, now);
+  resources = await reorderCampaignResource(
+    db,
+    ownerAsAdmin,
+    campaign.id,
+    resources[1].resourceKey,
+    "up",
+  );
+  resources = await updateCampaignResource(
+    db,
+    ownerAsAdmin,
+    campaign.id,
+    resources[0].resourceKey,
+    { title: "Regional Map", type: "link", content: "https://example.com/map" },
+  );
+  assert.deepEqual(resources.map(resource => resource.title), ["Regional Map", "Table Rules"]);
+  resources = await deleteCampaignResource(
+    db,
+    ownerAsAdmin,
+    campaign.id,
+    resources[1].resourceKey,
+  );
+  assert.deepEqual(resources.map(resource => resource.title), ["Regional Map"]);
 });
 
 test("campaign and roster payloads omit emails, internal user IDs, and invite data", async () => {

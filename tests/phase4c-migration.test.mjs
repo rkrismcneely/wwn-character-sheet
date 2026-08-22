@@ -115,6 +115,11 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
     resolve(projectRoot, "drizzle/0006_campaign_foundation.sql"),
   ]);
 
+  runWrangler(persistTo, environment, [
+    "--file",
+    resolve(projectRoot, "drizzle/0008_campaign_resources.sql"),
+  ]);
+
   const characterAfter = results(runWrangler(persistTo, environment, [
     "--command",
     "SELECT id, owner_user_id AS ownerUserId, public_id AS publicId, visibility, data, version FROM characters WHERE id = 'character-1'",
@@ -135,6 +140,7 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
     "campaign_members",
     "campaign_characters",
     "campaign_invites",
+    "campaign_resources",
   ]) {
     assert.equal(tables.has(table), true, `${table} should exist`);
   }
@@ -150,6 +156,7 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
     "campaign_characters_character_idx",
     "campaign_invites_token_hash_unique",
     "campaign_invites_campaign_status_idx",
+    "campaign_resources_campaign_position_idx",
   ]) {
     assert.equal(indexes.has(index), true, `${index} should exist`);
   }

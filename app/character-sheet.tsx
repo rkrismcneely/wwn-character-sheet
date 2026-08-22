@@ -3008,8 +3008,7 @@ export default function Home({
                             const candidateResolution = backgroundGrantResolution(grantId, candidate);
                             const available = result === "Any Combat" || !candidateResolution?.needsReplacement;
                             return <option key={result} value={result} disabled={!available}>{result}{available ? "" : " — already level 1"}</option>;
-                          })}
-                      </div></select></label>
+                          })}</select></label>
                           {renderBackgroundSkillFollowUp({
                             result: pick.result,
                             choice: pick.choice || "",
@@ -3022,6 +3021,7 @@ export default function Home({
                           })}
                         </div>;
                       })}
+                      </div>
                     </div>}
                     {sheet.backgroundDevelopmentMethod === "roll-growth-learning" && <div className="background-growth">
                       <div className="background-growth-heading"><strong>Roll Growth & Learning</strong><span>For each of the three independent rolls, choose Growth or Learning first, then roll that table’s die.</span></div>

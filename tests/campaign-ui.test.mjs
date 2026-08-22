@@ -71,7 +71,7 @@ test("campaign overview and resources stay member-readable with owner/GM control
   const resourceList = await source("app/api/campaigns/[id]/resources/route.ts");
   const resourceItem = await source("app/api/campaigns/[id]/resources/[resourceKey]/route.ts");
   const css = await source("app/campaigns/campaign-ui.css");
-  assert.match(detail, /Campaign Overview/u);
+  assert.match(detail, /CAMPAIGN OVERVIEW/u);
   assert.match(detail, /campaign\.description/u);
   assert.match(detail, /Campaign Resources/u);
   assert.match(detail, /Add Resource/u);

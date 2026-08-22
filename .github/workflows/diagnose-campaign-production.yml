@@ -108,7 +108,7 @@ jobs:
         run: npm ci
 
       - name: Run focused campaign regression tests
-        run: node --test tests/campaign-api.test.mjs
+        run: node --experimental-strip-types --test tests/campaign-api.test.mjs
 
       - name: Build production artifact
         run: npm run build

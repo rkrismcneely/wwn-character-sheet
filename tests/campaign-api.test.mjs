@@ -9,10 +9,12 @@ import {
   leaveCampaign,
   listCampaignMembers,
   listCampaigns,
+  normalizeCampaignDescription,
   normalizeCampaignName,
   readCampaign,
   removeCampaignMember,
   removeCampaignMemberByKey,
+  updateCampaignDescription,
   updateCampaignName,
 } from "../lib/campaigns/service.ts";
 
@@ -102,12 +104,11 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  const migration = await readFile(
-    new URL("../drizzle/0006_campaign_foundation.sql", import.meta.url),
-    "utf8",
-  );
-  for (const statement of migration.split("--> statement-breakpoint")) {
-    if (statement.trim()) sqlite.exec(statement);
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql"]) {
+    const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
+    for (const statement of migration.split("--> statement-breakpoint")) {
+      if (statement.trim()) sqlite.exec(statement);
+    }
   }
   return { sqlite, db: new TestD1(sqlite) };
 }
@@ -139,6 +140,23 @@ test("campaign names are bounded, trimmed application text", () => {
   assert.throws(() => normalizeCampaignName("unsafe\u0000name"), CampaignServiceError);
 });
 
+test("campaign descriptions stay bounded plain text and owner/GM mutation is protected", async () => {
+  assert.equal(normalizeCampaignDescription("  First line\\nSecond line  "), "First line\\nSecond line");
+  assert.equal(normalizeCampaignDescription(""), null);
+  assert.throws(() => normalizeCampaignDescription("x".repeat(4001)), CampaignServiceError);
+  assert.throws(() => normalizeCampaignDescription("bad\\u0000text"), CampaignServiceError);
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Briefing" }, now);
+  await addMember(sqlite, campaign.id, gm, "gm");
+  const updated = await updateCampaignDescription(db, gm, campaign.id, { description: "Meet at dusk.", version: 1 }, now);
+  assert.equal(updated.description, "Meet at dusk.");
+  assert.equal(updated.version, 2);
+  await expectServiceError(updateCampaignDescription(db, player, campaign.id, { description: "No", version: 2 }), 404);
+  await expectServiceError(updateCampaignDescription(db, admin, campaign.id, { description: "No", version: 2 }), 403);
+  const playerView = await readCampaign(db, gm, campaign.id);
+  assert.equal(playerView.description, "Meet at dusk.");
+});
+
 test("signed-in creation atomically establishes the creator as owner and GM", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Amber Company" }, now);
@@ -148,6 +166,7 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
   assert.equal(campaign.isOwner, true);
   assert.deepEqual(campaign.permissions, {
     canManageSettings: true,
+    canManageContent: true,
     canDelete: true,
     canInviteMembers: true,
     canRemovePlayers: true,
@@ -385,7 +404,9 @@ test("route layer remains authenticated, bounded, and free of client owner IDs",
   const detail = await readFile(new URL("app/api/campaigns/[id]/route.ts", root), "utf8");
   const members = await readFile(new URL("app/api/campaigns/[id]/members/route.ts", root), "utf8");
   const membership = await readFile(new URL("app/api/campaigns/[id]/membership/route.ts", root), "utf8");
-  for (const route of [collection, detail, members, membership]) {
+  const resources = await readFile(new URL("app/api/campaigns/[id]/resources/route.ts", root), "utf8");
+  const resourceItem = await readFile(new URL("app/api/campaigns/[id]/resources/[resourceKey]/route.ts", root), "utf8");
+  for (const route of [collection, detail, members, membership, resources, resourceItem]) {
     assert.match(route, /getSessionActor\(request\)/u);
     assert.doesNotMatch(route, /ownerUserId|email|tokenHash|token_hash/u);
   }
@@ -394,4 +415,6 @@ test("route layer remains authenticated, bounded, and free of client owner IDs",
   assert.match(members, /readBoundedJson\(request, 8 \* 1024\)/u);
   assert.match(members, /removeCampaignMemberByKey/u);
   assert.match(membership, /leaveCampaign/u);
+  assert.match(resources, /listCampaignResources|createCampaignResource/u);
+  assert.match(resourceItem, /reorderCampaignResource|deleteCampaignResource/u);
 });

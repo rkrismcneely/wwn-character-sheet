@@ -86,14 +86,15 @@ export function AccountPageClient({
       <section className="account-hero" aria-labelledby="account-title">
         <p className="account-kicker">THE COMPANY ARCHIVE · YOUR PROFILE</p>
         <h1 id="account-title">Account</h1>
-        <p>Choose the name other players see and move between your private rosters.</p>
+        <p>Choose the name other players see, set your preferred appearance, and move between your private rosters.</p>
       </section>
 
       {notice && <div className="account-notice" role="status">{notice}</div>}
       {error && <div className="account-error" role="alert">{error}</div>}
 
       <div className="account-layout">
-        <section className="account-panel" aria-labelledby="username-title">
+        <div className="account-main-panels">
+          <section className="account-panel" aria-labelledby="username-title">
           <div className="account-section-heading">
             <div>
               <p className="account-kicker">APPLICATION IDENTITY</p>
@@ -138,9 +139,9 @@ export function AccountPageClient({
             <div><dt>Google profile name</dt><dd>{profile.providerName}</dd></div>
             <div><dt>Signed in as</dt><dd>{profile.email}</dd></div>
           </dl>
-        </section>
+          </section>
 
-        <section className="account-panel account-appearance" aria-labelledby="appearance-title">
+          <section className="account-panel account-appearance" aria-labelledby="appearance-title">
           <div className="account-section-heading">
             <div>
               <p className="account-kicker">PREFERENCES</p>
@@ -160,7 +161,8 @@ export function AccountPageClient({
               Applies immediately across your characters, campaigns, account, and public archive.
             </small>
           </div>
-        </section>
+          </section>
+        </div>
 
         <aside className="account-destinations" aria-label="Signed-in destinations">
           <Link href="/" className="account-destination">

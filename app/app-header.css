@@ -1,3 +1,9 @@
+:root{
+  --twe-header-control-height:40px;
+  --twe-header-control-gap:7px;
+  --twe-header-control-padding-inline:10px;
+}
+
 .app-header{
   min-height:68px;
   display:flex;
@@ -10,13 +16,17 @@
   border-bottom:1px solid #8c6b34;
   box-shadow:0 2px 10px #0005;
 }
+
 .twe-brand{
   display:flex;
   align-items:center;
+  flex:0 0 auto;
   gap:12px;
+  min-width:0;
   color:inherit;
   text-decoration:none;
 }
+
 .twe-brand strong{
   display:block;
   font-family:var(--font-display);
@@ -26,6 +36,7 @@
   letter-spacing:.06em;
   white-space:nowrap;
 }
+
 .twe-brand-logo{
   display:block;
   flex:0 0 auto;
@@ -33,39 +44,91 @@
   height:42px;
   object-fit:contain;
 }
-.twe-brand:focus-visible{outline:2px solid #d3a45d;outline-offset:3px}
+
+.twe-brand:focus-visible{
+  outline:2px solid #d3a45d;
+  outline-offset:3px;
+}
+
 html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
-.app-header nav{
+
+.app-header nav,
+.header-actions{
   display:flex;
   align-items:center;
   justify-content:flex-end;
   flex-wrap:wrap;
-  gap:8px;
+  gap:var(--twe-header-control-gap);
+  min-width:0;
   font:12px var(--font-ui);
 }
-.app-header nav a,.app-header nav button{
-  min-height:35px;
+
+.status{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:nowrap;
+  gap:var(--twe-header-control-gap);
+  width:auto;
+  max-width:none;
+  min-width:0;
+}
+
+.status-meta{
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  gap:8px;
+  min-width:max-content;
+}
+
+.save-state{white-space:nowrap}
+
+.app-header nav a,
+.app-header nav button,
+.status button,
+.status .account-state{
+  box-sizing:border-box;
+  min-width:max-content;
+  max-width:100%;
+  min-height:var(--twe-header-control-height);
   display:inline-flex;
   align-items:center;
+  justify-content:center;
   border:1px solid #806944;
   background:linear-gradient(#3b3021,#292116);
   color:#f6ecd9;
-  padding:7px 10px;
+  padding:7px var(--twe-header-control-padding-inline);
+  font-family:var(--font-ui);
+  font-size:12px;
+  line-height:1.15;
+  text-align:center;
   text-decoration:none;
+  white-space:nowrap;
   cursor:pointer;
 }
+
 .app-header nav a[aria-current="page"]{
   border-color:#d3a45d;
   color:#ffe4ac;
   box-shadow:inset 0 -2px #d3a45d;
 }
-.app-header nav a:hover,.app-header nav a:focus-visible,
-.app-header nav button:hover,.app-header nav button:focus-visible{
+
+.app-header nav a:hover,
+.app-header nav a:focus-visible,
+.app-header nav button:hover,
+.app-header nav button:focus-visible,
+.status button:hover,
+.status button:focus-visible,
+.status .account-state:hover,
+.status .account-state:focus-visible{
   border-color:#d3a45d;
   color:#ffe4ac;
   outline:0;
 }
+
 .app-header nav button:disabled{cursor:wait;opacity:.65}
+
 .app-header-error{
   width:min(1320px,calc(100% - 48px));
   margin:12px auto 0;
@@ -75,20 +138,137 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
   color:#68440f;
   font:13px/1.4 var(--font-ui);
 }
+
+@media (min-width:721px) and (max-width:1100px){
+  .app-header{
+    flex-wrap:wrap;
+    gap:10px 18px;
+    padding:10px 18px;
+  }
+
+  .app-header nav{flex:1 1 500px}
+
+  .topbar{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px 18px;
+    padding:10px 18px;
+  }
+
+  .topbar>.twe-brand{flex:0 0 auto}
+
+  .status{
+    flex:1 1 620px;
+    min-width:min(100%,620px);
+  }
+
+  .header-actions{flex:1 1 auto}
+
+  .status button,
+  .status .account-state{
+    padding-inline:9px;
+  }
+}
+
 @media(max-width:720px){
-  .twe-brand{gap:8px}
-  .twe-brand-logo{width:50px;height:34px}
-  .twe-brand strong{font-size:17px;letter-spacing:.04em}
+  .twe-brand{
+    align-self:flex-start;
+    gap:9px;
+  }
+
+  .twe-brand-logo{
+    width:56px;
+    height:36px;
+  }
+
+  .twe-brand strong{
+    font-size:20px;
+    letter-spacing:.04em;
+  }
+
+  .app-header,
+  .topbar{
+    position:static;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:9px;
+    padding:10px 14px;
+  }
+
+  .app-header nav{
+    width:100%;
+    justify-content:flex-start;
+    gap:6px;
+  }
+
+  .status{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:7px;
+    width:100%;
+    max-width:none;
+  }
+
+  .status-meta{
+    width:100%;
+    min-width:0;
+    justify-content:space-between;
+  }
+
+  .header-actions{
+    width:100%;
+    justify-content:flex-start;
+    gap:6px;
+  }
+
+  .app-header nav a,
+  .app-header nav button,
+  .status button,
+  .status .account-state{
+    min-height:var(--twe-header-control-height);
+    padding:7px 8px;
+    font-size:11px;
+  }
+
+  .theme-picker select{
+    width:72px;
+    padding-inline:6px;
+  }
+
+  .app-header-error{
+    width:calc(100% - 28px);
+  }
 }
-@media(max-width:420px){
-  .twe-brand-logo{width:44px;height:30px}
-  .twe-brand strong{font-size:16px;letter-spacing:.02em}
-}
-@media(max-width:760px){
-  .app-header{align-items:flex-start;flex-direction:column;padding:11px 16px}
-  .app-header nav{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-  .app-header nav a,.app-header nav button{justify-content:center;text-align:center}
-}
-@media(max-width:420px){
-  .app-header nav{grid-template-columns:1fr}
+
+@media(max-width:360px){
+  .twe-brand-logo{
+    width:50px;
+    height:34px;
+  }
+
+  .twe-brand strong{
+    font-size:18px;
+    letter-spacing:.03em;
+  }
+
+  .app-header,
+  .topbar{
+    padding-inline:12px;
+  }
+
+  .app-header nav,
+  .header-actions{
+    gap:5px;
+  }
+
+  .app-header nav a,
+  .app-header nav button,
+  .status button,
+  .status .account-state{
+    padding-inline:7px;
+  }
 }

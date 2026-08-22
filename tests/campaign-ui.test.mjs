@@ -242,9 +242,10 @@ test("campaign character cards show the authorized party-at-a-glance summary", a
   assert.ok(css.includes(".campaign-character-grid{grid-template-columns:1fr}"), "mobile campaign card layout");
 });
 
-test("campaign read-only sheets keep one context notice and both headers keep every responsive control", async () => {
+test("campaign read-only sheets keep one context notice and headers retain every remaining responsive control", async () => {
   const sheet = await source("app/character-sheet.tsx");
   const appHeader = await source("app/app-header.tsx");
+  const account = await source("app/account/account-page.tsx");
   const globalCss = await source("app/globals.css");
   const headerCss = await source("app/app-header.css");
 
@@ -265,10 +266,12 @@ test("campaign read-only sheets keep one context notice and both headers keep ev
     "Import Character",
     "Sign Out",
     "Print / PDF",
-    "Display theme",
   ]) {
     assert.ok(sheet.includes(label), label);
   }
+  assert.doesNotMatch(sheet, /Display theme|theme-picker|wwn-display-theme/u);
+  assert.match(account, /account-display-theme/u);
+
   for (const label of [
     "Account",
     "My Characters",

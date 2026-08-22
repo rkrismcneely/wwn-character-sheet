@@ -5,6 +5,7 @@ import { useState } from "react";
 import { SignedInHeader } from "../app-header";
 import type { AccountProfilePayload } from "@/lib/account/profile";
 import { DISPLAY_NAME_MAX_LENGTH } from "@/lib/account/display-name";
+import { ThemeSelect } from "../theme-provider";
 
 export function AccountPageClient({
   initialProfile,
@@ -85,14 +86,15 @@ export function AccountPageClient({
       <section className="account-hero" aria-labelledby="account-title">
         <p className="account-kicker">THE COMPANY ARCHIVE · YOUR PROFILE</p>
         <h1 id="account-title">Account</h1>
-        <p>Choose the name other players see and move between your private rosters.</p>
+        <p>Choose the name other players see, set your preferred appearance, and move between your private rosters.</p>
       </section>
 
       {notice && <div className="account-notice" role="status">{notice}</div>}
       {error && <div className="account-error" role="alert">{error}</div>}
 
       <div className="account-layout">
-        <section className="account-panel" aria-labelledby="username-title">
+        <div className="account-main-panels">
+          <section className="account-panel" aria-labelledby="username-title">
           <div className="account-section-heading">
             <div>
               <p className="account-kicker">APPLICATION IDENTITY</p>
@@ -137,7 +139,30 @@ export function AccountPageClient({
             <div><dt>Google profile name</dt><dd>{profile.providerName}</dd></div>
             <div><dt>Signed in as</dt><dd>{profile.email}</dd></div>
           </dl>
-        </section>
+          </section>
+
+          <section className="account-panel account-appearance" aria-labelledby="appearance-title">
+          <div className="account-section-heading">
+            <div>
+              <p className="account-kicker">PREFERENCES</p>
+              <h2 id="appearance-title">Appearance</h2>
+            </div>
+          </div>
+          <p className="account-explanation">
+            Choose the Tales Without End presentation used throughout this browser.
+          </p>
+          <div className="account-theme-control">
+            <label htmlFor="account-display-theme">Theme</label>
+            <ThemeSelect
+              id="account-display-theme"
+              describedBy="account-theme-guidance"
+            />
+            <small id="account-theme-guidance">
+              Applies immediately across your characters, campaigns, account, and public archive.
+            </small>
+          </div>
+          </section>
+        </div>
 
         <aside className="account-destinations" aria-label="Signed-in destinations">
           <Link href="/" className="account-destination">

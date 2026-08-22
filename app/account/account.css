@@ -87,3 +87,19 @@
   .account-actions{flex-direction:column}
   .account-actions>*{width:100%}
 }
+
+
+.account-main-panels{display:grid;min-width:0;gap:18px}
+.account-theme-control{display:grid;max-width:420px;gap:7px}
+.account-theme-control label{color:#756957;font:700 10px var(--font-ui);letter-spacing:.1em;text-transform:uppercase}
+.account-theme-control select{
+  width:100%;
+  min-height:40px;
+  padding:9px 11px;
+  border:1px solid #bca478;
+  background:#fffdf7;
+  color:#2e2418;
+  font:700 13px var(--font-ui);
+}
+.account-theme-control select:focus{outline:2px solid #c18a36;outline-offset:1px}
+.account-theme-control small{color:#756957;font:11px/1.4 var(--font-ui)}

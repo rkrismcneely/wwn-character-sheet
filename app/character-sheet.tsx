@@ -33,7 +33,6 @@ import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
-type Theme = "light" | "dark";
 type AttributeMethod = "rolled" | "array";
 type AttributeName = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 type FocusPick = { name: string; level: number; choice?: string };
@@ -935,7 +934,6 @@ export default function Home({
   const signedIn = Boolean(session?.user?.id) && !locallySignedOut;
   const isAdmin = signedIn && session?.user?.role === "admin";
   const [tab, setTab] = useState<Tab>("core");
-  const [theme, setTheme] = useState<Theme>("light");
   const [sheet, setSheet] = useState<Sheet>(() =>
     startNew && !initialCharacter
       ? createBlankSheet()
@@ -997,21 +995,6 @@ export default function Home({
     input.style.height = "auto";
     input.style.height = `${input.scrollHeight}px`;
   }, [sheet.name]);
-
-  useEffect(() => {
-    const storedTheme = localStorage.getItem("wwn-display-theme");
-    const nextTheme: Theme = storedTheme === "dark" ? "dark" : "light";
-    // Theme is persisted outside React, so it must be synchronized after mount.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTheme(nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-  }, []);
-
-  function selectTheme(nextTheme: Theme) {
-    setTheme(nextTheme);
-    localStorage.setItem("wwn-display-theme", nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-  }
 
   function canonicalCallbackURL(): string {
     if (typeof window === "undefined") return CANONICAL_ORIGIN;
@@ -2532,13 +2515,6 @@ export default function Home({
         <div className="status">
           <div className="status-meta">
             <span className="save-state"><span className="dot" />{saved}</span>
-            <label className="theme-picker">
-              <span>Theme</span>
-              <select value={theme} onChange={e => selectTheme(e.target.value as Theme)} aria-label="Display theme">
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </label>
           </div>
           <div className="header-actions">
             {!signedIn && <button className="library-button" onClick={() => {

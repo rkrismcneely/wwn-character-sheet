@@ -2,10 +2,10 @@ import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import {
   deleteCampaignResource,
-  getCampaignD1,
   reorderCampaignResource,
   updateCampaignResource,
 } from "@/lib/campaigns/resources";
+import { getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
 type Context = { params: Promise<{ id: string; resourceKey: string }> };

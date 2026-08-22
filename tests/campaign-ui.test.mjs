@@ -74,11 +74,28 @@ test("campaign overview and resources stay member-readable with owner/GM control
   assert.match(detail, /CAMPAIGN OVERVIEW/u);
   assert.match(detail, /campaign\.description/u);
   assert.match(detail, /Campaign Resources/u);
+  assert.match(
+    detail,
+    /campaign\.permissions\.canManageContent && <button[^>]*>[\s\S]*campaign\.description \? "Edit Description" : "Add Description"/u,
+    "description controls must come from the authoritative content permission",
+  );
+  assert.ok(
+    detail.includes(
+      '{campaign.permissions.canManageContent && <button type="button" className="campaign-primary" onClick={() => openResource()}>Add Resource</button>}',
+    ),
+    "resource creation must come from the authoritative content permission",
+  );
   assert.match(detail, /Add Resource/u);
   assert.match(detail, /Move up/u);
   assert.match(detail, /Move down/u);
   assert.match(detail, /target="_blank" rel="noreferrer"/u);
   assert.match(css, /white-space: pre-wrap/u);
+  assert.match(css, /\.campaign-overview-panel\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1/u);
+  assert.ok(
+    detail.indexOf('<div className="campaign-detail-layout">')
+      < detail.indexOf('<section className="campaign-panel campaign-overview-panel"'),
+    "overview, resources, characters, members, and access must share the centered detail grid",
+  );
   assert.match(types, /description: string \| null/u);
   assert.match(types, /canManageContent: boolean/u);
   assert.match(resourceList, /getSessionActor\(request\)/u);

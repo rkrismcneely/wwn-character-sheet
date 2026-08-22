@@ -201,3 +201,31 @@ test("campaign character cards show the authorized party-at-a-glance summary", a
   assert.match(css, /\.campaign-character-vitals/u);
   assert.ok(css.includes(".campaign-character-grid{grid-template-columns:1fr}"), "mobile campaign card layout");
 });
+
+test("campaign read-only sheets keep one context notice and a complete responsive header", async () => {
+  const sheet = await source("app/character-sheet.tsx");
+  const css = await source("app/globals.css");
+
+  assert.equal(
+    (sheet.match(/Viewing through campaign · Read only/gu) || []).length,
+    1,
+    "the campaign read-only notice should have one render path",
+  );
+  assert.match(sheet, /className="campaign-character-context"/u);
+  assert.match(sheet, /!canEdit && !campaignContext\?\.readOnly && <div className="read-only-banner"/u);
+  assert.match(sheet, /<div className="hero">/u);
+
+  for (const label of ["Account", "Import Character", "Sign Out", "Print / PDF", "Display theme"]) {
+    assert.ok(sheet.includes(label), label);
+  }
+
+  assert.doesNotMatch(
+    css,
+    /\.status button:not\([^)]*\)\:not\([^)]*\)\{display:none\}/u,
+    "narrow layouts must not hide header controls",
+  );
+  assert.match(css, /@media \(min-width:721px\) and \(max-width:1100px\)[\s\S]*flex-wrap:wrap/u);
+  assert.match(css, /@media\(max-width:720px\)[\s\S]*\.topbar\{[\s\S]*flex-direction:column/u);
+  assert.match(css, /\.status\{[\s\S]*width:100%;[\s\S]*max-width:none/u);
+  assert.match(css, /min-width:max-content/u);
+});

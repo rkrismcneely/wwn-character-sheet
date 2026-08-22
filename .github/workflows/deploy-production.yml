@@ -28,7 +28,7 @@ jobs:
         id: migration_guard
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}" | grep -Fxq "drizzle/0008_campaign_resources.sql"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Fxq "drizzle/0008_campaign_resources.sql"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The feature migration workflow owns this release; ordinary deployment is skipped."
           else

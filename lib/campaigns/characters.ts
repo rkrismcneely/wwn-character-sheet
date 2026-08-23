@@ -65,6 +65,7 @@ export interface CampaignLinkedCharacterPayload {
   character: Record<string, unknown>;
   version: number;
   visibility: CharacterVisibility;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   permissions: {
@@ -493,7 +494,7 @@ export async function readCampaignLinkedCharacter(
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
               ch.data, ch.version, ch.portrait_key AS portraitKey,
-              ch.created_at AS createdAt, ch.updated_at AS updatedAt,
+              ch.archived_at AS archivedAt, ch.created_at AS createdAt, ch.updated_at AS updatedAt,
               u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_characters cc
        INNER JOIN characters ch ON ch.id = cc.character_id
@@ -532,6 +533,7 @@ export async function readCampaignLinkedCharacter(
     character,
     version: row.version,
     visibility: row.visibility,
+    archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     permissions: {

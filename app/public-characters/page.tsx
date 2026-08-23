@@ -20,7 +20,7 @@ export default async function PublicCharactersPage() {
         <SignedInHeader active="public" />
       ) : (
         <header>
-          <TalesBrandLink href="/" className="landing-brand" />
+          <TalesBrandLink href="/" />
           <GoogleSignInButton className="landing-button landing-button-small" />
         </header>
       )}

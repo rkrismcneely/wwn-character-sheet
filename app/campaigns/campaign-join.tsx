@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TalesBrandLink } from "../app-header";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -195,7 +196,7 @@ export function CampaignJoin() {
   return (
     <main className="campaign-shell">
       <header className="campaign-header">
-        <Link href="/" className="campaign-brand">Tales Without End</Link>
+        <TalesBrandLink href="/" />
         <nav aria-label="Campaign invitation navigation"><Link href="/campaigns">My Campaigns</Link></nav>
       </header>
       <section className="campaign-join-page" aria-labelledby="campaign-join-title">

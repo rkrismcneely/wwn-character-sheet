@@ -14,19 +14,17 @@ export type AppHeaderDestination =
 
 export function TalesBrandLink({
   href,
-  className = "",
 }: {
   href: string;
-  className?: string;
 }) {
   return (
     <Link
       href={href}
-      className={`twe-brand ${className}`.trim()}
+      className="twe-brand"
       aria-label="Tales Without End"
     >
       <img
-        className="twe-brand-logo brand-logo"
+        className="twe-brand-logo"
         src="/assets/tales-without-end-navigation-logo.svg"
         alt=""
       />

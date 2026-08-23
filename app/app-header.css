@@ -263,3 +263,115 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
     padding-inline:7px;
   }
 }
+
+/* Canonical Tales Without End brand presentation. The character-sheet
+   folio is the reference; every shared and signed-out header uses these
+   exact mark dimensions, type, color, and alignment. */
+.app-header,
+.topbar,
+.campaign-header,
+.landing-header,
+.public-library-page > header{
+  min-height:68px;
+  height:auto;
+  padding:10px max(24px,calc((100vw - 1450px)/2));
+}
+.app-header,
+.topbar,
+.campaign-header{
+  position:sticky;
+  top:0;
+  z-index:20;
+}
+.twe-brand{
+  display:flex;
+  align-items:center;
+  flex:0 0 auto;
+  gap:12px;
+  min-width:0;
+  color:#e7cf9c;
+}
+.twe-brand strong{
+  display:block;
+  font-family:var(--font-display);
+  font-size:24px;
+  font-weight:600;
+  line-height:1;
+  letter-spacing:.06em;
+  color:#e7cf9c;
+  white-space:nowrap;
+}
+.twe-brand-logo{
+  display:block;
+  flex:0 0 auto;
+  width:72px;
+  height:42px;
+  object-fit:contain;
+}
+html[data-theme="dark"] .twe-brand,
+html[data-theme="dark"] .twe-brand strong{
+  color:#f2c76f;
+}
+.landing-header,
+.public-library-page > header{
+  gap:20px;
+}
+.landing-header > nav,
+.public-library-page > header > nav{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:9px;
+}
+@media (min-width:721px) and (max-width:1100px){
+  .app-header,
+  .topbar,
+  .campaign-header,
+  .landing-header,
+  .public-library-page > header{
+    gap:10px 18px;
+    padding-inline:18px;
+  }
+}
+@media (max-width:720px){
+  .app-header,
+  .topbar,
+  .campaign-header,
+  .landing-header,
+  .public-library-page > header{
+    min-height:68px;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:9px;
+    padding:10px 14px;
+  }
+  .twe-brand{
+    align-self:flex-start;
+    gap:8px;
+  }
+  .twe-brand-logo{
+    width:50px;
+    height:34px;
+  }
+  .twe-brand strong{
+    font-size:17px;
+    letter-spacing:.04em;
+  }
+  .landing-header > nav,
+  .public-library-page > header > nav{
+    width:100%;
+    justify-content:flex-start;
+  }
+}
+@media (max-width:420px){
+  .twe-brand-logo{
+    width:44px;
+    height:30px;
+  }
+  .twe-brand strong{
+    font-size:16px;
+    letter-spacing:.02em;
+  }
+}

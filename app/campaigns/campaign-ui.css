@@ -282,3 +282,26 @@
     justify-content: flex-start;
   }
 }
+
+/* Campaign invitation uses the same shared brand block as the canonical sheet. */
+.campaign-header{
+  min-height:68px;
+  height:auto;
+  padding:10px max(24px,calc((100vw - 1450px)/2));
+  position:sticky;
+  top:0;
+  z-index:20;
+}
+.campaign-header .twe-brand{color:#e7cf9c}
+html[data-theme="dark"] .campaign-header .twe-brand,
+html[data-theme="dark"] .campaign-header .twe-brand strong{color:#f2c76f}
+@media(max-width:640px){
+  .campaign-header{
+    min-height:68px;
+    flex-direction:column;
+    align-items:stretch;
+    gap:9px;
+    padding:10px 14px;
+  }
+  .campaign-header .twe-brand{align-self:flex-start}
+}

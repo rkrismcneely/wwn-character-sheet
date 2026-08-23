@@ -409,3 +409,37 @@ test("character-sheet learning choices and privacy footer use responsive layout"
     "Learning selects should fill their responsive card column",
   );
 });
+
+test("all standard routes use the canonical shared Tales Without End brand", async () => {
+  const header = await source("app/app-header.tsx");
+  const sheet = await source("app/character-sheet.tsx");
+  const landing = await source("app/landing-page.tsx");
+  const publicPage = await source("app/public-characters/page.tsx");
+  const join = await source("app/campaigns/campaign-join.tsx");
+  const headerCss = await source("app/app-header.css");
+  const campaignCss = await source("app/campaigns/campaign-ui.css");
+
+  assert.match(header, /className="twe-brand"/u);
+  assert.match(header, /className="twe-brand-logo"/u);
+  assert.doesNotMatch(header, /twe-brand-logo brand-logo/u, "the logo should have one canonical class");
+  assert.match(sheet, /<TalesBrandLink href=\{signedIn \? "\/account" : "\/"\} \/>/u);
+  assert.match(landing, /<TalesBrandLink href="\/" \/>/u);
+  assert.match(publicPage, /<TalesBrandLink href="\/" \/>/u);
+  assert.match(join, /<TalesBrandLink href="\/" \/>/u);
+  assert.doesNotMatch(join, /campaign-brand/u);
+  assert.doesNotMatch(landing, /landing-brand/u);
+  assert.doesNotMatch(publicPage, /landing-brand/u);
+  for (const marker of [
+    ".twe-brand-logo{",
+    "width:72px",
+    "height:42px",
+    "font-size:24px",
+    "letter-spacing:.06em",
+    "color:#e7cf9c",
+    "html[data-theme=\"dark\"] .twe-brand",
+    "@media (max-width:720px)",
+    "width:50px",
+    "width:44px",
+  ]) assert.ok(headerCss.includes(marker), marker);
+  assert.match(campaignCss, /\.campaign-header[\s\S]*\.twe-brand/u);
+});

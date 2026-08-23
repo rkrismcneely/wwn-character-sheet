@@ -58,7 +58,7 @@ export function LandingPage() {
   return (
     <main className="landing-shell">
       <header className="landing-header">
-        <TalesBrandLink href="/" className="landing-brand" />
+        <TalesBrandLink href="/" />
         <nav aria-label="Primary navigation">
           <Link href="/public-characters">Browse Public Characters</Link>
           <GoogleSignInButton className="landing-button landing-button-small" />

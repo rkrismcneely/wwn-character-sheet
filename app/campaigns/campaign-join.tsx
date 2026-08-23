@@ -18,12 +18,16 @@ interface JoinCharacterOption {
 
 interface JoinPreview {
   campaign: { id: string; name: string };
+  eligibility: "eligible" | "member" | "owner";
   characters: JoinCharacterOption[];
 }
 
 function inviteError(status: number, message?: string): string {
   if (status === 400) return "This campaign invitation is invalid.";
   if (status === 404) return "This campaign invitation is invalid, expired, or no longer available.";
+  if (status === 409 && message?.includes("already own")) {
+    return "You already own this campaign.";
+  }
   if (status === 409 && message?.includes("already a member")) {
     return "You are already part of this campaign. Open it from My Campaigns.";
   }
@@ -60,8 +64,12 @@ export function CampaignJoin() {
       }
       setPreview({
         campaign: payload.campaign,
+        eligibility: payload.eligibility,
         characters: payload.characters,
       });
+      if (payload.eligibility !== "eligible") {
+        sessionStorage.removeItem(INVITE_SESSION_KEY);
+      }
     } catch (error) {
       const status = typeof error === "object" && error && "status" in error
         ? Number(error.status)
@@ -183,6 +191,7 @@ export function CampaignJoin() {
 
   const signedIn = Boolean(session?.user);
   const selectedCharacter = preview?.characters.find(character => character.id === selectedCharacterId);
+  const existingAccess = preview?.eligibility === "owner" || preview?.eligibility === "member";
   return (
     <main className="campaign-shell">
       <header className="campaign-header">
@@ -193,10 +202,16 @@ export function CampaignJoin() {
         <div className="campaign-join-card">
           <span aria-hidden="true">✦</span>
           <p className="campaign-kicker">A PRIVATE INVITATION</p>
-          <h1 id="campaign-join-title">{preview ? "Choose Your Character" : "Join the Campaign"}</h1>
+          <h1 id="campaign-join-title">{existingAccess ? "Campaign Already Available" : preview ? "Choose Your Character" : "Join the Campaign"}</h1>
           {!signedIn && <p>Sign in with Google to accept this private, single-use campaign invitation.</p>}
-          {signedIn && preview && (
+          {signedIn && preview?.eligibility === "eligible" && (
             <p>Select the one character who will join <strong>{preview.campaign.name}</strong>. Your other characters remain unrelated.</p>
+          )}
+          {signedIn && preview?.eligibility === "owner" && (
+            <p>You already own <strong>{preview.campaign.name}</strong>. This invitation has not been consumed.</p>
+          )}
+          {signedIn && preview?.eligibility === "member" && (
+            <p>You are already part of <strong>{preview.campaign.name}</strong>. This invitation has not been consumed.</p>
           )}
           {message && <div className="campaign-error" role="alert">{message}</div>}
           {!isPending && !signedIn && (
@@ -206,7 +221,7 @@ export function CampaignJoin() {
               </button>
             </div>
           )}
-          {signedIn && preview && preview.characters.length > 0 && (
+          {signedIn && preview?.eligibility === "eligible" && preview.characters.length > 0 && (
             <form onSubmit={joinCampaign}>
               <fieldset className="campaign-join-character-list">
                 <legend>Choose one character</legend>
@@ -232,12 +247,15 @@ export function CampaignJoin() {
               </button>
             </form>
           )}
-          {signedIn && preview && preview.characters.length === 0 && (
+          {signedIn && preview?.eligibility === "eligible" && preview.characters.length === 0 && (
             <div className="campaign-link-empty" role="status">
               <strong>You need an owned character to join.</strong>
               <p>Create or claim a character from My Characters, then return with this invitation.</p>
               <Link href="/" className="campaign-secondary">Open My Characters</Link>
             </div>
+          )}
+          {signedIn && preview && existingAccess && (
+            <Link href={`/campaigns/${preview.campaign.id}`} className="campaign-primary">Open Campaign</Link>
           )}
           {(isPending || (signedIn && busy && !preview)) && <p role="status">Checking your invitation…</p>}
           {(message || !token) && <Link href="/campaigns" className="campaign-secondary">Open My Campaigns</Link>}

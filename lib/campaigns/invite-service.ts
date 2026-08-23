@@ -32,6 +32,7 @@ interface CampaignInviteRow {
   campaignId: string;
   campaignPublicId: string;
   campaignName: string;
+  campaignOwnerUserId: string;
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
@@ -66,6 +67,7 @@ export interface CampaignInvitePreview {
     id: string;
     name: string;
   };
+  eligibility: "eligible" | "member" | "owner";
   characters: InviteCharacterOption[];
 }
 
@@ -152,6 +154,7 @@ async function findInviteByHash(
               invite.campaign_id AS campaignId,
               campaign.public_id AS campaignPublicId,
               campaign.name AS campaignName,
+              campaign.owner_user_id AS campaignOwnerUserId,
               invite.expires_at AS expiresAt,
               invite.accepted_at AS acceptedAt,
               invite.revoked_at AS revokedAt
@@ -163,7 +166,7 @@ async function findInviteByHash(
     .first<CampaignInviteRow>();
 }
 
-async function loadRedeemableInvite(
+async function loadValidInvite(
   db: D1Database,
   actor: CampaignActor | null,
   rawToken: unknown,
@@ -189,10 +192,30 @@ async function loadRedeemableInvite(
     }
     throw inviteNotFound();
   }
+  return { actor: authenticatedActor, invite, tokenHash };
+}
+
+async function loadRedeemableInvite(
+  db: D1Database,
+  actor: CampaignActor | null,
+  rawToken: unknown,
+  now: Date,
+): Promise<{
+  actor: CampaignActor;
+  invite: CampaignInviteRow;
+  tokenHash: string;
+}> {
+  const validated = await loadValidInvite(db, actor, rawToken, now);
+  if (validated.invite.campaignOwnerUserId === validated.actor.userId) {
+    throw new CampaignServiceError(
+      "You already own this campaign.",
+      409,
+    );
+  }
   const existingMembership = await getCampaignMembership(
     db,
-    invite.campaignId,
-    authenticatedActor.userId,
+    validated.invite.campaignId,
+    validated.actor.userId,
   );
   if (existingMembership) {
     throw new CampaignServiceError(
@@ -200,7 +223,7 @@ async function loadRedeemableInvite(
       409,
     );
   }
-  return { actor: authenticatedActor, invite, tokenHash };
+  return validated;
 }
 
 async function listInviteCharacterOptions(
@@ -309,18 +332,31 @@ export async function previewCampaignInvite(
   rawToken: unknown,
   now = new Date(),
 ): Promise<CampaignInvitePreview> {
-  const { actor: authenticatedActor, invite } = await loadRedeemableInvite(
+  const { actor: authenticatedActor, invite } = await loadValidInvite(
     db,
     actor,
     rawToken,
     now,
   );
+  const membership = await getCampaignMembership(
+    db,
+    invite.campaignId,
+    authenticatedActor.userId,
+  );
+  const eligibility = invite.campaignOwnerUserId === authenticatedActor.userId
+    ? "owner"
+    : membership
+      ? "member"
+      : "eligible";
   return {
     campaign: {
       id: invite.campaignPublicId,
       name: invite.campaignName,
     },
-    characters: await listInviteCharacterOptions(db, authenticatedActor),
+    eligibility,
+    characters: eligibility === "eligible"
+      ? await listInviteCharacterOptions(db, authenticatedActor)
+      : [],
   };
 }
 

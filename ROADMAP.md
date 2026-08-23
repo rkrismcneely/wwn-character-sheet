@@ -184,7 +184,7 @@ do not infer their current data state from the older pre-rollout documents.
 
 ### Remaining private-campaign usability
 
-- ⬜ Direct campaign invite links that complement the existing `cminv_...` code flow with an expiring, authenticated, single-use join URL; recipients sign in if necessary, choose an owned eligible character, and then join the private campaign.
+- ✅ Direct campaign invite links complement the existing `cminv_...` code flow with an expiring, authenticated, single-use join URL; recipients sign in if necessary, choose an owned eligible character, and then join the private campaign.
 - ✅ Lightweight campaign overview and resources layer: a description/summary plus a small set of external links such as Discord, Roll20, shared documents, a campaign wiki, or rules resources. This is not a maps, handouts, file-hosting, or full-wiki system.
 - ✅ Richer compact Campaign Characters cards with portrait, character name, effective owner/player display name, class, level, current/max HP, and Armor Class; System Strain is intentionally excluded from the party card.
 - ⬜ Intuitive character ↔ campaign navigation that remains clean if a character participates in more than one campaign and does not clutter the character identity/header.

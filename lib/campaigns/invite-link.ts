@@ -1,4 +1,4 @@
-import { CANONICAL_ORIGIN } from "../auth-constants";
+import { CANONICAL_ORIGIN } from "../auth-constants.ts";
 
 export const CAMPAIGN_JOIN_PATH = "/campaigns/join";
 

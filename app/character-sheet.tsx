@@ -2525,7 +2525,7 @@ export default function Home({
   return (
     <main>
       <div className="topbar">
-        <TalesBrandLink href={signedIn ? "/account" : "/"} className="brand" />
+        <TalesBrandLink href={signedIn ? "/account" : "/"} />
         <div className="status">
           <div className="status-meta">
             <span className="save-state"><span className="dot" />{saved}</span>

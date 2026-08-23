@@ -457,3 +457,24 @@ test("campaign character payloads omit account IDs, emails, and unrelated privat
   ]) assert.equal(payload.includes(forbidden), false, forbidden);
   assert.equal(payload.includes("systemStrain"), false);
 });
+
+
+test("archived characters keep existing scoped access but cannot be newly linked", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  sqlite.prepare("UPDATE characters SET archived_at = ? WHERE public_id = ?").run(now, ids.player);
+  assert.equal((await listCampaignCharacters(db, gm, campaign.id))[0].id, ids.player);
+  assert.equal((await readCampaignLinkedCharacter(db, gm, campaign.id, ids.player)).archivedAt, now);
+  await unlinkCharacterFromCampaign(db, player, campaign.id, ids.player);
+  await expectServiceError(linkCharacterToCampaign(db, player, campaign.id, ids.player), 403);
+  assert.equal((await listEligibleCampaignCharacters(db, player, campaign.id)).some(character => character.id === ids.player), false);
+});
+
+test("archived campaigns retain linked-character reads and reject link replacement", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  sqlite.prepare("UPDATE campaigns SET archived_at = ? WHERE public_id = ?").run(now, campaign.id);
+  assert.equal((await listCampaignCharacters(db, gm, campaign.id))[0].id, ids.player);
+  assert.deepEqual(await listEligibleCampaignCharacters(db, player, campaign.id), []);
+  await expectServiceError(replaceCampaignCharacter(db, player, campaign.id, ids.player, ids.playerSecond), 409);
+});

@@ -3,6 +3,7 @@ import { generatePublicCharacterId } from "@/lib/characters/identifiers";
 import {
   isPortraitContentType,
   portraitObjectKey,
+  portraitURL,
   type PortraitContentType,
 } from "@/lib/characters/portraits";
 import { characterForStorage } from "@/lib/characters/sanitize";
@@ -96,6 +97,11 @@ export async function duplicateCharacter(
           httpMetadata: { contentType },
         });
       }
+      const storedCopy = characterForStorage({
+        ...character,
+        portrait: duplicatePortraitKey ? portraitURL(duplicatePortraitKey) : "",
+      });
+      if (!storedCopy) throw new Error("The character could not be duplicated.");
       await db.prepare(
         `INSERT INTO characters
           (id, owner_user_id, public_id, visibility, portrait_key, archived_at,
@@ -110,7 +116,7 @@ export async function duplicateCharacter(
         summary.player,
         summary.classLabel,
         summary.level,
-        data,
+        JSON.stringify(storedCopy),
         now,
         now,
       ).run();

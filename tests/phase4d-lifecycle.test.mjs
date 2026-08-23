@@ -46,6 +46,7 @@ test("lifecycle routes and queries preserve security and exclusion semantics", (
   assert.match(character, /VALUES \(\?, \?, \?, 'private'/u);
   assert.match(character, /BUCKET\.put/u);
   assert.match(character, /BUCKET\.delete/u);
+  assert.match(character, /portraitURL\(duplicatePortraitKey\)/u);
   assert.doesNotMatch(character, /campaign_characters|character_revisions/u);
   assert.match(characterDb, /archived_at IS NULL/u);
   assert.match(campaign, /requireActiveCampaign/u);

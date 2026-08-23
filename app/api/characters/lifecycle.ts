@@ -76,7 +76,6 @@ export async function duplicateCharacter(
   const character = characterForStorage({ ...source, name: copyName, portrait: "" });
   if (!character) throw new Error("The character could not be duplicated.");
   const summary = characterSummary(character);
-  const data = JSON.stringify(character);
   const { env } = await import("cloudflare:workers");
 
   for (let attempt = 0; attempt < 5; attempt += 1) {

@@ -231,8 +231,10 @@ do not infer their current data state from the older pre-rollout documents.
 
 ## Phase 4E — Actual Play Improvements
 
-- ⬜ Click-to-roll character actions, beginning with high-value WWN saving throws, weapon attacks, weapon damage, and skill checks that account for the relevant attribute + skill structure.
-- ⬜ Lightweight recent roll history associated with actual-play rolling; persistence and session scope can be designed when implemented.
+**Status: complete for the focused dice and local play-utilities scope.**
+
+- ✅ Click-to-roll character actions: generic d20/2d6, WWN saving throws, weapon attacks, canonical weapon damage, and skill checks with a deliberate attribute chooser.
+- ✅ Lightweight character-labelled Roll History stored only in the browser session, capped at 75 recent rolls, with a local Clear History action and no character, campaign, D1, or R2 writes.
 
 ---
 

@@ -120,6 +120,10 @@ async function fixture() {
   for (const statement of migration.split("--> statement-breakpoint")) {
     if (statement.trim()) sqlite.exec(statement);
   }
+  const lifecycle = await readFile(new URL("../drizzle/0009_character_campaign_lifecycle.sql", import.meta.url), "utf8");
+  for (const statement of lifecycle.split("--> statement-breakpoint")) {
+    if (statement.trim()) sqlite.exec(statement);
+  }
   const db = new TestD1(sqlite);
   const campaign = await createCampaign(db, owner, { name: "Amber Company" }, now);
   const secondCampaign = await createCampaign(db, owner, { name: "Second Company" }, now);

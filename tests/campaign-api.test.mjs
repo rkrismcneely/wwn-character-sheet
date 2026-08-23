@@ -111,7 +111,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0009_character_campaign_lifecycle.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
@@ -175,6 +175,8 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
     canManageSettings: true,
     canManageContent: true,
     canDelete: true,
+    canArchive: true,
+    canRestore: false,
     canInviteMembers: true,
     canRemovePlayers: true,
     canLeave: false,

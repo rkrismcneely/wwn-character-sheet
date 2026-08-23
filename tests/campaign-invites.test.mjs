@@ -152,6 +152,10 @@ async function fixture() {
   for (const statement of migration.split("--> statement-breakpoint")) {
     if (statement.trim()) sqlite.exec(statement);
   }
+  const lifecycle = await readFile(new URL("../drizzle/0009_character_campaign_lifecycle.sql", import.meta.url), "utf8");
+  for (const statement of lifecycle.split("--> statement-breakpoint")) {
+    if (statement.trim()) sqlite.exec(statement);
+  }
   return { sqlite, db: new TestD1(sqlite) };
 }
 

@@ -19,7 +19,8 @@ test("My Campaigns is a signed-in route and a first-class dashboard destination"
 test("campaign dashboard lists only server-authorized campaigns and has an intentional empty state", async () => {
   const dashboard = await source("app/campaigns/campaign-dashboard.tsx");
   assert.match(dashboard, /fetch\("\/api\/campaigns"/u);
-  assert.match(dashboard, /campaigns\.map/u);
+  assert.match(dashboard, /activeCampaigns\.map/u);
+  assert.match(dashboard, /archivedCampaigns\.map/u);
   assert.match(dashboard, /Your next campaign begins here/u);
   assert.match(dashboard, /Create Campaign/u);
   assert.match(dashboard, /campaignRoleLabel\(campaign\)/u);
@@ -45,6 +46,8 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
     "canRemovePlayers",
     "canLeave",
     "canDelete",
+    "canArchive",
+    "canRestore",
     "canLinkCharacters",
     "adminReadOnly",
   ]) {

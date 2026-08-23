@@ -25,7 +25,9 @@ import {
   type BackgroundSkillGrant,
 } from "./background-development";
 import { searchRules, type RuleEntry } from "./rules-search";
-import { rollDice, rollDie, type DiceRoll } from "./dice";
+import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
+import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
+import { parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
 import { TalesBrandLink } from "./app-header";
@@ -888,21 +890,19 @@ function Section({ title, aside, children, className = "" }: { title: string; as
 
 function DiceControl({
   expression,
-  roll,
-  animationKey,
+  result,
   onRoll,
 }: {
   expression: "d20" | "2d6";
-  roll: DiceRoll | null;
-  animationKey: number;
+  result: RollResult | null;
   onRoll: () => void;
 }) {
-  const detail = roll
-    ? roll.count > 1
-      ? `${roll.results.join(" + ")} = ${roll.total}`
-      : `${roll.total}`
+  const detail = result
+    ? result.dice.count > 1
+      ? `${result.dice.results.join(" + ")} = ${result.total}`
+      : `${result.total}`
     : "No result yet";
-  const accessibleName = roll
+  const accessibleName = result
     ? `Roll ${expression}. Current result ${detail}. Activate to roll again.`
     : `Roll ${expression}. No result yet. Activate to roll.`;
 
@@ -911,14 +911,14 @@ function DiceControl({
     className="dice-control"
     data-readonly-interactive="true"
     aria-label={accessibleName}
-    title={roll && roll.count > 1 ? detail : undefined}
+    title={result && result.dice.count > 1 ? detail : undefined}
     onClick={onRoll}
   >
     <span
-      key={animationKey}
-      className={`dice-control-result ${animationKey ? "dice-result-roll" : ""}`}
+      key={result?.id || expression}
+      className={`dice-control-result ${result ? "dice-result-roll" : ""}`}
       aria-hidden="true"
-    >{roll ? roll.total : "—"}</span>
+    >{result ? result.total : "—"}</span>
     <span className="dice-control-expression" aria-hidden="true">{expression}</span>
   </button>;
 }
@@ -984,9 +984,10 @@ export default function Home({
   const [rulesQuestion, setRulesQuestion] = useState("");
   const [rulesResults, setRulesResults] = useState<RuleEntry[]>([]);
   const [rulesSearched, setRulesSearched] = useState(false);
-  const [d20Roll, setD20Roll] = useState<DiceRoll | null>(null);
-  const [twoD6Roll, setTwoD6Roll] = useState<DiceRoll | null>(null);
-  const [diceAnimationKeys, setDiceAnimationKeys] = useState({ d20: 0, twoD6: 0 });
+  const [latestRoll, setLatestRoll] = useState<RollResult | null>(null);
+  const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
+  const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
+  const [skillRollChooser, setSkillRollChooser] = useState<string | null>(null);
   const [diceAnnouncement, setDiceAnnouncement] = useState("");
   const [diceAnnouncementKey, setDiceAnnouncementKey] = useState(0);
   const [diceError, setDiceError] = useState("");
@@ -1075,18 +1076,31 @@ export default function Home({
     setRulesSearched(true);
   }
 
-  function rollHeaderDice(kind: "d20" | "2d6") {
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setRollHistory(readRollHistory()));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  function rollCharacter() {
+    return { id: cloudId || "local-sheet", name: sheet.name.trim() || "Unnamed character" };
+  }
+
+  function announceRoll(result: RollResult) {
+    const outcome = result.outcome ? ` ${result.outcome === "success" ? "Success." : "Failure."}` : "";
+    const target = result.target === undefined ? "" : ` Target ${result.target} or higher.`;
+    return `${result.label}: ${result.dice.results.join(" plus ")}${result.modifiers.length ? ` with ${result.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" and ")}` : ""}, total ${result.total}.${target}${outcome}`;
+  }
+
+  async function completeRoll(request: RollRequest) {
     try {
-      const nextRoll = kind === "d20" ? rollDie(20) : rollDice(2, 6);
-      if (kind === "d20") {
-        setD20Roll(nextRoll);
-        setDiceAnimationKeys(current => ({ ...current, d20: current.d20 + 1 }));
-        setDiceAnnouncement(`d20 result: ${nextRoll.total}.`);
-      } else {
-        setTwoD6Roll(nextRoll);
-        setDiceAnimationKeys(current => ({ ...current, twoD6: current.twoD6 + 1 }));
-        setDiceAnnouncement(`2d6 result: ${nextRoll.results[0]} plus ${nextRoll.results[1]} equals ${nextRoll.total}.`);
-      }
+      const result = await resolveRoll(request);
+      setLatestRoll(result);
+      setRollHistory(current => {
+        const next = prependRollHistory(current, result);
+        persistRollHistory(next);
+        return next;
+      });
+      setDiceAnnouncement(announceRoll(result));
       setDiceAnnouncementKey(current => current + 1);
       setDiceError("");
     } catch {
@@ -1095,6 +1109,71 @@ export default function Home({
       setDiceAnnouncement(message);
       setDiceAnnouncementKey(current => current + 1);
     }
+  }
+
+  function rollHeaderDice(kind: "d20" | "2d6") {
+    void completeRoll({
+      category: "generic",
+      character: rollCharacter(),
+      label: kind === "d20" ? "d20 Roll" : "2d6 Roll",
+      dice: kind === "d20" ? { count: 1, sides: 20 } : { count: 2, sides: 6 },
+    });
+  }
+
+  function rollSkillCheck(skill: string, attribute: AttributeName) {
+    const profile = skillProfile(skill);
+    setSkillRollChooser(null);
+    void completeRoll({
+      category: "skill",
+      character: rollCharacter(),
+      label: `${skill} (${attribute}) Check`,
+      dice: { count: 2, sides: 6 },
+      modifiers: [
+        { label: `${skill} skill`, value: profile.effective },
+        { label: attribute, value: attributeMod(attribute) },
+      ],
+    });
+  }
+
+  function rollWeaponAttack(name: string, hit: number) {
+    void completeRoll({
+      category: "attack",
+      character: rollCharacter(),
+      label: `${name} Attack`,
+      dice: { count: 1, sides: 20 },
+      modifiers: [{ label: "Attack bonus", value: hit }],
+    });
+  }
+
+  function rollWeaponDamage(name: string, expression: string) {
+    try {
+      const damage = parseDamageExpression(expression);
+      void completeRoll({
+        category: "damage",
+        character: rollCharacter(),
+        label: `${name} Damage`,
+        dice: damage.dice,
+        modifiers: damage.modifier ? [{ label: "Damage modifier", value: damage.modifier }] : [],
+      });
+    } catch {
+      setDiceError(`The displayed ${name} damage expression could not be rolled.`);
+    }
+  }
+
+  function rollSave(name: keyof typeof saves) {
+    void completeRoll({
+      category: "save",
+      character: rollCharacter(),
+      label: `${name} Saving Throw`,
+      dice: { count: 1, sides: 20 },
+      target: saves[name],
+      targetKind: "saving-throw",
+    });
+  }
+
+  function clearLocalRollHistory() {
+    clearRollHistory();
+    setRollHistory([]);
   }
 
   useEffect(() => {
@@ -2792,11 +2871,13 @@ export default function Home({
               </div>}
             </form>
             <div className="hero-stats" aria-label="Dice and combat statistics">
-              <DiceControl expression="d20" roll={d20Roll} animationKey={diceAnimationKeys.d20} onRoll={() => rollHeaderDice("d20")} />
-              <DiceControl expression="2d6" roll={twoD6Roll} animationKey={diceAnimationKeys.twoD6} onRoll={() => rollHeaderDice("2d6")} />
+              <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} />
+              <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} />
               <label title="Calculated from armor, shield, Dexterity, and armor bonus"><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
               <label className="hp-stat"><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
             </div>
+            <button type="button" className="roll-history-toggle" data-readonly-interactive="true" aria-expanded={rollHistoryOpen} onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>
+            <div data-readonly-interactive="true"><RollResultTray result={latestRoll} /><RollHistoryPanel history={rollHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} onClear={clearLocalRollHistory} /></div>
             {diceError && <p className="dice-error" role="alert">{diceError}</p>}
           </div>
         </div>
@@ -2957,7 +3038,7 @@ export default function Home({
                   Skills and attributes share the same pool · {advancementPointsSpent}/{skillPointAllowance} spent
                 </small>
               </div>
-              <div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small></div>)}</div>
+              <div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollSave(k as keyof typeof saves)}>Roll Save</button></div>)}</div>
             </Section>
             <Section title="Background & Class Benefits">
               {classLabel && <div className="class-benefit-card"><strong>{classLabel}</strong><p>{rules.summary}</p><dl><div><dt>Hit dice</dt><dd>{rules.hitDice}</dd></div><div><dt>Base attack</dt><dd>{signed(rules.attack)}</dd></div><div><dt>Focus picks</dt><dd>{rules.focusPicks}</dd></div></dl>{magicalTraditions.map(t=><p key={t}><b>{t}:</b> {traditionInfo[t].armor}</p>)}</div>}
@@ -3116,7 +3197,7 @@ export default function Home({
                   const calc = weaponCalc(pick);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
                     <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{name}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div><span>Hit Bonus</span><b>{signed(calc.hit)}</b></div><div><span>Damage</span><b>{calc.damage}</b></div><div><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    {calc && <><div><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponAttack(name, calc.hit)}>Roll Attack</button></div><div><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponDamage(name, calc.damage)}>Roll Damage</button></div><div><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
@@ -3170,7 +3251,7 @@ export default function Home({
                   // appears as its minimum (+0 or +1) instead of "Untrained".
                   const minimumSelectable = Math.max(minimumSkillRanks[skill], profile.polymathFloor);
                   const purchasesForDisplayedRank = (rank: number) => storedRankForDisplayedSkillRank(rank, profile.sourceCount);
-                  return <label key={skill}><span><span className="skill-name" title={skillOverviews[skill]} tabIndex={0}>{skill}</span>
+                  return <div className="skill-row" key={skill}><label><span><span className="skill-name" title={skillOverviews[skill]} tabIndex={0}>{skill}</span>
                     {profile.sourceCount > 0 && <small className="skill-minimum" tabIndex={0}>
                       <span className="skill-minimum-word">Granted</span> {profile.sourceFloor >= 0 ? `+${profile.sourceFloor}` : "untrained"}
                       <span className="skill-minimum-popup" role="tooltip">
@@ -3199,7 +3280,7 @@ export default function Home({
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}
-                  </select></label>;
+                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" aria-expanded={skillRollChooser === skill} onClick={() => setSkillRollChooser(current => current === skill ? null : skill)}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span>{attributes.map(attribute => <button type="button" key={attribute} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div>}</div>;
                 })}
               </div>
             </Section>

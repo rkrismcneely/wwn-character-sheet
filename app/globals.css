@@ -2409,3 +2409,99 @@ html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}
 .character-lifecycle-status small{font:12px/1.4 var(--font-ui)}
 .character-lifecycle-status button{min-height:40px;padding:8px 12px;border:1px solid #9d8256;background:linear-gradient(#fff8e8,#ead7b2);color:#51391e;font:700 11px var(--font-ui);cursor:pointer}
 @media(max-width:640px){.character-lifecycle-status{align-items:stretch;flex-direction:column}.character-lifecycle-status button{width:100%}}
+/* Phase 4E: local, character-labelled dice results and history. */
+.roll-history-toggle,
+.roll-affordance,
+.skill-roll-chooser button,
+.roll-history button{
+  min-height:32px;
+  border:1px solid #a98b59;
+  background:linear-gradient(#fff9e9,#ead9b8);
+  color:#593f1e;
+  font:700 10px/1.1 var(--font-ui);
+  cursor:pointer;
+}
+.roll-history-toggle:hover,
+.roll-affordance:hover,
+.skill-roll-chooser button:hover,
+.roll-history button:hover{border-color:var(--amber);background:var(--paper)}
+.roll-history-toggle:focus-visible,
+.roll-affordance:focus-visible,
+.skill-roll-chooser button:focus-visible,
+.roll-history button:focus-visible{outline:2px solid var(--amber2);outline-offset:2px}
+.roll-history-toggle{padding:7px 10px;align-self:flex-end}
+.hero-tools>div[data-readonly-interactive="true"]{width:100%}
+.roll-result-tray{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:9px 11px;
+  border:1px solid #a88a57;
+  background:rgba(255,249,233,.94);
+  color:#51391e;
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);
+}
+.roll-result-tray>div:first-child{display:grid;min-width:0;gap:3px}
+.roll-result-label{font:700 12px/1.1 var(--font-display);letter-spacing:.04em}
+.roll-result-breakdown{overflow-wrap:anywhere;color:var(--muted);font:10px/1.35 var(--font-ui)}
+.roll-result-total{flex:0 0 auto;display:grid;justify-items:end;gap:1px;font-family:var(--font-ui)}
+.roll-result-total strong{font:700 24px/1 var(--font-numeric)}
+.roll-result-total>span{font:700 9px/1.15 var(--font-ui);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.roll-outcome{font:700 9px/1.15 var(--font-ui);letter-spacing:.06em;text-transform:uppercase}
+.roll-outcome.success{color:#3d6e35}
+.roll-outcome.failure{color:#a04432}
+.roll-history{
+  width:100%;
+  margin-top:8px;
+  border:1px solid #a88a57;
+  background:var(--paper2);
+  color:var(--ink);
+  box-shadow:0 6px 16px var(--shadow);
+}
+.roll-history>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-bottom:1px solid #cbb58a}
+.roll-history>header>div:first-child{display:grid;gap:2px}
+.roll-history>header strong{font:700 14px/1 var(--font-display);letter-spacing:.05em}
+.roll-history>header span{font:9px/1.2 var(--font-ui);color:var(--muted)}
+.roll-history>header>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.roll-history button{padding:6px 8px}
+.roll-history button:disabled{cursor:default;opacity:.55}
+.roll-history>ol{max-height:300px;overflow:auto;margin:0;padding:0;list-style:none}
+.roll-history li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(174,146,93,.35)}
+.roll-history li:last-child{border-bottom:0}
+.roll-history li>div:first-child{display:grid;min-width:0;gap:2px}
+.roll-history li strong{font:700 11px/1.2 var(--font-ui)}
+.roll-history li span{overflow-wrap:anywhere;color:var(--muted);font:9px/1.35 var(--font-ui)}
+.roll-history>p{margin:0;padding:12px 10px;color:var(--muted);font:11px/1.4 var(--font-ui)}
+.roll-history-total{flex:0 0 auto;display:grid;justify-items:end;gap:2px}
+.roll-history-total b{font:700 17px/1 var(--font-numeric)}
+.roll-history-total small{font:700 8px/1 var(--font-ui);color:var(--muted);text-transform:uppercase}
+.roll-affordance{margin-top:6px;padding:5px 7px;white-space:nowrap}
+.save-card .roll-affordance{align-self:center}
+.skill-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:5px;border-bottom:1px solid #ded3bc;padding:3px}
+.skill-row>label{border-bottom:0!important;padding:0!important}
+.skill-row .roll-affordance{margin-top:0}
+.skill-roll-chooser{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:5px 0 2px}
+.skill-roll-chooser>span{margin-right:2px;color:var(--muted);font:700 9px/1 var(--font-ui);letter-spacing:.07em;text-transform:uppercase}
+.skill-roll-chooser button{padding:5px 6px;min-height:29px;font-size:9px}
+html[data-theme="dark"] .roll-history-toggle,
+html[data-theme="dark"] .roll-affordance,
+html[data-theme="dark"] .skill-roll-chooser button,
+html[data-theme="dark"] .roll-history button{background:#2b281f;border-color:#806945;color:#f0dfbd}
+html[data-theme="dark"] .roll-result-tray,
+html[data-theme="dark"] .roll-history{background:#211f19;border-color:#765b30;color:#ead9b8;box-shadow:none}
+html[data-theme="dark"] .roll-history>header{border-bottom-color:#5d4c30}
+html[data-theme="dark"] .roll-history li{border-bottom-color:#4e4637}
+html[data-theme="dark"] .roll-outcome.success{color:#9dca85}
+html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
+@media(max-width:720px){
+  .roll-history-toggle{align-self:stretch;width:100%}
+  .roll-result-tray{align-items:flex-start}
+  .roll-history>header{align-items:flex-start;flex-direction:column}
+  .roll-history>header>div:last-child{width:100%;justify-content:stretch}
+  .roll-history>header button{flex:1}
+  .roll-history li{align-items:flex-start}
+  .skill-row{grid-template-columns:minmax(0,1fr) auto}
+}
+@media print{.dice-control,.roll-history-toggle,.roll-result-tray,.roll-history,.roll-affordance,.skill-roll-chooser{display:none!important}}

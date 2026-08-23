@@ -1,5 +1,5 @@
 import { canManageCampaignContent } from "./authorization.ts";
-import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
+import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor, CampaignResourceType } from "./types.ts";
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
 
@@ -97,6 +97,7 @@ async function loadManagedCampaign(
 ): Promise<{ campaign: Awaited<ReturnType<typeof loadCampaignAccess>>["campaign"]; membership: Awaited<ReturnType<typeof loadCampaignAccess>>["membership"] }> {
   if (!actor) throw new CampaignServiceError("Sign in is required.", 401);
   const access = await loadCampaignAccess(db, actor, publicId);
+  requireActiveCampaign(access.campaign);
   if (!canManageCampaignContent(actor, access.campaign, access.membership)) {
     throw new CampaignServiceError("Not permitted.", 403);
   }

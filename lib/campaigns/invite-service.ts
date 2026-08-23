@@ -33,6 +33,7 @@ interface CampaignInviteRow {
   campaignPublicId: string;
   campaignName: string;
   campaignOwnerUserId: string;
+  campaignArchivedAt: string | null;
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
@@ -117,7 +118,8 @@ async function findCampaign(
   if (!isPlausiblePublicCampaignId(publicId)) return null;
   return db
     .prepare(
-      `SELECT id, public_id AS publicId, owner_user_id AS ownerUserId, name
+      `SELECT id, public_id AS publicId, owner_user_id AS ownerUserId, name,
+              archived_at AS archivedAt
        FROM campaigns
        WHERE public_id = ?`,
     )
@@ -137,6 +139,9 @@ async function loadInviteManagerCampaign(
   if (!campaign) throw inviteNotFound();
   const membership = await getCampaignMembership(db, campaign.id, actor.userId);
 
+  if (campaign.archivedAt) {
+    throw new CampaignServiceError("This campaign is archived. Restore it before creating invitations.", 409);
+  }
   if (!canInviteCampaignMembers(actor, campaign, membership)) {
     if (!canViewCampaign(actor, campaign, membership)) throw inviteNotFound();
     throw new CampaignServiceError("Not permitted.", 403);
@@ -155,6 +160,7 @@ async function findInviteByHash(
               campaign.public_id AS campaignPublicId,
               campaign.name AS campaignName,
               campaign.owner_user_id AS campaignOwnerUserId,
+              campaign.archived_at AS campaignArchivedAt,
               invite.expires_at AS expiresAt,
               invite.accepted_at AS acceptedAt,
               invite.revoked_at AS revokedAt
@@ -182,6 +188,9 @@ async function loadValidInvite(
   const invite = await findInviteByHash(db, tokenHash);
   if (!invite) throw inviteNotFound();
 
+  if (invite.campaignArchivedAt) {
+    throw new CampaignServiceError("This campaign is archived and cannot accept new members.", 409);
+  }
   const decision = evaluateCampaignInvite(invite, now);
   if (!decision.allowed) {
     if (decision.reason === "redeemed") {
@@ -236,6 +245,7 @@ async function listInviteCharacterOptions(
               class_label AS classLabel, level
        FROM characters
        WHERE owner_user_id = ? AND public_id IS NOT NULL
+         AND archived_at IS NULL
        ORDER BY updated_at DESC, lower(name)`,
     )
     .bind(actor.userId)
@@ -261,7 +271,8 @@ async function findOwnedInviteCharacter(
       `SELECT id, public_id AS publicId, name,
               class_label AS classLabel, level
        FROM characters
-       WHERE public_id = ? AND owner_user_id = ?`,
+       WHERE public_id = ? AND owner_user_id = ?
+         AND archived_at IS NULL`,
     )
     .bind(characterPublicId, actor.userId)
     .first<InviteCharacterRow>();
@@ -388,6 +399,11 @@ export async function redeemCampaignInvite(
            SET accepted_at = ?, accepted_by_user_id = ?
            WHERE id = ? AND token_hash = ? AND role = 'player'
              AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?
+             AND EXISTS (
+               SELECT 1 FROM campaigns active_campaign
+               WHERE active_campaign.id = campaign_invites.campaign_id
+                 AND active_campaign.archived_at IS NULL
+             )
              AND NOT EXISTS (
                SELECT 1 FROM campaign_members
                WHERE campaign_id = campaign_invites.campaign_id AND user_id = ?

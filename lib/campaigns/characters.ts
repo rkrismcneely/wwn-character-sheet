@@ -6,6 +6,7 @@ import {
 import {
   CampaignServiceError,
   loadCampaignAccess,
+  requireActiveCampaign,
 } from "./service.ts";
 import type {
   CampaignActor,
@@ -28,6 +29,7 @@ interface CharacterLinkRow extends CampaignCharacterRecord {
   providerName: string;
   customDisplayName: string | null;
   portraitKey: string | null;
+  archivedAt: string | null;
   data: string;
 }
 
@@ -63,6 +65,7 @@ export interface CampaignLinkedCharacterPayload {
   character: Record<string, unknown>;
   version: number;
   visibility: CharacterVisibility;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   permissions: {
@@ -140,7 +143,8 @@ async function findCharacterForCampaign(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey,
+              ch.archived_at AS archivedAt, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.public_id = ?`,
@@ -165,7 +169,8 @@ export async function listCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey,
+              ch.archived_at AS archivedAt, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_characters cc
        INNER JOIN characters ch ON ch.id = cc.character_id
        INNER JOIN user u ON u.id = ch.owner_user_id
@@ -217,7 +222,7 @@ export async function listEligibleCampaignCharacters(
     authenticatedActor,
     campaignPublicId,
   );
-  if (authenticatedActor.role === "admin") return [];
+  if (authenticatedActor.role === "admin" || campaign.archivedAt) return [];
 
   const existingLink = await db
     .prepare(
@@ -238,10 +243,12 @@ export async function listEligibleCampaignCharacters(
       `SELECT ch.id, ch.owner_user_id AS ownerUserId,
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
-              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey, ch.data, u.name AS providerName, u.display_name AS customDisplayName
+              ch.updated_at AS updatedAt, ch.portrait_key AS portraitKey,
+              ch.archived_at AS archivedAt, ch.data, u.name AS providerName, u.display_name AS customDisplayName
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.owner_user_id = ? AND ch.public_id IS NOT NULL
+         AND ch.archived_at IS NULL
          AND ch.id <> coalesce(?, '')
          AND NOT EXISTS (
            SELECT 1 FROM campaign_characters cc
@@ -280,6 +287,7 @@ export async function replaceCampaignCharacter(
     authenticatedActor,
     campaignPublicId,
   );
+  requireActiveCampaign(campaign);
   if (authenticatedActor.role === "admin" || membership?.role !== "player") {
     throw new CampaignServiceError("Not permitted.", 403);
   }
@@ -292,6 +300,7 @@ export async function replaceCampaignCharacter(
   if (
     current.ownerUserId !== authenticatedActor.userId
     || replacement.ownerUserId !== authenticatedActor.userId
+    || replacement.archivedAt
     || !canAttachCharacterToCampaign(
       authenticatedActor,
       campaign,
@@ -372,10 +381,12 @@ export async function linkCharacterToCampaign(
     authenticatedActor,
     campaignPublicId,
   );
+  requireActiveCampaign(campaign);
   const character = await findCharacterForCampaign(db, characterPublicId);
   if (!character) throw characterNotFound();
   if (
-    authenticatedActor.role === "admin"
+    character.archivedAt
+    || authenticatedActor.role === "admin"
     || !canAttachCharacterToCampaign(
       authenticatedActor,
       campaign,
@@ -439,6 +450,7 @@ export async function unlinkCharacterFromCampaign(
     authenticatedActor,
     campaignPublicId,
   );
+  requireActiveCampaign(campaign);
   const character = await findCharacterForCampaign(db, characterPublicId);
   if (!character) throw characterNotFound();
   if (
@@ -482,7 +494,7 @@ export async function readCampaignLinkedCharacter(
               ch.public_id AS publicId, ch.visibility, ch.name,
               ch.class_label AS classLabel, ch.level,
               ch.data, ch.version, ch.portrait_key AS portraitKey,
-              ch.created_at AS createdAt, ch.updated_at AS updatedAt,
+              ch.archived_at AS archivedAt, ch.created_at AS createdAt, ch.updated_at AS updatedAt,
               u.name AS providerName, u.display_name AS customDisplayName
        FROM campaign_characters cc
        INNER JOIN characters ch ON ch.id = cc.character_id
@@ -521,6 +533,7 @@ export async function readCampaignLinkedCharacter(
     character,
     version: row.version,
     visibility: row.visibility,
+    archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     permissions: {

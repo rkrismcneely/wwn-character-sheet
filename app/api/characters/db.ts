@@ -16,6 +16,7 @@ export interface CharacterRow {
   publicId: string | null;
   visibility: CharacterVisibility;
   portraitKey: string | null;
+  archivedAt: string | null;
   data: string;
   version: number;
   createdAt: string;
@@ -30,6 +31,7 @@ export interface CharacterSummaryRow {
   classLabel: string;
   level: number;
   visibility: CharacterVisibility;
+  archivedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -67,6 +69,7 @@ export async function findCharacterByPublicId(
               public_id AS publicId,
               visibility,
               portrait_key AS portraitKey,
+              archived_at AS archivedAt,
               data,
               version,
               created_at AS createdAt,
@@ -89,6 +92,7 @@ export function characterApiPayload(
     character,
     version: row.version,
     visibility: row.visibility,
+    archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     permissions: {
@@ -112,18 +116,20 @@ export async function listCharacters(
     actor: CharacterActor | null;
     scope: "mine" | "public" | "all";
     query?: string;
+    includeArchived?: boolean;
   },
 ): Promise<CharacterSummaryRow[]> {
   if (options.scope === "all" && options.actor?.role !== "admin") return [];
+  const archiveClause = options.includeArchived ? "" : "AND archived_at IS NULL";
   if (options.scope === "mine") {
     if (!options.actor) return [];
     const result = await db
       .prepare(
         `SELECT owner_user_id AS ownerUserId, public_id AS publicId, name, player,
-                class_label AS classLabel, level, visibility, version,
-                created_at AS createdAt, updated_at AS updatedAt
+                class_label AS classLabel, level, visibility,
+                archived_at AS archivedAt, version, created_at AS createdAt, updated_at AS updatedAt
          FROM characters
-         WHERE owner_user_id = ? AND public_id IS NOT NULL
+         WHERE owner_user_id = ? AND public_id IS NOT NULL ${archiveClause}
          ORDER BY updated_at DESC`,
       )
       .bind(options.actor.userId)
@@ -133,15 +139,15 @@ export async function listCharacters(
 
   const search = options.query?.trim().slice(0, 120);
   const visibilityClause = options.scope === "all"
-    ? "public_id IS NOT NULL"
-    : "visibility = 'public' AND public_id IS NOT NULL";
+    ? `public_id IS NOT NULL ${archiveClause}`
+    : "visibility = 'public' AND public_id IS NOT NULL AND archived_at IS NULL";
   if (search) {
     const pattern = `%${search.toLowerCase()}%`;
     const result = await db
       .prepare(
         `SELECT owner_user_id AS ownerUserId, public_id AS publicId, name, player,
-                class_label AS classLabel, level, visibility, version,
-                created_at AS createdAt, updated_at AS updatedAt
+                class_label AS classLabel, level, visibility,
+                archived_at AS archivedAt, version, created_at AS createdAt, updated_at AS updatedAt
          FROM characters
          WHERE ${visibilityClause}
            AND (lower(name) LIKE ? OR lower(class_label) LIKE ?)
@@ -155,8 +161,8 @@ export async function listCharacters(
   const result = await db
     .prepare(
       `SELECT owner_user_id AS ownerUserId, public_id AS publicId, name, player,
-              class_label AS classLabel, level, visibility, version,
-              created_at AS createdAt, updated_at AS updatedAt
+              class_label AS classLabel, level, visibility,
+              archived_at AS archivedAt, version, created_at AS createdAt, updated_at AS updatedAt
        FROM characters
        WHERE ${visibilityClause}
        ORDER BY updated_at DESC`,

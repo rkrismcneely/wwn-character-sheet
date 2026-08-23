@@ -18,6 +18,7 @@ import { CANONICAL_ORIGIN } from "../lib/auth-constants.ts";
 import {
   CampaignServiceError,
   createCampaign,
+  setCampaignArchived,
 } from "../lib/campaigns/service.ts";
 
 const owner = { userId: "user-owner", role: "user" };
@@ -150,6 +151,10 @@ async function fixture() {
     "utf8",
   );
   for (const statement of migration.split("--> statement-breakpoint")) {
+    if (statement.trim()) sqlite.exec(statement);
+  }
+  const lifecycle = await readFile(new URL("../drizzle/0009_character_campaign_lifecycle.sql", import.meta.url), "utf8");
+  for (const statement of lifecycle.split("--> statement-breakpoint")) {
     if (statement.trim()) sqlite.exec(statement);
   }
   return { sqlite, db: new TestD1(sqlite) };
@@ -548,4 +553,17 @@ test("invite payloads expose no hashes, internal user IDs, or email addresses", 
   }
   assert.equal(creationPayload.includes(invite.token), true);
   assert.equal(redeemedPayload.includes(invite.token), false);
+});
+
+
+test("archiving pauses valid invitations without consuming them and restore resumes them", async () => {
+  const { db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  await setCampaignArchived(db, owner, campaign.id, true, now.toISOString());
+  await expectServiceError(previewCampaignInvite(db, outsider, invite.token, now), 409);
+  await expectServiceError(redeemCampaignInvite(db, outsider, invite.token, characterIds[outsider.userId], now), 409);
+  await setCampaignArchived(db, owner, campaign.id, false, now.toISOString());
+  const preview = await previewCampaignInvite(db, outsider, invite.token, now);
+  assert.equal(preview.eligibility, "eligible");
+  assert.equal(preview.characters.some(character => character.id === characterIds[outsider.userId]), true);
 });

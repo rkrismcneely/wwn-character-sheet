@@ -12,6 +12,7 @@ export interface CampaignActor {
 export interface CampaignAccessRecord {
   id: string;
   ownerUserId: string;
+  archivedAt: string | null;
 }
 
 export interface CampaignMembershipRecord {

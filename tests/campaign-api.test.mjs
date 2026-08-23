@@ -14,6 +14,7 @@ import {
   readCampaign,
   removeCampaignMember,
   removeCampaignMemberByKey,
+  setCampaignArchived,
   updateCampaignDescription,
   updateCampaignName,
 } from "../lib/campaigns/service.ts";
@@ -117,6 +118,10 @@ async function fixture() {
       if (statement.trim()) sqlite.exec(statement);
     }
   }
+  // This focused service fixture intentionally has a reduced character table,
+  // so add the lifecycle columns directly instead of applying the production
+  // migration indexes against columns the fixture does not model.
+  sqlite.exec("ALTER TABLE characters ADD COLUMN archived_at TEXT; ALTER TABLE campaigns ADD COLUMN archived_at TEXT;");
   return { sqlite, db: new TestD1(sqlite) };
 }
 
@@ -175,6 +180,8 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
     canManageSettings: true,
     canManageContent: true,
     canDelete: true,
+    canArchive: true,
+    canRestore: false,
     canInviteMembers: true,
     canRemovePlayers: true,
     canLeave: false,
@@ -499,4 +506,24 @@ test("route layer remains authenticated, bounded, and free of client owner IDs",
   assert.match(membership, /leaveCampaign/u);
   assert.match(resources, /listCampaignResources|createCampaignResource/u);
   assert.match(resourceItem, /reorderCampaignResource|deleteCampaignResource/u);
+});
+
+
+test("archived campaigns remain readable while active mutations pause until owner restore", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Retired Company" }, now);
+  await addMember(sqlite, campaign.id, player);
+  const archived = await setCampaignArchived(db, owner, campaign.id, true, now);
+  assert.equal(archived.archivedAt, now);
+  assert.equal(archived.permissions.canRestore, true);
+  assert.equal((await readCampaign(db, player, campaign.id)).archivedAt, now);
+  assert.equal((await listCampaigns(db, player))[0].archivedAt, now);
+  await expectServiceError(updateCampaignDescription(db, owner, campaign.id, { description: "No", version: archived.version }), 409);
+  await expectServiceError(createCampaignResource(db, owner, campaign.id, { title: "No", type: "text", content: "No" }), 409);
+  await expectServiceError(removeCampaignMember(db, owner, campaign.id, player.userId), 409);
+  await expectServiceError(setCampaignArchived(db, admin, campaign.id, false), 403);
+  await expectServiceError(setCampaignArchived(db, player, campaign.id, false), 403);
+  const restored = await setCampaignArchived(db, owner, campaign.id, false, now);
+  assert.equal(restored.archivedAt, null);
+  assert.equal((await updateCampaignName(db, owner, campaign.id, { name: "Returned Company", version: restored.version }, now)).name, "Returned Company");
 });

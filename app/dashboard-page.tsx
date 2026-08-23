@@ -13,6 +13,7 @@ type DashboardCharacter = {
   classLabel: string;
   level: number;
   visibility: CharacterVisibility;
+  archivedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +40,7 @@ export function DashboardPage() {
   const [busy, setBusy] = useState(true);
   const [importBusy, setImportBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
   const [claimToken, setClaimToken] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -48,7 +50,7 @@ export function DashboardPage() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/characters?scope=mine", { cache: "no-store" });
+      const response = await fetch("/api/characters?scope=mine&archive=all", { cache: "no-store" });
       const payload = await response.json() as {
         characters?: DashboardCharacter[];
         error?: string;
@@ -65,7 +67,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/characters?scope=mine", { cache: "no-store" })
+    fetch("/api/characters?scope=mine&archive=all", { cache: "no-store" })
       .then(async response => {
         const payload = await response.json() as {
           characters?: DashboardCharacter[];
@@ -155,6 +157,69 @@ export function DashboardPage() {
   }
 
 
+  const activeCharacters = characters.filter(character => !character.archivedAt);
+  const archivedCharacters = characters.filter(character => Boolean(character.archivedAt));
+
+  async function setArchived(character: DashboardCharacter, archived: boolean) {
+    if (archived && !window.confirm(`Archive ${character.name || "this character"}? Existing campaign links and character data will be preserved.`)) return;
+    setLifecycleBusy(character.id);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/characters/${character.id}/archive`, {
+        method: archived ? "POST" : "DELETE",
+      });
+      const payload = await response.json() as { archivedAt?: string | null; error?: string };
+      if (!response.ok) throw new Error(payload.error || `The character could not be ${archived ? "archived" : "restored"}.`);
+      await loadCharacters();
+      setNotice(`${character.name || "Character"} ${archived ? "archived" : "restored"}.`);
+    } catch (lifecycleError) {
+      setError(lifecycleError instanceof Error ? lifecycleError.message : "The character lifecycle could not be changed.");
+    } finally {
+      setLifecycleBusy(null);
+    }
+  }
+
+  async function duplicate(character: DashboardCharacter) {
+    setLifecycleBusy(character.id);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/characters/${character.id}/duplicate`, { method: "POST" });
+      const payload = await response.json() as { character?: { id: string; name: string }; error?: string };
+      if (!response.ok || !payload.character) throw new Error(payload.error || "The character could not be duplicated.");
+      await loadCharacters();
+      setNotice(`${payload.character.name} was created as a new private character.`);
+    } catch (duplicateError) {
+      setError(duplicateError instanceof Error ? duplicateError.message : "The character could not be duplicated.");
+    } finally {
+      setLifecycleBusy(null);
+    }
+  }
+
+  function characterCard(character: DashboardCharacter) {
+    const working = lifecycleBusy === character.id;
+    return <article className={`dashboard-card${character.archivedAt ? " dashboard-card-archived" : ""}`} key={character.id}>
+      <div className="dashboard-card-topline">
+        <span className="dashboard-level">LEVEL <b>{character.level}</b></span>
+        <span className={`dashboard-visibility visibility-${character.visibility}`}>{character.archivedAt ? "Archived" : visibilityLabels[character.visibility]}</span>
+      </div>
+      <h3>{character.name || "Unnamed Character"}</h3>
+      <p className="dashboard-class">{character.classLabel || "Adventurer"}</p>
+      <dl>
+        <div><dt>Updated</dt><dd><time dateTime={character.updatedAt}>{formatUpdatedAt(character.updatedAt)}</time></dd></div>
+        <div><dt>Player</dt><dd>{character.player || "—"}</dd></div>
+      </dl>
+      <div className="dashboard-card-actions">
+        <Link className="dashboard-open" href={`/character/${character.id}`}>Open character <span aria-hidden="true">→</span></Link>
+        <button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button>
+        <button type="button" className="dashboard-secondary" onClick={() => void setArchived(character, !character.archivedAt)} disabled={working}>
+          {working ? "Working…" : character.archivedAt ? "Restore" : "Archive"}
+        </button>
+      </div>
+    </article>;
+  }
+
   return (
     <main className="dashboard-shell">
       <SignedInHeader active="characters" />
@@ -191,11 +256,11 @@ export function DashboardPage() {
               <p className="dashboard-kicker">YOUR FOLIOS</p>
               <h2 id="roster-title">Character roster</h2>
             </div>
-            <span className="dashboard-count" aria-label={`${characters.length} characters`}>{characters.length}</span>
+            <span className="dashboard-count" aria-label={`${activeCharacters.length} active characters`}>{activeCharacters.length}</span>
           </div>
 
           {busy && <div className="dashboard-state" role="status"><span aria-hidden="true">⌛</span><p>Opening your roster…</p></div>}
-          {!busy && !error && characters.length === 0 && (
+          {!busy && !error && activeCharacters.length === 0 && (
             <div className="dashboard-state dashboard-empty">
               <span aria-hidden="true">✦</span>
               <h3>Your roster is waiting</h3>
@@ -203,25 +268,17 @@ export function DashboardPage() {
               <Link className="dashboard-primary" href="/?new=1">Create your first character</Link>
             </div>
           )}
-          {!busy && characters.length > 0 && (
+          {!busy && activeCharacters.length > 0 && (
             <div className="dashboard-card-grid">
-              {characters.map(character => (
-                <article className="dashboard-card" key={character.id}>
-                  <div className="dashboard-card-topline">
-                    <span className="dashboard-level">LEVEL <b>{character.level}</b></span>
-                    <span className={`dashboard-visibility visibility-${character.visibility}`}>{visibilityLabels[character.visibility]}</span>
-                  </div>
-                  <h3>{character.name || "Unnamed Character"}</h3>
-                  <p className="dashboard-class">{character.classLabel || "Adventurer"}</p>
-                  <dl>
-                    <div><dt>Updated</dt><dd><time dateTime={character.updatedAt}>{formatUpdatedAt(character.updatedAt)}</time></dd></div>
-                    <div><dt>Player</dt><dd>{character.player || "—"}</dd></div>
-                  </dl>
-                  <Link className="dashboard-open" href={`/character/${character.id}`}>Open character <span aria-hidden="true">→</span></Link>
-                </article>
+              {activeCharacters.map(character => (
+                characterCard(character)
               ))}
             </div>
           )}
+          {!busy && archivedCharacters.length > 0 && <section className="dashboard-archived" aria-labelledby="archived-characters-title">
+            <div className="dashboard-section-heading dashboard-archived-heading"><div><p className="dashboard-kicker">RETIRED FOLIOS</p><h2 id="archived-characters-title">Archived Characters</h2></div><span className="dashboard-count">{archivedCharacters.length}</span></div>
+            <div className="dashboard-card-grid">{archivedCharacters.map(characterCard)}</div>
+          </section>}
         </section>
 
         <aside className="dashboard-sidebar" aria-label="Character tools">

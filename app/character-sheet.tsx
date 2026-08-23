@@ -271,6 +271,7 @@ export type InitialCharacterPayload = {
   character: Partial<Sheet>;
   version: number;
   visibility: CharacterVisibility;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   permissions: { canEdit: boolean; adminReadOnly: boolean };
@@ -964,6 +965,9 @@ export default function Home({
   const [cloudVisibility, setCloudVisibility] = useState<CharacterVisibility>(
     initialCharacter?.visibility ?? "private",
   );
+  const [cloudArchivedAt, setCloudArchivedAt] = useState<string | null>(
+    initialCharacter?.archivedAt ?? null,
+  );
   const [cloudCanEdit, setCloudCanEdit] = useState(
     initialCharacter?.permissions.canEdit ?? false,
   );
@@ -1552,6 +1556,7 @@ export default function Home({
         character?: Partial<Sheet>;
         version?: number;
         visibility?: CharacterVisibility;
+        archivedAt?: string | null;
         permissions?: { canEdit: boolean; adminReadOnly: boolean };
         campaigns?: CharacterCampaignLink[];
         error?: string;
@@ -1563,6 +1568,7 @@ export default function Home({
       setCloudId(id);
       setCloudVersion(Number(payload.version));
       setCloudVisibility(payload.visibility || "private");
+      setCloudArchivedAt(payload.archivedAt ?? null);
       setCloudCanEdit(Boolean(payload.permissions?.canEdit));
       setCloudAdminReadOnly(Boolean(payload.permissions?.adminReadOnly));
       setCampaignLinks(Array.isArray(payload.campaigns) ? payload.campaigns : []);
@@ -1684,6 +1690,20 @@ export default function Home({
     } catch (error) {
       setCloudVisibility(previous);
       setTransferMessage(error instanceof Error ? error.message : "Visibility could not be changed.");
+    }
+  }
+
+  async function restoreArchivedCharacter() {
+    if (!signedIn || !canEdit || !cloudId || !cloudArchivedAt) return;
+    try {
+      const response = await fetch(`/api/characters/${cloudId}/archive`, { method: "DELETE" });
+      const payload = await response.json() as { archivedAt?: string | null; error?: string };
+      if (!response.ok) throw new Error(payload.error || "The character could not be restored.");
+      setCloudArchivedAt(null);
+      setTransferMessage("Character restored to your active roster.");
+      void refreshLibrary("mine");
+    } catch (error) {
+      setTransferMessage(error instanceof Error ? error.message : "The character could not be restored.");
     }
   }
 
@@ -3642,6 +3662,10 @@ export default function Home({
           </div>;
         })()}
 
+        {cloudId && canEdit && cloudArchivedAt && <section className="character-lifecycle-status" data-readonly-interactive="true" aria-label="Archived character status">
+          <div><strong>Archived Character</strong><small>This folio remains intact and existing campaign links still work.</small></div>
+          <button type="button" onClick={() => void restoreArchivedCharacter()}>Restore to My Characters</button>
+        </section>}
         {cloudId && canEdit && campaignLinks.length > 0 && <section className="character-campaign-links" data-readonly-interactive="true" aria-labelledby="character-campaign-links-title">
           <div>
             <strong id="character-campaign-links-title">Campaigns</strong>

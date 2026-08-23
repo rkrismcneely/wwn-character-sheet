@@ -2390,3 +2390,22 @@ html[data-theme="dark"] .campaign-resource-card a{color:#f0c36e}
 html[data-theme="dark"] .campaign-resource-card p,
 html[data-theme="dark"] .campaign-description,
 html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}
+
+
+.character-lifecycle-status{
+  width:min(1180px,calc(100% - 32px));
+  margin:18px auto 0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 16px;
+  border:1px solid #a98650;
+  background:rgba(239,226,199,.94);
+  color:#51391e;
+}
+.character-lifecycle-status>div{display:flex;min-width:0;flex-direction:column;gap:3px}
+.character-lifecycle-status strong{font:600 20px/1 var(--font-display)}
+.character-lifecycle-status small{font:12px/1.4 var(--font-ui)}
+.character-lifecycle-status button{min-height:40px;padding:8px 12px;border:1px solid #9d8256;background:linear-gradient(#fff8e8,#ead7b2);color:#51391e;font:700 11px var(--font-ui);cursor:pointer}
+@media(max-width:640px){.character-lifecycle-status{align-items:stretch;flex-direction:column}.character-lifecycle-status button{width:100%}}

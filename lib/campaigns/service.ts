@@ -36,6 +36,7 @@ export interface CampaignRow extends CampaignAccessRecord {
   publicId: string;
   name: string;
   description: string | null;
+  archivedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +60,7 @@ export interface CampaignPayload {
   id: string;
   name: string;
   description: string | null;
+  archivedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -69,6 +71,8 @@ export interface CampaignPayload {
     canManageSettings: boolean;
     canManageContent: boolean;
     canDelete: boolean;
+    canArchive: boolean;
+    canRestore: boolean;
     canInviteMembers: boolean;
     canRemovePlayers: boolean;
     canLeave: boolean;
@@ -138,7 +142,8 @@ async function findCampaignByPublicId(
   return db
     .prepare(
       `SELECT c.id, c.public_id AS publicId, c.owner_user_id AS ownerUserId,
-              c.name, c.description, c.version, c.created_at AS createdAt,
+              c.name, c.description, c.archived_at AS archivedAt,
+              c.version, c.created_at AS createdAt,
               c.updated_at AS updatedAt,
               (SELECT COUNT(*) FROM campaign_members cm
                WHERE cm.campaign_id = c.id) AS memberCount
@@ -171,10 +176,12 @@ function campaignPayload(
   membership: CampaignMembershipRecord | null,
 ): CampaignPayload {
   const isOwner = actor.userId === campaign.ownerUserId;
+  const isActive = !campaign.archivedAt;
   return {
     id: campaign.publicId,
     name: campaign.name,
     description: campaign.description ?? null,
+    archivedAt: campaign.archivedAt,
     version: campaign.version,
     createdAt: campaign.createdAt,
     updatedAt: campaign.updatedAt,
@@ -182,16 +189,54 @@ function campaignPayload(
     membershipRole: membership?.role ?? null,
     isOwner,
     permissions: {
-      canManageSettings: canManageCampaignSettings(actor, campaign),
-      canManageContent: canManageCampaignContent(actor, campaign, membership),
+      canManageSettings: isActive && canManageCampaignSettings(actor, campaign),
+      canManageContent: isActive && canManageCampaignContent(actor, campaign, membership),
       canDelete: canDeleteCampaign(actor, campaign),
-      canInviteMembers: canInviteCampaignMembers(actor, campaign, membership),
-      canRemovePlayers: canInviteCampaignMembers(actor, campaign, membership),
-      canLeave: canLeaveCampaign(actor, campaign, membership),
-      canLinkCharacters: actor.role !== "admin",
+      canArchive: isActive && isOwner,
+      canRestore: !isActive && isOwner,
+      canInviteMembers: isActive && canInviteCampaignMembers(actor, campaign, membership),
+      canRemovePlayers: isActive && canInviteCampaignMembers(actor, campaign, membership),
+      canLeave: isActive && canLeaveCampaign(actor, campaign, membership),
+      canLinkCharacters: isActive && actor.role !== "admin",
       adminReadOnly: actor.role === "admin" && !isOwner,
     },
   };
+}
+
+export function requireActiveCampaign(campaign: CampaignAccessRecord): void {
+  if (campaign.archivedAt) {
+    throw new CampaignServiceError(
+      "This campaign is archived. Restore it before making changes.",
+      409,
+    );
+  }
+}
+
+export async function setCampaignArchived(
+  db: D1Database,
+  actor: CampaignActor | null,
+  publicId: string,
+  archived: boolean,
+  now = new Date().toISOString(),
+): Promise<CampaignPayload> {
+  const authenticatedActor = requireActor(actor);
+  const { campaign, membership } = await loadCampaignAccess(db, authenticatedActor, publicId);
+  if (campaign.ownerUserId !== authenticatedActor.userId) {
+    throw new CampaignServiceError("Not permitted.", 403);
+  }
+  if (archived === Boolean(campaign.archivedAt)) {
+    return campaignPayload(authenticatedActor, campaign, membership);
+  }
+  const archivedAt = archived ? now : null;
+  const result = await db.prepare(
+    `UPDATE campaigns SET archived_at = ?, updated_at = ?
+     WHERE id = ? AND owner_user_id = ?
+       AND ${archived ? "archived_at IS NULL" : "archived_at IS NOT NULL"}`,
+  ).bind(archivedAt, now, campaign.id, authenticatedActor.userId).run();
+  if (result.meta.changes !== 1) {
+    throw new CampaignServiceError("The campaign lifecycle changed elsewhere.", 409);
+  }
+  return campaignPayload(authenticatedActor, { ...campaign, archivedAt, updatedAt: now }, membership);
 }
 
 export async function loadCampaignAccess(
@@ -229,6 +274,7 @@ export async function createCampaign(
       ownerUserId: authenticatedActor.userId,
       name,
       description: null,
+      archivedAt: null,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -280,7 +326,8 @@ export async function listCampaigns(
   const result = await db
     .prepare(
       `SELECT c.id, c.public_id AS publicId, c.owner_user_id AS ownerUserId,
-              c.name, c.description, c.version, c.created_at AS createdAt,
+              c.name, c.description, c.archived_at AS archivedAt,
+              c.version, c.created_at AS createdAt,
               c.updated_at AS updatedAt, cm.role AS membershipRole,
               (SELECT COUNT(*) FROM campaign_members roster
                WHERE roster.campaign_id = c.id) AS memberCount
@@ -362,6 +409,7 @@ export async function updateCampaignName(
     authenticatedActor,
     publicId,
   );
+  requireActiveCampaign(campaign);
   if (!canManageCampaignSettings(authenticatedActor, campaign)) {
     throw new CampaignServiceError("Not permitted.", 403);
   }
@@ -428,6 +476,7 @@ export async function updateCampaignDescription(
 ): Promise<CampaignPayload> {
   const authenticatedActor = requireActor(actor);
   const { campaign, membership } = await loadCampaignAccess(db, authenticatedActor, publicId);
+  requireActiveCampaign(campaign);
   if (!canManageCampaignContent(authenticatedActor, campaign, membership)) {
     throw new CampaignServiceError("Not permitted.", 403);
   }
@@ -487,6 +536,7 @@ export async function removeCampaignMember(
     authenticatedActor,
     publicId,
   );
+  requireActiveCampaign(campaign);
   const targetMembership = await getCampaignMembership(
     db,
     campaign.id,
@@ -534,6 +584,7 @@ export async function removeCampaignMemberByKey(
     authenticatedActor,
     publicId,
   );
+  requireActiveCampaign(campaign);
   const result = await db
     .prepare(
       `SELECT campaign_id AS campaignId, user_id AS userId, role
@@ -577,6 +628,7 @@ export async function leaveCampaign(
     authenticatedActor,
     publicId,
   );
+  requireActiveCampaign(campaign);
   if (!canLeaveCampaign(authenticatedActor, campaign, membership)) {
     throw new CampaignServiceError("Not permitted.", 403);
   }

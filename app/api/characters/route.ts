@@ -11,12 +11,19 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     const requestedScope = url.searchParams.get("scope") ?? "public";
+    const archiveMode = url.searchParams.get("archive") ?? "active";
     if (
       requestedScope !== "mine"
       && requestedScope !== "public"
       && requestedScope !== "all"
     ) {
       return Response.json({ error: "Invalid library scope." }, { status: 400 });
+    }
+    if (archiveMode !== "active" && archiveMode !== "all") {
+      return Response.json({ error: "Invalid archive scope." }, { status: 400 });
+    }
+    if (archiveMode === "all" && requestedScope === "public") {
+      return Response.json({ error: "Archived characters are not publicly discoverable." }, { status: 400 });
     }
 
     const actor = await getSessionActor(request);
@@ -34,6 +41,7 @@ export async function GET(request: Request): Promise<Response> {
       actor,
       scope: requestedScope,
       query: url.searchParams.get("q") ?? undefined,
+      includeArchived: archiveMode === "all",
     });
     return Response.json({
       characters: rows.map(({ ownerUserId, publicId, ...row }) => ({

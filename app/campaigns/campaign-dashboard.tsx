@@ -46,6 +46,7 @@ export function CampaignDashboard() {
   const [campaignName, setCampaignName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinBusy, setJoinBusy] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
   const [joinPreview, setJoinPreview] = useState<JoinPreview | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [error, setError] = useState("");
@@ -187,6 +188,43 @@ export function CampaignDashboard() {
     }
   }
 
+  const activeCampaigns = campaigns.filter(campaign => !campaign.archivedAt);
+  const archivedCampaigns = campaigns.filter(campaign => Boolean(campaign.archivedAt));
+
+  async function setCampaignArchived(campaign: CampaignSummary, archived: boolean) {
+    if (archived && !window.confirm(`Archive ${campaign.name}? Members will retain read access, but campaign changes and new joins will pause until it is restored.`)) return;
+    setLifecycleBusy(campaign.id);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/archive`, { method: archived ? "POST" : "DELETE" });
+      const payload = await response.json() as { campaign?: CampaignSummary; error?: string };
+      if (!response.ok || !payload.campaign) throw new Error(payload.error || "The campaign lifecycle could not be changed.");
+      setCampaigns(current => current.map(item => item.id === campaign.id ? payload.campaign! : item));
+      setNotice(`${campaign.name} ${archived ? "archived" : "restored"}.`);
+    } catch (lifecycleError) {
+      setError(lifecycleError instanceof Error ? lifecycleError.message : "The campaign lifecycle could not be changed.");
+    } finally {
+      setLifecycleBusy(null);
+    }
+  }
+
+  function campaignCard(campaign: CampaignSummary) {
+    return <article className={`campaign-card${campaign.archivedAt ? " campaign-card-archived" : ""}`} key={campaign.id}>
+      <div className="campaign-card-topline">
+        <span>{campaign.archivedAt ? "Archived" : campaignRoleLabel(campaign)}</span>
+        <span>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"}</span>
+      </div>
+      <h3>{campaign.name}</h3>
+      <p>Updated <time dateTime={campaign.updatedAt}>{formatCampaignDate(campaign.updatedAt)}</time></p>
+      <div className="campaign-card-actions">
+        <Link href={`/campaigns/${campaign.id}`} className="campaign-open">Open campaign <span aria-hidden="true">→</span></Link>
+        {campaign.permissions.canArchive && <button type="button" className="campaign-quiet" onClick={() => void setCampaignArchived(campaign, true)} disabled={lifecycleBusy === campaign.id}>Archive</button>}
+        {campaign.permissions.canRestore && <button type="button" className="campaign-secondary" onClick={() => void setCampaignArchived(campaign, false)} disabled={lifecycleBusy === campaign.id}>Restore</button>}
+      </div>
+    </article>;
+  }
+
   return (
     <main className="campaign-shell">
       <SignedInHeader active="campaigns" />
@@ -212,11 +250,11 @@ export function CampaignDashboard() {
               <p className="campaign-kicker">YOUR COMPANIES</p>
               <h2 id="campaign-list-title">Campaign roster</h2>
             </div>
-            <span className="campaign-count" aria-label={`${campaigns.length} campaigns`}>{campaigns.length}</span>
+            <span className="campaign-count" aria-label={`${activeCampaigns.length} active campaigns`}>{activeCampaigns.length}</span>
           </div>
 
           {busy && <div className="campaign-state" role="status">Opening your campaign ledger…</div>}
-          {!busy && !error && campaigns.length === 0 && (
+          {!busy && !error && activeCampaigns.length === 0 && (
             <div className="campaign-state campaign-empty">
               <span aria-hidden="true">✦</span>
               <h3>Your next campaign begins here.</h3>
@@ -224,23 +262,17 @@ export function CampaignDashboard() {
               <button type="button" className="campaign-primary" onClick={() => setCreateOpen(true)}>Create Campaign</button>
             </div>
           )}
-          {!busy && campaigns.length > 0 && (
+          {!busy && activeCampaigns.length > 0 && (
             <div className="campaign-card-grid">
-              {campaigns.map(campaign => (
-                <article className="campaign-card" key={campaign.id}>
-                  <div className="campaign-card-topline">
-                    <span>{campaignRoleLabel(campaign)}</span>
-                    <span>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"}</span>
-                  </div>
-                  <h3>{campaign.name}</h3>
-                  <p>Updated <time dateTime={campaign.updatedAt}>{formatCampaignDate(campaign.updatedAt)}</time></p>
-                  <Link href={`/campaigns/${campaign.id}`} className="campaign-open">
-                    Open campaign <span aria-hidden="true">→</span>
-                  </Link>
-                </article>
+              {activeCampaigns.map(campaign => (
+                campaignCard(campaign)
               ))}
             </div>
           )}
+          {!busy && archivedCampaigns.length > 0 && <section className="campaign-archived" aria-labelledby="archived-campaigns-title">
+            <div className="campaign-section-heading"><div><p className="campaign-kicker">PAST COMPANIES</p><h2 id="archived-campaigns-title">Archived Campaigns</h2></div><span className="campaign-count">{archivedCampaigns.length}</span></div>
+            <div className="campaign-card-grid">{archivedCampaigns.map(campaignCard)}</div>
+          </section>}
         </section>
 
         <aside className="campaign-panel campaign-join" aria-labelledby="join-campaign-title">

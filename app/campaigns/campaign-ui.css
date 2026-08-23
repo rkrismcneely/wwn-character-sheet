@@ -305,3 +305,10 @@ html[data-theme="dark"] .campaign-header .twe-brand strong{color:#f2c76f}
   }
   .campaign-header .twe-brand{align-self:flex-start}
 }
+
+
+.campaign-card-actions{display:flex;flex-direction:column;gap:7px;margin-top:auto}
+.campaign-card-actions .campaign-open{margin-top:0}
+.campaign-card-archived{background:rgba(232,223,204,.92)}
+.campaign-archived{margin-top:28px;padding-top:23px;border-top:3px double #ad8a52}
+.campaign-archived-notice{font-weight:600}

@@ -111,12 +111,16 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0009_character_campaign_lifecycle.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
     }
   }
+  // This focused service fixture intentionally has a reduced character table,
+  // so add the lifecycle columns directly instead of applying the production
+  // migration indexes against columns the fixture does not model.
+  sqlite.exec("ALTER TABLE characters ADD COLUMN archived_at TEXT; ALTER TABLE campaigns ADD COLUMN archived_at TEXT;");
   return { sqlite, db: new TestD1(sqlite) };
 }
 

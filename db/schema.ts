@@ -20,6 +20,7 @@ export const characters = sqliteTable(
     publicId: text("public_id"),
     visibility: text("visibility").notNull().default("private"),
     portraitKey: text("portrait_key"),
+    archivedAt: text("archived_at"),
     name: text("name").notNull(),
     player: text("player").notNull().default(""),
     classLabel: text("class_label").notNull().default(""),
@@ -37,6 +38,11 @@ export const characters = sqliteTable(
     ),
     index("characters_visibility_updated_idx").on(
       table.visibility,
+      table.updatedAt,
+    ),
+    index("characters_owner_archive_updated_idx").on(
+      table.ownerUserId,
+      table.archivedAt,
       table.updatedAt,
     ),
     check(
@@ -105,6 +111,7 @@ export const campaigns = sqliteTable(
       .references(() => user.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     description: text("description"),
+    archivedAt: text("archived_at"),
     version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
@@ -113,6 +120,11 @@ export const campaigns = sqliteTable(
     uniqueIndex("campaigns_public_id_unique").on(table.publicId),
     index("campaigns_owner_updated_idx").on(
       table.ownerUserId,
+      table.updatedAt,
+    ),
+    index("campaigns_owner_archive_updated_idx").on(
+      table.ownerUserId,
+      table.archivedAt,
       table.updatedAt,
     ),
     check(

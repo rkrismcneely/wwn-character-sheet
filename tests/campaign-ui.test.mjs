@@ -104,17 +104,23 @@ test("campaign overview and resources stay member-readable with owner/GM control
   assert.doesNotMatch(detail, /ownerUserId|owner_user_id|email|tokenHash|token_hash/u);
 });
 
-test("invite UI distinguishes cminv_ codes from campaign IDs and supports copy-once revocation", async () => {
+test("invite UI offers a canonical direct link while preserving code copy and revocation", async () => {
   const detail = await source("app/campaigns/campaign-detail.tsx");
+  const link = await source("lib/campaigns/invite-link.ts");
   assert.match(detail, /Campaign Invitation/u);
-  assert.match(detail, /private cminv_ invitation code/u);
-  assert.match(detail, /navigator\.clipboard\.writeText\(invite\.token\)/u);
+  assert.match(detail, /campaignInviteLink\(invite\.token\)/u);
+  assert.match(detail, /Copy Invite Link/u);
   assert.match(detail, /Copy Invite Code/u);
+  assert.match(detail, /navigator\.clipboard\.writeText\(invite\.token\)/u);
   assert.match(detail, /value=\{invite\.token\}/u);
   assert.match(detail, /Expires/u);
   assert.match(detail, /The plaintext code cannot be retrieved after this window closes/u);
   assert.match(detail, /method: "DELETE"/u);
   assert.match(detail, /Revoke Invite/u);
+  assert.match(link, /CANONICAL_ORIGIN/u);
+  assert.match(link, /CAMPAIGN_JOIN_PATH = "\/campaigns\/join"/u);
+  assert.match(link, /url\.hash = token/u);
+  assert.doesNotMatch(link, /searchParams|campaignId|userId|tokenHash/u);
   assert.doesNotMatch(detail, /<dt>Campaign ID<\/dt>|localStorage|sessionStorage|console\.|tokenHash|token_hash/u);
 });
 
@@ -126,6 +132,7 @@ test("signed-out invite continuation keeps the token out of requests and clears 
   assert.match(join, /sessionStorage\.setItem/u);
   assert.match(join, /sessionStorage\.removeItem/u);
   assert.match(join, /callbackURL: "\/campaigns\/join"/u);
+  assert.doesNotMatch(join, /callbackURL:\s*url|callbackURL:\s*window|https?:\/\//u);
   assert.match(join, /Sign in with Google to Join/u);
   assert.match(join, /\/api\/campaign-invites\/preview/u);
   assert.match(join, /\/api\/campaign-invites\/redeem/u);
@@ -151,6 +158,23 @@ test("signed-in join flow previews without consuming, requires one owned charact
     "already been used",
   ]) assert.equal(dashboard.includes(copy), true, copy);
   assert.doesNotMatch(dashboard, /localStorage|sessionStorage|console\./u);
+});
+
+test("direct invite flow gives owners and existing members safe Open Campaign states", async () => {
+  const join = await source("app/campaigns/campaign-join.tsx");
+  const dashboard = await source("app/campaigns/campaign-dashboard.tsx");
+  const service = await source("lib/campaigns/invite-service.ts");
+
+  for (const sourceText of [join, dashboard]) {
+    assert.match(sourceText, /eligibility/u);
+    assert.match(sourceText, /Campaign Already Available/u);
+    assert.match(sourceText, /Open Campaign/u);
+    assert.match(sourceText, /invitation has not been consumed/u);
+  }
+  assert.match(service, /campaignOwnerUserId/u);
+  assert.match(service, /"owner"/u);
+  assert.match(service, /"member"/u);
+  assert.match(service, /"You already own this campaign\."/u);
 });
 
 test("membership and destructive flows state that characters remain preserved", async () => {

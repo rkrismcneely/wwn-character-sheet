@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
 import { SignedInHeader } from "../app-header";
+import { campaignInviteLink } from "@/lib/campaigns/invite-link";
 import {
   campaignRoleLabel,
   formatCampaignDate,
@@ -42,7 +43,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [invite, setInvite] = useState<CreatedInvite | null>(null);
-  const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState<"link" | "code" | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
   async function loadCampaign() {
@@ -233,7 +234,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
         throw new Error(payload.error || "The campaign invitation could not be created.");
       }
       setInvite(payload.invite);
-      setInviteCopied(false);
+      setInviteCopied(null);
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : "The campaign invitation could not be created.");
     } finally {
@@ -241,13 +242,24 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
     }
   }
 
-  async function copyInvite() {
+  async function copyInviteLink() {
+    if (!invite) return;
+    try {
+      await navigator.clipboard.writeText(campaignInviteLink(invite.token));
+      setInviteCopied("link");
+    } catch {
+      setInviteCopied(null);
+      setNotice("The invite link could not be copied. Copy the cminv_ invitation code instead.");
+    }
+  }
+
+  async function copyInviteCode() {
     if (!invite) return;
     try {
       await navigator.clipboard.writeText(invite.token);
-      setInviteCopied(true);
+      setInviteCopied("code");
     } catch {
-      setInviteCopied(false);
+      setInviteCopied(null);
       setNotice("Select the cminv_ invitation code and copy it manually.");
     }
   }
@@ -265,7 +277,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "The invitation could not be revoked.");
       setInvite(null);
-      setInviteCopied(false);
+      setInviteCopied(null);
       setNotice("Campaign invitation revoked.");
     } catch (revokeError) {
       setError(revokeError instanceof Error ? revokeError.message : "The invitation could not be revoked.");
@@ -368,7 +380,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
   function closeInvite() {
     setInvite(null);
-    setInviteCopied(false);
+    setInviteCopied(null);
   }
 
   return (
@@ -608,19 +620,26 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       {invite && (
         <CampaignDialog
           title="Campaign Invitation"
-          description="Share this private cminv_ invitation code with the player you want to invite. It is displayed only now."
+          description="Share this private, single-use invitation link. The invite code remains available for manual entry."
           onClose={closeInvite}
         >
           <div className="campaign-invite-code">
             <label htmlFor="created-campaign-invite">Single-use invite code</label>
             <input id="created-campaign-invite" readOnly value={invite.token} onFocus={event => event.currentTarget.select()} />
           </div>
-          <p className="campaign-invite-expiry">Expires <time dateTime={invite.expiresAt}>{formatCampaignDate(invite.expiresAt)}</time>. The code can be redeemed once.</p>
+          <p className="campaign-invite-expiry">Expires <time dateTime={invite.expiresAt}>{formatCampaignDate(invite.expiresAt)}</time>. The invitation can be redeemed once.</p>
           <div className="campaign-dialog-actions">
             <button type="button" className="campaign-danger" onClick={() => void revokeInvite()} disabled={actionBusy}>Revoke Invite</button>
-            <button type="button" className="campaign-primary" onClick={() => void copyInvite()}>{inviteCopied ? "Copied" : "Copy Invite Code"}</button>
+            <button type="button" className="campaign-secondary" onClick={() => void copyInviteCode()}>{inviteCopied === "code" ? "Code Copied" : "Copy Invite Code"}</button>
+            <button type="button" className="campaign-primary" onClick={() => void copyInviteLink()}>{inviteCopied === "link" ? "Link Copied" : "Copy Invite Link"}</button>
           </div>
-          <p className="campaign-invite-note" role="status">{inviteCopied ? "Invitation code copied to your clipboard." : "The plaintext code cannot be retrieved after this window closes. Campaign IDs beginning cmp_ are not invite codes."}</p>
+          <p className="campaign-invite-note" role="status">
+            {inviteCopied === "link"
+              ? "Invitation link copied to your clipboard."
+              : inviteCopied === "code"
+                ? "Invitation code copied to your clipboard."
+                : "The plaintext code cannot be retrieved after this window closes. Campaign IDs beginning cmp_ are not invite codes."}
+          </p>
         </CampaignDialog>
       )}
 

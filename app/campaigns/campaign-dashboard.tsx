@@ -22,6 +22,7 @@ interface JoinCharacterOption {
 
 interface JoinPreview {
   campaign: { id: string; name: string };
+  eligibility: "eligible" | "member" | "owner";
   characters: JoinCharacterOption[];
 }
 
@@ -139,6 +140,7 @@ export function CampaignDashboard() {
       }
       setJoinPreview({
         campaign: payload.campaign,
+        eligibility: payload.eligibility,
         characters: payload.characters,
       });
     } catch (joinError) {
@@ -268,41 +270,55 @@ export function CampaignDashboard() {
             </>
           ) : (
             <>
-              <h2 id="join-campaign-title">Choose Your Character</h2>
-              <p>Select the one character who will join <strong>{joinPreview.campaign.name}</strong>. Your other characters remain unrelated to this campaign.</p>
-              {joinPreview.characters.length === 0 ? (
-                <div className="campaign-link-empty" role="status">
-                  <strong>You need an owned character to join.</strong>
-                  <p>Create or claim a character from My Characters, then return with this invitation.</p>
-                </div>
+              <h2 id="join-campaign-title">
+                {joinPreview.eligibility === "eligible" ? "Choose Your Character" : "Campaign Already Available"}
+              </h2>
+              {joinPreview.eligibility === "owner" && (
+                <p>You already own <strong>{joinPreview.campaign.name}</strong>. The invitation has not been consumed.</p>
+              )}
+              {joinPreview.eligibility === "member" && (
+                <p>You are already part of <strong>{joinPreview.campaign.name}</strong>. The invitation has not been consumed.</p>
+              )}
+              {joinPreview.eligibility !== "eligible" ? (
+                <Link href={`/campaigns/${joinPreview.campaign.id}`} className="campaign-primary">Open Campaign</Link>
               ) : (
-                <form onSubmit={joinCampaign}>
-                  <fieldset className="campaign-join-character-list">
-                    <legend>Choose one character</legend>
-                    {joinPreview.characters.map(character => (
-                      <label key={character.id} className="campaign-join-character">
-                        <input
-                          type="radio"
-                          name="campaign-character"
-                          value={character.id}
-                          checked={selectedCharacterId === character.id}
-                          onChange={() => setSelectedCharacterId(character.id)}
-                        />
-                        <span><strong>{character.name}</strong><small>{character.classLabel} · Level {character.level}</small></span>
-                      </label>
-                    ))}
-                  </fieldset>
-                  <div className="campaign-dialog-actions">
-                    <button type="button" className="campaign-quiet" onClick={resetJoin}>Back</button>
-                    <button type="submit" className="campaign-secondary" disabled={joinBusy || !selectedCharacterId}>
-                      {joinBusy
-                        ? "Joining…"
-                        : selectedCharacterId
-                          ? `Join ${joinPreview.campaign.name} as ${joinPreview.characters.find(character => character.id === selectedCharacterId)?.name || "Character"}`
-                          : "Choose a Character"}
-                    </button>
-                  </div>
-                </form>
+                <>
+                  <p>Select the one character who will join <strong>{joinPreview.campaign.name}</strong>. Your other characters remain unrelated to this campaign.</p>
+                  {joinPreview.characters.length === 0 ? (
+                    <div className="campaign-link-empty" role="status">
+                      <strong>You need an owned character to join.</strong>
+                      <p>Create or claim a character from My Characters, then return with this invitation.</p>
+                    </div>
+                  ) : (
+                    <form onSubmit={joinCampaign}>
+                      <fieldset className="campaign-join-character-list">
+                        <legend>Choose one character</legend>
+                        {joinPreview.characters.map(character => (
+                          <label key={character.id} className="campaign-join-character">
+                            <input
+                              type="radio"
+                              name="campaign-character"
+                              value={character.id}
+                              checked={selectedCharacterId === character.id}
+                              onChange={() => setSelectedCharacterId(character.id)}
+                            />
+                            <span><strong>{character.name}</strong><small>{character.classLabel} · Level {character.level}</small></span>
+                          </label>
+                        ))}
+                      </fieldset>
+                      <div className="campaign-dialog-actions">
+                        <button type="button" className="campaign-quiet" onClick={resetJoin}>Back</button>
+                        <button type="submit" className="campaign-secondary" disabled={joinBusy || !selectedCharacterId}>
+                          {joinBusy
+                            ? "Joining…"
+                            : selectedCharacterId
+                              ? `Join ${joinPreview.campaign.name} as ${joinPreview.characters.find(character => character.id === selectedCharacterId)?.name || "Character"}`
+                              : "Choose a Character"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
               )}
             </>
           )}

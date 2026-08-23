@@ -426,6 +426,26 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
     }
   }
 
+  async function changeCampaignLifecycle(archived: boolean) {
+    if (!campaign) return;
+    if (archived && !window.confirm(`Archive ${campaign.name}? Members keep read access, while edits, invitations, joins, and character-link changes pause until restore.`)) return;
+    setActionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/archive`, { method: archived ? "POST" : "DELETE" });
+      const payload = await response.json() as { campaign?: CampaignSummary; error?: string };
+      if (!response.ok || !payload.campaign) throw new Error(payload.error || "The campaign lifecycle could not be changed.");
+      setCampaign(payload.campaign);
+      setEligibleCharacters([]);
+      setNotice(`Campaign ${archived ? "archived" : "restored"}.`);
+    } catch (lifecycleError) {
+      setError(lifecycleError instanceof Error ? lifecycleError.message : "The campaign lifecycle could not be changed.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   function closeInvite() {
     setInvite(null);
     setInviteCopied(null);
@@ -461,6 +481,11 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
             </div>
           </section>
 
+          {campaign.archivedAt && (
+            <div className="campaign-readonly campaign-archived-notice" role="status">
+              Archived campaign · Existing members retain read access. Restore the campaign to resume invitations and management.
+            </div>
+          )}
           {campaign.permissions.adminReadOnly && (
             <div className="campaign-readonly" role="status">
               Administrator read-only view. Campaign ownership and member permissions remain unchanged.
@@ -593,6 +618,12 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               </dl>
               {!campaign.permissions.adminReadOnly && (
                 <div className="campaign-management-actions">
+                  {campaign.permissions.canArchive && (
+                    <button type="button" className="campaign-secondary" onClick={() => void changeCampaignLifecycle(true)} disabled={actionBusy}>Archive Campaign</button>
+                  )}
+                  {campaign.permissions.canRestore && (
+                    <button type="button" className="campaign-primary" onClick={() => void changeCampaignLifecycle(false)} disabled={actionBusy}>Restore Campaign</button>
+                  )}
                   {campaign.permissions.canLeave && (
                     <button type="button" className="campaign-secondary" onClick={() => setConfirmation({ kind: "leave" })}>Leave Campaign</button>
                   )}

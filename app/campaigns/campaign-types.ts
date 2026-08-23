@@ -13,6 +13,8 @@ export type CampaignPermissions = {
   canManageSettings: boolean;
   canManageContent: boolean;
   canDelete: boolean;
+  canArchive: boolean;
+  canRestore: boolean;
   canInviteMembers: boolean;
   canRemovePlayers: boolean;
   canLeave: boolean;
@@ -44,6 +46,7 @@ export type CampaignSummary = {
   id: string;
   name: string;
   description: string | null;
+  archivedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;

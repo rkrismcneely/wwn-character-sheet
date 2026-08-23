@@ -13,6 +13,8 @@ import {
   generateCampaignInviteToken,
   hashCampaignInviteToken,
 } from "../lib/campaigns/identifiers.ts";
+import { campaignInviteLink } from "../lib/campaigns/invite-link.ts";
+import { CANONICAL_ORIGIN } from "../lib/auth-constants.ts";
 import {
   CampaignServiceError,
   createCampaign,
@@ -214,6 +216,20 @@ test("owner creates a seven-day cminv_ invitation stored only as SHA-256", async
   assert.equal(JSON.stringify(invite).includes(tokenHash), false);
 });
 
+test("created cminv_ credentials produce canonical fragment invite links without internal IDs", async () => {
+  const { db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const link = campaignInviteLink(invite.token);
+  const url = new URL(link);
+
+  assert.equal(url.origin, CANONICAL_ORIGIN);
+  assert.equal(url.pathname, "/campaigns/join");
+  assert.equal(url.search, "");
+  assert.equal(url.hash, `#${invite.token}`);
+  assert.equal(link.includes(campaign.id), false);
+  assert.equal(link.includes(owner.userId), false);
+});
+
 test("campaign GM can create a player invitation", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   await addMember(sqlite, campaign.id, gm, "gm");
@@ -290,6 +306,7 @@ test("invite preview is non-consuming and returns only the caller's characters",
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
   const preview = await previewCampaignInvite(db, outsider, invite.token, now);
 
+  assert.equal(preview.eligibility, "eligible");
   assert.deepEqual(preview.campaign, {
     id: campaign.id,
     name: "The Amber Company",
@@ -388,15 +405,42 @@ test("expired, revoked, unknown, and malformed invitations are rejected", async 
   await expectServiceError(redeemCampaignInvite(db, outsider, "not-an-invite", characterIds[outsider.userId], now), 400);
 });
 
-test("already-member redemption rejects without consuming the invitation", async () => {
+test("existing members preview direct invites without duplication or consumption", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   await addMember(sqlite, campaign.id, player);
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const preview = await previewCampaignInvite(db, player, invite.token, now);
+
+  assert.equal(preview.eligibility, "member");
+  assert.deepEqual(preview.campaign, { id: campaign.id, name: "The Amber Company" });
+  assert.deepEqual(preview.characters, []);
   await expectServiceError(redeemCampaignInvite(db, player, invite.token, characterIds[player.userId], now), 409);
-  const stored = storedInvite(
-    sqlite,
-    await hashCampaignInviteToken(invite.token),
+  const stored = storedInvite(sqlite, await hashCampaignInviteToken(invite.token));
+  assert.equal(stored.acceptedAt, null);
+  assert.equal(stored.acceptedByUserId, null);
+});
+
+test("campaign owners preview their own invites without becoming players or consuming them", async () => {
+  const { sqlite, db, campaign } = await campaignFixture();
+  const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  const preview = await previewCampaignInvite(db, owner, invite.token, now);
+
+  assert.equal(preview.eligibility, "owner");
+  assert.deepEqual(preview.campaign, { id: campaign.id, name: "The Amber Company" });
+  assert.deepEqual(preview.characters, []);
+  await assert.rejects(
+    redeemCampaignInvite(db, owner, invite.token, characterIds[owner.userId], now),
+    error => error instanceof CampaignServiceError
+      && error.status === 409
+      && error.message === "You already own this campaign.",
   );
+  const ownerMembership = sqlite.prepare(`
+    SELECT role FROM campaign_members
+    WHERE campaign_id = (SELECT id FROM campaigns WHERE public_id = ?)
+      AND user_id = ?
+  `).get(campaign.id, owner.userId);
+  assert.equal(ownerMembership.role, "gm");
+  const stored = storedInvite(sqlite, await hashCampaignInviteToken(invite.token));
   assert.equal(stored.acceptedAt, null);
   assert.equal(stored.acceptedByUserId, null);
 });

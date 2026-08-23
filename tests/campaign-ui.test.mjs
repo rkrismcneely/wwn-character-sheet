@@ -209,6 +209,48 @@ test("campaign character library uses scoped routes and owner-only link controls
   assert.doesNotMatch(detail, /ownerUserId|owner_user_id|email|tokenHash|token_hash/u);
 });
 
+test("owned characters expose only server-authorized campaign navigation below the folio content", async () => {
+  const characterPage = await source("app/character/[publicId]/page.tsx");
+  const sheet = await source("app/character-sheet.tsx");
+  const characters = await source("lib/campaigns/characters.ts");
+  const css = await source("app/globals.css");
+
+  assert.match(characterPage, /listAuthorizedCharacterCampaigns/u);
+  assert.match(characters, /ch\.owner_user_id = \?/u);
+  assert.match(characters, /cm\.user_id = \?/u);
+  assert.match(characters, /SELECT c\.public_id AS id, c\.name/u);
+  assert.match(sheet, /cloudId && canEdit && campaignLinks\.length > 0/u);
+  assert.match(sheet, /character-campaign-links/u);
+  assert.match(sheet, /Open Campaign/u);
+  assert.ok(
+    sheet.indexOf("character-campaign-links") > sheet.indexOf("Privacy & Sharing") - 2000,
+    "campaign navigation belongs near the established bottom utility area",
+  );
+  assert.match(css, /\.character-campaign-links nav\{[^}]*flex-wrap:wrap/u);
+  assert.match(css, /\.character-campaign-links a\{[\s\S]*min-height:40px/u);
+});
+
+test("ordinary players get an intentional, confirmed character replacement flow", async () => {
+  const detail = await source("app/campaigns/campaign-detail.tsx");
+  const route = await source("app/api/campaigns/[id]/characters/route.ts");
+  const characters = await source("lib/campaigns/characters.ts");
+  const css = await source("app/campaigns/campaign-ui.css");
+
+  assert.match(detail, /campaign\.membershipRole === "player" && character\.isMine/u);
+  assert.match(detail, /Change Character/u);
+  assert.match(detail, /You don&apos;t have another eligible character to switch to/u);
+  assert.match(detail, /currentCharacterId: changeCharacter\.id/u);
+  assert.match(detail, /replacementCharacterId/u);
+  assert.match(detail, /Confirm Character Change/u);
+  assert.match(route, /export async function PATCH/u);
+  assert.match(route, /replaceCampaignCharacter/u);
+  assert.match(characters, /membership\?\.role !== "player"/u);
+  assert.match(characters, /UPDATE campaign_characters/u);
+  assert.match(characters, /SET character_id = \?, added_at = \?/u);
+  assert.doesNotMatch(characters, /DELETE FROM campaign_characters[\s\S]*replaceCampaignCharacter/u);
+  assert.match(css, /\.campaign-change-character/u);
+});
+
 test("campaign dialog focus lifecycle stays stable while a controlled name is typed", async () => {
   const dashboard = await source("app/campaigns/campaign-dashboard.tsx");
   const dialog = await source("app/campaigns/campaign-dialog.tsx");

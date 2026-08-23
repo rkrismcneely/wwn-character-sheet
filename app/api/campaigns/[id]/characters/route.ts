@@ -3,6 +3,7 @@ import {
   linkCharacterToCampaign,
   listCampaignCharacters,
   listEligibleCampaignCharacters,
+  replaceCampaignCharacter,
   unlinkCharacterFromCampaign,
 } from "@/lib/campaigns/characters";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
@@ -29,6 +30,36 @@ export async function GET(request: Request, context: Context): Promise<Response>
       error,
       "The campaign character library could not be loaded.",
     );
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: Context,
+): Promise<Response> {
+  try {
+    const actor = await getSessionActor(request);
+    if (!actor) {
+      return Response.json({ error: "Sign in is required." }, { status: 401 });
+    }
+    const { id } = await context.params;
+    const body = (await readBoundedJson(request, 16 * 1024)) as {
+      currentCharacterId?: unknown;
+      replacementCharacterId?: unknown;
+    };
+    const character = await replaceCampaignCharacter(
+      await getCampaignD1(),
+      actor,
+      id,
+      body?.currentCharacterId,
+      body?.replacementCharacterId,
+    );
+    return Response.json({ character });
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    return campaignErrorResponse(error, "The campaign character could not be changed.");
   }
 }
 

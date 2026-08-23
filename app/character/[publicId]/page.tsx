@@ -12,6 +12,7 @@ import {
   getD1,
 } from "@/app/api/characters/db";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
+import { listAuthorizedCharacterCampaigns } from "@/lib/campaigns/characters";
 
 type RouteContext = { params: Promise<{ publicId: string }> };
 
@@ -19,9 +20,13 @@ async function loadCharacter(publicId: string): Promise<InitialCharacterPayload 
   if (!isPlausiblePublicCharacterId(publicId)) return null;
   const requestHeaders = await headers();
   const actor = await getSessionActor({ headers: requestHeaders });
-  const row = await findCharacterByPublicId(await getD1(), publicId);
+  const db = await getD1();
+  const row = await findCharacterByPublicId(db, publicId);
   if (!row || !canReadRow(actor, row)) return null;
-  return characterApiPayload(row, actor) as InitialCharacterPayload;
+  return {
+    ...characterApiPayload(row, actor),
+    campaigns: await listAuthorizedCharacterCampaigns(db, actor, publicId),
+  } as InitialCharacterPayload;
 }
 
 export async function generateMetadata(

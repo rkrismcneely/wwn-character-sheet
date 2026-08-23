@@ -1,0 +1,96 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { clearRollHistory, MAX_ROLL_HISTORY_ENTRIES, persistRollHistory, prependRollHistory, readRollHistory } from "../app/roll-history.ts";
+import { parseDamageExpression, resolveRoll } from "../app/rolls.ts";
+
+function fixedRoll(results, sides) {
+  return (count, requestedSides) => {
+    assert.equal(count, results.length);
+    assert.equal(requestedSides, sides);
+    return { count, sides, results, total: results.reduce((total, value) => total + value, 0) };
+  };
+}
+
+function sampleRequest(overrides = {}) {
+  return {
+    category: "skill",
+    character: { id: "chr_example", name: "Aster" },
+    label: "Notice (WIS) Check",
+    dice: { count: 2, sides: 6 },
+    modifiers: [{ label: "Notice skill", value: 1 }, { label: "WIS", value: 2 }],
+    ...overrides,
+  };
+}
+
+test("the central resolver records a structured skill roll from injected dice", async () => {
+  const result = await resolveRoll(sampleRequest(), {
+    roll: fixedRoll([4, 6], 6),
+    createId: () => "roll_skill",
+    now: () => new Date("2026-08-23T12:00:00.000Z"),
+  });
+
+  assert.deepEqual(result.dice.results, [4, 6]);
+  assert.equal(result.dice.total, 10);
+  assert.equal(result.modifierTotal, 3);
+  assert.equal(result.total, 13);
+  assert.equal(result.character.name, "Aster");
+  assert.equal(result.id, "roll_skill");
+  assert.equal(result.timestamp, "2026-08-23T12:00:00.000Z");
+});
+
+test("WWN saving throws use the displayed target and natural 1/20 outcomes", async () => {
+  const request = sampleRequest({
+    category: "save",
+    label: "Physical Saving Throw",
+    dice: { count: 1, sides: 20 },
+    modifiers: [],
+    target: 12,
+    targetKind: "saving-throw",
+  });
+
+  const naturalOne = await resolveRoll(request, { roll: fixedRoll([1], 20) });
+  const naturalTwenty = await resolveRoll(request, { roll: fixedRoll([20], 20) });
+  const ordinaryFailure = await resolveRoll(request, { roll: fixedRoll([11], 20) });
+  const ordinarySuccess = await resolveRoll(request, { roll: fixedRoll([12], 20) });
+
+  assert.equal(naturalOne.outcome, "failure");
+  assert.equal(naturalTwenty.outcome, "success");
+  assert.equal(ordinaryFailure.outcome, "failure");
+  assert.equal(ordinarySuccess.outcome, "success");
+});
+
+test("canonical weapon damage expressions preserve their die and modifier", () => {
+  assert.deepEqual(parseDamageExpression("1d8+2"), { dice: { count: 1, sides: 8 }, modifier: 2 });
+  assert.deepEqual(parseDamageExpression("2d6 - 1"), { dice: { count: 2, sides: 6 }, modifier: -1 });
+  assert.throws(() => parseDamageExpression("special"), /Unsupported damage expression/);
+});
+
+test("invalid injected dice are rejected before an incorrect result is presented", async () => {
+  await assert.rejects(
+    resolveRoll(sampleRequest(), { roll: () => ({ count: 2, sides: 6, results: [7, 1], total: 8 }) }),
+    /out-of-range/,
+  );
+});
+
+class MemoryStorage {
+  values = new Map();
+  getItem(key) { return this.values.get(key) || null; }
+  setItem(key, value) { this.values.set(key, value); }
+  removeItem(key) { this.values.delete(key); }
+}
+
+test("local roll history is newest first, capped, and clears only its session entry", async () => {
+  const storage = new MemoryStorage();
+  const first = await resolveRoll(sampleRequest(), { roll: fixedRoll([1, 1], 6), createId: () => "first" });
+  const second = await resolveRoll(sampleRequest(), { roll: fixedRoll([2, 2], 6), createId: () => "second" });
+  const history = prependRollHistory(prependRollHistory([], first), second);
+  persistRollHistory(history, storage);
+  assert.deepEqual(readRollHistory(storage).map(entry => entry.id), ["second", "first"]);
+
+  const capped = Array.from({ length: MAX_ROLL_HISTORY_ENTRIES + 4 }, (_, index) => ({ ...first, id: `roll-${index}` }))
+    .reduce((current, entry) => prependRollHistory(current, entry), []);
+  assert.equal(capped.length, MAX_ROLL_HISTORY_ENTRIES);
+
+  clearRollHistory(storage);
+  assert.deepEqual(readRollHistory(storage), []);
+});

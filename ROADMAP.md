@@ -194,10 +194,12 @@ do not infer their current data state from the older pre-rollout documents.
 
 ## Phase 4D — Reliability, library maturity, security, and production hardening
 
+**Status: complete for the Phase 4D character and campaign lifecycle scope.**
+
 ### Library maturity
 
-- ⬜ Archive / retire characters and campaigns non-destructively so old records leave active lists but remain recoverable; Archive is distinct from Delete.
-- ⬜ Duplicate Character as a new independent owned record with its own identity/public ID and no accidental campaign-membership inheritance.
+- ✅ Archive / retire characters and campaigns non-destructively so old records leave active lists but remain recoverable; Archive is distinct from Delete.
+- ✅ Duplicate Character as a new independent private owned record with its own identity/public ID, independent portrait object, and no campaign/revision inheritance.
 
 ### Completed
 

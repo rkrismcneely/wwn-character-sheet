@@ -421,7 +421,7 @@ test("all standard routes use the canonical shared Tales Without End brand", asy
 
   assert.match(header, /className="twe-brand"/u);
   assert.match(header, /className="twe-brand-logo"/u);
-  assert.doesNotMatch(header, /brand-logo"/u, "the logo should have one canonical class");
+  assert.doesNotMatch(header, /twe-brand-logo brand-logo/u, "the logo should have one canonical class");
   assert.match(sheet, /<TalesBrandLink href=\{signedIn \? "\/account" : "\/"\} \/>/u);
   assert.match(landing, /<TalesBrandLink href="\/" \/>/u);
   assert.match(publicPage, /<TalesBrandLink href="\/" \/>/u);

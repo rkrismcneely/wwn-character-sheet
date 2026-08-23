@@ -4,9 +4,11 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import {
   linkCharacterToCampaign,
+  listAuthorizedCharacterCampaigns,
   listCampaignCharacters,
   listEligibleCampaignCharacters,
   readCampaignLinkedCharacter,
+  replaceCampaignCharacter,
   unlinkCharacterFromCampaign,
 } from "../lib/campaigns/characters.ts";
 import { generatePublicCharacterId } from "../lib/characters/identifiers.ts";
@@ -227,8 +229,8 @@ test("one member can link only one character per campaign while a character can 
     409,
   );
   assert.deepEqual(
-    await listEligibleCampaignCharacters(db, player, campaign.id),
-    [],
+    (await listEligibleCampaignCharacters(db, player, campaign.id)).map(character => character.id),
+    [ids.playerSecond],
   );
 
   await linkCharacterToCampaign(db, player, secondCampaign.id, ids.player, now);
@@ -237,6 +239,112 @@ test("one member can link only one character per campaign while a character can 
     WHERE character_id = 'character-player'
   `).get().count;
   assert.equal(Number(linkCount), 2);
+});
+
+test("character owners receive only their authorized minimal campaign navigation", async () => {
+  const { db, campaign, secondCampaign, ids } = await fixture();
+  assert.deepEqual(await listAuthorizedCharacterCampaigns(db, player, ids.player), []);
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  await linkCharacterToCampaign(db, player, secondCampaign.id, ids.player, now);
+
+  assert.deepEqual(
+    await listAuthorizedCharacterCampaigns(db, player, ids.player),
+    [
+      { id: campaign.id, name: "Amber Company" },
+      { id: secondCampaign.id, name: "Second Company" },
+    ],
+  );
+  assert.deepEqual(await listAuthorizedCharacterCampaigns(db, outsider, ids.player), []);
+  assert.deepEqual(await listAuthorizedCharacterCampaigns(db, admin, ids.player), []);
+  assert.deepEqual(await listAuthorizedCharacterCampaigns(db, null, ids.player), []);
+  assert.deepEqual(await listAuthorizedCharacterCampaigns(db, player, ids.outsider), []);
+});
+
+test("ordinary player atomically replaces only their own linked character", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  const oldBefore = { ...sqlite.prepare(`
+    SELECT owner_user_id AS ownerUserId, visibility, data
+    FROM characters WHERE public_id = ?
+  `).get(ids.player) };
+  const replacementBefore = { ...sqlite.prepare(`
+    SELECT owner_user_id AS ownerUserId, visibility, data
+    FROM characters WHERE public_id = ?
+  `).get(ids.playerSecond) };
+
+  const replacement = await replaceCampaignCharacter(
+    db,
+    player,
+    campaign.id,
+    ids.player,
+    ids.playerSecond,
+    "2026-08-16T13:00:00.000Z",
+  );
+  assert.equal(replacement.id, ids.playerSecond);
+  assert.equal(replacement.isMine, true);
+  assert.equal(Number(sqlite.prepare(`
+    SELECT count(*) AS count
+    FROM campaign_characters cc
+    INNER JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = (SELECT id FROM campaigns WHERE public_id = ?)
+      AND ch.owner_user_id = ?
+  `).get(campaign.id, player.userId).count), 1);
+  assert.equal(sqlite.prepare(`
+    SELECT ch.public_id AS publicId
+    FROM campaign_characters cc
+    INNER JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = (SELECT id FROM campaigns WHERE public_id = ?)
+      AND ch.owner_user_id = ?
+  `).get(campaign.id, player.userId).publicId, ids.playerSecond);
+  assert.equal(sqlite.prepare(`
+    SELECT role FROM campaign_members
+    WHERE campaign_id = (SELECT id FROM campaigns WHERE public_id = ?)
+      AND user_id = ?
+  `).get(campaign.id, player.userId).role, "player");
+  assert.deepEqual({ ...sqlite.prepare(`SELECT owner_user_id AS ownerUserId, visibility, data FROM characters WHERE public_id = ?`).get(ids.player) }, oldBefore);
+  assert.deepEqual({ ...sqlite.prepare(`SELECT owner_user_id AS ownerUserId, visibility, data FROM characters WHERE public_id = ?`).get(ids.playerSecond) }, replacementBefore);
+
+  await expectServiceError(readCampaignLinkedCharacter(db, gm, campaign.id, ids.player), 404);
+  assert.equal((await readCampaignLinkedCharacter(db, gm, campaign.id, ids.playerSecond)).character.name, "Player Second Hero");
+  assert.deepEqual(
+    new Set((await listEligibleCampaignCharacters(db, player, campaign.id)).map(character => character.id)),
+    new Set([ids.player]),
+  );
+});
+
+test("replacement revalidates ownership, player role, and current link without losing it", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  for (const [actor, replacementId, status] of [
+    [outsider, ids.outsider, 404],
+    [gm, ids.gm, 403],
+    [owner, ids.owner, 403],
+    [admin, ids.admin, 403],
+    [player, ids.outsider, 403],
+  ]) {
+    await expectServiceError(
+      replaceCampaignCharacter(db, actor, campaign.id, ids.player, replacementId),
+      status,
+    );
+  }
+  assert.equal(sqlite.prepare(`
+    SELECT ch.public_id AS publicId
+    FROM campaign_characters cc
+    INNER JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = (SELECT id FROM campaigns WHERE public_id = ?)
+  `).get(campaign.id).publicId, ids.player);
+
+  await replaceCampaignCharacter(db, player, campaign.id, ids.player, ids.playerSecond);
+  await expectServiceError(
+    replaceCampaignCharacter(db, player, campaign.id, ids.player, ids.playerSecond),
+    409,
+  );
+  assert.equal(sqlite.prepare(`
+    SELECT ch.public_id AS publicId
+    FROM campaign_characters cc
+    INNER JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = (SELECT id FROM campaigns WHERE public_id = ?)
+  `).get(campaign.id).publicId, ids.playerSecond);
 });
 
 test("campaign character library is visible only to participants and read-only admin", async () => {

@@ -274,6 +274,12 @@ export type InitialCharacterPayload = {
   createdAt: string;
   updatedAt: string;
   permissions: { canEdit: boolean; adminReadOnly: boolean };
+  campaigns?: CharacterCampaignLink[];
+};
+
+export type CharacterCampaignLink = {
+  id: string;
+  name: string;
 };
 
 export type CampaignCharacterContext = {
@@ -964,6 +970,9 @@ export default function Home({
   const [cloudAdminReadOnly, setCloudAdminReadOnly] = useState(
     initialCharacter?.permissions.adminReadOnly ?? false,
   );
+  const [campaignLinks, setCampaignLinks] = useState<CharacterCampaignLink[]>(
+    initialCharacter?.campaigns ?? [],
+  );
   const [claimToken, setClaimToken] = useState("");
   const [claimBusy, setClaimBusy] = useState(false);
   const [otherStowedIndex, setOtherStowedIndex] = useState<number | null>(null);
@@ -1544,6 +1553,7 @@ export default function Home({
         version?: number;
         visibility?: CharacterVisibility;
         permissions?: { canEdit: boolean; adminReadOnly: boolean };
+        campaigns?: CharacterCampaignLink[];
         error?: string;
       };
       if (!response.ok || !payload.character) throw new Error(payload.error);
@@ -1555,6 +1565,7 @@ export default function Home({
       setCloudVisibility(payload.visibility || "private");
       setCloudCanEdit(Boolean(payload.permissions?.canEdit));
       setCloudAdminReadOnly(Boolean(payload.permissions?.adminReadOnly));
+      setCampaignLinks(Array.isArray(payload.campaigns) ? payload.campaigns : []);
       setSaved(payload.permissions?.canEdit ? "Saved online" : "Read-only");
       setLibraryOpen(false);
       if (options.updateHistory !== false && window.location.pathname !== `/character/${id}`) {
@@ -1600,6 +1611,7 @@ export default function Home({
       setCloudVisibility(payload.visibility || "private");
       setCloudCanEdit(true);
       setCloudAdminReadOnly(false);
+      setCampaignLinks([]);
       lastCloudData.current = JSON.stringify(nextCharacter);
       setSaved("Saved online");
       window.history.pushState({ characterId: payload.id }, "", `/character/${payload.id}`);
@@ -1729,6 +1741,7 @@ export default function Home({
     setCloudVisibility("private");
     setCloudCanEdit(true);
     setCloudAdminReadOnly(false);
+    setCampaignLinks([]);
     lastCloudData.current = "";
     await addCurrentToLibrary(fresh);
   }
@@ -1766,6 +1779,7 @@ export default function Home({
       setCloudVisibility("private");
       setCloudCanEdit(false);
       setCloudAdminReadOnly(false);
+      setCampaignLinks([]);
       lastCloudData.current = "";
       setSaved("Deleted online");
       window.history.pushState({}, "", "/");
@@ -3628,6 +3642,18 @@ export default function Home({
           </div>;
         })()}
 
+        {cloudId && canEdit && campaignLinks.length > 0 && <section className="character-campaign-links" data-readonly-interactive="true" aria-labelledby="character-campaign-links-title">
+          <div>
+            <strong id="character-campaign-links-title">Campaigns</strong>
+            <small>{campaignLinks.length === 1 ? "This character is linked to one private campaign." : `This character is linked to ${campaignLinks.length} private campaigns.`}</small>
+          </div>
+          <nav aria-label="Campaigns linked to this character">
+            {campaignLinks.map(campaign => <a key={campaign.id} href={`/campaigns/${campaign.id}`}>
+              <span>{campaign.name}</span>
+              <strong>{campaignLinks.length === 1 ? "Open Campaign" : "Open"}</strong>
+            </a>)}
+          </nav>
+        </section>}
         {cloudId && canEdit && <section className="character-sharing character-sharing-footer" data-readonly-interactive="true" aria-labelledby="character-sharing-title">
           <div className="character-sharing-heading">
             <strong id="character-sharing-title">Privacy & Sharing</strong>

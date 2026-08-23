@@ -5,6 +5,7 @@ import {
 } from "@/lib/characters/authorization";
 import { isPlausiblePublicCharacterId } from "@/lib/characters/identifiers";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
+import { listAuthorizedCharacterCampaigns } from "@/lib/campaigns/characters";
 import {
   canReadRow,
   characterApiPayload,
@@ -25,9 +26,13 @@ export async function GET(request: Request, context: Context): Promise<Response>
     const { id: publicId } = await context.params;
     if (!isPlausiblePublicCharacterId(publicId)) return characterNotFound();
     const actor = await getSessionActor(request);
-    const row = await findCharacterByPublicId(await getD1(), publicId);
+    const db = await getD1();
+    const row = await findCharacterByPublicId(db, publicId);
     if (!row || !canReadRow(actor, row)) return characterNotFound();
-    return Response.json(characterApiPayload(row, actor));
+    return Response.json({
+      ...characterApiPayload(row, actor),
+      campaigns: await listAuthorizedCharacterCampaigns(db, actor, publicId),
+    });
   } catch {
     return Response.json(
       { error: "The character could not be opened." },

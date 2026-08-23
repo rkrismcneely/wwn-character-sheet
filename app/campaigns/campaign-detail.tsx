@@ -41,6 +41,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const [resourceEditing, setResourceEditing] = useState<CampaignResource | null>(null);
   const [resourceDraft, setResourceDraft] = useState({ title: "", type: "text" as "text" | "link", content: "" });
   const [addCharacterOpen, setAddCharacterOpen] = useState(false);
+  const [changeCharacter, setChangeCharacter] = useState<CampaignCharacter | null>(null);
+  const [replacementCharacterId, setReplacementCharacterId] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [invite, setInvite] = useState<CreatedInvite | null>(null);
   const [inviteCopied, setInviteCopied] = useState<"link" | "code" | null>(null);
@@ -378,6 +380,52 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
     }
   }
 
+  function openCharacterReplacement(character: CampaignCharacter) {
+    setReplacementCharacterId("");
+    setChangeCharacter(character);
+  }
+
+  async function replaceCharacter(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!campaign || !changeCharacter || !replacementCharacterId) return;
+    const replacement = eligibleCharacters.find(character => character.id === replacementCharacterId);
+    if (!replacement) {
+      setError("Choose an eligible character you own.");
+      return;
+    }
+    setActionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/characters`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          currentCharacterId: changeCharacter.id,
+          replacementCharacterId,
+        }),
+      });
+      const payload = await response.json() as { character?: CampaignCharacter; error?: string };
+      if (!response.ok || !payload.character) {
+        throw new Error(payload.error || "The campaign character could not be changed.");
+      }
+      setCharacters(current => current
+        .map(character => character.id === changeCharacter.id ? payload.character! : character)
+        .sort((left, right) => left.name.localeCompare(right.name)));
+      setEligibleCharacters(current => [
+        changeCharacter,
+        ...current.filter(character => character.id !== payload.character!.id),
+      ].sort((left, right) => left.name.localeCompare(right.name)));
+      setNotice(`${payload.character.name} is now your campaign character. ${changeCharacter.name} remains unchanged in My Characters.`);
+      setChangeCharacter(null);
+      setReplacementCharacterId("");
+    } catch (replaceError) {
+      setError(replaceError instanceof Error ? replaceError.message : "The campaign character could not be changed.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   function closeInvite() {
     setInvite(null);
     setInviteCopied(null);
@@ -499,6 +547,11 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                           </button>
                         )}
                       </div>
+                      {campaign.membershipRole === "player" && character.isMine && (
+                        eligibleCharacters.length > 0
+                          ? <button type="button" className="campaign-change-character" onClick={() => openCharacterReplacement(character)}>Change Character</button>
+                          : <p className="campaign-character-switch-empty">You don&apos;t have another eligible character to switch to.</p>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -614,6 +667,48 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               ))}
             </div>
           )}
+        </CampaignDialog>
+      )}
+
+      {changeCharacter && campaign && (
+        <CampaignDialog
+          title="Change Campaign Character"
+          description="Choose another character you own. Only the campaign link changes; both characters remain in My Characters with the same ownership and visibility."
+          onClose={() => { setChangeCharacter(null); setReplacementCharacterId(""); }}
+        >
+          <form className="campaign-dialog-form" onSubmit={replaceCharacter}>
+            <div className="campaign-current-character">
+              <span>Currently linked</span>
+              <strong>{changeCharacter.name}</strong>
+              <small>{changeCharacter.classLabel} · Level {changeCharacter.level}</small>
+            </div>
+            <fieldset className="campaign-join-character-list">
+              <legend>Choose your replacement character</legend>
+              {eligibleCharacters.map(character => (
+                <label key={character.id} className="campaign-join-character">
+                  <input
+                    type="radio"
+                    name="replacement-character"
+                    value={character.id}
+                    checked={replacementCharacterId === character.id}
+                    onChange={() => setReplacementCharacterId(character.id)}
+                  />
+                  <span><strong>{character.name}</strong><small>{character.classLabel} · Level {character.level} · {character.visibility}</small></span>
+                </label>
+              ))}
+            </fieldset>
+            <p className="campaign-replacement-confirmation">
+              {replacementCharacterId
+                ? `Confirm that ${eligibleCharacters.find(character => character.id === replacementCharacterId)?.name ?? "this character"} should replace ${changeCharacter.name} for this campaign.`
+                : "Select a different owned character before confirming."}
+            </p>
+            <div className="campaign-dialog-actions">
+              <button type="button" className="campaign-quiet" onClick={() => { setChangeCharacter(null); setReplacementCharacterId(""); }}>Cancel</button>
+              <button type="submit" className="campaign-primary" disabled={actionBusy || !replacementCharacterId}>
+                {actionBusy ? "Changing…" : "Confirm Character Change"}
+              </button>
+            </div>
+          </form>
         </CampaignDialog>
       )}
 

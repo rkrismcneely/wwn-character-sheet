@@ -1887,6 +1887,36 @@ main,
 .campaign-character-context a{color:#6e4819;font-weight:700;overflow-wrap:anywhere}
 .campaign-character-context strong{white-space:nowrap}
 .campaign-character-context span{color:var(--muted)}
+.character-campaign-links{
+  margin:18px 28px 0;
+  padding:14px;
+  display:grid;
+  grid-template-columns:minmax(190px,.7fr) minmax(0,1.3fr);
+  align-items:start;
+  gap:14px 20px;
+  border:1px solid var(--line);
+  background:rgba(161,126,66,.07);
+  font:12px/1.4 var(--font-ui);
+}
+.character-campaign-links>div{display:flex;min-width:0;flex-direction:column;gap:4px}
+.character-campaign-links>div>strong{color:var(--ink);font:600 20px/1 var(--font-heading)}
+.character-campaign-links>div>small{color:var(--muted);font:14px/1.4 var(--font-body)}
+.character-campaign-links nav{display:flex;min-width:0;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.character-campaign-links a{
+  min-width:0;
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  padding:8px 11px;
+  border:1px solid var(--line);
+  background:var(--paper2);
+  color:var(--ink);
+  text-decoration:none;
+}
+.character-campaign-links a span{min-width:0;overflow-wrap:anywhere}
+.character-campaign-links a strong{flex:0 0 auto;color:var(--amber);font-size:10px;text-transform:uppercase;letter-spacing:.07em}
+.character-campaign-links a:hover,.character-campaign-links a:focus-visible{border-color:var(--amber)}
 .character-sharing{
   margin:14px 28px 0;
   padding:10px 12px;
@@ -1943,6 +1973,7 @@ html[data-theme="dark"] .read-only-banner{
 }
 html[data-theme="dark"] .library-signin,
 html[data-theme="dark"] .character-sharing{background:rgba(207,155,68,.07)}
+html[data-theme="dark"] .character-campaign-links{background:rgba(207,155,68,.07)}
 html[data-theme="dark"] .campaign-character-context{background:#242119;color:#f0dbb2}
 html[data-theme="dark"] .campaign-character-context a{color:#e7bc74}
 html[data-theme="dark"] .library-search button,
@@ -1969,6 +2000,9 @@ html[data-theme="dark"] .read-only-banner button{
   .library-signin{align-items:stretch;flex-direction:column}
   .read-only-banner,
   .character-sharing{margin-left:16px;margin-right:16px;align-items:stretch;flex-direction:column}
+  .character-campaign-links{grid-template-columns:1fr;margin-left:16px;margin-right:16px}
+  .character-campaign-links nav{justify-content:flex-start}
+  .character-campaign-links a{flex:1 1 220px;justify-content:space-between}
   .campaign-character-context{width:calc(100% - 24px);align-items:flex-start;flex-direction:column;gap:6px}
   .character-sharing-footer{grid-template-columns:1fr;margin-top:14px;margin-bottom:20px}
   .character-sharing-footer label,

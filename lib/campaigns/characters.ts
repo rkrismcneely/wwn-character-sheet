@@ -74,6 +74,12 @@ export interface CampaignLinkedCharacterPayload {
     name: string;
     readOnly: boolean;
   };
+  campaigns: CharacterCampaignLink[];
+}
+
+export interface CharacterCampaignLink {
+  id: string;
+  name: string;
 }
 
 function requireActor(actor: CampaignActor | null): CampaignActor {
@@ -171,6 +177,35 @@ export async function listCampaignCharacters(
   return result.results.map(row => summaryPayload(authenticatedActor, row, campaignPublicId));
 }
 
+/**
+ * Return only the minimal campaign navigation projection the character owner
+ * is authorized to see. A public/unlisted reader (including a site admin who
+ * is not the owner) learns nothing about private campaign membership.
+ */
+export async function listAuthorizedCharacterCampaigns(
+  db: D1Database,
+  actor: CampaignActor | null,
+  rawCharacterId: unknown,
+): Promise<CharacterCampaignLink[]> {
+  if (!actor || typeof rawCharacterId !== "string" || !isPlausiblePublicCharacterId(rawCharacterId)) {
+    return [];
+  }
+  const result = await db
+    .prepare(
+      `SELECT c.public_id AS id, c.name
+       FROM characters ch
+       INNER JOIN campaign_characters cc ON cc.character_id = ch.id
+       INNER JOIN campaigns c ON c.id = cc.campaign_id
+       INNER JOIN campaign_members cm
+         ON cm.campaign_id = c.id AND cm.user_id = ?
+       WHERE ch.public_id = ? AND ch.owner_user_id = ?
+       ORDER BY lower(c.name), c.updated_at DESC`,
+    )
+    .bind(actor.userId, rawCharacterId, actor.userId)
+    .all<CharacterCampaignLink>();
+  return result.results.map(({ id, name }) => ({ id, name }));
+}
+
 export async function listEligibleCampaignCharacters(
   db: D1Database,
   actor: CampaignActor | null,
@@ -186,15 +221,17 @@ export async function listEligibleCampaignCharacters(
 
   const existingLink = await db
     .prepare(
-      `SELECT 1
+      `SELECT linked.id AS characterId
        FROM campaign_characters cc
        INNER JOIN characters linked ON linked.id = cc.character_id
        WHERE cc.campaign_id = ? AND linked.owner_user_id = ?
        LIMIT 1`,
     )
     .bind(campaign.id, authenticatedActor.userId)
-    .first<{ 1: number }>();
-  if (existingLink) return [];
+    .first<{ characterId: string }>();
+  // GMs retain the existing optional-link behavior. Ordinary players with a
+  // link receive owned alternatives so they can replace it atomically.
+  if (existingLink && membership?.role !== "player") return [];
 
   const result = await db
     .prepare(
@@ -205,13 +242,14 @@ export async function listEligibleCampaignCharacters(
        FROM characters ch
        INNER JOIN user u ON u.id = ch.owner_user_id
        WHERE ch.owner_user_id = ? AND ch.public_id IS NOT NULL
+         AND ch.id <> coalesce(?, '')
          AND NOT EXISTS (
            SELECT 1 FROM campaign_characters cc
            WHERE cc.campaign_id = ? AND cc.character_id = ch.id
          )
        ORDER BY ch.updated_at DESC`,
     )
-    .bind(authenticatedActor.userId, campaign.id)
+    .bind(authenticatedActor.userId, existingLink?.characterId ?? null, campaign.id)
     .all<CharacterLinkRow>();
   return result.results
     .filter(row => canAttachCharacterToCampaign(
@@ -221,6 +259,103 @@ export async function listEligibleCampaignCharacters(
       row,
     ))
     .map(row => summaryPayload(authenticatedActor, row, campaignPublicId));
+}
+
+export async function replaceCampaignCharacter(
+  db: D1Database,
+  actor: CampaignActor | null,
+  campaignPublicId: string,
+  rawCurrentCharacterId: unknown,
+  rawReplacementCharacterId: unknown,
+  now = new Date().toISOString(),
+): Promise<CampaignCharacterSummaryPayload> {
+  const authenticatedActor = requireActor(actor);
+  const currentPublicId = normalizeCharacterId(rawCurrentCharacterId);
+  const replacementPublicId = normalizeCharacterId(rawReplacementCharacterId);
+  if (currentPublicId === replacementPublicId) {
+    throw new CampaignServiceError("Choose a different character.", 422);
+  }
+  const { campaign, membership } = await loadCampaignAccess(
+    db,
+    authenticatedActor,
+    campaignPublicId,
+  );
+  if (authenticatedActor.role === "admin" || membership?.role !== "player") {
+    throw new CampaignServiceError("Not permitted.", 403);
+  }
+
+  const [current, replacement] = await Promise.all([
+    findCharacterForCampaign(db, currentPublicId),
+    findCharacterForCampaign(db, replacementPublicId),
+  ]);
+  if (!current || !replacement) throw characterNotFound();
+  if (
+    current.ownerUserId !== authenticatedActor.userId
+    || replacement.ownerUserId !== authenticatedActor.userId
+    || !canAttachCharacterToCampaign(
+      authenticatedActor,
+      campaign,
+      membership,
+      replacement,
+    )
+  ) {
+    throw new CampaignServiceError("Not permitted.", 403);
+  }
+
+  try {
+    // One guarded UPDATE is atomic in D1: the old link remains intact if the
+    // membership, ownership, current link, or replacement changes while the
+    // confirmation dialog is open.
+    const result = await db
+      .prepare(
+        `UPDATE campaign_characters
+         SET character_id = ?, added_at = ?
+         WHERE campaign_id = ? AND character_id = ?
+           AND EXISTS (
+             SELECT 1 FROM campaign_members cm
+             WHERE cm.campaign_id = campaign_characters.campaign_id
+               AND cm.user_id = ? AND cm.role = 'player'
+           )
+           AND EXISTS (
+             SELECT 1 FROM characters old_character
+             WHERE old_character.id = campaign_characters.character_id
+               AND old_character.owner_user_id = ?
+           )
+           AND EXISTS (
+             SELECT 1 FROM characters new_character
+             WHERE new_character.id = ? AND new_character.owner_user_id = ?
+           )`,
+      )
+      .bind(
+        replacement.id,
+        now,
+        campaign.id,
+        current.id,
+        authenticatedActor.userId,
+        authenticatedActor.userId,
+        replacement.id,
+        authenticatedActor.userId,
+      )
+      .run();
+    if (result.meta.changes !== 1) {
+      throw new CampaignServiceError(
+        "Your campaign character changed before this request completed. Refresh and try again.",
+        409,
+      );
+    }
+  } catch (error) {
+    if (error instanceof CampaignServiceError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("UNIQUE") || message.includes("PRIMARY KEY")) {
+      throw new CampaignServiceError(
+        "That character is already linked to this campaign.",
+        409,
+      );
+    }
+    throw error;
+  }
+
+  return summaryPayload(authenticatedActor, replacement, campaignPublicId);
 }
 
 export async function linkCharacterToCampaign(
@@ -397,5 +532,8 @@ export async function readCampaignLinkedCharacter(
       name: campaign.name,
       readOnly: !canEdit,
     },
+    campaigns: canEdit
+      ? await listAuthorizedCharacterCampaigns(db, authenticatedActor, row.publicId)
+      : [],
   };
 }

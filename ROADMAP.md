@@ -158,7 +158,7 @@ do not infer their current data state from the older pre-rollout documents.
 
 ## Phase 4C — Private Campaign Experience
 
-**Status: private campaign workflow is deployed; production smoke verification remains underway. Campaign access is authenticated, private, and limited to actual campaign members. Character-level Public / Unlisted / Private visibility remains separate.**
+**Status: Phase 4C is complete and deployed. Campaign access is authenticated, private, and limited to actual campaign members. Character-level Public / Unlisted / Private visibility remains separate.**
 
 - ✅ Additive campaign schema/domain foundation: private campaign records, GM/player
   membership, multi-campaign character links, hash-only expiring/single-use invite state,
@@ -187,8 +187,8 @@ do not infer their current data state from the older pre-rollout documents.
 - ✅ Direct campaign invite links complement the existing `cminv_...` code flow with an expiring, authenticated, single-use join URL; recipients sign in if necessary, choose an owned eligible character, and then join the private campaign.
 - ✅ Lightweight campaign overview and resources layer: a description/summary plus a small set of external links such as Discord, Roll20, shared documents, a campaign wiki, or rules resources. This is not a maps, handouts, file-hosting, or full-wiki system.
 - ✅ Richer compact Campaign Characters cards with portrait, character name, effective owner/player display name, class, level, current/max HP, and Armor Class; System Strain is intentionally excluded from the party card.
-- ⬜ Intuitive character ↔ campaign navigation that remains clean if a character participates in more than one campaign and does not clutter the character identity/header.
-- ⬜ Change/replace campaign character without leaving or rejoining: preserve membership, remove the old link, link a new owned eligible character, and preserve ownership, visibility, and the one-character-per-player-per-campaign rule.
+- ✅ Intuitive character ↔ campaign navigation remains clean when a character participates in more than one campaign and does not clutter the character identity/header.
+- ✅ Change/replace campaign character without leaving or rejoining preserves membership, atomically replaces the old link with a new owned eligible character, and preserves ownership, visibility, and the one-character-per-player-per-campaign rule.
 
 ---
 

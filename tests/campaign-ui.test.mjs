@@ -441,5 +441,5 @@ test("all standard routes use the canonical shared Tales Without End brand", asy
     "width:50px",
     "width:44px",
   ]) assert.ok(headerCss.includes(marker), marker);
-  assert.match(campaignCss, /\\.campaign-header[\\s\\S]*\\.twe-brand/u);
+  assert.match(campaignCss, /\.campaign-header[\s\S]*\.twe-brand/u);
 });

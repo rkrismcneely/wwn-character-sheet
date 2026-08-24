@@ -927,7 +927,6 @@ function DiceControl({
       className={`dice-control-result ${result ? "dice-result-roll" : ""}`}
       aria-hidden="true"
     >{result ? result.total : "—"}</span>
-    <span className="dice-control-expression" aria-hidden="true">{expression}</span>
     <span className="dice-control-action" aria-hidden="true">Roll {expression}</span>
   </button>;
 }
@@ -2939,8 +2938,8 @@ export default function Home({
             <div className="hero-stats" aria-label="Dice and combat statistics">
               <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} disabled={virtualDiceBusy} />
               <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} disabled={virtualDiceBusy} />
-              <label className="hero-stat-card hero-ac-card" title="Calculated from armor, shield, Dexterity, and armor bonus"><span className="hero-stat-kicker">AC</span><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
-              <label className="hero-stat-card hp-stat"><span className="hero-stat-kicker">HP</span><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
+              <label className="hero-stat-card hero-ac-card" title="Calculated from armor, shield, Dexterity, and armor bonus"><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span className="hero-card-label">ARMOR CLASS</span></label>
+              <label className="hero-stat-card hp-stat"><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span className="hero-card-label">HIT POINTS</span></label>
             </div>
             <div className="hero-roll-row" data-readonly-interactive="true">
               <div className="hero-latest-roll"><RollResultTray result={latestRoll} /></div>

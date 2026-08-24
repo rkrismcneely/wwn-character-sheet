@@ -1,12 +1,16 @@
 "use client";
 
 import type { DiceBox, DiceConfig } from "@drdreo/dice-box-threejs";
+import {
+  rendererConfigForDiceStyle,
+  type DiceStyleId,
+} from "./virtual-dice-style";
 
 export type VirtualDiceTheme = "light" | "dark";
 
 export type VirtualDiceRequest = {
   dice: Array<{ sides: number; value: number }>;
-  theme: VirtualDiceTheme;
+  style: DiceStyleId;
 };
 
 type DiceBoxModule = typeof import("@drdreo/dice-box-threejs");
@@ -22,24 +26,6 @@ function notationFor(request: VirtualDiceRequest) {
   return `${request.dice.map(die => `1d${die.sides}`).join("+")}@${request.dice.map(die => die.value).join(",")}`;
 }
 
-function colorsFor(theme: VirtualDiceTheme) {
-  return theme === "dark"
-    ? {
-        name: "twe-obsidian",
-        foreground: "#f4cb70",
-        background: "#28231b",
-        outline: "#9b7333",
-        texture: "paper",
-      }
-    : {
-        name: "twe-ivory",
-        foreground: "#3a2816",
-        background: "#ead8ad",
-        outline: "#9b7333",
-        texture: "paper",
-      };
-}
-
 export class VirtualDiceRendererAdapter {
   private box: DiceBox | null = null;
   private initializing: Promise<void> | null = null;
@@ -51,9 +37,9 @@ export class VirtualDiceRendererAdapter {
     this.container = container;
   }
 
-  private async initialize(theme: VirtualDiceTheme) {
+  private async initialize(style: DiceStyleId) {
     if (this.box?.initialized) {
-      await this.box.updateConfig({ theme_customColorset: colorsFor(theme) });
+      await this.box.updateConfig({ theme_customColorset: rendererConfigForDiceStyle(style) });
       return;
     }
     if (this.initializing) {
@@ -69,7 +55,7 @@ export class VirtualDiceRendererAdapter {
         shadows: false,
         theme_surface: "green-felt",
         theme_material: "plastic",
-        theme_customColorset: colorsFor(theme),
+        theme_customColorset: rendererConfigForDiceStyle(style),
         gravity_multiplier: 400,
         light_intensity: 1.4,
         baseScale: 70,
@@ -93,8 +79,8 @@ export class VirtualDiceRendererAdapter {
     }
   }
 
-  async init(theme: VirtualDiceTheme) {
-    await this.initialize(theme);
+  async init(style: DiceStyleId) {
+    await this.initialize(style);
   }
 
   async roll(request: VirtualDiceRequest) {
@@ -102,7 +88,7 @@ export class VirtualDiceRendererAdapter {
     this.active = true;
     this.contextLost = false;
     try {
-      await this.initialize(request.theme);
+      await this.initialize(request.style);
       if (!this.box) throw new Error("The virtual dice renderer did not initialize.");
       const box = this.box;
       const canvas = this.container.querySelector("canvas");

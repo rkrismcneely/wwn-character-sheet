@@ -8,6 +8,8 @@ const cssSource = await readFile(new URL("../app/globals.css", import.meta.url),
 const adapterSource = await readFile(new URL("../app/virtual-dice-adapter.ts", import.meta.url), "utf8");
 const preferenceSource = await readFile(new URL("../app/virtual-dice-preference.tsx", import.meta.url), "utf8");
 const overlaySource = await readFile(new URL("../app/virtual-dice-overlay.tsx", import.meta.url), "utf8");
+const diceStyleSource = await readFile(new URL("../app/virtual-dice-style.ts", import.meta.url), "utf8");
+const accountSource = await readFile(new URL("../app/account/account-page.tsx", import.meta.url), "utf8");
 
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
   assert.match(sheetSource, /rawRoll = rollDice\(request\.dice\.count, request\.dice\.sides\)/);
@@ -35,6 +37,40 @@ test("virtual dice preference is browser-local and off by default", () => {
   assert.match(preferenceSource, /=== "on"/);
   assert.match(preferenceSource, /\(\) => false/);
   assert.match(preferenceSource, /localStorage/);
+});
+
+test("Dice Style is a typed browser-local preference with a safe default", () => {
+  assert.match(preferenceSource, /DICE_STYLE_STORAGE_KEY = "wwn-dice-style"/);
+  assert.match(preferenceSource, /localStorage\.getItem\(DICE_STYLE_STORAGE_KEY\)/);
+  assert.match(preferenceSource, /localStorage\.setItem\(DICE_STYLE_STORAGE_KEY, style\)/);
+  assert.match(preferenceSource, /useSyncExternalStore/);
+  assert.match(diceStyleSource, /DEFAULT_DICE_STYLE: DiceStyleId = "ivory-gold"/);
+  assert.match(diceStyleSource, /DICE_STYLE_RENDERER_CONFIG/);
+  assert.doesNotMatch(preferenceSource, /theme_customColorset|theme_texture|theme_material/);
+  for (const style of ["ivory-gold", "obsidian-gold", "moonlit-marble", "arcane-glass", "dragon-scale"]) {
+    assert.ok(diceStyleSource.includes(`"${style}"`), `${style} remains a curated Dice Style`);
+  }
+});
+
+test("virtual rolls use the chosen style while preserving authoritative notation", () => {
+  assert.match(sheetSource, /const \{ style: diceStyle \} = useDiceStylePreference\(\)/);
+  assert.match(sheetSource, /style: diceStyle/);
+  assert.match(adapterSource, /initialize\(request\.style\)/);
+  assert.match(adapterSource, /rendererConfigForDiceStyle\(style\)/);
+  assert.match(adapterSource, /theme_surface: "green-felt"/);
+  assert.match(adapterSource, /\$\{request\.dice\.map\(die => `1d\$\{die\.sides\}`\)\.join\("\+"\)\}@\$\{request\.dice\.map\(die => die\.value\)\.join\(","\)\}/);
+});
+
+test("Account provides a preview-only Test Dice action for every standard die", () => {
+  assert.match(accountSource, /<DiceStyleSelect[\s\S]*id="account-dice-style"/);
+  assert.match(accountSource, /Test Dice/);
+  assert.match(accountSource, /STANDARD_RPG_DICE_SIDES\.map\(sides =>/);
+  assert.match(accountSource, /rollDice\(1, sides\)/);
+  assert.match(accountSource, /overlay\.current\?\.roll\(\{ dice, style \}\)/);
+  assert.match(diceStyleSource, /STANDARD_RPG_DICE_SIDES = \[4, 6, 8, 10, 12, 20\]/);
+  assert.doesNotMatch(accountSource, /setLatestRoll|prependRollHistory|persistRollHistory|setEnabled/);
+  assert.match(accountSource, /reduced-motion/);
+  assert.match(accountSource, /15_000/);
 });
 
 test("read-only sheets retain local rolling controls while edits remain separate", () => {

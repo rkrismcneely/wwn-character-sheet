@@ -30,7 +30,7 @@ import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
 import { parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
 import { rollDice, type DiceRoll } from "./dice";
 import { useDisplayTheme } from "./theme-provider";
-import { useVirtualDicePreference } from "./virtual-dice-preference";
+import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice-preference";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "./virtual-dice-overlay";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
@@ -943,6 +943,7 @@ export default function Home({
 }) {
   const { theme: displayTheme } = useDisplayTheme();
   const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
+  const { style: diceStyle } = useDiceStylePreference();
   const {
     data: session,
     isPending: sessionPending,
@@ -1137,7 +1138,7 @@ export default function Home({
       try {
         const animation = virtualDiceOverlay.current?.roll({
           dice: rawRoll.results.map(value => ({ sides: rawRoll.sides, value })),
-          theme: displayTheme,
+          style: diceStyle,
         });
         if (!animation) throw new Error("The virtual dice overlay is unavailable.");
         const timeout = new Promise<never>((_, reject) => {

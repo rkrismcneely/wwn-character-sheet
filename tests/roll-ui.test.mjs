@@ -5,14 +5,36 @@ import test from "node:test";
 const sheetSource = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
 const presentationSource = await readFile(new URL("../app/roll-presentation.tsx", import.meta.url), "utf8");
 const cssSource = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const adapterSource = await readFile(new URL("../app/virtual-dice-adapter.ts", import.meta.url), "utf8");
+const preferenceSource = await readFile(new URL("../app/virtual-dice-preference.tsx", import.meta.url), "utf8");
+const overlaySource = await readFile(new URL("../app/virtual-dice-overlay.tsx", import.meta.url), "utf8");
 
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
-  assert.match(sheetSource, /resolveRoll\(request\)/);
-  assert.doesNotMatch(sheetSource, /from "\.\/dice"/);
+  assert.match(sheetSource, /rawRoll = rollDice\(request\.dice\.count, request\.dice\.sides\)/);
+  assert.match(sheetSource, /resolveRoll\(request, \{ roll: \(\) => rawRoll \}\)/);
   assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check`/);
   assert.match(sheetSource, /label: `\$\{name\} Attack`/);
   assert.match(sheetSource, /label: `\$\{name\} Damage`/);
   assert.match(sheetSource, /targetKind: "saving-throw"/);
+});
+
+test("virtual dice preserve one authoritative raw roll and fall back without rerolling", () => {
+  assert.match(sheetSource, /const shouldAnimate = virtualDiceEnabled && !reducedMotion/);
+  assert.match(sheetSource, /virtualDiceOverlay\.current\?\.roll/);
+  assert.match(sheetSource, /virtualDiceOverlay\.current\?\.cancel/);
+  assert.match(sheetSource, /setLatestRoll\(result\)/);
+  assert.match(adapterSource, /import\("@drdreo\/dice-box-threejs"\)/);
+  assert.match(adapterSource, /request\.dice\.map\(die => `1d\$\{die\.sides\}`\)\.join\("\+"\)/);
+  assert.match(adapterSource, /request\.dice\.map\(die => die\.value\)\.join\(","\)/);
+  assert.match(adapterSource, /theme_surface: "green-felt"/);
+  assert.match(overlaySource, /createPortal/);
+});
+
+test("virtual dice preference is browser-local and off by default", () => {
+  assert.match(preferenceSource, /VIRTUAL_DICE_STORAGE_KEY/);
+  assert.match(preferenceSource, /=== "on"/);
+  assert.match(preferenceSource, /\(\) => false/);
+  assert.match(preferenceSource, /localStorage/);
 });
 
 test("read-only sheets retain local rolling controls while edits remain separate", () => {

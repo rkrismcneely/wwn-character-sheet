@@ -28,6 +28,10 @@ import { searchRules, type RuleEntry } from "./rules-search";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
 import { parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
+import { rollDice, type DiceRoll } from "./dice";
+import { useDisplayTheme } from "./theme-provider";
+import { useVirtualDicePreference } from "./virtual-dice-preference";
+import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "./virtual-dice-overlay";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
 import { TalesBrandLink } from "./app-header";
@@ -892,10 +896,12 @@ function DiceControl({
   expression,
   result,
   onRoll,
+  disabled = false,
 }: {
   expression: "d20" | "2d6";
   result: RollResult | null;
   onRoll: () => void;
+  disabled?: boolean;
 }) {
   const detail = result
     ? result.dice.count > 1
@@ -910,6 +916,8 @@ function DiceControl({
     type="button"
     className="dice-control"
     data-readonly-interactive="true"
+    disabled={disabled}
+    aria-busy={disabled || undefined}
     aria-label={accessibleName}
     title={result && result.dice.count > 1 ? detail : undefined}
     onClick={onRoll}
@@ -933,6 +941,8 @@ export default function Home({
   startNew?: boolean;
   campaignContext?: CampaignCharacterContext;
 }) {
+  const { theme: displayTheme } = useDisplayTheme();
+  const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
   const {
     data: session,
     isPending: sessionPending,
@@ -992,17 +1002,29 @@ export default function Home({
   const [diceAnnouncement, setDiceAnnouncement] = useState("");
   const [diceAnnouncementKey, setDiceAnnouncementKey] = useState(0);
   const [diceError, setDiceError] = useState("");
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [virtualDiceBusy, setVirtualDiceBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const portraitInput = useRef<HTMLInputElement>(null);
   const rulesAssistant = useRef<HTMLFormElement>(null);
   const characterNameInput = useRef<HTMLTextAreaElement>(null);
   const editableSurface = useRef<HTMLDivElement>(null);
+  const virtualDiceOverlay = useRef<VirtualDiceOverlayHandle>(null);
+  const virtualDiceBusyRef = useRef(false);
   const authIntentHandled = useRef(false);
   const startNewHandled = useRef(false);
   const lastCloudData = useRef(
     initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
   );
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const input = characterNameInput.current;
@@ -1093,8 +1115,47 @@ export default function Home({
   }
 
   async function completeRoll(request: RollRequest) {
+    const shouldAnimate = virtualDiceEnabled && !reducedMotion && Boolean(virtualDiceOverlay.current);
+    if (shouldAnimate && virtualDiceBusyRef.current) return;
+
+    let rawRoll: DiceRoll;
     try {
-      const result = await resolveRoll(request);
+      rawRoll = rollDice(request.dice.count, request.dice.sides);
+    } catch {
+      const message = "Dice rolling is unavailable because secure browser randomness could not be accessed.";
+      setDiceError(message);
+      setDiceAnnouncement(message);
+      setDiceAnnouncementKey(current => current + 1);
+      return;
+    }
+
+    let animationFailed = false;
+    if (shouldAnimate) {
+      virtualDiceBusyRef.current = true;
+      setVirtualDiceBusy(true);
+      let watchdog: number | undefined;
+      try {
+        const animation = virtualDiceOverlay.current?.roll({
+          dice: rawRoll.results.map(value => ({ sides: rawRoll.sides, value })),
+          theme: displayTheme,
+        });
+        if (!animation) throw new Error("The virtual dice overlay is unavailable.");
+        const timeout = new Promise<never>((_, reject) => {
+          watchdog = window.setTimeout(() => reject(new Error("The virtual dice renderer timed out.")), 15000);
+        });
+        await Promise.race([animation, timeout]);
+      } catch {
+        animationFailed = true;
+        virtualDiceOverlay.current?.cancel();
+      } finally {
+        if (watchdog !== undefined) window.clearTimeout(watchdog);
+        virtualDiceBusyRef.current = false;
+        setVirtualDiceBusy(false);
+      }
+    }
+
+    try {
+      const result = await resolveRoll(request, { roll: () => rawRoll });
       setLatestRoll(result);
       setRollHistory(current => {
         const next = prependRollHistory(current, result);
@@ -1103,9 +1164,9 @@ export default function Home({
       });
       setDiceAnnouncement(announceRoll(result));
       setDiceAnnouncementKey(current => current + 1);
-      setDiceError("");
+      setDiceError(animationFailed ? "Animated dice were unavailable; the roll was completed normally." : "");
     } catch {
-      const message = "Dice rolling is unavailable because secure browser randomness could not be accessed.";
+      const message = "The roll could not be resolved.";
       setDiceError(message);
       setDiceAnnouncement(message);
       setDiceAnnouncementKey(current => current + 1);
@@ -2624,6 +2685,7 @@ export default function Home({
 
   return (
     <main>
+      <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />
       <div className="topbar">
         <TalesBrandLink href={signedIn ? "/account" : "/"} />
         <div className="status">
@@ -2874,8 +2936,8 @@ export default function Home({
               </div>}
             </form>
             <div className="hero-stats" aria-label="Dice and combat statistics">
-              <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} />
-              <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} />
+              <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} disabled={virtualDiceBusy} />
+              <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} disabled={virtualDiceBusy} />
               <label className="hero-stat-card hero-ac-card" title="Calculated from armor, shield, Dexterity, and armor bonus"><span className="hero-stat-kicker">AC</span><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
               <label className="hero-stat-card hp-stat"><span className="hero-stat-kicker">HP</span><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
             </div>
@@ -3046,7 +3108,7 @@ export default function Home({
                   Skills and attributes share the same pool · {advancementPointsSpent}/{skillPointAllowance} spent
                 </small>
               </div>
-              <div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollSave(k as keyof typeof saves)}>Roll Save</button></div>)}</div>
+              <div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollSave(k as keyof typeof saves)}>Roll Save</button></div>)}</div>
             </Section>
             <Section title="Background & Class Benefits">
               {classLabel && <div className="class-benefit-card"><strong>{classLabel}</strong><p>{rules.summary}</p><dl><div><dt>Hit dice</dt><dd>{rules.hitDice}</dd></div><div><dt>Base attack</dt><dd>{signed(rules.attack)}</dd></div><div><dt>Focus picks</dt><dd>{rules.focusPicks}</dd></div></dl>{magicalTraditions.map(t=><p key={t}><b>{t}:</b> {traditionInfo[t].armor}</p>)}</div>}
@@ -3205,7 +3267,7 @@ export default function Home({
                   const calc = weaponCalc(pick);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
                     <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{name}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponAttack(name, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponDamage(name, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(name, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(name, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
@@ -3288,7 +3350,7 @@ export default function Home({
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}
-                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" aria-expanded={skillRollChooser === skill} onClick={() => setSkillRollChooser(current => current === skill ? null : skill)}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span><div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
+                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} aria-expanded={skillRollChooser === skill} onClick={() => setSkillRollChooser(current => current === skill ? null : skill)}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span><div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} disabled={virtualDiceBusy} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
                 })}
               </div>
             </Section>

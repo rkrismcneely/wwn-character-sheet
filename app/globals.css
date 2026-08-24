@@ -2166,6 +2166,9 @@ html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}
 .roll-affordance:focus-visible,
 .skill-roll-chooser button:focus-visible,
 .roll-history button:focus-visible{outline:2px solid var(--amber2);outline-offset:2px}
+.roll-affordance:disabled,
+.skill-roll-chooser button:disabled,
+.dice-control:disabled{cursor:wait;opacity:.62}
 .roll-history-toggle{padding:7px 10px;align-self:flex-end}
 .roll-result-tray{
   width:100%;
@@ -2532,6 +2535,40 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
 .roll-history-popout .roll-history>ol{max-height:none;min-height:0;overflow:auto}
 .roll-history-popout .roll-history>p{overflow:auto}
 .hero-play-panel .dice-error{margin:0}
+
+/* Virtual dice are a top-level, transient visual layer. The empty portal is
+   inert; only an active throw intercepts clicks so the sheet cannot be used
+   while its authoritative roll is being animated. */
+.virtual-dice-overlay{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+  background:transparent;
+}
+.virtual-dice-overlay.is-active{
+  pointer-events:auto;
+  cursor:wait;
+}
+.virtual-dice-scene{
+  width:min(900px,100vw);
+  height:min(520px,68dvh);
+  min-height:260px;
+  position:relative;
+  pointer-events:none;
+}
+.virtual-dice-scene canvas{
+  display:block;
+  width:100%!important;
+  height:100%!important;
+}
+html[data-theme="dark"] .virtual-dice-overlay{background:transparent}
+@media(max-width:720px){
+  .virtual-dice-scene{width:100vw;height:min(410px,58dvh);min-height:230px}
+}
+@media print{.virtual-dice-overlay{display:none!important}}
 
 /* Character-header refinement: keep the established two-panel composition,
    but give the identity copy more room and make the play cards one family. */

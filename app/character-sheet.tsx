@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 58923)
-Total output lines: 3787
-
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- portraits can be local blobs or user-uploaded URLs */
@@ -917,12 +914,12 @@ function DiceControl({
     title={result && result.dice.count > 1 ? detail : undefined}
     onClick={onRoll}
   >
-    <span className="dice-control-expression" aria-hidden="true">{expression}</span>
     <span
       key={result?.id || expression}
       className={`dice-control-result ${result ? "dice-result-roll" : ""}`}
       aria-hidden="true"
     >{result ? result.total : "—"}</span>
+    <span className="dice-control-expression" aria-hidden="true">{expression}</span>
     <span className="dice-control-action" aria-hidden="true">Roll {expression}</span>
   </button>;
 }
@@ -2040,7 +2037,615 @@ export default function Home({
     if (change > 0) {
       const nextCost = attributeBoostCount + 1;
       if (attributeBoostCount >= attributeBoostLimit || attributeScore(attribute) >= 18) return;
-      if (adva…8923 tokens truncated… "/",
+      if (advancementPointsSpent + nextCost > skillPointAllowance) return;
+    } else if (currentBoosts <= 0) {
+      return;
+    }
+    setSheet({
+      ...sheet,
+      attributeBoosts: { ...sheet.attributeBoosts, [attribute]: currentBoosts + change },
+      attrs: { ...sheet.attrs, [attribute]: sheet.attrs[attribute] + change },
+    });
+  };
+  const maxSkillRank = skillRankCap(effectiveLevel);
+  const limits = isInvoker && castingTraditions.length === 1
+    ? invokerLimits(effectiveLevel, sheet.classMode === "adventurer", attributeMod("INT"))
+    : castingTraditions.length > 1
+    ? {...dualCasterLimits(effectiveLevel), arts: 0}
+    : castingTraditions.length ? casterLimits(effectiveLevel, sheet.classMode === "adventurer") : { max: 0, casts: 0, prepared: 0, arts: 0 };
+  const baseAttack = sheet.classOne ? rules.attack : 0;
+  const armorBase = armors.find(armor => armor.name === sheet.armor)?.ac ?? 10;
+  const wornArmor = armors.find(armor => armor.name === sheet.armor) ?? armors[0];
+  const castingBlocked = armorRestrictedTraditions.length > 0 && (
+    armoredMagicLevel === 0
+      ? wornArmor.name !== "No Armor" || Boolean(sheet.shield)
+      : armoredMagicLevel === 1 && wornArmor.enc > 2
+  );
+  const castingBlockedReason = castingBlocked
+    ? armoredMagicLevel === 1
+      ? `${wornArmor.name} has Encumbrance ${wornArmor.enc}; Armored Magic level 1 only permits armor of Encumbrance 2 or less.`
+      : `${wornArmor.name !== "No Armor" ? wornArmor.name : sheet.shield} prevents spellcasting without Armored Magic.`
+    : "";
+  const shieldBase = sheet.shield === "Small Shield" ? 13 : sheet.shield === "Large Shield" ? 14 : 0;
+  const shieldAdjustedBase = shieldBase ? (armorBase >= shieldBase ? armorBase + 1 : shieldBase) : armorBase;
+  const imperviousDefense = selectedFocusPicks.some(pick => pick.name === "Impervious Defense");
+  const naturalArmorBase = imperviousDefense ? 15 + Math.ceil(effectiveLevel / 2) : 0;
+  const bestArmorBase = Math.max(shieldAdjustedBase, naturalArmorBase + (sheet.shield ? 1 : 0));
+  const vowedArmorBase = selectedClasses.includes("Vowed") && wornArmor.name === "No Armor" && !sheet.shield
+    ? 13 + Math.floor(effectiveLevel / 2)
+    : 0;
+  const coldFleshArmorBase = sheet.artPicks.includes("Cold Flesh") ? 12 + Math.floor(effectiveLevel / 2) : 0;
+  const pavisIndex = sheet.artPicks.indexOf("Pavis of Elements");
+  const pavisActive = pavisIndex >= 0 && Boolean(sheet.artEffort[pavisIndex]);
+  const defensiveBase = Math.max(bestArmorBase, vowedArmorBase, coldFleshArmorBase + (sheet.shield ? 1 : 0));
+  const calculatedAcBeforePavis = defensiveBase + attributeMod("DEX") + (sheet.armorBonus || 0);
+  const calculatedAc = pavisActive ? Math.min(18, calculatedAcBeforePavis + 4) : calculatedAcBeforePavis;
+  const calculatedInitiative = attributeMod("DEX");
+  const hitPointClassBonus = selectedClasses.includes("Warrior") && !selectedClasses.includes("Duelist") ? 2
+    : selectedClasses.includes("Expert") || selectedClasses.includes("Vowed") ? 0 : -1;
+  const enteredHpRolls = sheet.hpRolls.slice(0, effectiveLevel);
+  let calculatedHp = 0;
+  let hpRollsComplete = Boolean(sheet.level) && enteredHpRolls.length >= effectiveLevel;
+  const hasDieHard = selectedFocusPicks.some(pick => pick.name === "Die Hard");
+  for (let index = 0; index < effectiveLevel; index += 1) {
+    const rawRoll = Number(enteredHpRolls[index]);
+    if (!rawRoll) { hpRollsComplete = false; break; }
+    const dice = index + 1;
+    const perDieModifier = attributeMod("CON") + hitPointClassBonus + (hasDieHard ? 2 : 0);
+    const rolledTotal = Math.max(dice, rawRoll + perDieModifier * dice);
+    calculatedHp = index === 0 ? rolledTotal : Math.max(calculatedHp + 1, rolledTotal);
+  }
+  const dieHardBonus = hasDieHard ? effectiveLevel * 2 : 0;
+  const calculatedHpMax = hpRollsComplete ? calculatedHp : sheet.hpMax;
+  const availableArts = artTraditions.flatMap(t => {
+    const arts = t === "High Mage" ? highMageArts : traditionInfo[t].arts;
+    return arts.map(a => ({...a, minLevel: "minLevel" in a ? a.minLevel : undefined, tradition:t}));
+  });
+  const repeatableArt = (name: string) => name === "Skilled";
+  const artEligibility = (name: string, slotIndex: number) => {
+    const art = availableArts.find(candidate => candidate.name === name);
+    if (!art) return { eligible: false, reason: "This Art is not available to the character’s traditions." };
+    if ((art.minLevel || 1) > effectiveLevel) return { eligible: false, reason: `Requires level ${art.minLevel}.` };
+    if (name === "Deep Apprehension" && !sheet.artPicks.includes("Surface Apprehension")) {
+      return { eligible: false, reason: "Requires Surface Apprehension." };
+    }
+    if (!repeatableArt(name) && sheet.artPicks.some((picked, index) => index !== slotIndex && picked === name)) {
+      return { eligible: false, reason: "This Art cannot be selected more than once." };
+    }
+    return { eligible: true, reason: "" };
+  };
+  const effortPools = artTraditions.filter(t => t !== "Invoker").map(t => {
+    const info = traditionInfo[t];
+    const skill = t === "Vowed" ? sheet.vowedEffortSkill : info.effortSkill;
+    const effortAttributes = info.effortAttributes?.length
+      ? info.effortAttributes.filter((attribute): attribute is typeof attributes[number] => attributes.includes(attribute as typeof attributes[number]))
+      : t === "Vowed" ? [...attributes] : ["INT", "CHA"] as (typeof attributes[number])[];
+    const attribute = effortAttributes.length ? Math.max(...effortAttributes.map(a => attributeMod(a))) : 0;
+    const partialPenalty = sheet.classMode === "adventurer" && traditionInfo[t].spells ? 1 : 0;
+    const max = traditionalEducationTradition === t
+      ? Math.max(1, effectiveSkill("Magic"))
+      : info.usesEffort === false ? 0 : Math.max(1, info.effortBase + effectiveSkill(skill) + attribute - partialPenalty);
+    const used = sheet.artPicks.filter((name,i) => sheet.artEffort[i] && availableArts.find(a=>a.name===name)?.tradition === t).length;
+    return {tradition:t,skill,max,used};
+  });
+  const availableSpells = [
+    ...highMagic.map(s => ({...s, tradition:"High Magic"})),
+    ...(castingTraditions.includes("Elementalist") || traditionalEducationTradition === "Elementalist" ? traditionSpells.Elementalist.map(s => ({...s,tradition:"Elementalist"})) : []),
+    ...(castingTraditions.includes("Necromancer") || traditionalEducationTradition === "Necromancer" ? traditionSpells.Necromancer.map(s => ({...s,tradition:"Necromancer"})) : []),
+  ];
+  const spellEligibility = (name: string, slotIndex: number) => {
+    const spell = availableSpells.find(candidate => candidate.name === name);
+    if (!spell) return { eligible: false, reason: "This spell is not available to the character’s traditions." };
+    if (spell.level > limits.max) return { eligible: false, reason: `Requires access to level ${spell.level} spells.` };
+    if (sheet.spellPicks.some((picked, index) => index !== slotIndex && picked.name === name)) {
+      return { eligible: false, reason: "A spell only needs to be learned once." };
+    }
+    return { eligible: true, reason: "" };
+  };
+  const classLabel = !sheet.classOne ? "" : sheet.classMode === "full" ? sheet.classOne : `${sheet.classOne}${sheet.classTwo ? ` / ${sheet.classTwo}` : ""} Adventurer`;
+  const artAllowance = magicalTraditions.reduce(
+    (total, tradition) => total + artSlots(tradition, effectiveLevel, sheet.classMode === "adventurer"),
+    0,
+  ) + (traditionalEducationTradition ? artSlots(traditionalEducationTradition, 1, sheet.classMode === "adventurer") : 0);
+  const knownSpellAllowance = knownSpellSlots(castingTraditions, effectiveLevel, sheet.classMode === "adventurer");
+  const languageAllowance = 2
+    + (effectiveSkill("Know") >= 1 ? 2 : effectiveSkill("Know") === 0 ? 1 : 0)
+    + (effectiveSkill("Connect") >= 1 ? 2 : effectiveSkill("Connect") === 0 ? 1 : 0);
+  const allowedFocusPicks = sheet.level && sheet.classOne ? rules.focusPicks : 0;
+  const levelTwoFoci = selectedFocusPicks.filter(pick => pick.level === 2).length;
+  const focusSlotCount = Math.max(selectedFocusPicks.length, allowedFocusPicks - levelTwoFoci);
+  const saves = {
+    Physical: 16 - sheet.level - Math.max(attributeMod("STR"), attributeMod("CON")),
+    Evasion: 16 - sheet.level - Math.max(attributeMod("DEX"), attributeMod("INT")),
+    Mental: 16 - sheet.level - Math.max(attributeMod("WIS"), attributeMod("CHA")),
+    Luck: 16 - sheet.level,
+  };
+  const saveDetails = {
+    Physical: `16 − level ${sheet.level} − best of STR ${signed(attributeMod("STR"))} / CON ${signed(attributeMod("CON"))}`,
+    Evasion: `16 − level ${sheet.level} − best of DEX ${signed(attributeMod("DEX"))} / INT ${signed(attributeMod("INT"))}`,
+    Mental: `16 − level ${sheet.level} − best of WIS ${signed(attributeMod("WIS"))} / CHA ${signed(attributeMod("CHA"))}`,
+    Luck: `16 − level ${sheet.level}`,
+  };
+  const preparedCount = sheet.spellPicks.filter(s => s.name && s.prepared).length;
+  const castsUsed = isInvoker
+    ? sheet.spellPicks.reduce((total, pick) => total + (pick.name && pick.prepared ? (pick.casts || 0) * (availableSpells.find(spell => spell.name === pick.name)?.level || 0) : 0), 0)
+    : sheet.spellPicks.filter(s => s.name && s.cast).length;
+  const readiedCapacity = attributeScore("STR") ? Math.floor(attributeScore("STR") / 2) : 0;
+  const stowedCapacity = attributeScore("STR") || 0;
+  const readiedSlots = inventorySlots(sheet.readied, readiedCapacity);
+  const stowedSlots = inventorySlots(sheet.stowed, stowedCapacity);
+  const readiedWeapons = readiedSlots
+    .map((name, inventoryIndex) => ({ name, inventoryIndex }))
+    .filter(item => inventoryWeapons.some(weapon => weapon.name === item.name));
+  const unarmedPrimary = selectedClasses.includes("Vowed") || selectedFocusPicks.some(pick => pick.name === "Unarmed Combatant");
+  const displayedWeapons = unarmedPrimary
+    ? [{ name: "Unarmed Attack", inventoryIndex: -1 }, ...readiedWeapons]
+    : [...readiedWeapons, { name: "Unarmed Attack", inventoryIndex: -1 }];
+
+  const setStowedItem = (index: number, value: string) => {
+    if (value === "Unarmed Attack") return;
+    patch("stowed", stowedSlots.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+  const companionInventoryLabel = (companion: Companion, index: number) =>
+    companion.name || (companion.kind === "familiar" ? "Familiar" : `Henchman ${index + 1}`);
+  const swapStowedBetweenOwners = (
+    targetOwner: InventoryOwner,
+    targetIndex: number,
+    sourceOwner: InventoryOwner,
+    sourceIndex: number,
+  ) => {
+    setOtherStowedIndex(null);
+    setCompanionOtherStowed({});
+    setSheet(current => {
+      const pcGrowth = backgroundAttributeGrowth(current);
+      const pcCapacity = Math.max(0, Math.min(18, (current.attrs.STR || 0) + pcGrowth.STR));
+      const companionCapacity = (id: string) =>
+        Math.max(0, current.companions.find(companion => companion.id === id)?.strength || 0);
+      const ownerItems = (owner: InventoryOwner) =>
+        owner.kind === "pc"
+          ? inventorySlots(current.stowed, pcCapacity)
+          : inventorySlots(
+              current.companions.find(companion => companion.id === owner.id)?.stowed || [],
+              companionCapacity(owner.id),
+            );
+      const targetItems = ownerItems(targetOwner);
+      const sourceItems = ownerItems(sourceOwner);
+      const targetItem = targetItems[targetIndex] || "";
+      const sourceItem = sourceItems[sourceIndex] || "";
+      if (!sourceItem) return current;
+      targetItems[targetIndex] = sourceItem;
+      sourceItems[sourceIndex] = targetItem;
+
+      const nextCompanions = current.companions.map(companion => {
+        if (targetOwner.kind === "companion" && companion.id === targetOwner.id) {
+          return { ...companion, stowed: targetItems };
+        }
+        if (sourceOwner.kind === "companion" && companion.id === sourceOwner.id) {
+          return { ...companion, stowed: sourceItems };
+        }
+        return companion;
+      });
+      return {
+        ...current,
+        stowed: targetOwner.kind === "pc"
+          ? targetItems
+          : sourceOwner.kind === "pc"
+            ? sourceItems
+            : current.stowed,
+        companions: nextCompanions,
+      };
+    });
+  };
+  const swapReadiedWithStowed = (readiedIndex: number, stowedIndex: number) => {
+    setOtherStowedIndex(null);
+    setSheet(current => {
+      const nextReadied = inventorySlots(current.readied, readiedCapacity);
+      const nextStowed = inventorySlots(current.stowed, stowedCapacity);
+      const oldReadied = nextReadied[readiedIndex] || "";
+      nextReadied[readiedIndex] = nextStowed[stowedIndex] || "";
+      nextStowed[stowedIndex] = oldReadied;
+      return { ...current, readied: nextReadied, stowed: nextStowed };
+    });
+  };
+  const dropInventoryItem = (location: "readied" | "stowed", index: number, item: string) => {
+    if (!window.confirm(`Drop ${item}?\n\nThis removes it from the character’s inventory.`)) return;
+    const capacity = location === "readied" ? readiedCapacity : stowedCapacity;
+    setSheet(current => ({
+      ...current,
+      [location]: compactInventory(
+        inventorySlots(current[location], capacity).filter((_, itemIndex) => itemIndex !== index),
+        capacity,
+      ),
+    }));
+  };
+  const warning = (() => {
+    const issues = [];
+    if (preparedCount > limits.prepared) issues.push(`${preparedCount}/${limits.prepared} spells prepared`);
+    if (castsUsed > limits.casts) issues.push(isInvoker ? `${castsUsed}/${limits.casts} Invoker spell points spent` : `${castsUsed}/${limits.casts} spell castings used`);
+    if (sheet.artPicks.filter(Boolean).length > artAllowance) issues.push(`${sheet.artPicks.filter(Boolean).length}/${artAllowance} arts selected`);
+    if (sheet.spellPicks.some(p => (availableSpells.find(s => s.name === p.name)?.level ?? 0) > limits.max)) issues.push(`spell above level ${limits.max}`);
+    if (sheet.artPicks.some(name => name && !availableArts.some(a => a.name === name))) issues.push("an art belongs to a different tradition");
+    if (sheet.classMode === "adventurer" && sheet.classOne === sheet.classTwo) issues.push("choose two different partial classes");
+    if (selectedClasses.includes("Mageslayer") && selectedClasses.some(name => traditionKinds[name] === "mage")) issues.push("Mageslayer cannot be combined with a Mage partial class");
+    if (sheet.classMode === "adventurer" && isInvoker && castingTraditions.length > 1) issues.push("Partial Invoker cannot be combined with another partial spellcaster");
+    if (traditionalEducation && !isInvoker) issues.push("Traditional Education is available only to Invokers");
+    if (focusPicksUsed > rules.focusPicks) issues.push(`${focusPicksUsed}/${rules.focusPicks} Focus picks used`);
+    if (selectedFocusPicks.some(pick => focusChoiceLabel(pick.name) && !pick.choice)) issues.push("a Focus needs a choice");
+    if (selectedClasses.includes("Wise") && !sheet.wiseConceptSkill) issues.push("choose the Wise concept bonus skill");
+    if (sheet.backgroundDevelopmentMethod === "review") {
+      issues.push("review legacy Background Development before applying a method");
+    } else if (sheet.background && backgrounds[sheet.background]) {
+      const activeBackgroundGrants = backgroundGrantResolutions.filter(grant =>
+        grant.id === "background-free" || grant.id.startsWith("quick-") || grant.id.startsWith("learning-") || grant.id.startsWith("roll-"),
+      );
+      if (activeBackgroundGrants.some(grant => grant.needsChoice)) issues.push("complete a Background skill choice");
+      if (activeBackgroundGrants.some(grant => grant.needsReplacement)) issues.push("choose another eligible Background skill instead of a third acquisition");
+      if (sheet.backgroundDevelopmentMethod === "choose-learning" && sheet.backgroundLearningPicks.some(pick => !pick.result)) issues.push("choose both Background Learning results");
+      if (sheet.backgroundDevelopmentMethod === "roll-growth-learning") {
+        if (sheet.backgroundDevelopmentRolls.some(roll => !roll.die || !roll.result)) issues.push("roll all three Background Development results");
+        if (sheet.backgroundDevelopmentRolls.some(roll => {
+          const result = resolvedBackgroundRollResult(sheet.background, roll);
+          const required = backgroundAttributePointCount(result);
+          return required > 0 && roll.attributeChoices.length < required;
+        })) issues.push("assign all Background Growth attribute points");
+      }
+    }
+    const duplicateDevelopment = selectedFocusPicks.some((pick, index) => pick.name === "Developed Attribute" && pick.choice && selectedFocusPicks.some((other, otherIndex) => otherIndex !== index && other.name === "Developed Attribute" && other.choice === pick.choice));
+    const duplicateSpecialism = selectedFocusPicks.some((pick, index) => pick.name === "Specialist" && pick.choice && selectedFocusPicks.some((other, otherIndex) => otherIndex !== index && other.name === "Specialist" && other.choice === pick.choice));
+    if (duplicateDevelopment) issues.push("each Developed Attribute selection needs a different attribute");
+    if (duplicateSpecialism) issues.push("each Specialist selection needs a different skill");
+    if (advancementPointsSpent > skillPointAllowance) issues.push(`${advancementPointsSpent}/${skillPointAllowance} advancement points spent`);
+    return issues.join(" · ");
+  })();
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // Normalize saved selections when a rule dependency changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSheet(current => {
+      const legalFoci = current.focusPicks.map((pick, index) =>
+        focusEligibility(pick.name, index).eligible ? pick : { name: "", level: 1 });
+      let focusBudget = 0;
+      const budgetedFoci = legalFoci.map(pick => {
+        const cost = focusPickCost(pick);
+        if (!pick.name || focusBudget + cost <= allowedFocusPicks) {
+          focusBudget += cost;
+          return pick;
+        }
+        return { name: "", level: 1 };
+      });
+      const nextFoci = resizeSelections(budgetedFoci, focusSlotCount, pick => !pick.name, () => ({ name: "", level: 1 }));
+      const legalArts = current.artPicks.map((name, index) => !name || artEligibility(name, index).eligible ? name : "");
+      const nextArts = resizeSelections(legalArts, artAllowance, name => !name, () => "");
+      const legalSpells = current.spellPicks.map((pick, index) =>
+        !pick.name || spellEligibility(pick.name, index).eligible ? pick : { name: "", prepared: false, cast: false });
+      const nextSpells = resizeSelections(legalSpells, knownSpellAllowance, pick => !pick.name, () => ({ name: "", prepared: false, cast: false }));
+      let preparedSeen = 0;
+      const cappedSpells = nextSpells.map(pick => {
+        if (!pick.prepared) return pick;
+        preparedSeen += 1;
+        return preparedSeen <= limits.prepared ? pick : { ...pick, prepared: false, cast: false };
+      });
+      const selectedEffort = current.artPicks.flatMap((name, index) => name ? [Boolean(current.artEffort[index])] : []);
+      const nextEffort = nextArts.map((name, index) => name ? Boolean(selectedEffort[index]) : false);
+      const unchanged =
+        JSON.stringify(nextFoci) === JSON.stringify(current.focusPicks) &&
+        JSON.stringify(nextArts) === JSON.stringify(current.artPicks) &&
+        JSON.stringify(cappedSpells) === JSON.stringify(current.spellPicks) &&
+        JSON.stringify(nextEffort) === JSON.stringify(current.artEffort);
+      return unchanged ? current : { ...current, focusPicks: nextFoci, artPicks: nextArts, artEffort: nextEffort, spellPicks: cappedSpells };
+    });
+  // Eligibility helpers intentionally derive from all selected classes, levels,
+  // attributes, traditions, and peer selections represented in this signature.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, focusSlotCount, artAllowance, knownSpellAllowance, limits.prepared, limits.max, selectedClasses.join("|"), sheet.attrs.STR, sheet.attrs.DEX, sheet.attrs.CON, sheet.attrs.INT, sheet.attrs.WIS, sheet.attrs.CHA, sheet.backgroundDevelopmentMethod, JSON.stringify(sheet.backgroundDevelopmentRolls), JSON.stringify(sheet.backgroundLearningPicks)]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // Focus changes activate or archive companions while preserving their entered data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSheet(current => {
+      const existingHenchmen = current.companions.filter(companion => companion.kind === "henchman");
+      const existingFamiliars = current.companions.filter(companion => companion.kind === "familiar");
+      const archivedHenchmen = current.archivedCompanions.filter(companion => companion.kind === "henchman");
+      const archivedFamiliars = current.archivedCompanions.filter(companion => companion.kind === "familiar");
+      const availableHenchmen = [...existingHenchmen, ...archivedHenchmen];
+      const nextHenchmen = hasHenchkeeper
+        ? [
+            ...availableHenchmen.slice(0, henchmanCount),
+            ...Array.from({ length: Math.max(0, henchmanCount - availableHenchmen.length) }, (_, index) =>
+              newCompanion("henchman", availableHenchmen.length + index, sheet.level)
+            ),
+          ]
+        : [];
+      const nextFamiliars = reconcileFamiliarSlots(
+        existingFamiliars,
+        archivedFamiliars,
+        spiritFamiliars.map(({ index }) => index),
+        (focusSlot, familiarIndex) => newCompanion("familiar", familiarIndex, sheet.level, focusSlot),
+      );
+      const next = [...nextHenchmen, ...nextFamiliars];
+      const activeIds = new Set(next.map(companion => companion.id));
+      const nextArchive = [...current.archivedCompanions, ...current.companions]
+        .filter((companion, index, all) => !activeIds.has(companion.id) && all.findIndex(item => item.id === companion.id) === index);
+      return JSON.stringify(next) === JSON.stringify(current.companions) &&
+        JSON.stringify(nextArchive) === JSON.stringify(current.archivedCompanions)
+        ? current
+        : { ...current, companions: next, archivedCompanions: nextArchive };
+    });
+  }, [hydrated, hasHenchkeeper, hasSpiritFamiliar, henchmanCount, sheet.level, spiritFamiliars]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // Unarmed Attack is virtual. Older drafts may have contained an inventory
+    // copy, but it is never a real item to ready, stow, transfer, or drop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSheet(current => {
+      const readied = current.readied.filter(item => item !== "Unarmed Attack");
+      const stowed = current.stowed.filter(item => item !== "Unarmed Attack");
+      return readied.length === current.readied.length && stowed.length === current.stowed.length
+        ? current
+        : { ...current, readied, stowed };
+    });
+  }, [hydrated]);
+
+  function weaponCalc(pick: WeaponPick) {
+    const w = weapons.find(x => x.name === pick.name);
+    if (!w) return null;
+    const bestPhysicalModifier = Math.max(attributeMod("STR"), attributeMod("DEX"));
+    const attrMod = w.attribute === "Dex" ? attributeMod("DEX") : w.attribute === "Str" ? attributeMod("STR") : bestPhysicalModifier;
+    const isUnarmed = w.name === "Unarmed Attack";
+    const isThrownWeapon = w.traits.split(",").map(trait => trait.trim()).includes("T");
+    // A versatile thrown weapon is shown in the mode that uses the character's
+    // best trained combat skill. This keeps Shock tied to melee use only.
+    const isMelee = isUnarmed || w.range === "-" || (isThrownWeapon && effectiveSkill("Stab") >= effectiveSkill("Shoot"));
+    const isThrown = isThrownWeapon && !isMelee;
+    const skillName = isUnarmed ? "Punch" : isMelee ? "Stab" : "Shoot";
+    const skill = effectiveSkill(skillName);
+    const unskilled = skill < 0 && w.name !== "Crossbow" ? -2 : 0;
+    const armsmaster = selectedFocusPicks.find(focus => focus.name === "Armsmaster");
+    const deadeye = selectedFocusPicks.find(focus => focus.name === "Deadeye");
+    const closeCombatant = selectedFocusPicks.find(focus => focus.name === "Close Combatant");
+    const shockingAssault = selectedFocusPicks.find(focus => focus.name === "Shocking Assault");
+    const unarmedCombatant = selectedFocusPicks.find(focus => focus.name === "Unarmed Combatant");
+    const isVowed = selectedClasses.includes("Vowed");
+    const warriorDamage = sheet.classMode === "full" && sheet.classOne === "Warrior" ? Math.ceil(effectiveLevel / 2) : 0;
+    const focusHitBonus = !isUnarmed && armsmaster?.level === 2 && (isMelee || isThrown) ? 1 : 0;
+    // Armsmaster lets the player choose damage *or* Shock; the sheet uses
+    // damage as its displayed default and explains the alternative instead of
+    // incorrectly stacking the same Stab rank onto both values.
+    const armsmasterDamage = !isUnarmed && armsmaster && (isMelee || isThrown) && !(deadeye && !isMelee)
+      ? Math.max(0, effectiveSkill("Stab"))
+      : 0;
+    const deadeyeDamage = !isMelee && !isUnarmed && deadeye ? Math.max(0, effectiveSkill("Shoot")) : 0;
+
+    if (isUnarmed) {
+      const shockThreshold = closeCombatant?.level === 2 || shockingAssault ? 10 : 15;
+      const shockingAssaultBonus = shockingAssault?.level === 2 ? 2 : 0;
+      const result = deriveUnarmedAttack({
+        baseAttack,
+        punchSkill: effectiveSkill("Punch"),
+        physicalModifier: bestPhysicalModifier,
+        warriorDamage,
+        shockingAssaultBonus,
+        shockThreshold,
+        unarmedCombatantLevel: unarmedCombatant?.level || 0,
+        vowedProgression: isVowed ? vowedProgression[effectiveLevel - 1] : undefined,
+        magicalVowedAttack: isVowed && effectiveLevel >= 3,
+      });
+      return { w, skillName: "Punch", range: "-", virtual: true, ...result };
+    }
+    const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus;
+    const extraDamage = attrMod + warriorDamage + Math.max(armsmasterDamage, deadeyeDamage);
+    const shock = !isMelee || w.shock === "None" ? "None" : (() => {
+      const match = w.shock.match(/^(\d+)\/AC\s*(\d+)$/i);
+      if (!match) return w.shock;
+      const shockDamage = Number(match[1]) + attrMod + warriorDamage
+        + (shockingAssault?.level === 2 ? 2 : 0);
+      const shockAc = armsmaster?.level === 2 || closeCombatant?.level === 2 || shockingAssault
+        ? 10
+        : Number(match[2]);
+      return `${Math.max(0, shockDamage)}/AC ${shockAc}`;
+    })();
+    const armsmasterNote = armsmasterDamage && w.shock !== "None"
+      ? ` · Armsmaster can apply Stab ${signed(armsmasterDamage)} to Shock instead of damage`
+      : "";
+    return { w, skillName, hit, damage: `${w.damage}${extraDamage ? signed(extraDamage) : ""}`, shock, range: w.range, virtual: false, note: `${skillName} ${skill >= 0 ? signed(skill) : "untrained"} effective${armsmasterNote}` };
+  }
+
+  function downloadCharacterExport(payload: unknown) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(sheet.name || "wwn-character").trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "wwn-character"}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setTransferMessage("Character exported as a personal JSON backup. Account and ownership data are not included.");
+  }
+
+  async function exportCharacter() {
+    if (!signedIn) {
+      requireSignIn("export a character");
+      return;
+    }
+    if (cloudId) {
+      if (!canEdit) {
+        setTransferMessage("Only this character’s owner can export it.");
+        return;
+      }
+      const response = await fetch(`/api/characters/${cloudId}/export`, { cache: "no-store" });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) {
+        setTransferMessage(payload.error || "The character could not be exported.");
+        return;
+      }
+      downloadCharacterExport(payload);
+      return;
+    }
+
+    const character = {
+      ...sheet,
+      portrait: sheet.portrait.startsWith("/api/portraits/") ? "" : sheet.portrait,
+    };
+    downloadCharacterExport({
+      format: "wwn-character-sheet",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      character,
+    });
+  }
+
+  async function importCharacter(file?: File) {
+    if (!file) return;
+    if (!signedIn) {
+      requireSignIn("import a character");
+      if (importInput.current) importInput.current.value = "";
+      return;
+    }
+    try {
+      const parsed = JSON.parse(await file.text());
+      const incoming = parsed?.format === "wwn-character-sheet" ? parsed.character : parsed;
+      if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) throw new Error("Invalid character data");
+      const portrait = typeof incoming.portrait === "string" && (
+        incoming.portrait.startsWith("data:image/")
+        || incoming.portrait.startsWith("/api/portraits/")
+      )
+        ? incoming.portrait
+        : "";
+      const response = await fetch("/api/characters/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(parsed?.format === "wwn-character-sheet"
+          ? { ...parsed, character: { ...incoming, portrait: "" } }
+          : { ...incoming, portrait: "" }),
+      });
+      const payload = await response.json() as { id?: string; version?: number; error?: string };
+      if (!response.ok || !payload.id || !payload.version) throw new Error(payload.error || "Import failed.");
+      let version = payload.version;
+      if (portrait) {
+        const portraitBlob = await (await fetch(portrait)).blob();
+        const uploaded = await uploadPortraitBlob(portraitBlob, payload.id, version);
+        version = uploaded.version;
+      }
+      setCloudVersion(version);
+      setLibraryScope("mine");
+      await openCloudCharacter(payload.id);
+      await refreshLibrary("mine");
+      setTransferMessage(`Imported ${String(incoming.name || "character")} as a new private character.`);
+    } catch (error) {
+      setTransferMessage(error instanceof Error ? error.message : "That file could not be imported. Choose a supported WWN character JSON file.");
+    } finally {
+      if (importInput.current) importInput.current.value = "";
+    }
+  }
+
+  const updateBackgroundLearningPick = (index: number, update: Partial<BackgroundLearningPick>) => {
+    setSheet(current => ({
+      ...current,
+      backgroundLearningPicks: current.backgroundLearningPicks.map((pick, row) => row === index ? { ...pick, ...update } : pick),
+    }));
+  };
+  const updateBackgroundDevelopmentRoll = (index: number, update: Partial<BackgroundDevelopmentRoll>) => {
+    setSheet(current => ({
+      ...current,
+      backgroundDevelopmentRolls: current.backgroundDevelopmentRolls.map((roll, row) => row === index ? { ...roll, ...update } : roll),
+    }));
+  };
+  type BackgroundSkillFollowupProps = {
+    result: string;
+    choice: string;
+    replacement: string;
+    needsReplacement: boolean;
+    onChoice: (value: string) => void;
+    onReplacement: (value: string) => void;
+    choiceAvailable: (skill: string) => boolean;
+    replacementAvailable: (skill: string) => boolean;
+  };
+  const renderBackgroundSkillFollowUp = ({
+    result,
+    choice,
+    replacement,
+    needsReplacement,
+    onChoice,
+    onReplacement,
+    choiceAvailable,
+    replacementAvailable,
+  }: BackgroundSkillFollowupProps) => {
+    const choices = backgroundChoiceOptions(result);
+    const specialLabel = result === "Any Combat" ? "Choose combat skill" : "Choose skill";
+    return <>
+      {choices.length > 0 && <label className="field">
+        <span>{needsReplacement ? `Choose another eligible ${result === "Any Combat" ? "combat skill" : "skill"}` : specialLabel}</span>
+        <select value={choice} onChange={event => onChoice(event.target.value)}>
+          <option value="">{specialLabel}…</option>
+          {choices.map(skill => {
+            const available = choiceAvailable(skill);
+            return <option key={skill} value={skill} disabled={!available}>{skill}{available ? "" : " — already level 1"}</option>;
+          })}
+        </select>
+        {needsReplacement && <small className="background-choice-note">This would be a third starting acquisition. Choose a skill that is not already level 1.</small>}
+      </label>}
+      {needsReplacement && choices.length === 0 && <label className="field">
+        <span>Choose another eligible skill</span>
+        <select value={replacement} onChange={event => onReplacement(event.target.value)}>
+          <option value="">Choose skill…</option>
+          {skills.map(skill => {
+            const available = replacementAvailable(skill);
+            return <option key={skill} value={skill} disabled={!available}>{skill}{available ? "" : " — already level 1"}</option>;
+          })}
+        </select>
+        <small className="background-choice-note">This result would be a third starting acquisition. Pick a skill that is still below level 1.</small>
+      </label>}
+    </>;
+  };
+  const renderBackgroundAttributeChoices = (row: BackgroundDevelopmentRoll, rowIndex: number) => {
+    const result = resolvedBackgroundRollResult(sheet.background, row);
+    const permitted = backgroundAttributeChoices(result) as AttributeName[];
+    const pointCount = backgroundAttributePointCount(result);
+    if (!pointCount) return null;
+    return <div className="background-attribute-points">
+      {Array.from({ length: pointCount }, (_, pointIndex) => {
+        const value = row.attributeChoices[pointIndex] || "";
+        return <label className="field" key={`${rowIndex}-${pointIndex}`}>
+          <span>{pointCount === 1 ? "Apply +1 to" : `Point ${pointIndex + 1}`}</span>
+          <select value={value} onChange={event => setBackgroundAttributePoint(rowIndex, pointIndex, event.target.value as AttributeName)}>
+            <option value="">Choose attribute…</option>
+            {permitted.map(attribute => {
+              const available = value === attribute || attributeScore(attribute) < 18;
+              return <option key={attribute} value={attribute} disabled={!available}>{attribute}{available ? "" : " — maximum 18"}</option>;
+            })}
+          </select>
+        </label>;
+      })}
+      {pointCount === 2 && <small className="background-choice-note">Assign both points to one attribute or split them between two.</small>}
+    </div>;
+  };
+
+  return (
+    <main>
+      <div className="topbar">
+        <TalesBrandLink href={signedIn ? "/account" : "/"} />
+        <div className="status">
+          <div className="status-meta">
+            <span className="save-state"><span className="dot" />{saved}</span>
+          </div>
+          <div className="header-actions">
+            {!signedIn && <button className="library-button" onClick={() => {
+              setLibraryScope("public");
+              setLibraryOpen(true);
+              void refreshLibrary("public");
+            }}>Public Characters</button>}
+            {!signedIn && !libraryOpen && <button
+              type="button"
+              className="primary-action account-signin"
+              onClick={async () => {
+                setTransferMessage("Opening Google sign-in…");
+                setLibraryError("");
+                try {
+                  const { error } = await authClient.signIn.social({
+                    provider: "google",
+                    callbackURL: "/",
                   });
                   if (error) {
                     throw new Error(error.message || "Better Auth rejected Google sign-in.");

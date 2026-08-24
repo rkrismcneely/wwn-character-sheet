@@ -1,12 +1,98 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SignedInHeader } from "../app-header";
 import type { AccountProfilePayload } from "@/lib/account/profile";
 import { DISPLAY_NAME_MAX_LENGTH } from "@/lib/account/display-name";
-import { ThemeSelect } from "../theme-provider";
-import { VirtualDiceSelect } from "../virtual-dice-preference";
+import { rollDice } from "../dice";
+import { ThemeSelect, useDisplayTheme } from "../theme-provider";
+import {
+  DiceStyleSelect,
+  useDiceStylePreference,
+  VirtualDiceSelect,
+} from "../virtual-dice-preference";
+import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "../virtual-dice-overlay";
+import { STANDARD_RPG_DICE_SIDES } from "../virtual-dice-style";
+
+function DicePreviewControl() {
+  const { theme } = useDisplayTheme();
+  const { style } = useDiceStylePreference();
+  const overlay = useRef<VirtualDiceOverlayHandle>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewMessage, setPreviewMessage] = useState("");
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  async function previewDice() {
+    setPreviewMessage("");
+    if (reducedMotion) {
+      setPreviewMessage("Your reduced-motion preference is enabled, so the animated dice preview is skipped.");
+      return;
+    }
+
+    let dice: Array<{ sides: number; value: number }>;
+    try {
+      dice = STANDARD_RPG_DICE_SIDES.map(sides => {
+        const roll = rollDice(1, sides);
+        return { sides, value: roll.results[0] };
+      });
+    } catch {
+      setPreviewMessage("Dice preview is unavailable because secure browser randomness could not be accessed.");
+      return;
+    }
+
+    setPreviewBusy(true);
+    let watchdog: number | undefined;
+    try {
+      const animation = overlay.current?.roll({ dice, style });
+      if (!animation) throw new Error("The virtual dice preview is unavailable.");
+      const timeout = new Promise<never>((_, reject) => {
+        watchdog = window.setTimeout(
+          () => reject(new Error("The virtual dice preview timed out.")),
+          15_000,
+        );
+      });
+      await Promise.race([animation, timeout]);
+      setPreviewMessage("Preview complete. No character roll or history entry was created.");
+    } catch {
+      overlay.current?.cancel();
+      setPreviewMessage("The dice preview could not be shown. Normal character rolling remains unchanged.");
+    } finally {
+      if (watchdog !== undefined) window.clearTimeout(watchdog);
+      setPreviewBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <VirtualDiceOverlay ref={overlay} theme={theme} />
+      <div className="account-dice-preview">
+        <button
+          type="button"
+          className="account-secondary"
+          onClick={() => void previewDice()}
+          disabled={previewBusy}
+          aria-busy={previewBusy || undefined}
+          aria-describedby="account-test-dice-guidance"
+        >
+          {previewBusy ? "Testing Dice…" : "Test Dice"}
+        </button>
+        <small id="account-test-dice-guidance">
+          Throws one d4, d6, d8, d10, d12, and d20 using this Dice Style. It is a visual preview only and works even when Virtual Dice is Off.
+        </small>
+        <p className="account-dice-preview-status" role="status" aria-live="polite">{previewMessage}</p>
+      </div>
+    </>
+  );
+}
 
 export function AccountPageClient({
   initialProfile,
@@ -170,6 +256,16 @@ export function AccountPageClient({
             <small id="account-virtual-dice-guidance">
               When enabled, rolls show opt-in animated 3D dice. Your browser generates the result first; reduced-motion settings and renderer failures use the normal instant result.
             </small>
+          </div>
+          <div className="account-theme-control account-dice-style-control">
+            <DiceStyleSelect
+              id="account-dice-style"
+              describedBy="account-dice-style-guidance"
+            />
+            <small id="account-dice-style-guidance">
+              Choose the dice set used for future virtual rolls and for the preview below. This stays in this browser and is separate from Virtual Dice On or Off.
+            </small>
+            <DicePreviewControl />
           </div>
           </section>
         </div>

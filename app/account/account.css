@@ -103,3 +103,7 @@
 }
 .account-theme-control select:focus{outline:2px solid #c18a36;outline-offset:1px}
 .account-theme-control small{color:#756957;font:11px/1.4 var(--font-ui)}
+.account-dice-preview{display:grid;gap:7px;padding-top:3px}
+.account-dice-preview .account-secondary{justify-self:start}
+.account-dice-preview-status{min-height:16px;margin:0;color:#756957;font:11px/1.4 var(--font-ui)}
+@media(max-width:640px){.account-dice-preview .account-secondary{width:100%}}

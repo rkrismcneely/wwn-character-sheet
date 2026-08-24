@@ -10,6 +10,11 @@ const preferenceSource = await readFile(new URL("../app/virtual-dice-preference.
 const overlaySource = await readFile(new URL("../app/virtual-dice-overlay.tsx", import.meta.url), "utf8");
 const diceStyleSource = await readFile(new URL("../app/virtual-dice-style.ts", import.meta.url), "utf8");
 const accountSource = await readFile(new URL("../app/account/account-page.tsx", import.meta.url), "utf8");
+const {
+  DICE_STYLE_IDS,
+  DICE_STYLE_RENDERER_CONFIG,
+  DICE_STYLE_TEXTURE_DEFINITIONS,
+} = await import(new URL("../app/virtual-dice-style.ts", import.meta.url));
 
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
   assert.match(sheetSource, /rawRoll = rollDice\(request\.dice\.count, request\.dice\.sides\)/);
@@ -52,7 +57,7 @@ test("Dice Style is a typed browser-local preference with a safe default", () =>
   }
 });
 
-test("Dice Style catalog expands with self-hosted generic renderer textures", async () => {
+test("Dice Style renderer configs have stable, style-scoped cache and texture identities", async () => {
   const addedStyles = [
     "ember-forge", "winter-ice", "tidal-water", "carved-wood", "forged-steel",
     "antique-bronze", "starfall-glitter", "starfield", "speckled-stone",
@@ -62,17 +67,50 @@ test("Dice Style catalog expands with self-hosted generic renderer textures", as
   for (const style of addedStyles) {
     assert.ok(diceStyleSource.includes(`"${style}"`), `${style} is a curated Dice Style`);
   }
-  assert.match(diceStyleSource, /texture: "bronze03"/);
-  assert.doesNotMatch(diceStyleSource, /texture: "bronze(?:01|02|03a|03b|04)"/);
+  const colorsetNames = new Set();
+  const textureNames = new Set();
+  const rendererSignatures = new Set();
 
-  for (const texture of [
-    "astral.webp", "bronze03.webp", "cheetah.webp", "cloudy.alt.webp", "feather-bump.webp",
-    "feather.webp", "fire.webp", "glitter-bump.webp", "glitter.webp", "ice.webp",
-    "leopard.webp", "lizard.webp", "skulls.webp", "speckles.webp", "stars.webp",
-    "tiger.webp", "water.webp", "wood.webp",
-  ]) {
-    await access(new URL(`../public/assets/virtual-dice/textures/${texture}`, import.meta.url));
+  for (const style of DICE_STYLE_IDS) {
+    const config = DICE_STYLE_RENDERER_CONFIG[style];
+    const texture = DICE_STYLE_TEXTURE_DEFINITIONS[style];
+    assert.equal(config.name, `twe-${style}`, `${style} has a stable colorset cache key`);
+    assert.equal(config.texture, texture.name, `${style} applies its selected texture to the colorset`);
+    assert.equal(config.material, texture.material, `${style} uses the texture's intended material`);
+    assert.ok(texture.name.startsWith("twe-texture-"), `${style} has a renderer-scoped texture identity`);
+    assert.ok(texture.source.startsWith("textures/"), `${style} has a renderer texture source`);
+    assert.ok(["multiply", "screen"].includes(texture.composite), `${style} has an explicit texture blend mode`);
+    assert.ok(!colorsetNames.has(config.name), `${style} cannot reuse a cached colorset`);
+    assert.ok(!textureNames.has(texture.name), `${style} cannot reuse another style's material canvas`);
+    colorsetNames.add(config.name);
+    textureNames.add(texture.name);
+    rendererSignatures.add(JSON.stringify({
+      texture: config.texture,
+      material: config.material,
+      foreground: config.foreground,
+      background: config.background,
+      outline: config.outline,
+    }));
+
+    await access(new URL(`../public/assets/virtual-dice/${texture.source}`, import.meta.url));
+    if (texture.source_bump) {
+      await access(new URL(`../public/assets/virtual-dice/${texture.source_bump}`, import.meta.url));
+    }
   }
+
+  assert.equal(colorsetNames.size, DICE_STYLE_IDS.length);
+  assert.equal(textureNames.size, DICE_STYLE_IDS.length);
+  assert.equal(rendererSignatures.size, DICE_STYLE_IDS.length);
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["ember-forge"].source, "textures/fire.webp");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["winter-ice"].source, "textures/ice.webp");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["carved-wood"].source, "textures/wood.webp");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.source, "textures/stars.webp");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].source, "textures/bronze03.webp");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.composite, "screen");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].composite, "screen");
+  assert.match(diceStyleSource, /rendererTextureForKey/);
+  assert.match(adapterSource, /installStyleTextureRegistry\(box\)/);
+  assert.match(adapterSource, /rendererTextureForKey\(texture\)/);
 });
 
 test("virtual rolls use the chosen style while preserving authoritative notation", () => {

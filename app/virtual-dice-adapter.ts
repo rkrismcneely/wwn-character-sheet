@@ -3,6 +3,7 @@
 import type { DiceBox, DiceConfig } from "@drdreo/dice-box-threejs";
 import {
   rendererConfigForDiceStyle,
+  rendererTextureForKey,
   type DiceStyleId,
 } from "./virtual-dice-style";
 
@@ -14,6 +15,12 @@ export type VirtualDiceRequest = {
 };
 
 type DiceBoxModule = typeof import("@drdreo/dice-box-threejs");
+type DiceTextureRegistry = {
+  getTexture: (texture: unknown) => unknown;
+};
+type DiceBoxWithTextureRegistry = DiceBox & {
+  DiceColors: DiceTextureRegistry;
+};
 
 let diceBoxModule: Promise<DiceBoxModule> | null = null;
 
@@ -24,6 +31,18 @@ function loadDiceBoxModule() {
 
 function notationFor(request: VirtualDiceRequest) {
   return `${request.dice.map(die => `1d${die.sides}`).join("+")}@${request.dice.map(die => die.value).join(",")}`;
+}
+
+function installStyleTextureRegistry(box: DiceBox) {
+  const diceColors = (box as DiceBoxWithTextureRegistry).DiceColors;
+  const getBuiltInTexture = diceColors.getTexture.bind(diceColors);
+  diceColors.getTexture = texture => {
+    if (typeof texture === "string") {
+      const styleTexture = rendererTextureForKey(texture);
+      if (styleTexture) return { ...styleTexture };
+    }
+    return getBuiltInTexture(texture);
+  };
 }
 
 export class VirtualDiceRendererAdapter {
@@ -63,6 +82,7 @@ export class VirtualDiceRendererAdapter {
         iterationLimit: 1400,
       };
       const box = new DiceBox(this.container, config);
+      installStyleTextureRegistry(box);
       await box.initialize();
       this.box = box;
       const canvas = this.container.querySelector("canvas");

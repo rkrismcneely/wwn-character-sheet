@@ -177,15 +177,20 @@ test("redesigned header does not retain the legacy three-track hero grid", () =>
   assert.doesNotMatch(cssSource, /\.hero>\.portrait-frame/);
 });
 
-test("refined character header keeps only primary identity and play-card labels", () => {
+test("refined character header keeps only primary identity and matched play-card labels", () => {
   assert.doesNotMatch(sheetSource, /className="hero-summary">[\s\S]*Player:/);
   assert.doesNotMatch(sheetSource, /className="hero-identity-details"/);
   assert.doesNotMatch(sheetSource, /className="hero-description"/);
   assert.doesNotMatch(sheetSource, /className="dice-control-symbol"/);
-  assert.match(sheetSource, /hero-stat-kicker">AC/);
-  assert.match(sheetSource, /hero-stat-kicker">HP/);
+  assert.doesNotMatch(sheetSource, /hero-stat-kicker">(?:AC|HP)/);
+  assert.doesNotMatch(sheetSource, /dice-control-expression/);
+  assert.match(sheetSource, /hero-card-label">ARMOR CLASS/);
+  assert.match(sheetSource, /hero-card-label">HIT POINTS/);
   assert.match(cssSource, /\.hero-wealth input\{[\s\S]*width:70px[\s\S]*min-width:70px/);
   assert.match(cssSource, /\.hero-play-panel \.hero-stats\{[\s\S]*grid-template-columns:repeat\(4,minmax\(0,1fr\)/);
+  assert.match(cssSource, /\.hero\{[\s\S]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+  assert.match(cssSource, /\.hero\{[\s\S]*align-items:stretch/);
+  assert.match(cssSource, /\.hero-card-label,\n\.dice-control-action\{[\s\S]*font:700 9px\/1\.1 var\(--font-ui\)/);
 });
 
 test("Roll History is an out-of-flow accessible popout", () => {
@@ -203,8 +208,9 @@ test("latest-roll presentation has a stable empty state and structured result st
   assert.match(presentationSource, /className="roll-result-total"/);
 });
 
-test("character-header CSS covers responsive, theme, and print requirements", () => {
-  assert.match(cssSource, /\.hero\{[\s\S]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1\.06fr\)/);
+test("character-header CSS covers responsive, equal-panel, theme, and print requirements", () => {
+  assert.match(cssSource, /\.hero\{[\s\S]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+  assert.match(cssSource, /\.hero\{[\s\S]*align-items:stretch/);
   assert.match(cssSource, /\.hero-identity-panel \.portrait-frame\{[\s\S]*min-height:210px/);
   assert.match(cssSource, /@media \(max-width:900px\)\{[\s\S]*\.hero\{[\s\S]*grid-template-columns:minmax\(0,1fr\)/);
   assert.match(cssSource, /@media \(max-width:720px\)\{[\s\S]*\.hero-play-panel \.hero-stats\{[\s\S]*repeat\(2,minmax\(0,1fr\)/);

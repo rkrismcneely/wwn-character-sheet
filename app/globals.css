@@ -2899,3 +2899,8 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
 .roll-history-popout{
   pointer-events:auto;
 }
+
+.topbar{
+  /* Keep the global sticky site header above the character-sheet layer. */
+  z-index:80;
+}

@@ -84,3 +84,7 @@ test("Roll History popout owns a stacking layer above Core Sheet panels", () => 
   assert.match(cssSource, /\.sheet-section:has\(\.weapon-trait:hover\),\.sheet-section:has\(\.weapon-trait:focus\),\.sheet-section:has\(\.weapon-trait:focus-within\)\{z-index:60\}/);
   assert.match(cssSource, /\.roll-history-popout\{[\s\S]*z-index:100;[\s\S]*pointer-events:auto/);
 });
+
+test("the sticky site header remains above the character-sheet popout layer", () => {
+  assert.match(cssSource, /\.topbar\{[\s\S]*z-index:80/);
+});

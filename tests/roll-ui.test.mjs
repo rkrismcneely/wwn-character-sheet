@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const sheetSource = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
@@ -49,6 +49,29 @@ test("Dice Style is a typed browser-local preference with a safe default", () =>
   assert.doesNotMatch(preferenceSource, /theme_customColorset|theme_texture|theme_material/);
   for (const style of ["ivory-gold", "obsidian-gold", "moonlit-marble", "arcane-glass", "dragon-scale"]) {
     assert.ok(diceStyleSource.includes(`"${style}"`), `${style} remains a curated Dice Style`);
+  }
+});
+
+test("Dice Style catalog expands with self-hosted generic renderer textures", async () => {
+  const addedStyles = [
+    "ember-forge", "winter-ice", "tidal-water", "carved-wood", "forged-steel",
+    "antique-bronze", "starfall-glitter", "starfield", "speckled-stone",
+    "skull-reliquary", "leopard-pattern", "tiger-stripe", "cheetah-spot",
+    "lizard-scale", "feathered", "storm-clouds", "astral-nebula",
+  ];
+  for (const style of addedStyles) {
+    assert.ok(diceStyleSource.includes(`"${style}"`), `${style} is a curated Dice Style`);
+  }
+  assert.match(diceStyleSource, /texture: "bronze03"/);
+  assert.doesNotMatch(diceStyleSource, /texture: "bronze(?:01|02|03a|03b|04)"/);
+
+  for (const texture of [
+    "astral.webp", "bronze03.webp", "cheetah.webp", "cloudy.alt.webp", "feather-bump.webp",
+    "feather.webp", "fire.webp", "glitter-bump.webp", "glitter.webp", "ice.webp",
+    "leopard.webp", "lizard.webp", "skulls.webp", "speckles.webp", "stars.webp",
+    "tiger.webp", "water.webp", "wood.webp",
+  ]) {
+    await access(new URL(`../public/assets/virtual-dice/textures/${texture}`, import.meta.url));
   }
 });
 

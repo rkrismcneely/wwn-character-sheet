@@ -27,3 +27,14 @@ test("the result tray and history keep all existing controls discoverable", () =
   assert.match(presentationSource, /Stored only in this browser session/);
   assert.match(presentationSource, /result\.character\.name/);
 });
+
+test("Phase 4E presentation controls have dedicated responsive layout hooks", () => {
+  assert.match(sheetSource, /weapon-stat-cell weapon-roll-cell/);
+  assert.match(sheetSource, /className="skill-roll-options"/);
+  assert.match(sheetSource, /className="hero-roll-utility"/);
+  assert.match(sheetSource, /Roll Attack/);
+  assert.match(sheetSource, /Roll Damage/);
+  for (const attribute of ["STR", "DEX", "CON", "INT", "WIS", "CHA"]) {
+    assert.ok(sheetSource.includes(attribute), `${attribute} remains available to the chooser`);
+  }
+});

@@ -2564,6 +2564,12 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
 .hero-play-panel .hero-stats>.dice-control{
   width:auto;
 }
+.hero-play-panel .hero-stats>label.hero-stat-card.hp-stat{
+  width:auto;
+}
+.hero-play-panel .hero-stats>label.hero-stat-card.hp-stat .paired{
+  width:100%;
+}
 .hero-stat-card,
 .hero-play-panel .hero-stats>.dice-control{
   height:112px;

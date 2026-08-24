@@ -6,6 +6,7 @@ import { SignedInHeader } from "../app-header";
 import type { AccountProfilePayload } from "@/lib/account/profile";
 import { DISPLAY_NAME_MAX_LENGTH } from "@/lib/account/display-name";
 import { ThemeSelect } from "../theme-provider";
+import { VirtualDiceSelect } from "../virtual-dice-preference";
 
 export function AccountPageClient({
   initialProfile,
@@ -159,6 +160,15 @@ export function AccountPageClient({
             />
             <small id="account-theme-guidance">
               Applies immediately across your characters, campaigns, account, and public archive.
+            </small>
+          </div>
+          <div className="account-theme-control account-virtual-dice-control">
+            <VirtualDiceSelect
+              id="account-virtual-dice"
+              describedBy="account-virtual-dice-guidance"
+            />
+            <small id="account-virtual-dice-guidance">
+              When enabled, rolls show opt-in animated 3D dice. Your browser generates the result first; reduced-motion settings and renderer failures use the normal instant result.
             </small>
           </div>
           </section>

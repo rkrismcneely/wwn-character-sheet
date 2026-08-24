@@ -914,7 +914,6 @@ function DiceControl({
     title={result && result.dice.count > 1 ? detail : undefined}
     onClick={onRoll}
   >
-    <span className="dice-control-symbol" aria-hidden="true">✦</span>
     <span
       key={result?.id || expression}
       className={`dice-control-result ${result ? "dice-result-roll" : ""}`}
@@ -2828,12 +2827,7 @@ export default function Home({
             <div className="hero-identity-copy">
               <p className="eyebrow">THE RECORD OF</p>
               <textarea ref={characterNameInput} className="character-name" rows={1} value={sheet.name} onChange={e => patch("name", e.target.value)} aria-label="Character name" />
-              <p className="hero-summary">{sheet.level ? `Level ${sheet.level}` : "Level —"} {classLabel || "Class —"} <span aria-hidden="true">·</span> Player: {sheet.player || "—"}</p>
-              <div className="hero-identity-details" aria-label="Character details">
-                <span><b>Species</b>{sheet.species || "—"}</span>
-                <span><b>Background</b>{sheet.background || "—"}</span>
-              </div>
-              {sheet.description && <p className="hero-description">{sheet.description}</p>}
+              <p className="hero-summary">{sheet.level ? `Level ${sheet.level}` : "Level —"} {classLabel || "Class —"}</p>
               <div className="hero-wealth" aria-label="Character wealth">
                 <span className="wealth-label">COIN PURSE</span>
                 <label><input type="number" value={sheet.gp} onChange={e => patch("gp", Number(e.target.value))} aria-label="Gold pieces" /><b>GP</b></label>
@@ -2882,8 +2876,8 @@ export default function Home({
             <div className="hero-stats" aria-label="Dice and combat statistics">
               <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} />
               <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} />
-              <label className="hero-stat-card hero-ac-card" title="Calculated from armor, shield, Dexterity, and armor bonus"><span className="hero-stat-kicker">DEFENSE</span><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
-              <label className="hero-stat-card hp-stat"><span className="hero-stat-kicker">VITALITY</span><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
+              <label className="hero-stat-card hero-ac-card" title="Calculated from armor, shield, Dexterity, and armor bonus"><span className="hero-stat-kicker">AC</span><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
+              <label className="hero-stat-card hp-stat"><span className="hero-stat-kicker">HP</span><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
             </div>
             <div className="hero-roll-row" data-readonly-interactive="true">
               <div className="hero-latest-roll"><RollResultTray result={latestRoll} /></div>

@@ -58,6 +58,17 @@ test("redesigned header does not retain the legacy three-track hero grid", () =>
   assert.doesNotMatch(cssSource, /\.hero>\.portrait-frame/);
 });
 
+test("refined character header keeps only primary identity and play-card labels", () => {
+  assert.doesNotMatch(sheetSource, /className="hero-summary">[\s\S]*Player:/);
+  assert.doesNotMatch(sheetSource, /className="hero-identity-details"/);
+  assert.doesNotMatch(sheetSource, /className="hero-description"/);
+  assert.doesNotMatch(sheetSource, /className="dice-control-symbol"/);
+  assert.match(sheetSource, /hero-stat-kicker">AC/);
+  assert.match(sheetSource, /hero-stat-kicker">HP/);
+  assert.match(cssSource, /\.hero-wealth input\{[\s\S]*width:70px[\s\S]*min-width:70px/);
+  assert.match(cssSource, /\.hero-play-panel \.hero-stats\{[\s\S]*grid-template-columns:repeat\(4,minmax\(0,1fr\)/);
+});
+
 test("Roll History is an out-of-flow accessible popout", () => {
   assert.match(sheetSource, /aria-haspopup="dialog"/);
   assert.match(sheetSource, /className="roll-history-popout"/);

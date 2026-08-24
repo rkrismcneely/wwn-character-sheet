@@ -19,7 +19,7 @@ function loadDiceBoxModule() {
 }
 
 function notationFor(request: VirtualDiceRequest) {
-  return request.dice.map(die => `1d${die.sides}@${die.value}`).join("+");
+  return `${request.dice.map(die => `1d${die.sides}`).join("+")}@${request.dice.map(die => die.value).join(",")}`;
 }
 
 function colorsFor(theme: VirtualDiceTheme) {
@@ -67,7 +67,7 @@ export class VirtualDiceRendererAdapter {
         assetPath: "/assets/virtual-dice/",
         sounds: false,
         shadows: false,
-        theme_surface: "wood-tray",
+        theme_surface: "green-felt",
         theme_material: "plastic",
         theme_customColorset: colorsFor(theme),
         gravity_multiplier: 400,

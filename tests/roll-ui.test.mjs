@@ -52,6 +52,12 @@ test("character header keeps identity and play utilities in stable companion pan
   assert.match(sheetSource, /sheet\.description/);
 });
 
+test("redesigned header does not retain the legacy three-track hero grid", () => {
+  assert.doesNotMatch(cssSource, /grid-template-columns:132px minmax\(0,1fr\) minmax\(/);
+  assert.doesNotMatch(cssSource, /\.hero>\.hero-identity/);
+  assert.doesNotMatch(cssSource, /\.hero>\.portrait-frame/);
+});
+
 test("Roll History is an out-of-flow accessible popout", () => {
   assert.match(sheetSource, /aria-haspopup="dialog"/);
   assert.match(sheetSource, /className="roll-history-popout"/);
@@ -78,13 +84,9 @@ test("character-header CSS covers responsive, theme, and print requirements", ()
   assert.match(cssSource, /@media print\{[\s\S]*\.hero-latest-roll,\.hero-roll-history-control,\.roll-history-popout\{display:none!important\}/);
 });
 
-
 test("Roll History popout owns a stacking layer above Core Sheet panels", () => {
   assert.match(cssSource, /\.hero,\n\.hero:has\(\.rules-results\)\{[\s\S]*z-index:70;[\s\S]*isolation:isolate/);
   assert.match(cssSource, /\.sheet-section:has\(\.weapon-trait:hover\),\.sheet-section:has\(\.weapon-trait:focus\),\.sheet-section:has\(\.weapon-trait:focus-within\)\{z-index:60\}/);
   assert.match(cssSource, /\.roll-history-popout\{[\s\S]*z-index:100;[\s\S]*pointer-events:auto/);
-});
-
-test("the sticky site header remains above the character-sheet popout layer", () => {
   assert.match(cssSource, /\.topbar\{[\s\S]*z-index:80/);
 });

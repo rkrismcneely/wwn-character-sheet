@@ -176,9 +176,6 @@ body{
   background:#f4e8cb;
 }
 .hero:has(.rules-results){overflow:visible;z-index:10}
-.hero>div:not(.hero-stats){position:relative;z-index:2}
-.hero>.portrait-frame{margin-left:0;margin-right:0}
-.hero>.portrait-frame+div{flex:1;min-width:0}
 .hero-stats{position:relative;z-index:3;margin-left:auto}
 .hero-illustration{
   position:absolute;
@@ -541,15 +538,6 @@ html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#7
 .cast-check.casting-blocked{color:#998f80;cursor:not-allowed}
 .cast-check input:disabled{accent-color:#9d9486;cursor:not-allowed;filter:grayscale(1)}
 
-@media(max-width:1050px){
-  .portrait-frame{order:2;margin-left:auto;margin-right:0}
-  .hero-stats{order:3}
-}
-@media(max-width:720px){
-  .portrait-frame{width:112px;height:132px;margin:18px 0 0}
-  .hero-stats{order:initial}
-}
-
 /* Rule-aware Foci and hit-point progression. */
 .choice-row{grid-template-columns:minmax(150px,1fr) 70px minmax(120px,auto) 34px}
 .choice-row>.tip,.choice-row>.row-delete{grid-column:4}
@@ -823,208 +811,6 @@ html[data-theme="dark"] .rule-result-full .rule-pairs li{border-bottom-color:#45
 html[data-theme="dark"] .rule-result small,html[data-theme="dark"] .rule-result-toggle,html[data-theme="dark"] .rule-result-full>span{color:#d3a75d}
 html[data-theme="dark"] .rule-result-full{background:#1d1c18;border-color:#5f4e32}
 
-/* Phone header: allow long names to wrap and place the coin purse beneath the portrait. */
-.character-name{resize:none;overflow:hidden;min-height:1.1em}
-@media(max-width:560px){
-  .hero>.hero-identity{display:contents}
-  .hero{grid-template-rows:auto auto auto auto auto}
-  .hero>.portrait-frame{grid-row:1 / span 3}
-  .hero-identity .eyebrow{grid-column:2;grid-row:1;font-size:9px;letter-spacing:.16em}
-  .hero-identity .character-name{grid-column:2;grid-row:2;width:100%;align-self:start;font-size:clamp(28px,9vw,40px);line-height:1.05;overflow-wrap:anywhere}
-  .hero-identity .subtitle{grid-column:2;grid-row:3;align-self:start;line-height:1.35;overflow-wrap:anywhere}
-  .hero-identity .hero-wealth{grid-column:1/-1;grid-row:4;width:100%;margin-top:0;justify-content:space-between}
-  .hero-tools{grid-row:5}
-}
-
-@media(max-width:1050px) and (min-width:721px){
-  .hero{
-    display:grid;
-    grid-template-columns:132px minmax(0,1fr);
-    align-items:center;
-    gap:18px 22px;
-  }
-  .hero>.portrait-frame{
-    grid-column:1;
-    grid-row:1;
-    order:initial;
-    margin:0;
-  }
-  .hero>.hero-identity{
-    grid-column:2;
-    grid-row:1;
-    width:100%;
-  }
-  .hero .character-name{width:100%}
-  .hero-tools{
-    grid-column:1/-1;
-    grid-row:2;
-    width:100%;
-    margin:0;
-    display:grid;
-    grid-template-columns:minmax(0,1fr) auto;
-    align-items:end;
-    gap:14px;
-  }
-  .hero-tools .rules-assistant{min-width:0}
-  .hero-tools .hero-stats{
-    align-self:end;
-    margin:0;
-    flex-wrap:nowrap;
-  }
-}
-
-@media(max-width:560px){
-  .hero-tools .hero-stats{align-self:stretch;justify-content:flex-end}
-  .rules-results{right:auto;left:0;width:100%}
-}
-
-/* On phones, keep the portrait and identity together and give the rules
-   assistant the full width of the character header. */
-@media(max-width:560px){
-  .hero{
-    display:grid;
-    grid-template-columns:112px minmax(0,1fr);
-    align-items:start;
-    gap:14px;
-    padding:24px 16px 22px;
-  }
-  .hero>.portrait-frame{
-    grid-column:1;
-    grid-row:1 / span 3;
-    width:112px;
-    height:132px;
-    margin:0;
-  }
-  .hero>.hero-identity{
-    grid-column:2;
-    grid-row:1;
-    display:contents;
-    min-width:0;
-    width:100%;
-  }
-  .hero-identity .eyebrow{font-size:9px;letter-spacing:.16em}
-  .hero-identity .character-name{
-    width:100%;
-    font-size:clamp(28px,9vw,40px);
-    line-height:1.05;
-    overflow-wrap:anywhere;
-  }
-  .hero-identity .subtitle{
-    line-height:1.35;
-    overflow-wrap:anywhere;
-  }
-  .hero-wealth{
-    gap:5px;
-    margin-top:10px;
-  }
-  .hero-wealth .wealth-label{width:100%;margin:0 0 1px}
-  .hero-tools{
-    grid-column:1/-1;
-    grid-row:5;
-    width:100%;
-    min-width:0;
-    align-items:stretch;
-    gap:12px;
-  }
-  .hero-tools .rules-assistant{width:100%}
-  .hero-tools .hero-stats{
-    width:100%;
-    display:grid;
-    grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);
-    gap:8px;
-    justify-content:initial;
-  }
-  .hero-tools .hero-stats>label,
-  .hero-tools .hero-stats>label.hp-stat{width:100%;min-width:0}
-  .hero-tools .hero-stats .hp-stat .paired{width:100%;gap:2px}
-  .hero-tools .hero-stats .hp-stat .paired input{width:clamp(38px,15vw,58px)}
-}
-
-/* Stable character-header grid: the three primary regions keep their own
-   columns on desktop, while narrower layouts move the tools below them. */
-@media(min-width:1051px){
-  .hero{
-    display:grid;
-    grid-template-columns:132px minmax(0,1fr) minmax(400px,460px);
-    align-items:end;
-    gap:0 18px;
-  }
-  .hero>.portrait-frame{
-    grid-column:1;
-    grid-row:1;
-    order:initial;
-    margin:0;
-  }
-  .hero>.hero-identity{
-    grid-column:2;
-    grid-row:1;
-    width:100%;
-    min-width:0;
-    align-self:end;
-  }
-  .hero>.hero-tools{
-    grid-column:3;
-    grid-row:1;
-    width:100%;
-    min-width:0;
-    margin:0;
-    align-self:end;
-  }
-  .hero-tools .hero-stats{margin-left:0}
-}
-
-/* The phone layout uses the portrait's height as the first three rows, then
-   gives the purse and tools their own full-width rows. */
-@media(max-width:560px){
-  .hero{
-    display:grid;
-    grid-template-columns:112px minmax(0,1fr);
-    grid-template-rows:auto auto auto auto auto;
-    align-items:start;
-    gap:14px;
-    padding:24px 16px 22px;
-    overflow:visible;
-  }
-  .hero>.portrait-frame{
-    grid-column:1;
-    grid-row:1 / span 3;
-    width:112px;
-    height:132px;
-    margin:0;
-  }
-  .hero>.hero-identity{display:contents}
-  .hero-identity .eyebrow{
-    grid-column:2;
-    grid-row:1;
-    font-size:9px;
-    letter-spacing:.16em;
-  }
-  .hero-identity .character-name{
-    grid-column:2;
-    grid-row:2;
-    width:100%;
-    align-self:start;
-    font-size:clamp(28px,9vw,40px);
-    line-height:1.05;
-    overflow-wrap:anywhere;
-  }
-  .hero-identity .subtitle{
-    grid-column:2;
-    grid-row:3;
-    align-self:start;
-    line-height:1.35;
-    overflow-wrap:anywhere;
-  }
-  .hero-identity .hero-wealth{
-    grid-column:1/-1;
-    grid-row:4;
-    width:100%;
-    margin-top:0;
-    justify-content:space-between;
-  }
-  .hero-tools{grid-column:1/-1;grid-row:5}
-}
-
 /* Long names wrap without retaining the unused second textarea row. */
 .character-name{
   width:min(560px,100%);
@@ -1048,36 +834,6 @@ html[data-theme="dark"] .rule-result-full{background:#1d1c18;border-color:#5f4e3
   .choice-row.has-focus-choice{grid-template-columns:minmax(0,1fr) 70px 34px}
   .choice-row.has-focus-choice>select:nth-child(3){grid-column:1/-1}
   .choice-row.has-focus-choice>.tip,.choice-row.has-focus-choice>.row-delete{grid-column:3}
-}
-
-/* Keep the phone purse compact, and keep portrait-tablet AC/HP together. */
-@media(max-width:560px){
-  .hero-identity .hero-wealth{
-    justify-content:flex-start;
-    gap:5px;
-    flex-wrap:nowrap;
-  }
-  .hero-identity .hero-wealth .wealth-label{
-    width:auto;
-    flex:0 0 auto;
-    margin:0 4px 0 0;
-    white-space:nowrap;
-  }
-  .hero-identity .hero-wealth label{flex:0 1 auto}
-  .hero-identity .hero-wealth input{width:clamp(38px,13vw,48px)}
-}
-
-@media(max-width:1050px) and (min-width:721px) and (orientation:portrait){
-  .hero-tools .hero-stats{
-    display:flex;
-    flex-wrap:nowrap;
-    width:max-content;
-    max-width:100%;
-    justify-content:flex-end;
-    margin-left:auto;
-  }
-  .hero-tools .hero-stats>label{flex:0 0 100px}
-  .hero-tools .hero-stats>label.hp-stat{flex-basis:174px}
 }
 
 /* WWN typography system: locally bundled, freely usable book-inspired fonts. */
@@ -1749,26 +1505,6 @@ main,
   0%{opacity:.5;transform:scale(.9)}
   70%{opacity:1;transform:scale(1.04)}
   100%{opacity:1;transform:scale(1)}
-}
-
-@media(min-width:1051px){
-  .hero{grid-template-columns:132px minmax(0,1fr) minmax(462px,520px)}
-}
-
-@media(max-width:1050px) and (min-width:721px) and (orientation:landscape){
-  .hero-tools .hero-stats>.dice-control{width:100%;flex-basis:auto}
-}
-
-@media(max-width:1050px) and (min-width:721px) and (orientation:portrait){
-  .hero-tools .hero-stats>.dice-control{flex:0 0 76px;width:76px;height:78px}
-}
-
-@media(max-width:720px){
-  .hero-tools .hero-stats>.dice-control{
-    width:100%;
-    flex-basis:auto;
-    height:82px;
-  }
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -2519,6 +2255,14 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
 /* Character-header redesign: two companion panels with a stable play surface.
    These rules supersede the earlier incremental hero layout while leaving the
    underlying character and roll components unchanged. */
+.hero,
+.hero:has(.rules-results){
+  /* The header owns the layer above Core Sheet overlays (which top out at 60)
+     while remaining below full-page library/modal surfaces (100+). */
+  position:relative;
+  z-index:70;
+  isolation:isolate;
+}
 .hero{
   min-height:0;
   padding:24px 30px 22px;
@@ -2535,6 +2279,8 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
   position:relative;
   z-index:2;
   min-width:0;
+  width:100%;
+  max-width:none;
   border:1px solid #a88a57;
   background:rgba(255,250,240,.58);
   box-shadow:inset 0 0 0 3px rgba(255,255,255,.25);
@@ -2617,6 +2363,8 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
   display:grid;
   grid-template-rows:auto auto minmax(64px,auto) auto;
   align-content:start;
+  align-items:stretch;
+  justify-items:stretch;
   gap:12px;
   padding:18px;
 }
@@ -2762,7 +2510,12 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
   top:calc(100% + 8px);
   right:0;
   z-index:100;
+  pointer-events:auto;
   width:min(430px,calc(100vw - 32px));
+}
+.topbar{
+  /* Keep the global sticky site header above the character-sheet layer. */
+  z-index:80;
 }
 .roll-history-popout .roll-history{
   width:100%;
@@ -2883,24 +2636,4 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
   .hero-play-panel .hero-stats{display:flex!important;justify-content:flex-end!important;margin-top:8px}
   .hero-stat-card{min-height:0;border:0!important;box-shadow:none!important;background:transparent!important}
   .hero-latest-roll,.hero-roll-history-control,.roll-history-popout{display:none!important}
-}
-
-
-/* Roll History stacking contract: the header context must sit above Core Sheet
-   overlays (currently capped at z-index 60) while remaining below full-page
-   library/modal surfaces. The popout's local layer then stays anchored to the
-   header without relying on an oversized global z-index. */
-.hero,
-.hero:has(.rules-results){
-  position:relative;
-  z-index:70;
-  isolation:isolate;
-}
-.roll-history-popout{
-  pointer-events:auto;
-}
-
-.topbar{
-  /* Keep the global sticky site header above the character-sheet layer. */
-  z-index:80;
 }

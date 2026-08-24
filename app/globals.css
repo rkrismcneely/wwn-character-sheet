@@ -2884,3 +2884,18 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
   .hero-stat-card{min-height:0;border:0!important;box-shadow:none!important;background:transparent!important}
   .hero-latest-roll,.hero-roll-history-control,.roll-history-popout{display:none!important}
 }
+
+
+/* Roll History stacking contract: the header context must sit above Core Sheet
+   overlays (currently capped at z-index 60) while remaining below full-page
+   library/modal surfaces. The popout's local layer then stays anchored to the
+   header without relying on an oversized global z-index. */
+.hero,
+.hero:has(.rules-results){
+  position:relative;
+  z-index:70;
+  isolation:isolate;
+}
+.roll-history-popout{
+  pointer-events:auto;
+}

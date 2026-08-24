@@ -2876,8 +2876,13 @@ export default function Home({
               <label title="Calculated from armor, shield, Dexterity, and armor bonus"><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
               <label className="hp-stat"><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
             </div>
-            <button type="button" className="roll-history-toggle" data-readonly-interactive="true" aria-expanded={rollHistoryOpen} onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>
-            <div data-readonly-interactive="true"><RollResultTray result={latestRoll} /><RollHistoryPanel history={rollHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} onClear={clearLocalRollHistory} /></div>
+            <div className="hero-roll-utility" data-readonly-interactive="true">
+              <RollResultTray result={latestRoll} />
+              <div className="hero-roll-history-control">
+                <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>
+              </div>
+              <RollHistoryPanel history={rollHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} onClear={clearLocalRollHistory} />
+            </div>
             {diceError && <p className="dice-error" role="alert">{diceError}</p>}
           </div>
         </div>
@@ -3197,7 +3202,7 @@ export default function Home({
                   const calc = weaponCalc(pick);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
                     <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{name}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponAttack(name, calc.hit)}>Roll Attack</button></div><div><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponDamage(name, calc.damage)}>Roll Damage</button></div><div><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponAttack(name, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" onClick={() => rollWeaponDamage(name, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
@@ -3280,7 +3285,7 @@ export default function Home({
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}
-                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" aria-expanded={skillRollChooser === skill} onClick={() => setSkillRollChooser(current => current === skill ? null : skill)}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span>{attributes.map(attribute => <button type="button" key={attribute} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div>}</div>;
+                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" aria-expanded={skillRollChooser === skill} onClick={() => setSkillRollChooser(current => current === skill ? null : skill)}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span><div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
                 })}
               </div>
             </Section>
@@ -3777,4 +3782,3 @@ export default function Home({
     </main>
   );
 }
-

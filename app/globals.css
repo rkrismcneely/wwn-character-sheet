@@ -2431,9 +2431,6 @@ html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}
 .skill-roll-chooser button:focus-visible,
 .roll-history button:focus-visible{outline:2px solid var(--amber2);outline-offset:2px}
 .roll-history-toggle{padding:7px 10px;align-self:flex-end}
-.hero-tools>div[data-readonly-interactive="true"]{width:100%}
-.hero-roll-utility{display:grid;min-width:0;gap:7px}
-.hero-roll-history-control{display:flex;justify-content:flex-end;min-width:0}
 .roll-result-tray{
   width:100%;
   display:grid;
@@ -2518,3 +2515,372 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
 }
 @media(max-width:390px){.skill-roll-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media print{.dice-control,.roll-history-toggle,.roll-result-tray,.roll-history,.roll-affordance,.skill-roll-chooser{display:none!important}}
+
+/* Character-header redesign: two companion panels with a stable play surface.
+   These rules supersede the earlier incremental hero layout while leaving the
+   underlying character and roll components unchanged. */
+.hero{
+  min-height:0;
+  padding:24px 30px 22px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.06fr);
+  align-items:stretch;
+  gap:18px;
+  overflow:visible;
+  background:linear-gradient(105deg,rgba(255,250,240,.92),rgba(235,218,184,.72));
+}
+.hero-illustration{opacity:.38}
+.hero-identity-panel,
+.hero-play-panel{
+  position:relative;
+  z-index:2;
+  min-width:0;
+  border:1px solid #a88a57;
+  background:rgba(255,250,240,.58);
+  box-shadow:inset 0 0 0 3px rgba(255,255,255,.25);
+}
+.hero-identity-panel{
+  display:grid;
+  grid-template-columns:minmax(156px,.72fr) minmax(0,1fr);
+  align-items:stretch;
+  gap:18px;
+  padding:18px;
+}
+.hero-identity-panel .portrait-frame{
+  width:100%;
+  height:auto;
+  min-height:210px;
+  aspect-ratio: .82;
+  margin:0;
+  flex:none;
+}
+.hero-identity-copy{
+  min-width:0;
+  min-height:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+}
+.hero-identity-copy .eyebrow{margin-top:2px}
+.hero-identity-copy .character-name{
+  width:100%;
+  max-width:none;
+  margin:0;
+  font-size:clamp(42px,4.25vw,68px);
+  line-height:.92;
+  padding:0 0 9px;
+  overflow-wrap:anywhere;
+}
+.hero-summary{
+  margin:10px 0 0;
+  color:var(--muted);
+  font:600 14px/1.35 var(--font-ui);
+  overflow-wrap:anywhere;
+}
+.hero-identity-details{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 18px;
+  margin-top:14px;
+  padding-top:10px;
+  border-top:1px solid rgba(168,138,87,.55);
+}
+.hero-identity-details span{
+  display:grid;
+  gap:2px;
+  min-width:0;
+  color:var(--ink);
+  font:15px/1.15 var(--font-body);
+  overflow-wrap:anywhere;
+}
+.hero-identity-details b{
+  color:var(--muted);
+  font:600 9px/1 var(--font-ui);
+  letter-spacing:.11em;
+  text-transform:uppercase;
+}
+.hero-description{
+  margin:15px 0 0;
+  color:var(--muted);
+  font:15px/1.4 var(--font-body);
+  overflow-wrap:anywhere;
+}
+.hero-identity-copy .hero-wealth{
+  margin-top:auto;
+  padding-top:14px;
+  gap:7px;
+  flex-wrap:nowrap;
+}
+.hero-wealth .wealth-label{white-space:nowrap}
+.hero-wealth input{width:52px}
+.hero-play-panel{
+  display:grid;
+  grid-template-rows:auto auto minmax(64px,auto) auto;
+  align-content:start;
+  gap:12px;
+  padding:18px;
+}
+.hero-play-panel .rules-assistant{width:100%;min-width:0}
+.hero-play-panel .rules-assistant>label{
+  margin-bottom:7px;
+  font-size:11px;
+  letter-spacing:.14em;
+}
+.hero-play-panel .rules-question-row{grid-template-columns:minmax(0,1fr) auto}
+.hero-play-panel .hero-stats{
+  width:100%;
+  min-width:0;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin:0;
+}
+.hero-stat-card,
+.hero-play-panel .hero-stats>.dice-control{
+  width:auto;
+  min-width:0;
+  min-height:112px;
+  height:auto;
+  padding:9px 7px;
+  border:1px solid #a78954;
+  background:rgba(255,250,240,.8);
+  box-shadow:inset 0 0 0 3px rgba(255,255,255,.42),inset 0 0 0 4px #cdb47f,0 3px 9px #60451d15;
+}
+.hero-stat-card{
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  align-items:center;
+  justify-items:center;
+  gap:4px;
+  text-align:center;
+}
+.hero-stat-card .hero-stat-kicker{
+  align-self:start;
+  color:#b88a3f;
+  font:600 8px/1 var(--font-ui);
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.hero-stat-card>input{
+  width:100%;
+  max-width:88px;
+  align-self:center;
+  border:0;
+  border-bottom:1px solid #b89b66;
+  background:transparent;
+  padding:1px 2px 7px;
+  text-align:center;
+  font:600 28px/1 var(--font-numeric);
+}
+.hero-stat-card>span:last-child{
+  margin:0;
+  color:var(--muted);
+  font:600 9px/1.1 var(--font-ui);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.hero-stat-card.hp-stat .paired{
+  width:100%;
+  justify-content:center;
+  gap:4px;
+}
+.hero-stat-card.hp-stat .paired input{
+  width:44%;
+  max-width:54px;
+  border:0;
+  border-bottom:1px solid #b89b66;
+  background:transparent;
+  padding:1px 0 7px;
+  text-align:center;
+  font:600 25px/1 var(--font-numeric);
+}
+.hero-stat-card.hp-stat .paired em{font-size:18px}
+.hero-play-panel .hero-stats>.dice-control{
+  display:grid;
+  grid-template-rows:auto 1fr auto auto;
+  align-items:center;
+  justify-items:center;
+  gap:4px;
+  line-height:1;
+  touch-action:manipulation;
+}
+.hero-play-panel .hero-stats>.dice-control:hover{background:var(--paper);border-color:var(--amber)}
+.dice-control-symbol{color:#b88a3f;font:14px/1 var(--font-display)}
+.dice-control-result{
+  width:100%;
+  align-self:center;
+  color:var(--ink);
+  border-bottom:1px solid #b89b66;
+  padding:1px 1px 7px;
+  font:600 28px/1 var(--font-numeric);
+  font-variant-numeric:tabular-nums;
+}
+.dice-control-expression{
+  color:var(--muted);
+  margin:0;
+  font:700 11px/1 var(--font-ui);
+  letter-spacing:.09em;
+}
+.dice-control-action{
+  color:var(--amber);
+  font:700 9px/1.1 var(--font-ui);
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.hero-roll-row{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:stretch;
+  gap:8px;
+  min-width:0;
+}
+.hero-latest-roll{min-width:0}
+.hero-latest-roll .roll-result-tray{height:100%;min-height:64px}
+.roll-result-kicker{
+  color:var(--amber);
+  font:700 8px/1 var(--font-ui);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.roll-result-empty .roll-result-breakdown{font-style:italic}
+.hero-roll-history-control{
+  position:relative;
+  display:flex;
+  align-items:stretch;
+  min-width:0;
+}
+.hero-roll-history-control .roll-history-toggle{
+  align-self:stretch;
+  min-width:112px;
+  padding:7px 10px;
+  white-space:nowrap;
+}
+.roll-history-popout{
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+  z-index:100;
+  width:min(430px,calc(100vw - 32px));
+}
+.roll-history-popout .roll-history{
+  width:100%;
+  max-height:min(520px,calc(100dvh - 150px));
+  margin:0;
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  overflow:hidden;
+  border:1px solid #806a45;
+  outline:3px double #b18b4f;
+  outline-offset:-6px;
+  box-shadow:0 18px 45px #2b1d0b66;
+}
+.roll-history-popout .roll-history>ol{max-height:none;min-height:0;overflow:auto}
+.roll-history-popout .roll-history>p{overflow:auto}
+.hero-play-panel .dice-error{margin:0}
+
+html[data-theme="dark"] .hero{
+  background:#171713;
+  border-bottom-color:#8a6a37;
+}
+html[data-theme="dark"] .hero-illustration{opacity:.16}
+html[data-theme="dark"] .hero-identity-panel,
+html[data-theme="dark"] .hero-play-panel{
+  border-color:#765b30;
+  background:rgba(31,29,23,.76);
+  box-shadow:inset 0 0 0 3px rgba(0,0,0,.12);
+}
+html[data-theme="dark"] .hero-identity-details{border-top-color:#5d4c30}
+html[data-theme="dark"] .hero-identity-details span{color:#ead9b8}
+html[data-theme="dark"] .hero-identity-details b,
+html[data-theme="dark"] .hero-description{color:#c0ae8d}
+html[data-theme="dark"] .hero-stat-card,
+html[data-theme="dark"] .hero-play-panel .hero-stats>.dice-control{
+  background:#211f19;
+  border-color:#765b30;
+  box-shadow:inset 0 0 0 3px #201e19,inset 0 0 0 4px #705b34;
+  color:#ead9b8;
+}
+html[data-theme="dark"] .hero-stat-card>input,
+html[data-theme="dark"] .hero-stat-card.hp-stat .paired input,
+html[data-theme="dark"] .dice-control-result{color:#f1dfbd;border-bottom-color:#8c7041}
+html[data-theme="dark"] .hero-stat-card .hero-stat-kicker,
+html[data-theme="dark"] .roll-result-kicker{color:#d3a75d}
+html[data-theme="dark"] .dice-control-action{color:#e0b36b}
+html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740;box-shadow:0 18px 45px #000b}
+
+@media (max-width:1100px) and (min-width:901px){
+  .hero{padding:20px 22px 20px;gap:14px}
+  .hero-identity-panel,.hero-play-panel{padding:15px}
+  .hero-identity-panel{grid-template-columns:minmax(132px,.7fr) minmax(0,1fr);gap:14px}
+  .hero-identity-panel .portrait-frame{min-height:190px}
+  .hero-play-panel .hero-stats{gap:6px}
+  .hero-stat-card,.hero-play-panel .hero-stats>.dice-control{padding-inline:5px}
+  .hero-stat-card>span:last-child{font-size:8px;letter-spacing:.04em}
+}
+@media (max-width:900px){
+  .hero{
+    grid-template-columns:minmax(0,1fr);
+    gap:14px;
+    padding:20px 22px 20px;
+  }
+  .hero-identity-panel{grid-template-columns:minmax(148px,.36fr) minmax(0,1fr)}
+  .hero-play-panel .hero-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media (max-width:720px){
+  .hero{padding:16px 16px 18px;gap:12px}
+  .hero-identity-panel,.hero-play-panel{padding:14px}
+  .hero-identity-panel{grid-template-columns:112px minmax(0,1fr);gap:12px}
+  .hero-identity-panel .portrait-frame{min-height:140px}
+  .hero-identity-copy .character-name{font-size:clamp(32px,9vw,48px);line-height:.98}
+  .hero-summary{font-size:13px}
+  .hero-identity-details{gap:7px 12px;margin-top:10px;padding-top:8px}
+  .hero-identity-details span{font-size:14px}
+  .hero-description{margin-top:11px;font-size:14px;line-height:1.35}
+  .hero-identity-copy .hero-wealth{margin-top:12px;padding-top:10px;gap:4px}
+  .hero-wealth input{width:clamp(38px,13vw,50px)}
+  .hero-play-panel{gap:10px}
+  .hero-play-panel .hero-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .hero-stat-card,.hero-play-panel .hero-stats>.dice-control{min-height:104px}
+  .hero-roll-row{grid-template-columns:minmax(0,1fr);gap:7px}
+  .hero-roll-history-control{justify-content:stretch}
+  .hero-roll-history-control .roll-history-toggle{width:100%}
+  .roll-history-popout{
+    position:fixed;
+    inset:auto 12px 12px;
+    width:auto;
+    z-index:120;
+  }
+  .roll-history-popout .roll-history{max-height:calc(100dvh - 24px)}
+}
+@media (max-width:390px){
+  .hero-identity-panel{grid-template-columns:96px minmax(0,1fr);gap:10px}
+  .hero-identity-panel .portrait-frame{min-height:122px}
+  .hero-identity-copy .character-name{font-size:clamp(29px,9vw,40px)}
+  .hero-summary{font-size:12px}
+  .hero-identity-details span{font-size:13px}
+  .dice-control-action{font-size:8px}
+}
+
+@media print{
+  .hero{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    padding:16px;
+    background:white!important;
+    border-bottom:3px double #806a45;
+  }
+  .hero-identity-panel,.hero-play-panel{
+    border:0;
+    padding:0;
+    background:transparent!important;
+    box-shadow:none;
+  }
+  .hero-identity-panel{grid-template-columns:120px minmax(0,1fr);gap:12px}
+  .hero-identity-panel .portrait-frame{min-height:145px}
+  .hero-play-panel{display:block!important}
+  .hero-play-panel .hero-stats{display:flex!important;justify-content:flex-end!important;margin-top:8px}
+  .hero-stat-card{min-height:0;border:0!important;box-shadow:none!important;background:transparent!important}
+  .hero-latest-roll,.hero-roll-history-control,.roll-history-popout{display:none!important}
+}

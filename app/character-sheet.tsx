@@ -914,12 +914,14 @@ function DiceControl({
     title={result && result.dice.count > 1 ? detail : undefined}
     onClick={onRoll}
   >
+    <span className="dice-control-symbol" aria-hidden="true">✦</span>
     <span
       key={result?.id || expression}
       className={`dice-control-result ${result ? "dice-result-roll" : ""}`}
       aria-hidden="true"
     >{result ? result.total : "—"}</span>
     <span className="dice-control-expression" aria-hidden="true">{expression}</span>
+    <span className="dice-control-action" aria-hidden="true">Roll {expression}</span>
   </button>;
 }
 
@@ -2816,26 +2818,33 @@ export default function Home({
         </div>}
         <div className="hero">
           <img className="hero-illustration" src="/assets/wwn-header-flow-v2.png" alt="" aria-hidden="true" />
-          <div className={`portrait-frame ${sheet.portrait ? "has-portrait" : ""}`}>
-            {sheet.portrait ? <img src={sheet.portrait} alt={`${sheet.name || "Character"} portrait`} /> : <span aria-hidden="true">✦</span>}
-            {canEdit && <button type="button" onClick={() => portraitInput.current?.click()}>{sheet.portrait ? "Change" : "Add portrait"}</button>}
-            {canEdit && sheet.portrait && <button type="button" className="portrait-remove" onClick={() => void removePortrait()}>Remove</button>}
-            <input ref={portraitInput} className="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => void uploadPortrait(e.target.files?.[0])} />
-          </div>
-          <div className="hero-identity">
-            <p className="eyebrow">THE RECORD OF</p>
-            <textarea ref={characterNameInput} className="character-name" rows={1} value={sheet.name} onChange={e => patch("name", e.target.value)} aria-label="Character name" />
-            <p className="subtitle">{sheet.level ? `Level ${sheet.level}` : "Level —"} {classLabel || "Class —"} · Player: {sheet.player || "—"}</p>
-            <div className="hero-wealth" aria-label="Character wealth">
-              <span className="wealth-label">COIN PURSE</span>
-              <label><input type="number" value={sheet.gp} onChange={e => patch("gp", Number(e.target.value))} aria-label="Gold pieces" /><b>GP</b></label>
-              <i>◆</i>
-              <label><input type="number" value={sheet.sp} onChange={e => patch("sp", Number(e.target.value))} aria-label="Silver pieces" /><b>SP</b></label>
-              <i>◆</i>
-              <label><input type="number" value={sheet.cp} onChange={e => patch("cp", Number(e.target.value))} aria-label="Copper pieces" /><b>CP</b></label>
+          <section className="hero-identity-panel" aria-label="Character identity">
+            <div className={`portrait-frame ${sheet.portrait ? "has-portrait" : ""}`}>
+              {sheet.portrait ? <img src={sheet.portrait} alt={`${sheet.name || "Character"} portrait`} /> : <span aria-hidden="true">✦</span>}
+              {canEdit && <button type="button" onClick={() => portraitInput.current?.click()}>{sheet.portrait ? "Change" : "Add portrait"}</button>}
+              {canEdit && sheet.portrait && <button type="button" className="portrait-remove" onClick={() => void removePortrait()}>Remove</button>}
+              <input ref={portraitInput} className="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => void uploadPortrait(e.target.files?.[0])} />
             </div>
-          </div>
-          <div className="hero-tools">
+            <div className="hero-identity-copy">
+              <p className="eyebrow">THE RECORD OF</p>
+              <textarea ref={characterNameInput} className="character-name" rows={1} value={sheet.name} onChange={e => patch("name", e.target.value)} aria-label="Character name" />
+              <p className="hero-summary">{sheet.level ? `Level ${sheet.level}` : "Level —"} {classLabel || "Class —"} <span aria-hidden="true">·</span> Player: {sheet.player || "—"}</p>
+              <div className="hero-identity-details" aria-label="Character details">
+                <span><b>Species</b>{sheet.species || "—"}</span>
+                <span><b>Background</b>{sheet.background || "—"}</span>
+              </div>
+              {sheet.description && <p className="hero-description">{sheet.description}</p>}
+              <div className="hero-wealth" aria-label="Character wealth">
+                <span className="wealth-label">COIN PURSE</span>
+                <label><input type="number" value={sheet.gp} onChange={e => patch("gp", Number(e.target.value))} aria-label="Gold pieces" /><b>GP</b></label>
+                <i>◆</i>
+                <label><input type="number" value={sheet.sp} onChange={e => patch("sp", Number(e.target.value))} aria-label="Silver pieces" /><b>SP</b></label>
+                <i>◆</i>
+                <label><input type="number" value={sheet.cp} onChange={e => patch("cp", Number(e.target.value))} aria-label="Copper pieces" /><b>CP</b></label>
+              </div>
+            </div>
+          </section>
+          <section className="hero-tools hero-play-panel" aria-label="Play utilities">
             <form ref={rulesAssistant} className="rules-assistant" data-readonly-interactive="true" autoComplete="off" onSubmit={askRules}>
               <label htmlFor="rules-question">Ask the WWN Rules Assistant</label>
               <div className="rules-question-row">
@@ -2873,18 +2882,18 @@ export default function Home({
             <div className="hero-stats" aria-label="Dice and combat statistics">
               <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} />
               <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} />
-              <label title="Calculated from armor, shield, Dexterity, and armor bonus"><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
-              <label className="hp-stat"><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
+              <label className="hero-stat-card hero-ac-card" title="Calculated from armor, shield, Dexterity, and armor bonus"><span className="hero-stat-kicker">DEFENSE</span><input type="number" value={calculatedAc} disabled aria-label="Calculated armor class" /><span>ARMOR CLASS</span></label>
+              <label className="hero-stat-card hp-stat"><span className="hero-stat-kicker">VITALITY</span><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span>HIT POINTS</span></label>
             </div>
-            <div className="hero-roll-utility" data-readonly-interactive="true">
-              <RollResultTray result={latestRoll} />
+            <div className="hero-roll-row" data-readonly-interactive="true">
+              <div className="hero-latest-roll"><RollResultTray result={latestRoll} /></div>
               <div className="hero-roll-history-control">
-                <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>
+                <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>
+                {rollHistoryOpen && <div className="roll-history-popout" id="roll-history-popout"><RollHistoryPanel history={rollHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} onClear={clearLocalRollHistory} /></div>}
               </div>
-              <RollHistoryPanel history={rollHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} onClear={clearLocalRollHistory} />
             </div>
             {diceError && <p className="dice-error" role="alert">{diceError}</p>}
-          </div>
+          </section>
         </div>
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {diceAnnouncement && <span key={diceAnnouncementKey}>{diceAnnouncement}</span>}

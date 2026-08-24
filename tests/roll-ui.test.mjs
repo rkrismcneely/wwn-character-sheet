@@ -77,3 +77,10 @@ test("character-header CSS covers responsive, theme, and print requirements", ()
   assert.match(cssSource, /html\[data-theme="dark"\] \.hero-identity-panel/);
   assert.match(cssSource, /@media print\{[\s\S]*\.hero-latest-roll,\.hero-roll-history-control,\.roll-history-popout\{display:none!important\}/);
 });
+
+
+test("Roll History popout owns a stacking layer above Core Sheet panels", () => {
+  assert.match(cssSource, /\.hero,\n\.hero:has\(\.rules-results\)\{[\s\S]*z-index:70;[\s\S]*isolation:isolate/);
+  assert.match(cssSource, /\.sheet-section:has\(\.weapon-trait:hover\),\.sheet-section:has\(\.weapon-trait:focus\),\.sheet-section:has\(\.weapon-trait:focus-within\)\{z-index:60\}/);
+  assert.match(cssSource, /\.roll-history-popout\{[\s\S]*z-index:100;[\s\S]*pointer-events:auto/);
+});

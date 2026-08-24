@@ -24,7 +24,9 @@ test("virtual dice preserve one authoritative raw roll and fall back without rer
   assert.match(sheetSource, /virtualDiceOverlay\.current\?\.cancel/);
   assert.match(sheetSource, /setLatestRoll\(result\)/);
   assert.match(adapterSource, /import\("@drdreo\/dice-box-threejs"\)/);
-  assert.match(adapterSource, /1d\$\{die\.sides\}@\$\{die\.value\}/);
+  assert.match(adapterSource, /request\.dice\.map\(die => `1d\$\{die\.sides\}`\)\.join\("\+"\)/);
+  assert.match(adapterSource, /request\.dice\.map\(die => die\.value\)\.join\(","\)/);
+  assert.match(adapterSource, /theme_surface: "green-felt"/);
   assert.match(overlaySource, /createPortal/);
 });
 

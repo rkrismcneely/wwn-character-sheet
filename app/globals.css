@@ -2566,6 +2566,12 @@ html[data-theme="dark"] .virtual-dice-overlay{background:transparent}
   flex-wrap:nowrap;
   gap:4px;
 }
+.hero-wealth-values{
+  display:flex;
+  align-items:center;
+  min-width:0;
+  gap:4px;
+}
 .hero-identity-copy .hero-wealth label{gap:3px}
 .hero-wealth input{
   width:70px;
@@ -2610,33 +2616,6 @@ html[data-theme="dark"] .virtual-dice-overlay{background:transparent}
   .hero-identity-panel .portrait-frame{
     max-width:180px;
   }
-  .hero-identity-copy .hero-wealth{
-    flex-wrap:wrap;
-  }
-  .hero-wealth input{
-    width:64px;
-    min-width:64px;
-  }
-}
-
-@media (max-width:720px){
-  .hero-identity-copy .hero-wealth{
-    flex-wrap:wrap;
-  }
-  .hero-identity-copy .hero-wealth .wealth-label{
-    flex-basis:100%;
-  }
-  .hero-wealth input{
-    width:68px;
-    min-width:68px;
-  }
-}
-
-@media (max-width:390px){
-  .hero-wealth input{
-    width:62px;
-    min-width:62px;
-  }
 }
 
 html[data-theme="dark"] .hero{
@@ -2678,6 +2657,49 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
   .hero-stat-card,.hero-play-panel .hero-stats>.dice-control{padding-inline:5px}
   .hero-stat-card>span:last-child{font-size:8px;letter-spacing:.04em}
 }
+@media (max-width:1100px){
+  .hero-identity-panel .portrait-frame{
+    align-self:start;
+  }
+  .hero-identity-panel .portrait-frame>img{
+    display:block;
+    min-width:0;
+    min-height:0;
+    max-height:100%;
+    object-position:center top;
+  }
+  .hero-identity-copy{min-height:0}
+  .hero-identity-copy .hero-wealth{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    align-items:start;
+    margin-top:14px;
+    padding-top:0;
+    gap:6px;
+  }
+  .hero-wealth .wealth-label{margin:0}
+  .hero-wealth-values{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,84px),1fr));
+    width:100%;
+    gap:6px;
+  }
+  .hero-wealth-values>i{display:none}
+  .hero-wealth-values>label{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    min-width:0;
+    gap:3px;
+  }
+  .hero-wealth-values input{
+    width:100%;
+    min-width:0;
+    max-width:none;
+  }
+}
+@media (min-width:721px) and (max-width:1100px){
+  .hero-identity-copy .character-name{font-size:clamp(36px,3.8vw,44px)}
+}
 @media (max-width:900px){
   .hero{
     grid-template-columns:minmax(0,1fr);
@@ -2697,8 +2719,6 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
   .hero-identity-details{gap:7px 12px;margin-top:10px;padding-top:8px}
   .hero-identity-details span{font-size:14px}
   .hero-description{margin-top:11px;font-size:14px;line-height:1.35}
-  .hero-identity-copy .hero-wealth{margin-top:12px;padding-top:10px;gap:4px}
-  .hero-wealth input{width:68px;min-width:68px}
   .hero-play-panel{gap:10px}
   .hero-play-panel .hero-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
   .hero-stat-card,.hero-play-panel .hero-stats>.dice-control{min-height:104px;height:104px}
@@ -2720,7 +2740,6 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
   .hero-summary{font-size:12px}
   .hero-identity-details span{font-size:13px}
   .dice-control-action{font-size:8px}
-  .hero-wealth input{width:62px;min-width:62px}
 }
 
 @media print{

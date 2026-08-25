@@ -195,6 +195,15 @@ test("refined character header keeps only primary identity and matched play-card
   assert.match(cssSource, /\.hero-stat-card>input,\n\.hero-stat-card\.hp-stat \.paired\{[\s\S]*transform:translateY\(5px\)/);
 });
 
+test("responsive identity header preserves portrait composition and contains the coin purse", () => {
+  assert.match(sheetSource, /className="hero-wealth-values"/);
+  assert.match(cssSource, /@media \(max-width:1100px\)\{[\s\S]*?\.hero-identity-panel \.portrait-frame\{[\s\S]*?align-self:start/);
+  assert.match(cssSource, /\.hero-identity-panel \.portrait-frame>img\{[\s\S]*min-height:0;[\s\S]*max-height:100%;[\s\S]*object-position:center top/);
+  assert.match(cssSource, /@media \(max-width:1100px\)\{[\s\S]*?\.hero-identity-copy\{min-height:0\}/);
+  assert.match(cssSource, /\.hero-wealth-values\{[\s\S]*grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,84px\),1fr\)\)/);
+  assert.match(cssSource, /\.hero-wealth-values input\{[\s\S]*width:100%;[\s\S]*min-width:0/);
+});
+
 test("Roll History is an out-of-flow accessible popout", () => {
   assert.match(sheetSource, /aria-haspopup="dialog"/);
   assert.match(sheetSource, /className="roll-history-popout"/);

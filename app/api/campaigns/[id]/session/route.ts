@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
-import { endLiveSession, joinLiveSession, readLiveSession, startLiveSession } from "@/lib/campaigns/live-session-service";
+import { endLiveSession, joinLiveSession, readLiveSessionContext, startLiveSession } from "@/lib/campaigns/live-session-service";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
@@ -20,7 +20,15 @@ export async function GET(request: Request, context: Context): Promise<Response>
     const actor = await actorFor(request);
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
-    return Response.json({ liveSession: await readLiveSession(await getCampaignD1(), actor, id) });
+    const result = await readLiveSessionContext(await getCampaignD1(), actor, id);
+    if (result.state.session && result.state.permissions.joined) {
+      try {
+        result.state.session.recentRolls = await env.CAMPAIGN_LIVE_SESSION
+          .getByName(sessionObjectName(result.campaignId))
+          .recentRolls(result.state.session.id);
+      } catch (error) { console.error("Live session roll feed could not be loaded", error); }
+    }
+    return Response.json({ liveSession: result.state });
   } catch (error) { return campaignErrorResponse(error, "The live session could not be opened."); }
 }
 

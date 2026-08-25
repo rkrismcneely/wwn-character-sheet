@@ -27,6 +27,7 @@ import {
 } from "../lib/campaigns/resources.ts";
 import {
   authorizeLiveSessionConnection,
+  authorizeLiveSessionRoll,
   endLiveSession,
   joinLiveSession,
   readLiveSession,
@@ -148,6 +149,8 @@ test("live sessions preserve owner-only lifecycle, member participation, and his
   await expectServiceError(joinLiveSession(db, admin, campaign.id, now), 403);
   const joined = await joinLiveSession(db, player, campaign.id, now);
   assert.equal(joined.state.session.participants.length, 2);
+  assert.equal(joined.state.permissions.joined, true);
+  assert.equal(joined.state.permissions.canJoin, false);
   await joinLiveSession(db, player, campaign.id, now);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_session_participants").get().count, 2);
   const connection = await authorizeLiveSessionConnection(db, player, campaign.id);
@@ -160,6 +163,30 @@ test("live sessions preserve owner-only lifecycle, member participation, and his
   const restarted = await startLiveSession(db, owner, campaign.id, "2026-08-16T13:00:00.000Z");
   assert.notEqual(restarted.state.session.id, started.state.session.id);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_sessions").get().count, 2);
+});
+
+test("shared rolls require a joined participant's own linked character", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Shared rolls" }, now);
+  await addMember(sqlite, campaign.id, player);
+  sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name) VALUES (?, ?, ?, 'private', ?)")
+    .run("character-player", player.userId, "chr_1234567890123456789012", "Player Hero");
+  sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name) VALUES (?, ?, ?, 'private', ?)")
+    .run("character-owner", owner.userId, "chr_abcdefghijklmnopqrstuv", "Owner Hero");
+  const campaignRow = internalCampaign(sqlite, campaign.id);
+  sqlite.prepare("INSERT INTO campaign_characters (campaign_id, character_id, added_at) VALUES (?, ?, ?)")
+    .run(campaignRow.id, "character-player", now);
+  sqlite.prepare("INSERT INTO campaign_characters (campaign_id, character_id, added_at) VALUES (?, ?, ?)")
+    .run(campaignRow.id, "character-owner", now);
+  await startLiveSession(db, owner, campaign.id, now);
+  await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
+  await joinLiveSession(db, player, campaign.id, now);
+  const authorization = await authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012");
+  assert.equal(authorization.character.name, "Player Hero");
+  await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_abcdefghijklmnopqrstuv"), 403);
+  await expectServiceError(authorizeLiveSessionRoll(db, outsider, campaign.id, "chr_1234567890123456789012"), 404);
+  await endLiveSession(db, owner, campaign.id, now);
+  await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
 });
 
 test("live-session state keeps administrators read-only and does not expose durable user ids", async () => {

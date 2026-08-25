@@ -1,6 +1,11 @@
 import { rollDice, type DiceRoll } from "./dice.ts";
 
 export type RollCategory = "generic" | "skill" | "attack" | "damage" | "save" | "initiative";
+export const SHARED_ROLL_CATEGORIES = ["skill", "attack", "damage", "save", "initiative"] as const;
+
+export function isSharedRollCategory(category: RollCategory): category is (typeof SHARED_ROLL_CATEGORIES)[number] {
+  return category !== "generic";
+}
 
 export type RollModifier = {
   label: string;

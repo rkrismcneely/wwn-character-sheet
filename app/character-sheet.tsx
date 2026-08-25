@@ -27,7 +27,7 @@ import {
 import { preloadRulesSearch, searchRules, type RuleEntry } from "./rules-search";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
-import { parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
+import { isSharedRollCategory, parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
 import { rollDice, type DiceRoll } from "./dice";
 import { useDisplayTheme } from "./theme-provider";
 import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice-preference";
@@ -1118,9 +1118,24 @@ export default function Home({
     const shouldAnimate = virtualDiceEnabled && !reducedMotion && Boolean(virtualDiceOverlay.current);
     if (shouldAnimate && virtualDiceBusyRef.current) return;
 
+    let preparedSharedRoll: RollResult | null = null;
+    if (campaignContext && !campaignContext.readOnly && cloudId && isSharedRollCategory(request.category)) {
+      try {
+        const response = await fetch(`/api/campaigns/${campaignContext.id}/session/rolls`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "prepare", characterId: cloudId, request }),
+        });
+        if (response.ok) {
+          const body = await response.json() as { roll?: RollResult };
+          preparedSharedRoll = body.roll || null;
+        }
+      } catch { /* A session outage must not prevent the local roll. */ }
+    }
+
     let rawRoll: DiceRoll;
     try {
-      rawRoll = rollDice(request.dice.count, request.dice.sides);
+      rawRoll = preparedSharedRoll?.dice || rollDice(request.dice.count, request.dice.sides);
     } catch {
       const message = "Dice rolling is unavailable because secure browser randomness could not be accessed.";
       setDiceError(message);
@@ -1155,7 +1170,7 @@ export default function Home({
     }
 
     try {
-      const result = await resolveRoll(request, { roll: () => rawRoll });
+      const result = preparedSharedRoll || await resolveRoll(request, { roll: () => rawRoll });
       setLatestRoll(result);
       setRollHistory(current => {
         const next = prependRollHistory(current, result);
@@ -1165,6 +1180,15 @@ export default function Home({
       setDiceAnnouncement(announceRoll(result));
       setDiceAnnouncementKey(current => current + 1);
       setDiceError(animationFailed ? "Animated dice were unavailable; the roll was completed normally." : "");
+      if (preparedSharedRoll && campaignContext && cloudId) {
+        void fetch(`/api/campaigns/${campaignContext.id}/session/rolls`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "publish", characterId: cloudId, rollId: preparedSharedRoll.id }),
+        }).then(response => {
+          if (!response.ok) throw new Error("publish failed");
+        }).catch(() => setDiceError("The roll completed locally, but could not be shared with the live session."));
+      }
     } catch {
       const message = "The roll could not be resolved.";
       setDiceError(message);

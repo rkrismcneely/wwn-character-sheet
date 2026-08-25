@@ -24,6 +24,16 @@ export type CampaignCharacterCardData = {
   artEffort?: boolean[];
 };
 
+export type CampaignCharacterStatus = {
+  id: string;
+  name: string;
+  level: number;
+  classLabel: string;
+  hpCurrent: number;
+  hpMax: number;
+  armorClass: number;
+};
+
 const ARMOR_AC: Record<string, number> = {
   "No Armor": 10,
   "War Shirt": 11,
@@ -140,4 +150,21 @@ export function campaignCardHpMax(data: CampaignCharacterCardData): number {
     calculatedHp = index === 0 ? rolledTotal : Math.max(calculatedHp + 1, rolledTotal);
   }
   return complete ? calculatedHp : Math.max(0, Number(data.hpMax) || 0);
+}
+
+/** The small, campaign-safe vitals projection used by cards and live sessions. */
+export function campaignCharacterStatus(
+  data: CampaignCharacterCardData,
+  fallback: { id: string; name: string; level: number; classLabel: string },
+): CampaignCharacterStatus {
+  const withStoredLevel = { ...data, level: Number(data.level) || fallback.level };
+  return {
+    id: fallback.id,
+    name: fallback.name,
+    level: Number(withStoredLevel.level) || 1,
+    classLabel: campaignCardClassLabel(withStoredLevel, fallback.classLabel),
+    hpCurrent: Math.max(0, Number(withStoredLevel.hpCurrent) || 0),
+    hpMax: campaignCardHpMax(withStoredLevel),
+    armorClass: campaignCardArmorClass(withStoredLevel),
+  };
 }

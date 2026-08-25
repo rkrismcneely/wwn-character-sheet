@@ -15,6 +15,18 @@ function SharedRoll({ roll }: { roll: CampaignSharedRoll }) {
   </li>;
 }
 
+function PartyMember({ campaignId, participant }: { campaignId: string; participant: NonNullable<CampaignLiveSessionState["session"]>["participants"][number] }) {
+  const character = participant.character;
+  return <li>
+    <span className={participant.connected ? "campaign-session-connected" : "campaign-session-away"} aria-label={participant.connected ? "Connected" : "Offline"} />
+    <div>
+      {character ? <a href={`/campaigns/${campaignId}/characters/${character.id}`}><strong>{character.name}</strong></a> : <strong>{participant.name}</strong>}
+      <small>{participant.name}{character ? ` · Level ${character.level} ${character.classLabel}` : " · No linked campaign character"}</small>
+      {character && <span className="campaign-party-vitals">HP {character.hpCurrent} / {character.hpMax}<b>AC {character.armorClass}</b></span>}
+    </div>
+  </li>;
+}
+
 export function CampaignLiveSession({ campaignId }: { campaignId: string }) {
   const [state, setState] = useState<CampaignLiveSessionState>(initialState);
   const [error, setError] = useState("");
@@ -49,6 +61,7 @@ export function CampaignLiveSession({ campaignId }: { campaignId: string }) {
           const message = JSON.parse(event.data) as CampaignLiveSessionEvent;
           if (message.type === "session.presence" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => ({ ...participant, connected: message.connectedParticipantKeys.includes(participant.participantKey) })) } } : current);
           if (message.type === "session.participants-changed") void load().catch(() => setError("The participant list could not be refreshed."));
+          if (message.type === "session.character-status" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => participant.participantKey === message.participantKey ? { ...participant, characterName: message.character.name, character: message.character } : participant) } } : current);
           if (message.type === "session.roll" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId && !current.session.recentRolls.some(roll => roll.id === message.roll.id) ? { ...current, session: { ...current.session, recentRolls: [message.roll, ...current.session.recentRolls].slice(0, 50) } } : current);
           if (message.type === "session.ended") void load().catch(() => setState(initialState));
         } catch { /* Ignore malformed realtime messages. */ }
@@ -80,6 +93,6 @@ export function CampaignLiveSession({ campaignId }: { campaignId: string }) {
     <div className="campaign-section-heading"><div><p className="campaign-kicker">TABLE SESSION</p><h2 id="campaign-live-session-title">Live Session</h2></div>{session ? <span className="campaign-session-status">Session Active</span> : null}</div>
     {error && <p className="campaign-error campaign-session-error" role="status">{error}</p>}
     {!session && <div className="campaign-session-empty"><p>No session is active.</p>{state.permissions.canStart && <button type="button" className="campaign-primary" onClick={() => void action("start")} disabled={busy}>Start Session</button>}</div>}
-    {session && <><div className="campaign-session-actions">{state.permissions.canJoin && <button type="button" className="campaign-secondary" onClick={() => void action("join")} disabled={busy}>Join Session</button>}{state.permissions.canEnd && <button type="button" className="campaign-danger" onClick={() => void action("end")} disabled={busy}>End Session</button>}</div><ul className="campaign-session-participants">{session.participants.map(participant => <li key={participant.participantKey}><span className={participant.connected ? "campaign-session-connected" : "campaign-session-away"} aria-label={participant.connected ? "Connected" : "Away"} /><span><strong>{participant.name}</strong>{participant.characterName && <small>{participant.characterName}</small>}</span></li>)}</ul>{state.permissions.joined && <section className="campaign-live-rolls" aria-labelledby="campaign-live-rolls-title"><h3 id="campaign-live-rolls-title">Live Rolls</h3>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section>}</>}
+    {session && <><div className="campaign-session-actions">{state.permissions.canJoin && <button type="button" className="campaign-secondary" onClick={() => void action("join")} disabled={busy}>Join Session</button>}{state.permissions.canEnd && <button type="button" className="campaign-danger" onClick={() => void action("end")} disabled={busy}>End Session</button>}</div><section className="campaign-live-party" aria-labelledby="campaign-live-party-title"><h3 id="campaign-live-party-title">Party</h3><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section>{state.permissions.joined && <section className="campaign-live-rolls" aria-labelledby="campaign-live-rolls-title"><h3 id="campaign-live-rolls-title">Live Rolls</h3>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section>}</>}
   </section>;
 }

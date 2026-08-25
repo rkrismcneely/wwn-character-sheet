@@ -2204,7 +2204,9 @@ html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}
 .roll-history-total b{font:700 17px/1 var(--font-numeric)}
 .roll-history-total small{font:700 8px/1 var(--font-ui);color:var(--muted);text-transform:uppercase}
 .roll-affordance{margin-top:6px;padding:5px 7px;white-space:nowrap}
-.initiative-field .roll-affordance{align-self:flex-start}
+.initiative-field{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;gap:4px 6px}
+.initiative-field>span{grid-column:1/-1}
+.initiative-field .roll-affordance{align-self:stretch;margin-top:0;padding:5px 7px}
 .save-card .roll-affordance{align-self:center}
 .weapon-row{grid-template-columns:minmax(0,1.35fr) minmax(88px,.72fr) minmax(88px,.72fr) minmax(58px,.52fr) minmax(0,1.15fr)}
 .weapon-stat-cell{display:flex;min-width:0;flex-direction:column;align-items:stretch;justify-content:center;gap:4px}

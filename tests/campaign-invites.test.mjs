@@ -65,9 +65,11 @@ class TestStatement {
 class TestD1 {
   constructor(database) {
     this.database = database;
+    this.preparedSql = [];
   }
 
   prepare(sql) {
+    this.preparedSql.push(sql);
     return new TestStatement(this.database.prepare(sql));
   }
 
@@ -428,11 +430,17 @@ test("existing members preview direct invites without duplication or consumption
 test("campaign owners preview their own invites without becoming players or consuming them", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
+  db.preparedSql.length = 0;
   const preview = await previewCampaignInvite(db, owner, invite.token, now);
 
   assert.equal(preview.eligibility, "owner");
   assert.deepEqual(preview.campaign, { id: campaign.id, name: "The Amber Company" });
   assert.deepEqual(preview.characters, []);
+  assert.equal(
+    db.preparedSql.some(sql => /FROM campaign_members\s+WHERE campaign_id = \? AND user_id = \?/u.test(sql)),
+    false,
+    "owner previews derive eligibility from the already-loaded invitation row",
+  );
   await assert.rejects(
     redeemCampaignInvite(db, owner, invite.token, characterIds[owner.userId], now),
     error => error instanceof CampaignServiceError

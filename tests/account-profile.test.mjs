@@ -35,8 +35,10 @@ class TestStatement {
 class TestD1 {
   constructor(database) {
     this.database = database;
+    this.preparedSql = [];
   }
   prepare(sql) {
+    this.preparedSql.push(sql);
     return new TestStatement(this.database.prepare(sql));
   }
 }
@@ -93,6 +95,18 @@ test("authenticated profile updates persist only for the current account and res
   assert.equal(reset.effectiveDisplayName, "Google Alice");
   assert.equal(reset.usesProviderName, true);
   assert.equal(sqlite.prepare("SELECT updated_at AS updatedAt FROM user WHERE id = 'user-a'").get().updatedAt, 12);
+});
+
+test("profile writes return the authorized profile without a second D1 read", async () => {
+  const { db } = fixture();
+  await updateAccountDisplayName(db, userA, "Rowan", 10);
+  await resetAccountDisplayName(db, userA, 11);
+
+  assert.equal(db.preparedSql.length, 2);
+  for (const statement of db.preparedSql) {
+    assert.match(statement, /UPDATE user/u);
+    assert.match(statement, /RETURNING name AS providerName/u);
+  }
 });
 
 test("profile writes reject unauthenticated, empty, overlong, control, and invisible names", async () => {

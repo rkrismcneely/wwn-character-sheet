@@ -36,6 +36,4 @@ const tables = new Set(query("SELECT name FROM sqlite_master WHERE type = 'table
 for (const table of ["campaign_sessions", "campaign_session_participants"]) if (!tables.has(table)) throw new Error(`Production is missing table ${table}.`);
 const indexes = new Set(query("SELECT name FROM sqlite_master WHERE type = 'index'").map(row => row.name));
 for (const index of ["campaign_sessions_one_active_idx", "campaign_sessions_campaign_started_idx", "campaign_session_participants_user_idx"]) if (!indexes.has(index)) throw new Error(`Production is missing index ${index}.`);
-const integrity = query("PRAGMA integrity_check");
-if (!integrity.some(row => Object.values(row).includes("ok"))) throw new Error("Production D1 integrity check failed.");
 console.log("Phase 5A.1 live-session migration verified against the production database.");

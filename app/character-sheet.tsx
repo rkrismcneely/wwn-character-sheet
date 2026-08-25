@@ -1233,6 +1233,16 @@ export default function Home({
     });
   }
 
+  function rollInitiative() {
+    void completeRoll({
+      category: "initiative",
+      character: rollCharacter(),
+      label: "Initiative",
+      dice: { count: 1, sides: 8 },
+      modifiers: [{ label: "Initiative modifier", value: calculatedInitiative }],
+    });
+  }
+
   function clearLocalRollHistory() {
     clearRollHistory();
     setRollHistory([]);
@@ -3232,7 +3242,7 @@ export default function Home({
                 <label className="field"><span>Shield</span><select value={sheet.shield} onChange={e => patch("shield", e.target.value)}>{shields.map(shield => <option key={shield || "none"} value={shield}>{shield || "No Shield"}</option>)}</select></label>
                 <Field label="Magic / custom AC bonus" value={sheet.armorBonus} onChange={v => patch("armorBonus", Number(v))} />
                 <label className="field calculated-field"><span>Calculated Armor Class</span><input value={calculatedAc} disabled /></label>
-                <label className="field calculated-field"><span>Initiative</span><input value={signed(calculatedInitiative)} disabled /></label>
+                <div className="field calculated-field initiative-field"><span>Initiative</span><input value={signed(calculatedInitiative)} disabled /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={rollInitiative}>Roll Initiative</button></div>
                 <label className="field calculated-field"><span>Base Attack Bonus</span><input value={signed(baseAttack)} disabled title="Calculated from class and character level" /></label>
               </div>
               <div className="hp-builder">

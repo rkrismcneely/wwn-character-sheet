@@ -1,6 +1,6 @@
 import { rollDice, type DiceRoll } from "./dice.ts";
 
-export type RollCategory = "generic" | "skill" | "attack" | "damage" | "save";
+export type RollCategory = "generic" | "skill" | "attack" | "damage" | "save" | "initiative";
 
 export type RollModifier = {
   label: string;

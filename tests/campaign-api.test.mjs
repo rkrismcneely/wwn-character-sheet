@@ -25,6 +25,13 @@ import {
   reorderCampaignResource,
   updateCampaignResource,
 } from "../lib/campaigns/resources.ts";
+import {
+  authorizeLiveSessionConnection,
+  endLiveSession,
+  joinLiveSession,
+  readLiveSession,
+  startLiveSession,
+} from "../lib/campaigns/live-session-service.ts";
 
 const owner = { userId: "user-owner", role: "user" };
 const gm = { userId: "user-gm", role: "user" };
@@ -112,7 +119,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
@@ -124,6 +131,69 @@ async function fixture() {
   sqlite.exec("ALTER TABLE characters ADD COLUMN archived_at TEXT; ALTER TABLE campaigns ADD COLUMN archived_at TEXT;");
   return { sqlite, db: new TestD1(sqlite) };
 }
+
+test("live sessions preserve owner-only lifecycle, member participation, and historical restart", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Session Company" }, now);
+  await addMember(sqlite, campaign.id, player);
+  await expectServiceError(startLiveSession(db, player, campaign.id, now), 403);
+  await expectServiceError(startLiveSession(db, admin, campaign.id, now), 403);
+  const started = await startLiveSession(db, owner, campaign.id, now);
+  assert.ok(started.state.session);
+  assert.equal(started.state.session.participants.length, 1);
+  assert.equal(started.state.permissions.canEnd, true);
+  const duplicateStart = await startLiveSession(db, owner, campaign.id, now);
+  assert.equal(duplicateStart.state.session.id, started.state.session.id);
+  await expectServiceError(joinLiveSession(db, outsider, campaign.id, now), 404);
+  await expectServiceError(joinLiveSession(db, admin, campaign.id, now), 403);
+  const joined = await joinLiveSession(db, player, campaign.id, now);
+  assert.equal(joined.state.session.participants.length, 2);
+  await joinLiveSession(db, player, campaign.id, now);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_session_participants").get().count, 2);
+  const connection = await authorizeLiveSessionConnection(db, player, campaign.id);
+  assert.equal(connection.sessionId, started.state.session.id);
+  assert.match(connection.participantKey, /^cspt_[0-9a-f]{32}$/u);
+  await expectServiceError(endLiveSession(db, player, campaign.id, now), 403);
+  const ended = await endLiveSession(db, owner, campaign.id, now);
+  assert.equal(ended.state.session, null);
+  await expectServiceError(authorizeLiveSessionConnection(db, player, campaign.id), 409);
+  const restarted = await startLiveSession(db, owner, campaign.id, "2026-08-16T13:00:00.000Z");
+  assert.notEqual(restarted.state.session.id, started.state.session.id);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_sessions").get().count, 2);
+});
+
+test("live-session state keeps administrators read-only and does not expose durable user ids", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Read only session" }, now);
+  await addMember(sqlite, campaign.id, player);
+  await startLiveSession(db, owner, campaign.id, now);
+  const memberState = await readLiveSession(db, player, campaign.id);
+  assert.equal(memberState.permissions.canJoin, true);
+  assert.equal(Object.hasOwn(memberState.session.participants[0], "userId"), false);
+  const adminState = await readLiveSession(db, admin, campaign.id);
+  assert.equal(adminState.permissions.adminReadOnly, true);
+  assert.equal(adminState.permissions.canJoin, false);
+  assert.equal(adminState.permissions.canStart, false);
+  await addMember(sqlite, campaign.id, admin);
+  await expectServiceError(joinLiveSession(db, admin, campaign.id, now), 403);
+});
+
+test("live-session transport keeps authentication in the Worker and uses hibernating Durable Object presence", async () => {
+  const [worker, durableObject, migration] = await Promise.all([
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0010_campaign_live_sessions.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(worker, /getSessionActor\(request\)/u);
+  assert.match(worker, /authorizeLiveSessionConnection\(env\.DB/u);
+  assert.match(durableObject, /acceptWebSocket/u);
+  assert.match(durableObject, /serializeAttachment/u);
+  assert.match(durableObject, /webSocketClose/u);
+  assert.match(durableObject, /session\.presence/u);
+  assert.match(durableObject, /session\.ended/u);
+  assert.match(migration, /campaign_sessions_one_active_idx/u);
+  assert.match(migration, /WHERE ended_at IS NULL/u);
+});
 
 async function expectServiceError(promise, status) {
   await assert.rejects(

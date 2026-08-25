@@ -239,3 +239,31 @@ export const campaignResources = sqliteTable(
     ),
   ],
 );
+
+export const campaignSessions = sqliteTable(
+  "campaign_sessions",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+    startedByUserId: text("started_by_user_id").notNull().references(() => user.id, { onDelete: "restrict" }),
+    startedAt: text("started_at").notNull(),
+    endedAt: text("ended_at"),
+    endedByUserId: text("ended_by_user_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    index("campaign_sessions_campaign_started_idx").on(table.campaignId, table.startedAt),
+  ],
+);
+
+export const campaignSessionParticipants = sqliteTable(
+  "campaign_session_participants",
+  {
+    sessionId: text("session_id").notNull().references(() => campaignSessions.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    joinedAt: text("joined_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.userId] }),
+    index("campaign_session_participants_user_idx").on(table.userId),
+  ],
+);

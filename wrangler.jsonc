@@ -27,5 +27,13 @@
       "binding": "BUCKET",
       "bucket_name": "site-creator-r2"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "CAMPAIGN_LIVE_SESSION", "class_name": "CampaignLiveSession" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-campaign-live-sessions", "new_sqlite_classes": ["CampaignLiveSession"] }
   ]
 }

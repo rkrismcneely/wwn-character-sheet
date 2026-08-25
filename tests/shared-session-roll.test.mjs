@@ -35,10 +35,11 @@ test("the server-issued shared result preserves one authoritative raw roll", asy
   assert.deepEqual(result.character, { id: "chr_real", name: "Cecil the Amber" });
 });
 
-test("shared-roll transport is durable, bounded, idempotent, and broadcast-only after publish", async () => {
-  const [sheet, route, durable, sessionUi] = await Promise.all([
+test("shared session transport keeps party status authoritative, realtime, and reconnect-safe", async () => {
+  const [sheet, route, characterRoute, durable, sessionUi] = await Promise.all([
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/rolls/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/characters/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
   ]);
@@ -47,10 +48,17 @@ test("shared-roll transport is durable, bounded, idempotent, and broadcast-only 
   assert.match(sheet, /action: "publish"/u);
   assert.match(route, /authorizeLiveSessionRoll/u);
   assert.match(route, /resolveRoll\(rollRequest\)/u);
+  assert.match(characterRoute, /activeCharacterStatusTargets/u);
+  assert.match(characterRoute, /announceCharacterStatus/u);
   assert.match(durable, /INSERT OR IGNORE INTO session_rolls/u);
   assert.match(durable, /published_at IS NULL/u);
   assert.match(durable, /LIMIT 50/u);
   assert.match(durable, /type: "session\.roll"/u);
+  assert.match(durable, /announceCharacterStatus/u);
+  assert.match(durable, /session\.character-status/u);
   assert.match(sessionUi, /recentRolls\.some\(roll => roll\.id === message\.roll\.id\)/u);
+  assert.match(sessionUi, /message\.type === "session\.character-status"/u);
+  assert.match(sessionUi, /Live Rolls/u);
+  assert.match(sessionUi, />Party</u);
   assert.match(sessionUi, /ws\.onopen = \(\) => \{[\s\S]*?void load\(\)/u);
 });

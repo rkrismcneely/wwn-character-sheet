@@ -28,6 +28,7 @@ import {
 import {
   authorizeLiveSessionConnection,
   authorizeLiveSessionRoll,
+  activeCharacterStatusTargets,
   endLiveSession,
   joinLiveSession,
   readLiveSession,
@@ -105,6 +106,9 @@ async function fixture() {
       public_id TEXT,
       visibility TEXT NOT NULL,
       name TEXT NOT NULL,
+      class_label TEXT NOT NULL DEFAULT 'Adventurer',
+      level INTEGER NOT NULL DEFAULT 1,
+      data TEXT NOT NULL DEFAULT '{}',
       FOREIGN KEY (owner_user_id) REFERENCES user(id) ON DELETE SET NULL
     );
   `);
@@ -169,8 +173,11 @@ test("shared rolls require a joined participant's own linked character", async (
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Shared rolls" }, now);
   await addMember(sqlite, campaign.id, player);
-  sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name) VALUES (?, ?, ?, 'private', ?)")
-    .run("character-player", player.userId, "chr_1234567890123456789012", "Player Hero");
+  sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name, class_label, level, data) VALUES (?, ?, ?, 'private', ?, ?, ?, ?)")
+    .run("character-player", player.userId, "chr_1234567890123456789012", "Player Hero", "High Mage", 5, JSON.stringify({
+      level: 5, classMode: "full", classOne: "High Mage", attrs: { DEX: 12, CON: 10 },
+      armor: "Mail Shirt", shield: "", armorBonus: 0, hpCurrent: 9, hpMax: 13,
+    }));
   sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name) VALUES (?, ?, ?, 'private', ?)")
     .run("character-owner", owner.userId, "chr_abcdefghijklmnopqrstuv", "Owner Hero");
   const campaignRow = internalCampaign(sqlite, campaign.id);
@@ -183,9 +190,17 @@ test("shared rolls require a joined participant's own linked character", async (
   await joinLiveSession(db, player, campaign.id, now);
   const authorization = await authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012");
   assert.equal(authorization.character.name, "Player Hero");
+  const liveState = await readLiveSession(db, player, campaign.id);
+  assert.deepEqual(liveState.session.participants.find(participant => participant.character?.id === "chr_1234567890123456789012")?.character, {
+    id: "chr_1234567890123456789012", name: "Player Hero", level: 5, classLabel: "High Mage", hpCurrent: 9, hpMax: 13, armorClass: 15,
+  });
+  const targets = await activeCharacterStatusTargets(db, player.userId, "character-player");
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0].sessionId, authorization.sessionId);
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_abcdefghijklmnopqrstuv"), 403);
   await expectServiceError(authorizeLiveSessionRoll(db, outsider, campaign.id, "chr_1234567890123456789012"), 404);
   await endLiveSession(db, owner, campaign.id, now);
+  assert.deepEqual(await activeCharacterStatusTargets(db, player.userId, "character-player"), []);
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
 });
 
@@ -196,6 +211,7 @@ test("live-session state keeps administrators read-only and does not expose dura
   await startLiveSession(db, owner, campaign.id, now);
   const memberState = await readLiveSession(db, player, campaign.id);
   assert.equal(memberState.permissions.canJoin, true);
+  assert.ok(memberState.session.participants.every(participant => participant.character === null));
   assert.equal(Object.hasOwn(memberState.session.participants[0], "userId"), false);
   const adminState = await readLiveSession(db, admin, campaign.id);
   assert.equal(adminState.permissions.adminReadOnly, true);

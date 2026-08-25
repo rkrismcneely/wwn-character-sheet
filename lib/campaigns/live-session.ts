@@ -2,8 +2,19 @@ export interface CampaignLiveSessionParticipant {
   participantKey: string;
   name: string;
   characterName: string | null;
+  character: CampaignLiveSessionCharacter | null;
   joinedAt: string;
   connected: boolean;
+}
+
+export interface CampaignLiveSessionCharacter {
+  id: string;
+  name: string;
+  level: number;
+  classLabel: string;
+  hpCurrent: number;
+  hpMax: number;
+  armorClass: number;
 }
 
 export interface CampaignLiveSession {
@@ -41,5 +52,6 @@ export interface CampaignLiveSessionState {
 export type CampaignLiveSessionEvent =
   | { type: "session.presence"; sessionId: string; connectedParticipantKeys: string[] }
   | { type: "session.participants-changed"; sessionId: string }
+  | { type: "session.character-status"; sessionId: string; participantKey: string; character: CampaignLiveSessionCharacter }
   | { type: "session.roll"; sessionId: string; roll: CampaignSharedRoll }
   | { type: "session.ended"; sessionId: string };

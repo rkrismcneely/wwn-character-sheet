@@ -2,10 +2,15 @@ import { effectiveDisplayName } from "../account/display-name.ts";
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
-import type { CampaignLiveSession, CampaignLiveSessionState } from "./live-session.ts";
+import { campaignCharacterStatus, type CampaignCharacterCardData } from "./character-card.ts";
+import type { CampaignLiveSession, CampaignLiveSessionCharacter, CampaignLiveSessionState } from "./live-session.ts";
 
 interface SessionRow { id: string; campaignId: string; startedAt: string }
-interface ParticipantRow { userId: string; joinedAt: string; providerName: string; customDisplayName: string | null; characterName: string | null }
+interface ParticipantRow {
+  userId: string; joinedAt: string; providerName: string; customDisplayName: string | null;
+  characterId: string | null; characterName: string | null; characterLevel: number | null;
+  characterClassLabel: string | null; characterData: string | null;
+}
 
 async function participantKey(sessionId: string, userId: string): Promise<string> {
   return `cspt_${(await hashOpaqueToken(`campaign-session:${sessionId}:${userId}`)).slice(0, 32)}`;
@@ -31,10 +36,27 @@ async function activeSession(db: D1Database, campaignId: string): Promise<Sessio
 
 async function sessionParticipants(db: D1Database, sessionId: string, campaignId: string): Promise<ParticipantRow[]> {
   const result = await db.prepare(`SELECT p.user_id AS userId, p.joined_at AS joinedAt, u.name AS providerName, u.display_name AS customDisplayName,
-    (SELECT ch.name FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
-       WHERE cc.campaign_id = ? AND ch.owner_user_id = p.user_id ORDER BY cc.added_at ASC LIMIT 1) AS characterName
-    FROM campaign_session_participants p JOIN user u ON u.id = p.user_id WHERE p.session_id = ? ORDER BY p.joined_at ASC`).bind(campaignId, sessionId).all<ParticipantRow>();
+    ch.public_id AS characterId, ch.name AS characterName, ch.level AS characterLevel,
+    ch.class_label AS characterClassLabel, ch.data AS characterData
+    FROM campaign_session_participants p JOIN user u ON u.id = p.user_id
+    LEFT JOIN characters ch ON ch.id = (
+      SELECT cc.character_id FROM campaign_characters cc JOIN characters candidate ON candidate.id = cc.character_id
+      WHERE cc.campaign_id = ? AND candidate.owner_user_id = p.user_id ORDER BY cc.added_at ASC LIMIT 1
+    )
+    WHERE p.session_id = ? ORDER BY p.joined_at ASC`).bind(campaignId, sessionId).all<ParticipantRow>();
   return result.results;
+}
+
+function characterStatus(row: ParticipantRow): CampaignLiveSessionCharacter | null {
+  if (!row.characterId || !row.characterName || row.characterLevel === null || !row.characterClassLabel) return null;
+  let data: CampaignCharacterCardData = {};
+  try { data = JSON.parse(row.characterData || "{}") as CampaignCharacterCardData; } catch { /* show stored summary fallbacks */ }
+  return campaignCharacterStatus(data, {
+    id: row.characterId,
+    name: row.characterName,
+    level: row.characterLevel,
+    classLabel: row.characterClassLabel,
+  });
 }
 
 async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiveSession> {
@@ -43,6 +65,7 @@ async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiv
     participantKey: await participantKey(session.id, participant.userId),
     name: effectiveDisplayName(participant.customDisplayName, participant.providerName),
     characterName: participant.characterName ?? null,
+    character: characterStatus(participant),
     joinedAt: participant.joinedAt,
     connected: false,
   }))) };
@@ -131,4 +154,22 @@ export async function authorizeLiveSessionRoll(
     .first<{ id: string; name: string }>();
   if (!character) throw new CampaignServiceError("Only your linked campaign character can publish rolls.", 403);
   return { ...connection, character };
+}
+
+/** Find only active, joined sessions that may receive an owner's character-status update. */
+export async function activeCharacterStatusTargets(
+  db: D1Database,
+  ownerUserId: string,
+  characterId: string,
+): Promise<Array<{ campaignId: string; sessionId: string; participantKey: string }>> {
+  const result = await db.prepare(`SELECT c.id AS campaignId, s.id AS sessionId
+    FROM campaign_characters cc
+    JOIN campaigns c ON c.id = cc.campaign_id AND c.archived_at IS NULL
+    JOIN campaign_sessions s ON s.campaign_id = c.id AND s.ended_at IS NULL
+    JOIN campaign_session_participants p ON p.session_id = s.id AND p.user_id = ?
+    WHERE cc.character_id = ?`).bind(ownerUserId, characterId).all<{ campaignId: string; sessionId: string }>();
+  return Promise.all(result.results.map(async target => ({
+    ...target,
+    participantKey: await participantKey(target.sessionId, ownerUserId),
+  })));
 }

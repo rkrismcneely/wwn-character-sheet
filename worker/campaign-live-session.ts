@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { CampaignLiveSessionEvent, CampaignSharedRoll } from "../lib/campaigns/live-session.ts";
+import type { CampaignLiveSessionCharacter, CampaignLiveSessionEvent, CampaignSharedRoll } from "../lib/campaigns/live-session.ts";
 
 interface SocketAttachment { sessionId: string; participantKey: string }
 
@@ -37,6 +37,10 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
   }
 
   async announceParticipantsChanged(sessionId: string): Promise<void> { this.broadcast({ type: "session.participants-changed", sessionId }); }
+
+  async announceCharacterStatus(sessionId: string, participantKey: string, character: CampaignLiveSessionCharacter): Promise<void> {
+    this.broadcast({ type: "session.character-status", sessionId, participantKey, character });
+  }
 
   async prepareRoll(sessionId: string, participantKey: string, roll: CampaignSharedRoll): Promise<CampaignSharedRoll> {
     this.ctx.storage.sql.exec(

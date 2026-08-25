@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import {
   authorizeCharacterWrite,
@@ -6,6 +7,8 @@ import {
 import { isPlausiblePublicCharacterId } from "@/lib/characters/identifiers";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 import { listAuthorizedCharacterCampaigns } from "@/lib/campaigns/characters";
+import { campaignCharacterStatus } from "@/lib/campaigns/character-card";
+import { activeCharacterStatusTargets } from "@/lib/campaigns/live-session-service";
 import {
   canReadRow,
   characterApiPayload,
@@ -92,6 +95,19 @@ export async function PUT(request: Request, context: Context): Promise<Response>
     const nextVersion = row.version + 1;
     const now = new Date().toISOString();
     const summary = characterSummary(character);
+    const previousSummary = characterSummary(currentCharacter);
+    const previousStatus = campaignCharacterStatus(currentCharacter, {
+      id: publicId,
+      name: previousSummary.name,
+      level: previousSummary.level,
+      classLabel: previousSummary.classLabel,
+    });
+    const nextStatus = campaignCharacterStatus(character, {
+      id: publicId,
+      name: summary.name,
+      level: summary.level,
+      classLabel: summary.classLabel,
+    });
     const result = await db
       .prepare(
         `UPDATE characters
@@ -117,6 +133,16 @@ export async function PUT(request: Request, context: Context): Promise<Response>
         { error: "This character was updated elsewhere." },
         { status: 409 },
       );
+    }
+    if (JSON.stringify(previousStatus) !== JSON.stringify(nextStatus)) {
+      try {
+        const targets = await activeCharacterStatusTargets(db, actor.userId, row.id);
+        await Promise.all(targets.map(target => env.CAMPAIGN_LIVE_SESSION
+          .getByName(`campaign:${target.campaignId}`)
+          .announceCharacterStatus(target.sessionId, target.participantKey, nextStatus)));
+      } catch (statusError) {
+        console.error("Live character-status notification failed", statusError);
+      }
     }
     return Response.json({ id: publicId, version: nextVersion, updatedAt: now });
   } catch (error) {

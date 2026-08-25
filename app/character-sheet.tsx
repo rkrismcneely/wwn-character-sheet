@@ -24,7 +24,7 @@ import {
   type BackgroundLearningPick,
   type BackgroundSkillGrant,
 } from "./background-development";
-import { searchRules, type RuleEntry } from "./rules-search";
+import { preloadRulesSearch, searchRules, type RuleEntry } from "./rules-search";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
 import { parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
@@ -1091,11 +1091,11 @@ export default function Home({
     });
   }, [sessionPending, signedIn]);
 
-  function askRules(event: React.FormEvent<HTMLFormElement>) {
+  async function askRules(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const question = rulesQuestion.trim();
     if (!question) return;
-    setRulesResults(searchRules(question));
+    setRulesResults(await searchRules(question));
     setRulesSearched(true);
   }
 
@@ -2912,6 +2912,7 @@ export default function Home({
                   data-lpignore="true"
                   value={rulesQuestion}
                   onChange={event => setRulesQuestion(event.target.value)}
+                  onFocus={preloadRulesSearch}
                   placeholder="What happens at 0 HP?"
                 />
                 <button type="submit">Search</button>

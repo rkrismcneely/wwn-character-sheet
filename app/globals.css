@@ -540,7 +540,7 @@ html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#7
 
 /* Rule-aware Foci and hit-point progression. */
 .choice-row{grid-template-columns:minmax(150px,1fr) 70px minmax(120px,auto) 34px}
-.choice-row>.tip,.choice-row>.row-delete{grid-column:4}
+.choice-row>.tip{grid-column:4}
 .hp-builder{margin-top:14px;padding-top:13px;border-top:3px double #b9a47e}
 .hp-builder-heading{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:9px}
 .hp-builder-heading strong{font-size:15px;color:#49351d}
@@ -556,7 +556,7 @@ html[data-theme="dark"] .language-chip button{background:#2d281f;border-color:#7
 @media(max-width:720px){
   .choice-row{grid-template-columns:1fr 70px 34px}
   .choice-row>select:nth-child(3){grid-column:1/-1}
-  .choice-row>.tip,.choice-row>.row-delete{grid-column:3}
+  .choice-row>.tip{grid-column:3}
   .hp-roll-grid{grid-template-columns:repeat(2,1fr)}
   .hp-builder-heading{display:block}
   .hp-builder-heading span{display:block;margin-top:3px}
@@ -591,9 +591,6 @@ html[data-theme="dark"] .focus-applied{color:#dda852}
 .companion-attributes span{grid-column:1/-1;font:700 8px Arial,sans-serif;color:var(--muted)}
 .companion-attributes b{font-size:17px}
 .companion-attributes small{font:600 13px Arial,sans-serif;color:var(--amber)}
-.editable-saves{display:grid;grid-template-columns:repeat(4,1fr)}
-.editable-saves label{display:flex;align-items:center;gap:5px}
-.editable-saves input{width:54px}
 .familiar-benefits{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;padding-top:10px;border-top:1px solid var(--line);font:12px/1.3 Arial,sans-serif}
 .familiar-benefits>strong{grid-column:1/-1;text-transform:uppercase;letter-spacing:.07em}
 .familiar-benefits small{font-weight:normal;text-transform:none;letter-spacing:0;color:var(--muted)}
@@ -681,7 +678,7 @@ html[data-theme="dark"] .weapon-row .weapon-trait-popup{background:#11100d;borde
 
 @media(max-width:560px){
   .companion-grid{padding:16px 12px 24px}
-  .companion-stats,.editable-saves,.familiar-benefits,.archetype-summary{grid-template-columns:1fr}
+  .companion-stats,.familiar-benefits,.archetype-summary{grid-template-columns:1fr}
   .companion-attributes{grid-template-columns:repeat(3,1fr)}
   .familiar-benefits>strong{grid-column:auto}
 }
@@ -826,9 +823,9 @@ html[data-theme="dark"] .rule-result-full{background:#1d1c18;border-color:#5f4e3
 .vitals>*{min-width:0}
 .vitals .field>input,.vitals .field>select{width:100%;max-width:100%}
 .choice-row{grid-template-columns:minmax(0,1fr) 70px 34px}
-.choice-row>.tip,.choice-row>.row-delete{grid-column:3}
+.choice-row>.tip{grid-column:3}
 .choice-row.has-focus-choice{grid-template-columns:minmax(150px,1fr) 70px minmax(120px,auto) 34px}
-.choice-row.has-focus-choice>.tip,.choice-row.has-focus-choice>.row-delete{grid-column:4}
+.choice-row.has-focus-choice>.tip{grid-column:4}
 
 @media(max-width:720px){
   .choice-row.has-focus-choice{grid-template-columns:minmax(0,1fr) 70px 34px}
@@ -1134,7 +1131,6 @@ main,
 .companion-stats,
 .companion-attributes,
 .archetype-summary,
-.editable-saves,
 .familiar-benefits,
 .familiar-status,
 .skill-budget,
@@ -1166,7 +1162,6 @@ main,
 .companion-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
 .companion-attributes{grid-template-columns:repeat(6,minmax(0,1fr))}
 .archetype-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
-.editable-saves{grid-template-columns:repeat(4,minmax(0,1fr))}
 .familiar-benefits{grid-template-columns:repeat(2,minmax(0,1fr))}
 .vowed-controls{grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr))}
 .class-benefit-card dl{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -1192,7 +1187,6 @@ main,
 .companion-stats>* ,
 .companion-attributes>div,
 .archetype-summary>div,
-.editable-saves>label,
 .familiar-benefits>label,
 .companion-saves>*{
   min-width:0;
@@ -1248,7 +1242,6 @@ main,
 .companion-saves,
 .familiar-benefits,
 .familiar-status{overflow-wrap:anywhere}
-.editable-saves input{max-width:54px;min-width:0}
 
 /* Weapon and magic rows use flexible tracks rather than min-content widths. */
 .weapon-row{
@@ -1321,7 +1314,6 @@ main,
   .companion-stats{grid-template-columns:minmax(0,1fr)}
   .companion-attributes{grid-template-columns:repeat(3,minmax(0,1fr))}
   .archetype-summary,
-  .editable-saves,
   .familiar-benefits{grid-template-columns:minmax(0,1fr)}
   .class-benefit-card dl,
   .background-benefit-card dl,
@@ -1464,12 +1456,6 @@ main,
 .hero-stats>.dice-control:hover{border-color:var(--amber);background:var(--paper)}
 .hero-stats>.dice-control:active{transform:translateY(1px)}
 .hero-stats>.dice-control:focus-visible{outline:2px solid var(--amber2);outline-offset:2px}
-.dice-control-expression{
-  color:var(--muted);
-  font:700 10px/1 var(--font-ui);
-  letter-spacing:.09em;
-  margin-top:2px;
-}
 .dice-control-result{
   color:var(--ink);
   font:600 26px/1 var(--font-numeric);
@@ -2462,7 +2448,6 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
   touch-action:manipulation;
 }
 .hero-play-panel .hero-stats>.dice-control:hover{background:var(--paper);border-color:var(--amber)}
-.dice-control-symbol{color:#b88a3f;font:14px/1 var(--font-display)}
 .dice-control-result{
   width:100%;
   align-self:center;

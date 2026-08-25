@@ -1,5 +1,4 @@
 import { traditionInfo, traditionSpells } from "./class-data.ts";
-import { completeSrdRules } from "./srd-search-data.ts";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data.ts";
 
 export type RuleEntry = {
@@ -47,7 +46,27 @@ const optionRules: RuleEntry[] = [
   ...weapons.map(weapon => ({ title:weapon.name, category:"Weapon", source:"Equipment · Weapons", text:`${weapon.name}: damage ${weapon.damage}; Shock ${weapon.shock || "none"}; range ${weapon.range || "melee"}; traits ${weapon.traits || "none"}.`, aliases:[weapon.traits] })),
 ];
 
-export const rulesIndex: RuleEntry[] = [...coreRules, ...completeSrdRules, ...optionRules];
+let completeSrdRulesPromise: Promise<typeof import("./srd-search-data.ts")> | null = null;
+let rulesIndexPromise: Promise<RuleEntry[]> | null = null;
+
+function loadCompleteSrdRules() {
+  completeSrdRulesPromise ||= import("./srd-search-data.ts");
+  return completeSrdRulesPromise;
+}
+
+function loadRulesIndex() {
+  rulesIndexPromise ||= loadCompleteSrdRules().then(
+    ({ completeSrdRules }) => [...coreRules, ...completeSrdRules, ...optionRules],
+  );
+  return rulesIndexPromise;
+}
+
+// The full SRD corpus is large and only needed after someone asks a rules
+// question. Keep the familiar local answers available immediately, but load
+// the complete search corpus on demand instead of in every character sheet.
+export function preloadRulesSearch() {
+  void loadRulesIndex();
+}
 const stopWords = new Set(["a","an","and","are","at","can","do","does","for","happen","happens","how","i","if","in","is","it","my","of","on","or","the","to","what","when","with"]);
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9+\- ]/g, " ").replace(/\s+/g, " ").trim();
 const canonicalTerm = (term: string) => {
@@ -78,10 +97,11 @@ const excerptFor = (text: string, terms: string[]) => {
   return `${start ? "… " : ""}${excerpt}${end < text.length ? " …" : ""}`;
 };
 
-export function searchRules(question: string, limit = 4) {
+export async function searchRules(question: string, limit = 4) {
   const normalizedQuestion = normalize(question);
   const terms = termsFor(question);
   if (!terms.length) return [];
+  const rulesIndex = await loadRulesIndex();
   return rulesIndex.map(entry => {
     const title = normalize(entry.title);
     const aliases = (entry.aliases || []).map(normalize);

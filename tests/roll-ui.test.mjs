@@ -17,7 +17,7 @@ const {
 } = await import(new URL("../app/virtual-dice-style.ts", import.meta.url));
 
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
-  assert.match(sheetSource, /rawRoll = rollDice\(request\.dice\.count, request\.dice\.sides\)/);
+  assert.match(sheetSource, /rawRoll = preparedSharedRoll\?\.dice \|\| rollDice\(request\.dice\.count, request\.dice\.sides\)/);
   assert.match(sheetSource, /resolveRoll\(request, \{ roll: \(\) => rawRoll \}\)/);
   assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check`/);
   assert.match(sheetSource, /label: `\$\{name\} Attack`/);

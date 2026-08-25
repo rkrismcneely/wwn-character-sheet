@@ -39,7 +39,7 @@ async function sessionParticipants(db: D1Database, sessionId: string, campaignId
 
 async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiveSession> {
   const participants = await sessionParticipants(db, session.id, session.campaignId);
-  return { id: session.id, startedAt: session.startedAt, participants: await Promise.all(participants.map(async participant => ({
+  return { id: session.id, startedAt: session.startedAt, recentRolls: [], participants: await Promise.all(participants.map(async participant => ({
     participantKey: await participantKey(session.id, participant.userId),
     name: effectiveDisplayName(participant.customDisplayName, participant.providerName),
     characterName: participant.characterName ?? null,
@@ -51,19 +51,26 @@ async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiv
 async function stateFor(db: D1Database, actor: CampaignActor, publicId: string): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
   const { campaign, membership } = await loadCampaignAccess(db, actor, publicId);
   const session = await activeSession(db, campaign.id);
+  const sessionPayload = session ? await payload(db, session) : null;
   const active = !campaign.archivedAt;
   const participant = actor.role !== "admin" || isOwner(actor, campaign.ownerUserId)
     ? isParticipant(actor, campaign.ownerUserId, membership)
     : false;
-  return { campaignId: campaign.id, state: { session: session ? await payload(db, session) : null, permissions: {
+  const actorParticipantKey = sessionPayload ? await participantKey(sessionPayload.id, actor.userId) : null;
+  const joined = sessionPayload
+    ? sessionPayload.participants.some(candidate => candidate.participantKey === actorParticipantKey)
+    : false;
+  return { campaignId: campaign.id, state: { session: sessionPayload, permissions: {
     canStart: active && isOwner(actor, campaign.ownerUserId),
-    canJoin: active && Boolean(session) && participant,
+    canJoin: active && Boolean(session) && participant && !joined,
     canEnd: active && Boolean(session) && isOwner(actor, campaign.ownerUserId),
+    joined,
     adminReadOnly: actor.role === "admin" && !isOwner(actor, campaign.ownerUserId),
   } } };
 }
 
 export async function readLiveSession(db: D1Database, actor: CampaignActor, publicId: string): Promise<CampaignLiveSessionState> { return (await stateFor(db, actor, publicId)).state; }
+export async function readLiveSessionContext(db: D1Database, actor: CampaignActor, publicId: string): Promise<{ state: CampaignLiveSessionState; campaignId: string }> { return stateFor(db, actor, publicId); }
 
 export async function startLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
   const { campaign } = await loadCampaignAccess(db, actor, publicId);
@@ -108,4 +115,20 @@ export async function authorizeLiveSessionConnection(db: D1Database, actor: Camp
   const joined = await db.prepare("SELECT 1 AS joined FROM campaign_session_participants WHERE session_id = ? AND user_id = ?").bind(session.id, actor.userId).first<{ joined: number }>();
   if (!joined) throw new CampaignServiceError("Join the live session before connecting.", 409);
   return { campaignId: campaign.id, sessionId: session.id, participantKey: await participantKey(session.id, actor.userId) };
+}
+
+export async function authorizeLiveSessionRoll(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  characterPublicId: string,
+): Promise<{ campaignId: string; sessionId: string; participantKey: string; character: { id: string; name: string } }> {
+  const connection = await authorizeLiveSessionConnection(db, actor, publicId);
+  const character = await db.prepare(`SELECT ch.public_id AS id, ch.name
+    FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = ? AND ch.public_id = ? AND ch.owner_user_id = ?`)
+    .bind(connection.campaignId, characterPublicId, actor.userId)
+    .first<{ id: string; name: string }>();
+  if (!character) throw new CampaignServiceError("Only your linked campaign character can publish rolls.", 403);
+  return { ...connection, character };
 }

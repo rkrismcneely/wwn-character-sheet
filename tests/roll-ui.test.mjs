@@ -142,6 +142,9 @@ test("read-only sheets retain local rolling controls while edits remain separate
   assert.match(sheetSource, /data-readonly-interactive="true"[^>]*aria-expanded=\{skillRollChooser === skill\}/);
   assert.match(sheetSource, /className="field calculated-field initiative-field"[\s\S]*?Roll Initiative/);
   assert.match(sheetSource, /data-readonly-interactive="true"[^>]*onClick=\{rollInitiative\}/);
+  assert.match(cssSource, /\.initiative-field\{display:grid;grid-template-columns:minmax\(0,1fr\) auto;align-items:stretch;gap:4px 6px\}/);
+  assert.match(cssSource, /\.initiative-field>span\{grid-column:1\/-1\}/);
+  assert.match(cssSource, /\.initiative-field \.roll-affordance\{align-self:stretch;margin-top:0;padding:5px 7px\}/);
 });
 
 test("the result tray and history keep all existing controls discoverable", () => {

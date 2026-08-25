@@ -1,0 +1,111 @@
+import { effectiveDisplayName } from "../account/display-name.ts";
+import { hashOpaqueToken } from "../security/opaque-tokens.ts";
+import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
+import type { CampaignActor } from "./types.ts";
+import type { CampaignLiveSession, CampaignLiveSessionState } from "./live-session.ts";
+
+interface SessionRow { id: string; campaignId: string; startedAt: string }
+interface ParticipantRow { userId: string; joinedAt: string; providerName: string; customDisplayName: string | null; characterName: string | null }
+
+async function participantKey(sessionId: string, userId: string): Promise<string> {
+  return `cspt_${(await hashOpaqueToken(`campaign-session:${sessionId}:${userId}`)).slice(0, 32)}`;
+}
+
+function isOwner(actor: CampaignActor, ownerUserId: string): boolean { return actor.userId === ownerUserId; }
+function isParticipant(actor: CampaignActor, ownerUserId: string, membership: { userId: string } | null): boolean {
+  return isOwner(actor, ownerUserId) || Boolean(membership?.userId === actor.userId);
+}
+function requireOwner(actor: CampaignActor, ownerUserId: string): void {
+  if (!isOwner(actor, ownerUserId)) throw new CampaignServiceError("Only the campaign owner can manage live sessions.", 403);
+}
+function requireSessionParticipant(actor: CampaignActor, ownerUserId: string, membership: { userId: string } | null): void {
+  if (actor.role === "admin" && !isOwner(actor, ownerUserId)) {
+    throw new CampaignServiceError("Site administrators are read-only unless they own this campaign.", 403);
+  }
+  if (!isParticipant(actor, ownerUserId, membership)) throw new CampaignServiceError("Only campaign members can join this live session.", 403);
+}
+
+async function activeSession(db: D1Database, campaignId: string): Promise<SessionRow | null> {
+  return db.prepare(`SELECT id, campaign_id AS campaignId, started_at AS startedAt FROM campaign_sessions WHERE campaign_id = ? AND ended_at IS NULL`).bind(campaignId).first<SessionRow>();
+}
+
+async function sessionParticipants(db: D1Database, sessionId: string, campaignId: string): Promise<ParticipantRow[]> {
+  const result = await db.prepare(`SELECT p.user_id AS userId, p.joined_at AS joinedAt, u.name AS providerName, u.display_name AS customDisplayName,
+    (SELECT ch.name FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
+       WHERE cc.campaign_id = ? AND ch.owner_user_id = p.user_id ORDER BY cc.added_at ASC LIMIT 1) AS characterName
+    FROM campaign_session_participants p JOIN user u ON u.id = p.user_id WHERE p.session_id = ? ORDER BY p.joined_at ASC`).bind(campaignId, sessionId).all<ParticipantRow>();
+  return result.results;
+}
+
+async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiveSession> {
+  const participants = await sessionParticipants(db, session.id, session.campaignId);
+  return { id: session.id, startedAt: session.startedAt, participants: await Promise.all(participants.map(async participant => ({
+    participantKey: await participantKey(session.id, participant.userId),
+    name: effectiveDisplayName(participant.customDisplayName, participant.providerName),
+    characterName: participant.characterName ?? null,
+    joinedAt: participant.joinedAt,
+    connected: false,
+  }))) };
+}
+
+async function stateFor(db: D1Database, actor: CampaignActor, publicId: string): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
+  const { campaign, membership } = await loadCampaignAccess(db, actor, publicId);
+  const session = await activeSession(db, campaign.id);
+  const active = !campaign.archivedAt;
+  const participant = actor.role !== "admin" || isOwner(actor, campaign.ownerUserId)
+    ? isParticipant(actor, campaign.ownerUserId, membership)
+    : false;
+  return { campaignId: campaign.id, state: { session: session ? await payload(db, session) : null, permissions: {
+    canStart: active && isOwner(actor, campaign.ownerUserId),
+    canJoin: active && Boolean(session) && participant,
+    canEnd: active && Boolean(session) && isOwner(actor, campaign.ownerUserId),
+    adminReadOnly: actor.role === "admin" && !isOwner(actor, campaign.ownerUserId),
+  } } };
+}
+
+export async function readLiveSession(db: D1Database, actor: CampaignActor, publicId: string): Promise<CampaignLiveSessionState> { return (await stateFor(db, actor, publicId)).state; }
+
+export async function startLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
+  const { campaign } = await loadCampaignAccess(db, actor, publicId);
+  requireActiveCampaign(campaign); requireOwner(actor, campaign.ownerUserId);
+  const existing = await activeSession(db, campaign.id);
+  if (existing) return stateFor(db, actor, publicId);
+  const id = crypto.randomUUID();
+  try {
+    await db.batch([
+      db.prepare("INSERT INTO campaign_sessions (id, campaign_id, started_by_user_id, started_at) VALUES (?, ?, ?, ?)").bind(id, campaign.id, actor.userId, now),
+      db.prepare("INSERT INTO campaign_session_participants (session_id, user_id, joined_at) VALUES (?, ?, ?)").bind(id, actor.userId, now),
+    ]);
+  } catch (error) {
+    if (!(await activeSession(db, campaign.id))) throw error;
+  }
+  return stateFor(db, actor, publicId);
+}
+
+export async function joinLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
+  const { campaign, membership } = await loadCampaignAccess(db, actor, publicId);
+  requireActiveCampaign(campaign); requireSessionParticipant(actor, campaign.ownerUserId, membership);
+  const session = await activeSession(db, campaign.id);
+  if (!session) throw new CampaignServiceError("There is no active live session to join.", 409);
+  await db.prepare("INSERT OR IGNORE INTO campaign_session_participants (session_id, user_id, joined_at) VALUES (?, ?, ?)").bind(session.id, actor.userId, now).run();
+  return stateFor(db, actor, publicId);
+}
+
+export async function endLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string; endedSessionId: string | null }> {
+  const { campaign } = await loadCampaignAccess(db, actor, publicId);
+  requireOwner(actor, campaign.ownerUserId);
+  const session = await activeSession(db, campaign.id);
+  if (!session) return { ...(await stateFor(db, actor, publicId)), endedSessionId: null };
+  await db.prepare("UPDATE campaign_sessions SET ended_at = ?, ended_by_user_id = ? WHERE id = ? AND ended_at IS NULL").bind(now, actor.userId, session.id).run();
+  return { ...(await stateFor(db, actor, publicId)), endedSessionId: session.id };
+}
+
+export async function authorizeLiveSessionConnection(db: D1Database, actor: CampaignActor, publicId: string): Promise<{ campaignId: string; sessionId: string; participantKey: string }> {
+  const { campaign, membership } = await loadCampaignAccess(db, actor, publicId);
+  requireActiveCampaign(campaign); requireSessionParticipant(actor, campaign.ownerUserId, membership);
+  const session = await activeSession(db, campaign.id);
+  if (!session) throw new CampaignServiceError("There is no active live session.", 409);
+  const joined = await db.prepare("SELECT 1 AS joined FROM campaign_session_participants WHERE session_id = ? AND user_id = ?").bind(session.id, actor.userId).first<{ joined: number }>();
+  if (!joined) throw new CampaignServiceError("Join the live session before connecting.", 409);
+  return { campaignId: campaign.id, sessionId: session.id, participantKey: await participantKey(session.id, actor.userId) };
+}

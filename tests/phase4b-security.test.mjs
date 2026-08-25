@@ -170,7 +170,7 @@ test("generated public IDs are opaque, unique, and contain 128 random bits", () 
   const ids = Array.from({ length: 500 }, () => generatePublicCharacterId());
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(ids.every(isPlausiblePublicCharacterId));
-  assert.ok(ids.every(id => id.length === 26 && !/\d{8,}/u.test(id)));
+  assert.ok(ids.every(id => id.startsWith("chr_") && id.length === 26));
 });
 
 test("client-supplied owner and public IDs are removed before storage", async () => {

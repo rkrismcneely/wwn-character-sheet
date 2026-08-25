@@ -87,18 +87,19 @@ export async function updateAccountDisplayName(
     }
     throw error;
   }
-  const result = await db
+  const row = await db
     .prepare(
       `UPDATE user
        SET display_name = ?, updated_at = ?
-       WHERE id = ?`,
+       WHERE id = ?
+       RETURNING name AS providerName, display_name AS customDisplayName, email`,
     )
     .bind(displayName, now, authenticatedActor.userId)
-    .run();
-  if (result.meta.changes !== 1) {
+    .first<AccountProfileRow>();
+  if (!row) {
     throw new AccountProfileError("Account not found.", 404);
   }
-  return readAccountProfile(db, authenticatedActor);
+  return profilePayload(row);
 }
 
 export async function resetAccountDisplayName(
@@ -107,16 +108,17 @@ export async function resetAccountDisplayName(
   now = Date.now(),
 ): Promise<AccountProfilePayload> {
   const authenticatedActor = requireActor(actor);
-  const result = await db
+  const row = await db
     .prepare(
       `UPDATE user
        SET display_name = NULL, updated_at = ?
-       WHERE id = ?`,
+       WHERE id = ?
+       RETURNING name AS providerName, display_name AS customDisplayName, email`,
     )
     .bind(now, authenticatedActor.userId)
-    .run();
-  if (result.meta.changes !== 1) {
+    .first<AccountProfileRow>();
+  if (!row) {
     throw new AccountProfileError("Account not found.", 404);
   }
-  return readAccountProfile(db, authenticatedActor);
+  return profilePayload(row);
 }

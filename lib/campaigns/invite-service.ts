@@ -349,12 +349,17 @@ export async function previewCampaignInvite(
     rawToken,
     now,
   );
-  const membership = await getCampaignMembership(
-    db,
-    invite.campaignId,
-    authenticatedActor.userId,
-  );
-  const eligibility = invite.campaignOwnerUserId === authenticatedActor.userId
+  const isOwner = invite.campaignOwnerUserId === authenticatedActor.userId;
+  // Owner eligibility is already present in the invite-and-campaign row, so
+  // avoid a redundant membership lookup for the common owner preview path.
+  const membership = isOwner
+    ? null
+    : await getCampaignMembership(
+      db,
+      invite.campaignId,
+      authenticatedActor.userId,
+    );
+  const eligibility = isOwner
     ? "owner"
     : membership
       ? "member"
@@ -543,4 +548,3 @@ export async function revokeCampaignInvite(
   }
   throw inviteNotFound();
 }
-

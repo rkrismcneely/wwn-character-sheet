@@ -34,6 +34,6 @@
     ]
   },
   "migrations": [
-    { "tag": "v1-campaign-live-sessions", "new_classes": ["CampaignLiveSession"] }
+    { "tag": "v1-campaign-live-sessions", "new_sqlite_classes": ["CampaignLiveSession"] }
   ]
 }

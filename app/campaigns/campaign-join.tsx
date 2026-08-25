@@ -161,7 +161,6 @@ export function CampaignJoin() {
     }
     previewHandled.current = true;
     void previewInvite(token);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, ready, session?.user, token]);
 
   async function signIn() {

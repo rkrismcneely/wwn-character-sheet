@@ -18,6 +18,8 @@ if [[ ! -x "${vinext}" ]]; then
   exit 69
 fi
 
+rm -rf "${SITES_PROJECT_ROOT}/dist"
+
 echo "Running bounded vinext build..."
 timeout \
   --signal=TERM \

@@ -2427,6 +2427,15 @@ html[data-theme="dark"] .roll-outcome.failure{color:#e99982}
   text-transform:uppercase;
   white-space:nowrap;
 }
+.hero-card-label{
+  width:100%;
+  justify-self:center;
+  text-align:center;
+}
+.hero-stat-card>input,
+.hero-stat-card.hp-stat .paired{
+  transform:translateY(5px);
+}
 .hero-stat-card.hp-stat .paired{
   width:100%;
   justify-content:center;

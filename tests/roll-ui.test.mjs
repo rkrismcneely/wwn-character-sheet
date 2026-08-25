@@ -191,6 +191,8 @@ test("refined character header keeps only primary identity and matched play-card
   assert.match(cssSource, /\.hero\{[\s\S]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
   assert.match(cssSource, /\.hero\{[\s\S]*align-items:stretch/);
   assert.match(cssSource, /\.hero-card-label,\n\.dice-control-action\{[\s\S]*font:700 9px\/1\.1 var\(--font-ui\)/);
+  assert.match(cssSource, /\.hero-card-label\{[\s\S]*width:100%;[\s\S]*text-align:center/);
+  assert.match(cssSource, /\.hero-stat-card>input,\n\.hero-stat-card\.hp-stat \.paired\{[\s\S]*transform:translateY\(5px\)/);
 });
 
 test("Roll History is an out-of-flow accessible popout", () => {

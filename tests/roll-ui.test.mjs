@@ -23,6 +23,8 @@ test("all character-sheet dice affordances use the shared roll request pipeline"
   assert.match(sheetSource, /label: `\$\{name\} Attack`/);
   assert.match(sheetSource, /label: `\$\{name\} Damage`/);
   assert.match(sheetSource, /targetKind: "saving-throw"/);
+  assert.match(sheetSource, /function rollInitiative\(\) \{[\s\S]*?category: "initiative",[\s\S]*?label: "Initiative",[\s\S]*?dice: \{ count: 1, sides: 8 \},[\s\S]*?value: calculatedInitiative/);
+  assert.match(sheetSource, /function rollHeaderDice\(kind: "d20" \| "2d6"\) \{[\s\S]*?category: "generic"/);
 });
 
 test("virtual dice preserve one authoritative raw roll and fall back without rerolling", () => {
@@ -138,6 +140,8 @@ test("read-only sheets retain local rolling controls while edits remain separate
   assert.match(sheetSource, /data-readonly-interactive="true"[^>]*onClick=\{\(\) => rollSave/);
   assert.match(sheetSource, /data-readonly-interactive="true"[^>]*onClick=\{\(\) => rollWeaponAttack/);
   assert.match(sheetSource, /data-readonly-interactive="true"[^>]*aria-expanded=\{skillRollChooser === skill\}/);
+  assert.match(sheetSource, /className="field calculated-field initiative-field"[\s\S]*?Roll Initiative/);
+  assert.match(sheetSource, /data-readonly-interactive="true"[^>]*onClick=\{rollInitiative\}/);
 });
 
 test("the result tray and history keep all existing controls discoverable", () => {

@@ -59,6 +59,20 @@ test("WWN saving throws use the displayed target and natural 1/20 outcomes", asy
   assert.equal(ordinarySuccess.outcome, "success");
 });
 
+test("initiative is a typed 1d8 roll using the existing calculated modifier", async () => {
+  const result = await resolveRoll(sampleRequest({
+    category: "initiative",
+    label: "Initiative",
+    dice: { count: 1, sides: 8 },
+    modifiers: [{ label: "Initiative modifier", value: 2 }],
+  }), { roll: fixedRoll([6], 8) });
+
+  assert.equal(result.category, "initiative");
+  assert.deepEqual(result.dice.results, [6]);
+  assert.equal(result.modifierTotal, 2);
+  assert.equal(result.total, 8);
+});
+
 test("canonical weapon damage expressions preserve their die and modifier", () => {
   assert.deepEqual(parseDamageExpression("1d8+2"), { dice: { count: 1, sides: 8 }, modifier: 2 });
   assert.deepEqual(parseDamageExpression("2d6 - 1"), { dice: { count: 2, sides: 6 }, modifier: -1 });

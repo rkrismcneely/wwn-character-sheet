@@ -2892,11 +2892,13 @@ export default function Home({
               <p className="hero-summary">{sheet.level ? `Level ${sheet.level}` : "Level —"} {classLabel || "Class —"}</p>
               <div className="hero-wealth" aria-label="Character wealth">
                 <span className="wealth-label">COIN PURSE</span>
-                <label><input type="number" value={sheet.gp} onChange={e => patch("gp", Number(e.target.value))} aria-label="Gold pieces" /><b>GP</b></label>
-                <i>◆</i>
-                <label><input type="number" value={sheet.sp} onChange={e => patch("sp", Number(e.target.value))} aria-label="Silver pieces" /><b>SP</b></label>
-                <i>◆</i>
-                <label><input type="number" value={sheet.cp} onChange={e => patch("cp", Number(e.target.value))} aria-label="Copper pieces" /><b>CP</b></label>
+                <div className="hero-wealth-values">
+                  <label><input type="number" value={sheet.gp} onChange={e => patch("gp", Number(e.target.value))} aria-label="Gold pieces" /><b>GP</b></label>
+                  <i>◆</i>
+                  <label><input type="number" value={sheet.sp} onChange={e => patch("sp", Number(e.target.value))} aria-label="Silver pieces" /><b>SP</b></label>
+                  <i>◆</i>
+                  <label><input type="number" value={sheet.cp} onChange={e => patch("cp", Number(e.target.value))} aria-label="Copper pieces" /><b>CP</b></label>
+                </div>
               </div>
             </div>
           </section>

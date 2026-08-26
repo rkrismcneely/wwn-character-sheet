@@ -24,7 +24,7 @@ import {
   type BackgroundLearningPick,
   type BackgroundSkillGrant,
 } from "./background-development";
-import { preloadRulesSearch, searchRules, type RuleEntry } from "./rules-search";
+import { RulesAssistant } from "./rules-assistant";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
 import { isSharedRollCategory, parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
@@ -996,9 +996,6 @@ export default function Home({
   const [claimBusy, setClaimBusy] = useState(false);
   const [otherStowedIndex, setOtherStowedIndex] = useState<number | null>(null);
   const [companionOtherStowed, setCompanionOtherStowed] = useState<Record<string, number | null>>({});
-  const [rulesQuestion, setRulesQuestion] = useState("");
-  const [rulesResults, setRulesResults] = useState<RuleEntry[]>([]);
-  const [rulesSearched, setRulesSearched] = useState(false);
   const [latestRoll, setLatestRoll] = useState<RollResult | null>(null);
   const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
@@ -1010,7 +1007,6 @@ export default function Home({
   const [virtualDiceBusy, setVirtualDiceBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const portraitInput = useRef<HTMLInputElement>(null);
-  const rulesAssistant = useRef<HTMLFormElement>(null);
   const characterNameInput = useRef<HTMLTextAreaElement>(null);
   const editableSurface = useRef<HTMLDivElement>(null);
   const virtualDiceOverlay = useRef<VirtualDiceOverlayHandle>(null);
@@ -1095,14 +1091,6 @@ export default function Home({
       callbackURL: url.toString(),
     });
   }, [sessionPending, signedIn]);
-
-  async function askRules(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const question = rulesQuestion.trim();
-    if (!question) return;
-    setRulesResults(await searchRules(question));
-    setRulesSearched(true);
-  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setRollHistory(readRollHistory()));
@@ -1276,60 +1264,6 @@ export default function Home({
   function clearLocalRollHistory() {
     clearRollHistory();
     setRollHistory([]);
-  }
-
-  useEffect(() => {
-    if (!rulesSearched) return;
-
-    function dismissRulesResults(event: PointerEvent) {
-      if (!rulesAssistant.current?.contains(event.target as Node)) {
-        setRulesSearched(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", dismissRulesResults);
-    return () => document.removeEventListener("pointerdown", dismissRulesResults);
-  }, [rulesSearched]);
-
-  function formattedRuleText(text: string) {
-    const blocks = text.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
-    const paragraphNodes = (block: string, keyPrefix: string) => {
-      const sentences = block.split(/(?<=[.!?])\s+(?=[A-Z“])/).map(sentence => sentence.trim()).filter(Boolean);
-      const paragraphs = [];
-      for (let index = 0; index < sentences.length; index += 3) {
-        paragraphs.push(<p key={`${keyPrefix}-${index}`}>{sentences.slice(index, index + 3).join(" ")}</p>);
-      }
-      return paragraphs;
-    };
-
-    return blocks.flatMap((block, blockIndex) => {
-      const bulletParts = block.split(/\s+·\s+/).map(part => part.trim()).filter(Boolean);
-      if (bulletParts.length > 1) {
-        const [introduction, ...rawItems] = bulletParts;
-        const continuationIndex = rawItems.findIndex(item => item.startsWith(". "));
-        const items = rawItems
-          .slice(0, continuationIndex >= 0 ? continuationIndex : undefined)
-          .filter(item => item !== ".");
-        const continuation = continuationIndex >= 0
-          ? rawItems.slice(continuationIndex).join(" ").replace(/^\.\s*/, "")
-          : "";
-        const isTwoColumnTable = items.length >= 4 && items.length % 2 === 0;
-        return [
-          introduction ? <p key={`${blockIndex}-intro`}>{introduction}</p> : null,
-          items.length ? <ul className={isTwoColumnTable ? "rule-pairs" : undefined} key={`${blockIndex}-list`}>
-            {isTwoColumnTable
-              ? items.reduce<React.ReactNode[]>((rows, item, itemIndex) => {
-                  if (itemIndex % 2 === 0) rows.push(<li key={itemIndex}><strong>{item}</strong><span>{items[itemIndex + 1]}</span></li>);
-                  return rows;
-                }, [])
-              : items.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}
-          </ul> : null,
-          ...paragraphNodes(continuation, `${blockIndex}-continuation`),
-        ].filter(Boolean);
-      }
-
-      return paragraphNodes(block, `${blockIndex}-paragraph`);
-    });
   }
 
   useEffect(() => {
@@ -2943,41 +2877,7 @@ export default function Home({
             </div>
           </section>
           <section className="hero-tools hero-play-panel" aria-label="Play utilities">
-            <form ref={rulesAssistant} className="rules-assistant" data-readonly-interactive="true" autoComplete="off" onSubmit={askRules}>
-              <label htmlFor="rules-question">Ask the WWN Rules Assistant</label>
-              <div className="rules-question-row">
-                <input
-                  id="rules-question"
-                  name="wwn-rules-question-no-history"
-                  type="search"
-                  autoComplete="off"
-                  data-lpignore="true"
-                  value={rulesQuestion}
-                  onChange={event => setRulesQuestion(event.target.value)}
-                  onFocus={preloadRulesSearch}
-                  placeholder="What happens at 0 HP?"
-                />
-                <button type="submit">Search</button>
-              </div>
-              {rulesSearched && <div className="rules-results" aria-live="polite">
-                {rulesResults.length ? <>
-                  {rulesResults.map(result => <details className="rule-result" key={`${result.source}:${result.title}`}>
-                    <summary>
-                      <span className="rule-result-heading">
-                        <strong>{result.title}</strong>
-                        <span className="rule-result-toggle" aria-hidden="true">Show full section</span>
-                      </span>
-                      <p className="rule-result-preview">{result.text}</p>
-                      <small className="rule-result-source">{result.source}</small>
-                    </summary>
-                    <div className="rule-result-full">
-                      {formattedRuleText(result.fullText || result.text)}
-                      <span aria-hidden="true">Click the result again to collapse</span>
-                    </div>
-                  </details>)}
-                </> : <p className="rules-no-result">No close SRD match found. Try a rule name such as “System Strain,” “Shock,” or a spell, Art, Focus, or weapon name.</p>}
-              </div>}
-            </form>
+            <RulesAssistant />
             <div className="hero-stats" aria-label="Dice and combat statistics">
               <DiceControl expression="d20" result={latestRoll?.category === "generic" && latestRoll.dice.count === 1 && latestRoll.dice.sides === 20 ? latestRoll : null} onRoll={() => rollHeaderDice("d20")} disabled={virtualDiceBusy} />
               <DiceControl expression="2d6" result={latestRoll?.category === "generic" && latestRoll.dice.count === 2 && latestRoll.dice.sides === 6 ? latestRoll : null} onRoll={() => rollHeaderDice("2d6")} disabled={virtualDiceBusy} />

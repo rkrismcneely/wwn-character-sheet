@@ -5,12 +5,14 @@ import { searchRules } from "../app/rules-search.ts";
 
 const rulesSearchSource = await readFile(new URL("../app/rules-search.ts", import.meta.url), "utf8");
 const characterSheetSource = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+const rulesAssistantSource = await readFile(new URL("../app/rules-assistant.tsx", import.meta.url), "utf8");
 
-test("the full SRD corpus stays out of the initial character-sheet bundle", () => {
+test("the full SRD corpus stays out of the initial character-sheet bundle and the shared assistant owns lazy search", () => {
   assert.match(rulesSearchSource, /import\("\.\/srd-search-data\.ts"\)/u);
   assert.doesNotMatch(rulesSearchSource, /^import \{ completeSrdRules \}/mu);
-  assert.match(characterSheetSource, /onFocus=\{preloadRulesSearch\}/u);
-  assert.match(characterSheetSource, /setRulesResults\(await searchRules\(question\)\)/u);
+  assert.match(characterSheetSource, /<RulesAssistant \/>/u);
+  assert.match(rulesAssistantSource, /onFocus=\{preloadRulesSearch\}/u);
+  assert.match(rulesAssistantSource, /setResults\(await searchRules\(trimmedQuestion\)\)/u);
 });
 
 test("natural-language zero HP question prioritizes the injury rule", async () => {

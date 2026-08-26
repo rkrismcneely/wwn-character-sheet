@@ -37,7 +37,7 @@ test("the server-issued shared result preserves one authoritative raw roll", asy
   assert.deepEqual(result.character, { id: "chr_real", name: "Cecil the Amber" });
 });
 
-test("NPC rolls reuse the authoritative request resolver for rich, custom, multiple-attack, and sparse snapshots", async () => {
+test("NPC rolls use identity-free, human-readable action labels for rich, generic, custom, multiple-attack, and sparse snapshots", async () => {
   const richNpc = {
     id: "cmb_internal", kind: "npc", name: "Apex Predator", initiative: 0, hpCurrent: 32,
     combatStats: {
@@ -48,16 +48,21 @@ test("NPC rolls reuse the authoritative request resolver for rich, custom, multi
   const attack = npcRollRequest(richNpc, { kind: "attack", attackIndex: 0 });
   const damage = npcRollRequest(richNpc, { kind: "damage", attackIndex: 1 });
   const save = npcRollRequest(richNpc, { kind: "save", save: "physical" });
-  assert.deepEqual(attack, { category: "attack", character: { id: "npc", name: "Apex Predator" }, label: "Apex Predator — Bite Attack", dice: { count: 1, sides: 20 }, modifiers: [{ label: "Attack bonus", value: 6 }] });
-  assert.deepEqual(damage, { category: "damage", character: { id: "npc", name: "Apex Predator" }, label: "Apex Predator — Claw Damage", dice: { count: 1, sides: 6 }, modifiers: [] });
+  assert.deepEqual(attack, { category: "attack", character: { id: "npc", name: "Apex Predator" }, label: "Bite Attack", dice: { count: 1, sides: 20 }, modifiers: [{ label: "Attack bonus", value: 6 }] });
+  assert.deepEqual(damage, { category: "damage", character: { id: "npc", name: "Apex Predator" }, label: "Claw Damage", dice: { count: 1, sides: 6 }, modifiers: [] });
+  assert.equal(save?.label, "Physical Save");
   assert.equal(save?.target, 12);
   assert.equal(save?.targetKind, "saving-throw");
   const resolved = await resolveRoll(attack, { roll: () => ({ count: 1, sides: 20, results: [12], total: 12 }), createId: () => "npc-roll" });
   assert.equal(resolved.total, 18);
-  assert.equal(resolved.label, "Apex Predator — Bite Attack");
+  assert.equal(resolved.label, "Bite Attack");
 
   const customNpc = { ...richNpc, name: "Campaign Guard", combatStats: { saves: { physical: 15, evasion: 14, mental: 13 }, notes: "", attacks: [{ name: "Spear", attackBonus: 2, damage: "1d6", description: "" }] } };
-  assert.equal(npcRollRequest(customNpc, { kind: "attack", attackIndex: 0 })?.label, "Campaign Guard — Spear Attack");
+  assert.equal(npcRollRequest(customNpc, { kind: "attack", attackIndex: 0 })?.label, "Spear Attack");
+  const genericNpc = { ...richNpc, name: "Small Pack Predator #2", combatStats: { ...richNpc.combatStats, attacks: [{ name: "Attack", attackBonus: 2, damage: "1d4", description: "" }] } };
+  assert.equal(npcRollRequest(genericNpc, { kind: "attack", attackIndex: 0 })?.label, "Attack");
+  assert.equal(npcRollRequest(genericNpc, { kind: "damage", attackIndex: 0 })?.label, "Damage");
+  assert.equal(npcRollRequest(genericNpc, { kind: "attack", attackIndex: 0 })?.character.name, "Small Pack Predator #2");
   assert.equal(npcRollRequest({ ...richNpc, combatStats: undefined }, { kind: "attack", attackIndex: 0 }), null);
   assert.equal(npcRollRequest({ ...richNpc, combatStats: { ...richNpc.combatStats, attacks: [{ name: "Improvised", attackBonus: 0, damage: "Wpn", description: "" }] } }, { kind: "damage", attackIndex: 0 }), null);
 });
@@ -104,6 +109,7 @@ test("shared session transport keeps party status authoritative, realtime, and r
   assert.match(sessionClient, /recentRolls\.some\(roll => roll\.id === message\.roll\.id\)/u);
   assert.match(sessionClient, /message\.type === "session\.character-status"/u);
   assert.match(sessionUi, /Live Rolls/u);
+  assert.match(sessionUi, /\{roll\.character\.name\} — \{roll\.label\}/u);
   assert.match(sessionUi, />Party</u);
   assert.match(sessionClient, /ws\.onopen = \(\) => \{[\s\S]*?void load\(\)/u);
 });

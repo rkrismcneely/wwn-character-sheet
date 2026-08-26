@@ -153,6 +153,8 @@ test("the result tray and history keep all existing controls discoverable", () =
   assert.match(sheetSource, /Roll History/);
   assert.match(presentationSource, /Stored only in this browser session/);
   assert.match(presentationSource, /result\.character\.name/);
+  assert.match(presentationSource, /\{result\.character\.name\} · \{result\.label\}/);
+  assert.match(presentationSource, /<strong>\{result\.label\}<\/strong>/);
 });
 
 test("Phase 4E presentation controls have dedicated responsive layout hooks", () => {

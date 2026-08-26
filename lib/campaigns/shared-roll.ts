@@ -73,6 +73,14 @@ function npcRollIdentity(npc: CampaignEncounterNpc): RollRequest["character"] {
   return { id: "npc", name: npc.name };
 }
 
+function npcAttackLabel(name: string, kind: "attack" | "damage"): string {
+  // Identity is rendered from RollResult.character by every roll presentation.
+  // Keep metadata action-focused and avoid turning a generic "Attack" into "Attack Attack".
+  const attackName = name.trim();
+  if (attackName.toLowerCase() === "attack") return kind === "attack" ? "Attack" : "Damage";
+  return `${attackName} ${kind === "attack" ? "Attack" : "Damage"}`;
+}
+
 /** Build an NPC request only from the immutable encounter snapshot. */
 export function npcRollRequest(npc: CampaignEncounterNpc, action: NpcRollAction): RollRequest | null {
   const stats = npc.combatStats;
@@ -83,7 +91,7 @@ export function npcRollRequest(npc: CampaignEncounterNpc, action: NpcRollAction)
     return {
       category: "save",
       character,
-      label: `${npc.name} — ${name} Saving Throw`,
+      label: `${name} Save`,
       dice: { count: 1, sides: 20 },
       target: stats.saves[action.save],
       targetKind: "saving-throw",
@@ -96,7 +104,7 @@ export function npcRollRequest(npc: CampaignEncounterNpc, action: NpcRollAction)
     return {
       category: "attack",
       character,
-      label: `${npc.name} — ${attack.name} Attack`,
+      label: npcAttackLabel(attack.name, "attack"),
       dice: { count: 1, sides: 20 },
       modifiers: [{ label: "Attack bonus", value: attack.attackBonus }],
     };
@@ -106,7 +114,7 @@ export function npcRollRequest(npc: CampaignEncounterNpc, action: NpcRollAction)
     return {
       category: "damage",
       character,
-      label: `${npc.name} — ${attack.name} Damage`,
+      label: npcAttackLabel(attack.name, "damage"),
       dice: damage.dice,
       modifiers: damage.modifier ? [{ label: "Damage modifier", value: damage.modifier }] : [],
     };

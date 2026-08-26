@@ -59,12 +59,13 @@ test("combat summary presentation supports rich, custom, sparse, and legacy NPC 
 });
 
 test("encounters stay durable, ordered, owner-controlled, and realtime", async () => {
-  const [durable, route, sessionRoute, sessionUi, sessionClient] = await Promise.all([
+  const [durable, route, sessionRoute, sessionUi, sessionClient, sessionCss] = await Promise.all([
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/use-live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-ui.css", import.meta.url), "utf8"),
   ]);
   assert.match(durable, /CREATE TABLE IF NOT EXISTS encounters/u);
   assert.match(durable, /encounters_active_idx[\s\S]*?WHERE ended_at IS NULL/u);
@@ -89,4 +90,9 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /combatant\.kind === "npc" && <NpcCombatStrip stats=\{canManage \? combatant\.combatStats : undefined\}/u);
   assert.match(sessionUi, /additionalAttacks/u);
   assert.match(sessionUi, /campaign-encounter-hp-control/u);
+  assert.match(sessionUi, /campaign-encounter-initiative/u);
+  assert.match(sessionCss, /campaign-encounter-initiative\{grid-column:3;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-hp\{grid-column:4;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-ac\{grid-column:5;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-remove\{grid-column:6;grid-row:1\}/u);
 });

@@ -36,12 +36,13 @@ test("the server-issued shared result preserves one authoritative raw roll", asy
 });
 
 test("shared session transport keeps party status authoritative, realtime, and reconnect-safe", async () => {
-  const [sheet, route, characterRoute, durable, sessionUi] = await Promise.all([
+  const [sheet, route, characterRoute, durable, sessionUi, sessionClient] = await Promise.all([
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/rolls/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/characters/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/use-live-session.ts", import.meta.url), "utf8"),
   ]);
   assert.match(sheet, /isSharedRollCategory\(request\.category\)/u);
   assert.match(sheet, /preparedSharedRoll\?\.dice \|\| rollDice/u);
@@ -56,9 +57,9 @@ test("shared session transport keeps party status authoritative, realtime, and r
   assert.match(durable, /type: "session\.roll"/u);
   assert.match(durable, /announceCharacterStatus/u);
   assert.match(durable, /session\.character-status/u);
-  assert.match(sessionUi, /recentRolls\.some\(roll => roll\.id === message\.roll\.id\)/u);
-  assert.match(sessionUi, /message\.type === "session\.character-status"/u);
+  assert.match(sessionClient, /recentRolls\.some\(roll => roll\.id === message\.roll\.id\)/u);
+  assert.match(sessionClient, /message\.type === "session\.character-status"/u);
   assert.match(sessionUi, /Live Rolls/u);
   assert.match(sessionUi, />Party</u);
-  assert.match(sessionUi, /ws\.onopen = \(\) => \{[\s\S]*?void load\(\)/u);
+  assert.match(sessionClient, /ws\.onopen = \(\) => \{[\s\S]*?void load\(\)/u);
 });

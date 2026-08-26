@@ -33,6 +33,7 @@ import {
   activeCharacterStatusTargets,
   endLiveSession,
   joinLiveSession,
+  listActiveCharacterLiveSessionCampaigns,
   readLiveSession,
   startLiveSession,
 } from "../lib/campaigns/live-session-service.ts";
@@ -205,9 +206,12 @@ test("shared rolls require a joined participant's own linked character", async (
   const targets = await activeCharacterStatusTargets(db, player.userId, "character-player");
   assert.equal(targets.length, 1);
   assert.equal(targets[0].sessionId, authorization.sessionId);
+  assert.deepEqual([...await listActiveCharacterLiveSessionCampaigns(db, player, "chr_1234567890123456789012")], [{ id: campaign.id, name: "Shared rolls" }]);
+  assert.deepEqual(await listActiveCharacterLiveSessionCampaigns(db, outsider, "chr_1234567890123456789012"), []);
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_abcdefghijklmnopqrstuv"), 403);
   await expectServiceError(authorizeLiveSessionRoll(db, outsider, campaign.id, "chr_1234567890123456789012"), 404);
   await endLiveSession(db, owner, campaign.id, now);
+  assert.deepEqual(await listActiveCharacterLiveSessionCampaigns(db, player, "chr_1234567890123456789012"), []);
   assert.deepEqual(await activeCharacterStatusTargets(db, player.userId, "character-player"), []);
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
 });

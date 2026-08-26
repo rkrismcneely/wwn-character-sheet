@@ -6,6 +6,7 @@ import { campaignCharacterStatus, type CampaignCharacterCardData } from "./chara
 import type { CampaignLiveSession, CampaignLiveSessionCharacter, CampaignLiveSessionState } from "./live-session.ts";
 
 interface SessionRow { id: string; campaignId: string; startedAt: string }
+export interface ActiveCharacterLiveSessionCampaign { id: string; name: string }
 interface ParticipantRow {
   userId: string; joinedAt: string; providerName: string; customDisplayName: string | null;
   characterId: string | null; characterName: string | null; characterLevel: number | null;
@@ -95,6 +96,30 @@ async function stateFor(db: D1Database, actor: CampaignActor, publicId: string):
 
 export async function readLiveSession(db: D1Database, actor: CampaignActor, publicId: string): Promise<CampaignLiveSessionState> { return (await stateFor(db, actor, publicId)).state; }
 export async function readLiveSessionContext(db: D1Database, actor: CampaignActor, publicId: string): Promise<{ state: CampaignLiveSessionState; campaignId: string }> { return stateFor(db, actor, publicId); }
+
+/**
+ * The character sheet only learns about active sessions for its owner's own
+ * linked characters. This is a discovery projection; joining still uses the
+ * normal campaign session endpoint and its full membership checks.
+ */
+export async function listActiveCharacterLiveSessionCampaigns(
+  db: D1Database,
+  actor: CampaignActor,
+  characterPublicId: string,
+): Promise<ActiveCharacterLiveSessionCampaign[]> {
+  const result = await db.prepare(`SELECT c.public_id AS id, c.name
+    FROM characters ch
+    JOIN campaign_characters cc ON cc.character_id = ch.id
+    JOIN campaigns c ON c.id = cc.campaign_id AND c.archived_at IS NULL
+    JOIN campaign_sessions s ON s.campaign_id = c.id AND s.ended_at IS NULL
+    LEFT JOIN campaign_members cm ON cm.campaign_id = c.id AND cm.user_id = ?
+    WHERE ch.public_id = ? AND ch.owner_user_id = ?
+      AND (c.owner_user_id = ? OR cm.user_id = ?)
+    ORDER BY lower(c.name), c.updated_at DESC`)
+    .bind(actor.userId, characterPublicId, actor.userId, actor.userId, actor.userId)
+    .all<ActiveCharacterLiveSessionCampaign>();
+  return result.results.map(({ id, name }) => ({ id, name }));
+}
 
 export async function startLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
   const { campaign } = await loadCampaignAccess(db, actor, publicId);

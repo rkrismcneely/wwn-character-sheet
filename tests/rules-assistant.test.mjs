@@ -25,4 +25,5 @@ test("Rules Assistant is one shared search, result, dismissal, and compact-popov
   assert.match(campaignCss, /rules-assistant-compact \.rules-results\{position:static/u);
   assert.match(campaignCss, /@media\(max-width:640px\).*rules-assistant-panel\{position:fixed/u);
   assert.match(campaignCss, /rules-assistant-panel\{position:fixed;inset:12px 12px auto/u);
+  assert.match(campaignCss, /@media\(min-width:641px\) and \(max-width:900px\)\{\.gm-console-rules-assistant \.rules-assistant-panel\{right:auto;left:0\}\}/u);
 });

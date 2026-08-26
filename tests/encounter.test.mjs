@@ -29,11 +29,12 @@ test("removing the current combatant selects the next surviving turn without cha
 });
 
 test("encounters stay durable, ordered, owner-controlled, and realtime", async () => {
-  const [durable, route, sessionRoute, sessionUi] = await Promise.all([
+  const [durable, route, sessionRoute, sessionUi, sessionClient] = await Promise.all([
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/use-live-session.ts", import.meta.url), "utf8"),
   ]);
   assert.match(durable, /CREATE TABLE IF NOT EXISTS encounters/u);
   assert.match(durable, /encounters_active_idx[\s\S]*?WHERE ended_at IS NULL/u);
@@ -47,7 +48,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(route, /setNpcHp/u);
   assert.match(route, /moveTurn/u);
   assert.match(sessionRoute, /durable\.encounter\(result\.state\.session\.id\)/u);
-  assert.match(sessionUi, /message\.type === "session\.encounter"/u);
+  assert.match(sessionClient, /message\.type === "session\.encounter"/u);
   assert.match(sessionUi, /Start Encounter/u);
   assert.match(sessionUi, /Previous Turn/u);
   assert.match(sessionUi, /Next Turn/u);

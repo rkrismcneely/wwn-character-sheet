@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- portraits can be local blobs or user-uploaded URLs */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
 import { artSlots, casterLimits, classRules, dualCasterLimits, fullClasses, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
 import { backgroundNames, backgrounds } from "./background-data";
@@ -32,6 +32,7 @@ import { rollDice, type DiceRoll } from "./dice";
 import { useDisplayTheme } from "./theme-provider";
 import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice-preference";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "./virtual-dice-overlay";
+import { CharacterLiveSessionPanel } from "./character-live-session-panel";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
 import { TalesBrandLink } from "./app-header";
@@ -988,6 +989,9 @@ export default function Home({
   const [campaignLinks, setCampaignLinks] = useState<CharacterCampaignLink[]>(
     initialCharacter?.campaigns ?? [],
   );
+  const [joinedLiveSessionCampaignId, setJoinedLiveSessionCampaignId] = useState<string | null>(
+    campaignContext && !campaignContext.readOnly ? campaignContext.id : null,
+  );
   const [claimToken, setClaimToken] = useState("");
   const [claimBusy, setClaimBusy] = useState(false);
   const [otherStowedIndex, setOtherStowedIndex] = useState<number | null>(null);
@@ -1017,6 +1021,7 @@ export default function Home({
     initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
   );
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
+  const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1119,9 +1124,10 @@ export default function Home({
     if (shouldAnimate && virtualDiceBusyRef.current) return;
 
     let preparedSharedRoll: RollResult | null = null;
-    if (campaignContext && !campaignContext.readOnly && cloudId && isSharedRollCategory(request.category)) {
+    const liveRollCampaignId = campaignContext && !campaignContext.readOnly ? campaignContext.id : joinedLiveSessionCampaignId;
+    if (liveRollCampaignId && cloudId && isSharedRollCategory(request.category)) {
       try {
-        const response = await fetch(`/api/campaigns/${campaignContext.id}/session/rolls`, {
+        const response = await fetch(`/api/campaigns/${liveRollCampaignId}/session/rolls`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ action: "prepare", characterId: cloudId, request }),
@@ -1180,8 +1186,8 @@ export default function Home({
       setDiceAnnouncement(announceRoll(result));
       setDiceAnnouncementKey(current => current + 1);
       setDiceError(animationFailed ? "Animated dice were unavailable; the roll was completed normally." : "");
-      if (preparedSharedRoll && campaignContext && cloudId) {
-        void fetch(`/api/campaigns/${campaignContext.id}/session/rolls`, {
+      if (preparedSharedRoll && liveRollCampaignId && cloudId) {
+        void fetch(`/api/campaigns/${liveRollCampaignId}/session/rolls`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ action: "publish", characterId: cloudId, rollId: preparedSharedRoll.id }),
@@ -2980,6 +2986,7 @@ export default function Home({
             </div>
             <div className="hero-roll-row" data-readonly-interactive="true">
               <div className="hero-latest-roll"><RollResultTray result={latestRoll} /></div>
+              {cloudId && canEdit && !cloudArchivedAt && <CharacterLiveSessionPanel characterId={cloudId} campaignLinks={campaignLinks} campaignContextId={campaignContext?.id} onJoinedSessionChange={updateJoinedLiveSessionCampaign} />}
               <div className="hero-roll-history-control">
                 <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>
                 {rollHistoryOpen && <div className="roll-history-popout" id="roll-history-popout"><RollHistoryPanel history={rollHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} onClear={clearLocalRollHistory} /></div>}

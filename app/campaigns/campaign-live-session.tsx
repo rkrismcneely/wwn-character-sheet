@@ -2,29 +2,21 @@
 
 import type { FormEvent } from "react";
 import type { CampaignLiveSessionState, CampaignNpcCombatStats, CampaignSharedRoll } from "@/lib/campaigns/live-session";
+import { collapsedNpcCombatSummary } from "@/lib/campaigns/encounter";
 import { useCampaignLiveSession } from "./use-live-session";
 
 function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
-export function collapsedNpcCombatSummary(stats: CampaignNpcCombatStats) {
-  const primaryAttack = stats.attacks[0];
-  return {
-    saves: `P ${stats.saves.physical} · E ${stats.saves.evasion} · M ${stats.saves.mental}`,
-    primaryAttack: primaryAttack ? `${primaryAttack.name} ${signed(primaryAttack.attackBonus)} · ${primaryAttack.damage}` : null,
-    additionalAttacks: Math.max(0, stats.attacks.length - 1),
-    shock: stats.sourceStats?.shock && stats.sourceStats.shock !== "None" ? stats.sourceStats.shock : null,
-    move: stats.sourceStats?.move ?? null,
-    morale: stats.sourceStats?.morale ?? null,
-  };
-}
 function NpcCombatDetails({ stats }: { stats: CampaignNpcCombatStats }) { return <details className="campaign-encounter-npc-details"><summary>Combat details</summary><div className="campaign-encounter-npc-details-body"><section><h4>Saves</h4><p>Physical {signed(stats.saves.physical)} · Evasion {signed(stats.saves.evasion)} · Mental {signed(stats.saves.mental)}</p></section><section><h4>Attacks</h4><ul>{stats.attacks.map(attack => <li key={`${attack.name}-${attack.attackBonus}-${attack.damage}`}><strong>{attack.name}</strong> {signed(attack.attackBonus)} · {attack.damage}{attack.description ? ` — ${attack.description}` : ""}</li>)}</ul></section>{stats.sourceStats && <section><h4>Creature stats</h4><p>HD {stats.sourceStats.hitDice} · Shock {stats.sourceStats.shock} · Move {stats.sourceStats.move} · Morale {stats.sourceStats.morale} · Instinct {stats.sourceStats.instinct} · Skill {stats.sourceStats.skill}</p></section>}{stats.notes && <section><h4>Notes</h4><p>{stats.notes}</p></section>}</div></details>; }
-function NpcCombatStrip({ stats }: { stats: CampaignNpcCombatStats }) {
+function NpcCombatStrip({ stats }: { stats: CampaignNpcCombatStats | undefined }) {
   const summary = collapsedNpcCombatSummary(stats);
-  return <div className="campaign-encounter-npc-combat" aria-label="NPC combat summary">
+  return <div className={`campaign-encounter-npc-combat${summary ? "" : " campaign-encounter-npc-combat-empty"}`} aria-label={summary ? "NPC combat summary" : undefined} aria-hidden={summary ? undefined : true}>
+    {summary && <>
     <span className="campaign-encounter-stat"><small>Saves</small><b>{summary.saves}</b></span>
     {summary.primaryAttack && <span className="campaign-encounter-stat campaign-encounter-attack"><small>Attack</small><b>{summary.primaryAttack}{summary.additionalAttacks ? ` +${summary.additionalAttacks} more` : ""}</b></span>}
     {summary.shock && <span className="campaign-encounter-stat"><small>Shock</small><b>{summary.shock}</b></span>}
     {summary.move && <span className="campaign-encounter-stat campaign-encounter-secondary"><small>Move</small><b>{summary.move}</b></span>}
     {summary.morale !== null && <span className="campaign-encounter-stat campaign-encounter-secondary"><small>Morale</small><b>{summary.morale}</b></span>}
+    </>}
   </div>;
 }
 
@@ -91,7 +83,7 @@ export function EncounterTracker({ campaignId, session, canManage, busy, onActio
       return <li key={combatant.id} className={current ? "campaign-encounter-current" : undefined}>
         <span className="campaign-turn-marker" aria-label={current ? "Current turn" : undefined}>{current ? "→" : ""}</span>
         <div className="campaign-encounter-name">{character ? <a href={`/campaigns/${campaignId}/characters/${character.id}`}>{name}</a> : <strong>{name}</strong>}<small>{combatant.kind === "pc" ? "Player character" : "Temporary NPC"}</small></div>
-        {canManage && combatant.kind === "npc" && combatant.combatStats && <NpcCombatStrip stats={combatant.combatStats} />}
+        {combatant.kind === "npc" && <NpcCombatStrip stats={canManage ? combatant.combatStats : undefined} />}
         <label><span>Init</span>{canManage ? <input type="number" key={`${combatant.id}-${combatant.initiative}`} defaultValue={combatant.initiative} min={-1000} max={1000} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.initiative) void onAction({ action: "initiative", combatantId: combatant.id, initiative: value }); }} /> : <b>{combatant.initiative}</b>}</label>
         <label className="campaign-encounter-hp"><span>HP</span>{canManage && combatant.kind === "npc" ? <span className="campaign-encounter-hp-control"><input type="number" key={`${combatant.id}-${combatant.hpCurrent}`} defaultValue={combatant.hpCurrent} min={0} max={combatant.hpMax ?? 100000} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.hpCurrent) void onAction({ action: "npc_hp", combatantId: combatant.id, hpCurrent: value }); }} /><b>/ {combatant.hpMax ?? "—"}</b></span> : <b>{hpCurrent === undefined ? "—" : hpMax === undefined ? `${hpCurrent} HP` : `${hpCurrent} / ${hpMax} HP`}</b>}</label>
         <span className="campaign-encounter-ac"><small>AC</small><b>{armorClass ?? "—"}</b></span>

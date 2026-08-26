@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
+import { collapsedNpcCombatSummary, encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
 import { memberEncounterProjection } from "../lib/campaigns/live-session.ts";
 
 const encounter = {
@@ -39,6 +39,25 @@ test("member encounter projections redact GM-only NPC details", () => {
   assert.equal(Object.hasOwn(npc, "notes"), false);
 });
 
+test("combat summary presentation supports rich, custom, sparse, and legacy NPC snapshots", () => {
+  const rich = collapsedNpcCombatSummary({
+    saves: { physical: 12, evasion: 13, mental: 14 },
+    attacks: [{ name: "Bite", attackBonus: 4, damage: "1d8", description: "" }, { name: "Claw", attackBonus: 3, damage: "1d6", description: "" }],
+    notes: "",
+    sourceStats: { hitDice: 3, shock: "2/13", move: "40'", morale: 8, instinct: 5, skill: 1 },
+  });
+  assert.deepEqual(rich, { saves: "P 12 · E 13 · M 14", primaryAttack: "Bite +4 · 1d8", additionalAttacks: 1, shock: "2/13", move: "40'", morale: 8 });
+
+  const custom = collapsedNpcCombatSummary({
+    saves: { physical: 15, evasion: 14, mental: 13 },
+    attacks: [{ name: "Spear", attackBonus: 2, damage: "1d6", description: "" }],
+    notes: "Campaign guard",
+  });
+  assert.deepEqual(custom, { saves: "P 15 · E 14 · M 13", primaryAttack: "Spear +2 · 1d6", additionalAttacks: 0, shock: null, move: null, morale: null });
+
+  assert.equal(collapsedNpcCombatSummary(undefined), null);
+});
+
 test("encounters stay durable, ordered, owner-controlled, and realtime", async () => {
   const [durable, route, sessionRoute, sessionUi, sessionClient] = await Promise.all([
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
@@ -66,6 +85,8 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /Live Rolls/u);
   assert.match(sessionUi, /collapsedNpcCombatSummary/u);
   assert.match(sessionUi, /campaign-encounter-npc-combat/u);
+  assert.match(sessionUi, /campaign-encounter-npc-combat-empty/u);
+  assert.match(sessionUi, /combatant\.kind === "npc" && <NpcCombatStrip stats=\{canManage \? combatant\.combatStats : undefined\}/u);
   assert.match(sessionUi, /additionalAttacks/u);
   assert.match(sessionUi, /campaign-encounter-hp-control/u);
 });

@@ -7,8 +7,9 @@ import { EncounterTracker, PartyMember, SharedRoll } from "./campaign-live-sessi
 import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
+import { searchBuiltInBestiaryCreatures, type BuiltInBestiaryCreature } from "@/lib/campaigns/bestiary";
 
-type ConsoleTab = "encounter" | "npcs" | "rolls" | "party";
+type ConsoleTab = "encounter" | "bestiary" | "npcs" | "rolls" | "party";
 
 type NpcDraft = {
   name: string; hpMax: number; armorClass: number;
@@ -18,6 +19,39 @@ type NpcDraft = {
 
 const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [], notes: "" });
 const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks, notes: npc.notes });
+
+function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
+  return <>
+    <p>HP {creature.hpMax} · AC {creature.armorClass} · Saves P {creature.physicalSave} / E {creature.evasionSave} / M {creature.mentalSave}</p>
+    <details className="gm-bestiary-details"><summary>Inspect stat block</summary><ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul><small>{creature.notes}</small></details>
+  </>;
+}
+
+function BuiltInBestiary({ activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState("");
+  const creatures = searchBuiltInBestiaryCreatures(query);
+
+  async function addToEncounter(bestiaryId: string) {
+    setError("");
+    try { await onAddToEncounter(bestiaryId); }
+    catch (actionError) { setError(actionError instanceof Error ? actionError.message : "The built-in creature could not be added to the encounter."); }
+  }
+
+  async function saveAsNpc(bestiaryId: string) {
+    setError("");
+    try { await onSaveAsNpc(bestiaryId); }
+    catch (actionError) { setError(actionError instanceof Error ? actionError.message : "The campaign NPC template could not be created."); }
+  }
+
+  return <section className="gm-console-section" aria-labelledby="gm-bestiary-title">
+    <div className="campaign-section-heading"><div><p className="campaign-kicker">CC0 SRD LIBRARY</p><h2 id="gm-bestiary-title">Built-In Bestiary</h2><p className="campaign-empty-copy">Immutable SRD stat lines. Adding or saving one always creates an independent campaign copy.</p></div></div>
+    <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by creature name" /></label>
+    {error && <p className="campaign-error" role="status">{error}</p>}
+    {!creatures.length && <p className="campaign-empty-copy">No built-in creatures match “{query}”.</p>}
+    <div className="gm-bestiary-grid">{creatures.map(creature => <article key={creature.id} className="gm-npc-card gm-bestiary-card"><div><h3>{creature.name}</h3><BestiaryStatBlock creature={creature} /></div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void addToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void saveAsNpc(creature.id)}>Save as My NPC</button></div></article>)}</div>
+  </section>;
+}
 
 function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaignId: string; activeEncounter: boolean; onAddToEncounter: (npcId: string) => Promise<void> }) {
   const [npcs, setNpcs] = useState<CampaignNpcTemplate[]>([]);
@@ -112,5 +146,15 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     finally { setBusy(false); }
   }
 
-  return <main className="campaign-shell gm-console-shell"><SignedInHeader active="campaigns" /><section className="campaign-hero gm-console-hero"><div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div><div className="campaign-hero-actions"><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div></section>{error && <div className="campaign-error" role="status">{error}</div>}<nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "npcs", "rolls", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "npcs" ? "NPCs" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav><section className="campaign-panel gm-console-panel">{tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Start a session to run encounters and follow party activity here.</p><button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("start").catch(() => {})}>Start Session</button></section>}{session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}{session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} canManage={true} busy={busy} onAction={encounterAction} />}{tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}{tab === "rolls" && (session && state.permissions.joined ? <section className="campaign-live-rolls gm-console-section"><h2>Live Rolls</h2>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section> : <p className="campaign-empty-copy">Start a session to follow shared rolls.</p>)}{tab === "party" && (session && state.permissions.joined ? <section className="campaign-live-party gm-console-section"><h2>Party</h2><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section> : <p className="campaign-empty-copy">Start a session to view party presence.</p>)}</section></main>;
+  async function saveBestiaryNpc(bestiaryId: string) {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/npcs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_from_bestiary", bestiaryId }) });
+      const result = await response.json() as { npc?: CampaignNpcTemplate; error?: string };
+      if (!response.ok || !result.npc) throw new Error(result.error || "The campaign NPC template could not be created.");
+    } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "The campaign NPC template could not be created."); throw actionError; }
+    finally { setBusy(false); }
+  }
+
+  return <main className="campaign-shell gm-console-shell"><SignedInHeader active="campaigns" /><section className="campaign-hero gm-console-hero"><div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div><div className="campaign-hero-actions"><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div></section>{error && <div className="campaign-error" role="status">{error}</div>}<nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "rolls", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav><section className="campaign-panel gm-console-panel">{tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Start a session to run encounters and follow party activity here.</p><button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("start").catch(() => {})}>Start Session</button></section>}{session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}{session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} canManage={true} busy={busy} onAction={encounterAction} />}{tab === "bestiary" && <BuiltInBestiary activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}{tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}{tab === "rolls" && (session && state.permissions.joined ? <section className="campaign-live-rolls gm-console-section"><h2>Live Rolls</h2>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section> : <p className="campaign-empty-copy">Start a session to follow shared rolls.</p>)}{tab === "party" && (session && state.permissions.joined ? <section className="campaign-live-party gm-console-section"><h2>Party</h2><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section> : <p className="campaign-empty-copy">Start a session to view party presence.</p>)}</section></main>;
 }

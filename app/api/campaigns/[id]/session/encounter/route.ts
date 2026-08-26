@@ -3,6 +3,7 @@ import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
+import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
@@ -59,6 +60,10 @@ export async function POST(request: Request, context: Context): Promise<Response
         });
       } else if (body.action === "add_saved_npc") {
         const seed = await campaignNpcEncounterSeed(db, authorization.campaignId, boundedText(body.npcId, "NPC template", 100));
+        encounter = await durable.addNpc(authorization.sessionId, seed);
+      } else if (body.action === "add_bestiary_npc") {
+        const seed = builtInBestiaryEncounterSeed(boundedText(body.bestiaryId, "Built-in creature", 100));
+        if (!seed) throw new CampaignServiceError("Built-in creature not found.", 404);
         encounter = await durable.addNpc(authorization.sessionId, seed);
       } else if (body.action === "initiative") {
         encounter = await durable.setInitiative(authorization.sessionId, combatantId(body.combatantId), integer(body.initiative, "Initiative", -1000, 1000));

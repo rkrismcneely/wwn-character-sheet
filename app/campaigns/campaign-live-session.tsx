@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 import type { CampaignLiveSessionState, CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useCampaignLiveSession } from "./use-live-session";
 

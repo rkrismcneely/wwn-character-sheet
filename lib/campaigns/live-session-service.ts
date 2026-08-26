@@ -61,7 +61,7 @@ function characterStatus(row: ParticipantRow): CampaignLiveSessionCharacter | nu
 
 async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiveSession> {
   const participants = await sessionParticipants(db, session.id, session.campaignId);
-  return { id: session.id, startedAt: session.startedAt, recentRolls: [], participants: await Promise.all(participants.map(async participant => ({
+  return { id: session.id, startedAt: session.startedAt, recentRolls: [], encounter: null, participants: await Promise.all(participants.map(async participant => ({
     participantKey: await participantKey(session.id, participant.userId),
     name: effectiveDisplayName(participant.customDisplayName, participant.providerName),
     characterName: participant.characterName ?? null,
@@ -87,6 +87,7 @@ async function stateFor(db: D1Database, actor: CampaignActor, publicId: string):
     canStart: active && isOwner(actor, campaign.ownerUserId),
     canJoin: active && Boolean(session) && participant && !joined,
     canEnd: active && Boolean(session) && isOwner(actor, campaign.ownerUserId),
+    canManageEncounter: active && Boolean(session) && joined && isOwner(actor, campaign.ownerUserId),
     joined,
     adminReadOnly: actor.role === "admin" && !isOwner(actor, campaign.ownerUserId),
   } } };
@@ -138,6 +139,38 @@ export async function authorizeLiveSessionConnection(db: D1Database, actor: Camp
   const joined = await db.prepare("SELECT 1 AS joined FROM campaign_session_participants WHERE session_id = ? AND user_id = ?").bind(session.id, actor.userId).first<{ joined: number }>();
   if (!joined) throw new CampaignServiceError("Join the live session before connecting.", 409);
   return { campaignId: campaign.id, sessionId: session.id, participantKey: await participantKey(session.id, actor.userId) };
+}
+
+export async function authorizeEncounterManagement(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+): Promise<{ campaignId: string; sessionId: string }> {
+  const { campaign } = await loadCampaignAccess(db, actor, publicId);
+  requireActiveCampaign(campaign);
+  requireOwner(actor, campaign.ownerUserId);
+  const session = await activeSession(db, campaign.id);
+  if (!session) throw new CampaignServiceError("There is no active live session.", 409);
+  const joined = await db.prepare("SELECT 1 AS joined FROM campaign_session_participants WHERE session_id = ? AND user_id = ?")
+    .bind(session.id, actor.userId).first<{ joined: number }>();
+  if (!joined) throw new CampaignServiceError("Join the live session before managing an encounter.", 409);
+  return { campaignId: campaign.id, sessionId: session.id };
+}
+
+export async function authorizeEncounterCharacter(
+  db: D1Database,
+  campaignId: string,
+  sessionId: string,
+  characterPublicId: string,
+): Promise<{ id: string }> {
+  const character = await db.prepare(`SELECT ch.public_id AS id
+    FROM campaign_characters cc
+    JOIN characters ch ON ch.id = cc.character_id
+    JOIN campaign_session_participants p ON p.session_id = ? AND p.user_id = ch.owner_user_id
+    WHERE cc.campaign_id = ? AND ch.public_id = ?`)
+    .bind(sessionId, campaignId, characterPublicId).first<{ id: string }>();
+  if (!character) throw new CampaignServiceError("Only a linked session participant can join the encounter.", 422);
+  return character;
 }
 
 export async function authorizeLiveSessionRoll(

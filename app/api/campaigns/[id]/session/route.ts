@@ -23,9 +23,11 @@ export async function GET(request: Request, context: Context): Promise<Response>
     const result = await readLiveSessionContext(await getCampaignD1(), actor, id);
     if (result.state.session && result.state.permissions.joined) {
       try {
-        result.state.session.recentRolls = await env.CAMPAIGN_LIVE_SESSION
-          .getByName(sessionObjectName(result.campaignId))
-          .recentRolls(result.state.session.id);
+        const durable = env.CAMPAIGN_LIVE_SESSION.getByName(sessionObjectName(result.campaignId));
+        [result.state.session.recentRolls, result.state.session.encounter] = await Promise.all([
+          durable.recentRolls(result.state.session.id),
+          durable.encounter(result.state.session.id),
+        ]);
       } catch (error) { console.error("Live session roll feed could not be loaded", error); }
     }
     return Response.json({ liveSession: result.state });

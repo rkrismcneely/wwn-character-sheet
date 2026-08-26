@@ -22,6 +22,34 @@ export interface CampaignLiveSession {
   startedAt: string;
   participants: CampaignLiveSessionParticipant[];
   recentRolls: CampaignSharedRoll[];
+  encounter: CampaignEncounter | null;
+}
+
+export interface CampaignEncounterPc {
+  id: string;
+  kind: "pc";
+  characterId: string;
+  initiative: number;
+}
+
+export interface CampaignEncounterNpc {
+  id: string;
+  kind: "npc";
+  name: string;
+  initiative: number;
+  hpCurrent: number;
+  hpMax: number;
+  armorClass: number;
+  notes: string;
+}
+
+export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;
+
+export interface CampaignEncounter {
+  id: string;
+  round: number;
+  currentCombatantId: string | null;
+  combatants: CampaignEncounterCombatant[];
 }
 
 export interface CampaignSharedRoll {
@@ -44,6 +72,7 @@ export interface CampaignLiveSessionState {
     canStart: boolean;
     canJoin: boolean;
     canEnd: boolean;
+    canManageEncounter: boolean;
     joined: boolean;
     adminReadOnly: boolean;
   };
@@ -54,4 +83,5 @@ export type CampaignLiveSessionEvent =
   | { type: "session.participants-changed"; sessionId: string }
   | { type: "session.character-status"; sessionId: string; participantKey: string; character: CampaignLiveSessionCharacter }
   | { type: "session.roll"; sessionId: string; roll: CampaignSharedRoll }
+  | { type: "session.encounter"; sessionId: string; encounter: CampaignEncounter | null }
   | { type: "session.ended"; sessionId: string };

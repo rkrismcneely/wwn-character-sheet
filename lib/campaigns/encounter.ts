@@ -1,4 +1,23 @@
-import type { CampaignEncounter } from "./live-session.ts";
+import type { CampaignEncounter, CampaignNpcCombatStats } from "./live-session.ts";
+
+function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
+
+/**
+ * Builds the compact encounter-row presentation from the combatant snapshot.
+ * A missing snapshot is intentional for legacy and manually-created NPCs.
+ */
+export function collapsedNpcCombatSummary(stats: CampaignNpcCombatStats | undefined) {
+  if (!stats) return null;
+  const primaryAttack = stats.attacks[0];
+  return {
+    saves: `P ${stats.saves.physical} · E ${stats.saves.evasion} · M ${stats.saves.mental}`,
+    primaryAttack: primaryAttack ? `${primaryAttack.name} ${signed(primaryAttack.attackBonus)} · ${primaryAttack.damage}` : null,
+    additionalAttacks: Math.max(0, stats.attacks.length - 1),
+    shock: stats.sourceStats?.shock && stats.sourceStats.shock !== "None" ? stats.sourceStats.shock : null,
+    move: stats.sourceStats?.move ?? null,
+    morale: stats.sourceStats?.morale ?? null,
+  };
+}
 
 export function encounterTurnTransition(
   encounter: CampaignEncounter,

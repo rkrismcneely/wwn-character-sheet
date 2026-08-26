@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { CampaignEncounter, CampaignLiveSessionState, CampaignSharedRoll } from "@/lib/campaigns/live-session";
+import type { CampaignLiveSessionState, CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useCampaignLiveSession } from "./use-live-session";
 
 function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
 
-function SharedRoll({ roll }: { roll: CampaignSharedRoll }) {
+export function SharedRoll({ roll }: { roll: CampaignSharedRoll }) {
   const modifiers = roll.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" · ");
   return <li>
     <div><strong>{roll.character.name} — {roll.label}</strong><span>{roll.dice.count}d{roll.dice.sides} [{roll.dice.results.join(", ")}]{modifiers ? ` · ${modifiers}` : ""}</span></div>
@@ -14,7 +14,7 @@ function SharedRoll({ roll }: { roll: CampaignSharedRoll }) {
   </li>;
 }
 
-function PartyMember({ campaignId, participant }: { campaignId: string; participant: NonNullable<CampaignLiveSessionState["session"]>["participants"][number] }) {
+export function PartyMember({ campaignId, participant }: { campaignId: string; participant: NonNullable<CampaignLiveSessionState["session"]>["participants"][number] }) {
   const character = participant.character;
   return <li>
     <span className={participant.connected ? "campaign-session-connected" : "campaign-session-away"} aria-label={participant.connected ? "Connected" : "Offline"} />
@@ -26,7 +26,7 @@ function PartyMember({ campaignId, participant }: { campaignId: string; particip
   </li>;
 }
 
-function EncounterTracker({ campaignId, session, canManage, busy, onAction }: {
+export function EncounterTracker({ campaignId, session, canManage, busy, onAction }: {
   campaignId: string;
   session: NonNullable<CampaignLiveSessionState["session"]>;
   canManage: boolean;
@@ -80,24 +80,13 @@ function EncounterTracker({ campaignId, session, canManage, busy, onAction }: {
 }
 
 export function CampaignLiveSession({ campaignId }: { campaignId: string }) {
-  const { state, setState, error, setError, busy, setBusy, action } = useCampaignLiveSession(campaignId);
-
-  async function encounterAction(body: Record<string, unknown>) {
-    setBusy(true); setError("");
-    try {
-      const response = await fetch(`/api/campaigns/${campaignId}/session/encounter`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      const result = await response.json() as { encounter?: CampaignEncounter | null; error?: string };
-      if (!response.ok || !("encounter" in result)) throw new Error(result.error || "The encounter could not be updated.");
-      setState(current => current.session ? { ...current, session: { ...current.session, encounter: result.encounter ?? null } } : current);
-    } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "The encounter could not be updated."); }
-    finally { setBusy(false); }
-  }
+  const { state, error, busy, action } = useCampaignLiveSession(campaignId);
 
   const session = state.session;
   return <section className="campaign-panel campaign-live-session" aria-labelledby="campaign-live-session-title">
     <div className="campaign-section-heading"><div><p className="campaign-kicker">TABLE SESSION</p><h2 id="campaign-live-session-title">Live Session</h2></div>{session ? <span className="campaign-session-status">Session Active</span> : null}</div>
     {error && <p className="campaign-error campaign-session-error" role="status">{error}</p>}
-    {!session && <div className="campaign-session-empty"><p>No session is active.</p>{state.permissions.canStart && <button type="button" className="campaign-primary" onClick={() => void action("start").catch(() => {})} disabled={busy}>Start Session</button>}</div>}
-    {session && <><div className="campaign-session-actions">{state.permissions.canJoin && <button type="button" className="campaign-secondary" onClick={() => void action("join").catch(() => {})} disabled={busy}>Join Session</button>}{state.permissions.canEnd && <button type="button" className="campaign-danger" onClick={() => void action("end").catch(() => {})} disabled={busy}>End Session</button>}</div>{state.permissions.joined && <EncounterTracker campaignId={campaignId} session={session} canManage={state.permissions.canManageEncounter} busy={busy} onAction={encounterAction} />}<section className="campaign-live-party" aria-labelledby="campaign-live-party-title"><h3 id="campaign-live-party-title">Party</h3><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section>{state.permissions.joined && <section className="campaign-live-rolls" aria-labelledby="campaign-live-rolls-title"><h3 id="campaign-live-rolls-title">Live Rolls</h3>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section>}</>}
+    {!session && <div className="campaign-session-empty"><p>No session is active.</p></div>}
+    {session && <><div className="campaign-session-actions">{state.permissions.canJoin && <button type="button" className="campaign-secondary" onClick={() => void action("join").catch(() => {})} disabled={busy}>Join Session</button>}</div><section className="campaign-live-party" aria-labelledby="campaign-live-party-title"><h3 id="campaign-live-party-title">Party</h3><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section>{state.permissions.joined && <section className="campaign-live-rolls" aria-labelledby="campaign-live-rolls-title"><h3 id="campaign-live-rolls-title">Live Rolls</h3>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section>}</>}
   </section>;
 }

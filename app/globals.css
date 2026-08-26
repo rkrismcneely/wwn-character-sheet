@@ -1907,6 +1907,12 @@ html[data-theme="dark"] .campaign-management{
   box-shadow:0 10px 30px #0007;
   color:#f0dfbd;
 }
+html[data-theme="dark"] .gm-console-tabs button{color:#c8b793}
+html[data-theme="dark"] .gm-console-tabs button.active{background:#181815;border-color:#665431;color:#f1d59f}
+html[data-theme="dark"] .gm-npc-form,html[data-theme="dark"] .gm-npc-card{background:#211f19;border-color:#665431}
+html[data-theme="dark"] .gm-npc-attacks{border-color:#665431}
+html[data-theme="dark"] .gm-npc-form input,html[data-theme="dark"] .gm-npc-form textarea{background:#181815;border-color:#665a42;color:#f0dfbd}
+html[data-theme="dark"] .gm-npc-card p,html[data-theme="dark"] .gm-npc-card small,html[data-theme="dark"] .gm-console-panel .campaign-live-rolls span{color:#b9a98d}
 html[data-theme="dark"] .account-section-heading,
 html[data-theme="dark"] .dashboard-section-heading,
 html[data-theme="dark"] .campaign-section-heading{

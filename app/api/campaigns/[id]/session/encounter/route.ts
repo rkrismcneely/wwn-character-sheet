@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
+import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
@@ -56,6 +57,9 @@ export async function POST(request: Request, context: Context): Promise<Response
           armorClass: integer(body.armorClass, "Armor Class", 0, 1000),
           notes: optionalText(body.notes, "Notes", 240),
         });
+      } else if (body.action === "add_saved_npc") {
+        const seed = await campaignNpcEncounterSeed(db, authorization.campaignId, boundedText(body.npcId, "NPC template", 100));
+        encounter = await durable.addNpc(authorization.sessionId, seed);
       } else if (body.action === "initiative") {
         encounter = await durable.setInitiative(authorization.sessionId, combatantId(body.combatantId), integer(body.initiative, "Initiative", -1000, 1000));
       } else if (body.action === "npc_hp") {

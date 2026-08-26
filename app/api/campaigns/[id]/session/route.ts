@@ -4,6 +4,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { endLiveSession, joinLiveSession, readLiveSessionContext, startLiveSession } from "@/lib/campaigns/live-session-service";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
+import { memberEncounterProjection } from "@/lib/campaigns/live-session";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -24,10 +25,12 @@ export async function GET(request: Request, context: Context): Promise<Response>
     if (result.state.session && result.state.permissions.joined) {
       try {
         const durable = env.CAMPAIGN_LIVE_SESSION.getByName(sessionObjectName(result.campaignId));
-        [result.state.session.recentRolls, result.state.session.encounter] = await Promise.all([
+        const [recentRolls, encounter] = await Promise.all([
           durable.recentRolls(result.state.session.id),
           durable.encounter(result.state.session.id),
         ]);
+        result.state.session.recentRolls = recentRolls;
+        result.state.session.encounter = result.state.permissions.canManageEncounter ? encounter : memberEncounterProjection(encounter);
       } catch (error) { console.error("Live session roll feed could not be loaded", error); }
     }
     return Response.json({ liveSession: result.state });

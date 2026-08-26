@@ -219,7 +219,7 @@ export function CampaignDashboard() {
       <p>Updated <time dateTime={campaign.updatedAt}>{formatCampaignDate(campaign.updatedAt)}</time></p>
       <div className="campaign-card-actions">
         <Link href={`/campaigns/${campaign.id}`} className="campaign-open">Open campaign <span aria-hidden="true">→</span></Link>
-        {campaign.permissions.canArchive && <button type="button" className="campaign-quiet" onClick={() => void setCampaignArchived(campaign, true)} disabled={lifecycleBusy === campaign.id}>Archive</button>}
+        {campaign.permissions.canArchive && <details className="campaign-secondary-actions"><summary>More actions</summary><div><button type="button" className="campaign-quiet" onClick={() => void setCampaignArchived(campaign, true)} disabled={lifecycleBusy === campaign.id}>Archive campaign</button></div></details>}
         {campaign.permissions.canRestore && <button type="button" className="campaign-secondary" onClick={() => void setCampaignArchived(campaign, false)} disabled={lifecycleBusy === campaign.id}>Restore</button>}
       </div>
     </article>;

@@ -28,11 +28,18 @@ import {
 import {
   campaignNpcEncounterSeed,
   createCampaignNpcTemplate,
+  createCampaignNpcTemplateFromBestiary,
   deleteCampaignNpcTemplate,
   duplicateCampaignNpcTemplate,
   listCampaignNpcTemplates,
   updateCampaignNpcTemplate,
 } from "../lib/campaigns/npcs.ts";
+import {
+  builtInBestiaryCreatureDraft,
+  builtInBestiaryEncounterSeed,
+  getBuiltInBestiaryCreature,
+  searchBuiltInBestiaryCreatures,
+} from "../lib/campaigns/bestiary.ts";
 import {
   authorizeLiveSessionConnection,
   authorizeLiveSessionRoll,
@@ -265,6 +272,44 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   await expectServiceError(campaignNpcEncounterSeed(db, internalCampaign(sqlite, otherCampaign.id).id, npc.id), 404);
   await deleteCampaignNpcTemplate(db, owner, campaign.id, duplicate.id);
   assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id)).length, 1);
+});
+
+test("CC0 built-in bestiary definitions search and create independent campaign and encounter copies", async () => {
+  const apex = getBuiltInBestiaryCreature("apex-predator");
+  assert.ok(apex);
+  assert.equal(apex.name, "Apex Predator");
+  assert.equal(apex.armorClass, 13);
+  assert.equal(apex.attacks[0].damage, "1d8");
+  assert.equal(Object.isFrozen(apex), true);
+  assert.equal(Object.isFrozen(apex.attacks), true);
+  assert.deepEqual(searchBuiltInBestiaryCreatures("apex").map(creature => creature.id), ["apex-predator"]);
+  assert.ok(searchBuiltInBestiaryCreatures("").length >= 16);
+  assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
+  const firstDraft = builtInBestiaryCreatureDraft("apex-predator");
+  const secondDraft = builtInBestiaryCreatureDraft("apex-predator");
+  assert.ok(firstDraft && secondDraft);
+  firstDraft.hpMax = 1;
+  firstDraft.attacks[0].damage = "0";
+  assert.equal(secondDraft.hpMax, apex.hpMax);
+  assert.equal(secondDraft.attacks[0].damage, apex.attacks[0].damage);
+  const firstEncounter = builtInBestiaryEncounterSeed("apex-predator");
+  const secondEncounter = builtInBestiaryEncounterSeed("apex-predator");
+  assert.ok(firstEncounter && secondEncounter);
+  firstEncounter.hpCurrent = 1;
+  assert.equal(secondEncounter.hpCurrent, apex.hpMax);
+  assert.equal(apex.hpMax, 27);
+
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Bestiary Company" }, now);
+  await addMember(sqlite, campaign.id, player);
+  await expectServiceError(createCampaignNpcTemplateFromBestiary(db, player, campaign.id, "apex-predator"), 403);
+  const template = await createCampaignNpcTemplateFromBestiary(db, owner, campaign.id, "apex-predator", now);
+  assert.equal(template.name, apex.name);
+  const edited = await updateCampaignNpcTemplate(db, owner, campaign.id, template.id, { ...template, hpMax: 7, notes: "Campaign-owned copy" }, now);
+  assert.equal(edited.hpMax, 7);
+  assert.equal(getBuiltInBestiaryCreature("apex-predator")?.hpMax, 27);
+  assert.equal(builtInBestiaryCreatureDraft("missing-creature"), null);
+  assert.equal(builtInBestiaryEncounterSeed("missing-creature"), null);
 });
 
 test("live-session transport keeps authentication in the Worker and uses hibernating Durable Object presence", async () => {

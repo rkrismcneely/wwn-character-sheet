@@ -1,5 +1,6 @@
 import { loadCampaignAccess, CampaignServiceError, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
+import { builtInBestiaryCreatureDraft } from "./bestiary.ts";
 
 export interface CampaignNpcAttack {
   name: string;
@@ -133,6 +134,12 @@ export async function createCampaignNpcTemplate(db: D1Database, actor: CampaignA
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, campaign.id, value.name, value.hpMax, value.armorClass, value.physicalSave, value.evasionSave, value.mentalSave, JSON.stringify(value.attacks), value.notes, now, now).run();
   return { id, ...value, createdAt: now, updatedAt: now };
+}
+
+export async function createCampaignNpcTemplateFromBestiary(db: D1Database, actor: CampaignActor, campaignPublicId: string, bestiaryId: string, now = new Date().toISOString()): Promise<CampaignNpcTemplate> {
+  const draft = builtInBestiaryCreatureDraft(bestiaryId);
+  if (!draft) throw new CampaignServiceError("Built-in creature not found.", 404);
+  return createCampaignNpcTemplate(db, actor, campaignPublicId, draft, now);
 }
 
 export async function updateCampaignNpcTemplate(db: D1Database, actor: CampaignActor, campaignPublicId: string, npcId: string, draft: CampaignNpcDraft, now = new Date().toISOString()): Promise<CampaignNpcTemplate> {

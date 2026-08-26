@@ -3,16 +3,28 @@
 import type { FormEvent } from "react";
 import type { CampaignLiveSessionState, CampaignNpcCombatStats, CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { collapsedNpcCombatSummary } from "@/lib/campaigns/encounter";
+import { parseDamageExpression } from "@/app/rolls";
 import { useCampaignLiveSession } from "./use-live-session";
 
 function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
-function NpcCombatDetails({ stats }: { stats: CampaignNpcCombatStats }) { return <details className="campaign-encounter-npc-details"><summary>Combat details</summary><div className="campaign-encounter-npc-details-body"><section><h4>Saves</h4><p>Physical {signed(stats.saves.physical)} · Evasion {signed(stats.saves.evasion)} · Mental {signed(stats.saves.mental)}</p></section><section><h4>Attacks</h4><ul>{stats.attacks.map(attack => <li key={`${attack.name}-${attack.attackBonus}-${attack.damage}`}><strong>{attack.name}</strong> {signed(attack.attackBonus)} · {attack.damage}{attack.description ? ` — ${attack.description}` : ""}</li>)}</ul></section>{stats.sourceStats && <section><h4>Creature stats</h4><p>HD {stats.sourceStats.hitDice} · Shock {stats.sourceStats.shock} · Move {stats.sourceStats.move} · Morale {stats.sourceStats.morale} · Instinct {stats.sourceStats.instinct} · Skill {stats.sourceStats.skill}</p></section>}{stats.notes && <section><h4>Notes</h4><p>{stats.notes}</p></section>}</div></details>; }
-function NpcCombatStrip({ stats }: { stats: CampaignNpcCombatStats | undefined }) {
+type NpcRollAction = { kind: "attack" | "damage"; attackIndex: number } | { kind: "save"; save: "physical" | "evasion" | "mental" };
+
+function canRollDamage(expression: string): boolean {
+  try { parseDamageExpression(expression); return true; } catch { return false; }
+}
+
+function NpcRollButtons({ attackIndex, attackName, damage, onRoll, busy }: { attackIndex: number; attackName: string; damage: string; onRoll: (action: NpcRollAction) => void; busy: boolean }) {
+  return <span className="campaign-npc-roll-controls"><button type="button" className="campaign-npc-roll" disabled={busy} aria-label={`Roll ${attackName} attack`} onClick={() => onRoll({ kind: "attack", attackIndex })}>Attack</button>{canRollDamage(damage) && <button type="button" className="campaign-npc-roll" disabled={busy} aria-label={`Roll ${attackName} damage`} onClick={() => onRoll({ kind: "damage", attackIndex })}>Damage</button>}</span>;
+}
+
+function NpcCombatDetails({ stats, onRoll, busy }: { stats: CampaignNpcCombatStats; onRoll?: (action: NpcRollAction) => void; busy: boolean }) { return <details className="campaign-encounter-npc-details"><summary>Combat details</summary><div className="campaign-encounter-npc-details-body"><section><h4>Saves</h4><p>Physical {signed(stats.saves.physical)} · Evasion {signed(stats.saves.evasion)} · Mental {signed(stats.saves.mental)}</p>{onRoll && <div className="campaign-npc-save-rolls"><button type="button" className="campaign-npc-roll" disabled={busy} onClick={() => onRoll({ kind: "save", save: "physical" })}>Physical Save</button><button type="button" className="campaign-npc-roll" disabled={busy} onClick={() => onRoll({ kind: "save", save: "evasion" })}>Evasion Save</button><button type="button" className="campaign-npc-roll" disabled={busy} onClick={() => onRoll({ kind: "save", save: "mental" })}>Mental Save</button></div>}</section><section><h4>Attacks</h4><ul>{stats.attacks.map((attack, index) => <li key={`${attack.name}-${attack.attackBonus}-${attack.damage}`}><span><strong>{attack.name}</strong> {signed(attack.attackBonus)} · {attack.damage}{attack.description ? ` — ${attack.description}` : ""}</span>{onRoll && <NpcRollButtons attackIndex={index} attackName={attack.name} damage={attack.damage} onRoll={onRoll} busy={busy} />}</li>)}</ul></section>{stats.sourceStats && <section><h4>Creature stats</h4><p>HD {stats.sourceStats.hitDice} · Shock {stats.sourceStats.shock} · Move {stats.sourceStats.move} · Morale {stats.sourceStats.morale} · Instinct {stats.sourceStats.instinct} · Skill {stats.sourceStats.skill}</p></section>}{stats.notes && <section><h4>Notes</h4><p>{stats.notes}</p></section>}</div></details>; }
+function NpcCombatStrip({ stats, onRoll, busy }: { stats: CampaignNpcCombatStats | undefined; onRoll?: (action: NpcRollAction) => void; busy: boolean }) {
   const summary = collapsedNpcCombatSummary(stats);
+  const primaryAttack = stats?.attacks[0];
   return <div className={`campaign-encounter-npc-combat${summary ? "" : " campaign-encounter-npc-combat-empty"}`} aria-label={summary ? "NPC combat summary" : undefined} aria-hidden={summary ? undefined : true}>
     {summary && <>
     <span className="campaign-encounter-stat"><small>Saves</small><b>{summary.saves}</b></span>
-    {summary.primaryAttack && <span className="campaign-encounter-stat campaign-encounter-attack"><small>Attack</small><b>{summary.primaryAttack}{summary.additionalAttacks ? ` +${summary.additionalAttacks} more` : ""}</b></span>}
+    {summary.primaryAttack && <span className="campaign-encounter-stat campaign-encounter-attack"><small>Attack</small><b>{summary.primaryAttack}{summary.additionalAttacks ? ` +${summary.additionalAttacks} more` : ""}</b>{onRoll && primaryAttack && <NpcRollButtons attackIndex={0} attackName={primaryAttack.name} damage={primaryAttack.damage} onRoll={onRoll} busy={busy} />}</span>}
     {summary.shock && <span className="campaign-encounter-stat"><small>Shock</small><b>{summary.shock}</b></span>}
     {summary.move && <span className="campaign-encounter-stat campaign-encounter-secondary"><small>Move</small><b>{summary.move}</b></span>}
     {summary.morale !== null && <span className="campaign-encounter-stat campaign-encounter-secondary"><small>Morale</small><b>{summary.morale}</b></span>}
@@ -40,12 +52,13 @@ export function PartyMember({ campaignId, participant }: { campaignId: string; p
   </li>;
 }
 
-export function EncounterTracker({ campaignId, session, canManage, busy, onAction }: {
+export function EncounterTracker({ campaignId, session, canManage, busy, onAction, onNpcRoll }: {
   campaignId: string;
   session: NonNullable<CampaignLiveSessionState["session"]>;
   canManage: boolean;
   busy: boolean;
   onAction: (body: Record<string, unknown>) => Promise<void>;
+  onNpcRoll?: (combatantId: string, action: NpcRollAction) => Promise<void>;
 }) {
   const encounter = session.encounter;
   const participantCharacters = session.participants.flatMap(participant => participant.character ? [participant.character] : []);
@@ -83,12 +96,12 @@ export function EncounterTracker({ campaignId, session, canManage, busy, onActio
       return <li key={combatant.id} className={current ? "campaign-encounter-current" : undefined}>
         <span className="campaign-turn-marker" aria-label={current ? "Current turn" : undefined}>{current ? "→" : ""}</span>
         <div className="campaign-encounter-name">{character ? <a href={`/campaigns/${campaignId}/characters/${character.id}`}>{name}</a> : <strong>{name}</strong>}<small>{combatant.kind === "pc" ? "Player character" : "Temporary NPC"}</small></div>
-        {combatant.kind === "npc" && <NpcCombatStrip stats={canManage ? combatant.combatStats : undefined} />}
+        {combatant.kind === "npc" && <NpcCombatStrip stats={canManage ? combatant.combatStats : undefined} onRoll={canManage && onNpcRoll ? action => void onNpcRoll(combatant.id, action) : undefined} busy={busy} />}
         <label className="campaign-encounter-initiative"><span>Init</span>{canManage ? <input type="number" key={`${combatant.id}-${combatant.initiative}`} defaultValue={combatant.initiative} min={-1000} max={1000} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.initiative) void onAction({ action: "initiative", combatantId: combatant.id, initiative: value }); }} /> : <b>{combatant.initiative}</b>}</label>
         <label className="campaign-encounter-hp"><span>HP</span>{canManage && combatant.kind === "npc" ? <span className="campaign-encounter-hp-control"><input type="number" key={`${combatant.id}-${combatant.hpCurrent}`} defaultValue={combatant.hpCurrent} min={0} max={combatant.hpMax ?? 100000} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.hpCurrent) void onAction({ action: "npc_hp", combatantId: combatant.id, hpCurrent: value }); }} /><b>/ {combatant.hpMax ?? "—"}</b></span> : <b>{hpCurrent === undefined ? "—" : hpMax === undefined ? `${hpCurrent} HP` : `${hpCurrent} / ${hpMax} HP`}</b>}</label>
         <span className="campaign-encounter-ac"><small>AC</small><b>{armorClass ?? "—"}</b></span>
         {canManage && <button type="button" className="campaign-encounter-remove" disabled={busy} aria-label={`Remove ${name}`} onClick={() => void onAction({ action: "remove", combatantId: combatant.id })}>×</button>}
-        {canManage && combatant.kind === "npc" && combatant.combatStats && <NpcCombatDetails stats={combatant.combatStats} />}
+        {canManage && combatant.kind === "npc" && combatant.combatStats && <NpcCombatDetails stats={combatant.combatStats} onRoll={onNpcRoll ? action => void onNpcRoll(combatant.id, action) : undefined} busy={busy} />}
       </li>;
     })}</ol> : <p className="campaign-encounter-no-combatants">Add linked characters or a temporary NPC to establish turn order.</p>}
     {canManage && encounter.combatants.length > 0 && <div className="campaign-encounter-turns"><button type="button" className="campaign-secondary" disabled={busy} onClick={() => void onAction({ action: "previous" })}>Previous Turn</button><button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAction({ action: "next" })}>Next Turn</button></div>}

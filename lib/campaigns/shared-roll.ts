@@ -1,5 +1,5 @@
-import type { CampaignSharedRoll } from "./live-session.ts";
-import { isSharedRollCategory, SHARED_ROLL_CATEGORIES, type RollRequest, type RollResult } from "../../app/rolls.ts";
+import type { CampaignEncounterNpc, CampaignSharedRoll } from "./live-session.ts";
+import { isSharedRollCategory, parseDamageExpression, SHARED_ROLL_CATEGORIES, type RollRequest, type RollResult } from "../../app/rolls.ts";
 import { CampaignServiceError } from "./service.ts";
 
 function boundedText(value: unknown, field: string, maximum: number): string {
@@ -61,4 +61,64 @@ export function isCampaignSharedRoll(result: RollResult): boolean {
 export function toCampaignSharedRoll(result: RollResult): CampaignSharedRoll {
   if (!isSharedRollCategory(result.category)) throw new CampaignServiceError("Generic rolls remain private.", 422);
   return result as CampaignSharedRoll;
+}
+
+export type NpcRollAction =
+  | { kind: "attack"; attackIndex: number }
+  | { kind: "damage"; attackIndex: number }
+  | { kind: "save"; save: "physical" | "evasion" | "mental" };
+
+function npcRollIdentity(npc: CampaignEncounterNpc): RollRequest["character"] {
+  // Encounter IDs are internal implementation details and never belong in shared payloads.
+  return { id: "npc", name: npc.name };
+}
+
+/** Build an NPC request only from the immutable encounter snapshot. */
+export function npcRollRequest(npc: CampaignEncounterNpc, action: NpcRollAction): RollRequest | null {
+  const stats = npc.combatStats;
+  if (!stats) return null;
+  const character = npcRollIdentity(npc);
+  if (action.kind === "save") {
+    const name = action.save[0].toUpperCase() + action.save.slice(1);
+    return {
+      category: "save",
+      character,
+      label: `${npc.name} — ${name} Saving Throw`,
+      dice: { count: 1, sides: 20 },
+      target: stats.saves[action.save],
+      targetKind: "saving-throw",
+    };
+  }
+
+  const attack = stats.attacks[action.attackIndex];
+  if (!attack) return null;
+  if (action.kind === "attack") {
+    return {
+      category: "attack",
+      character,
+      label: `${npc.name} — ${attack.name} Attack`,
+      dice: { count: 1, sides: 20 },
+      modifiers: [{ label: "Attack bonus", value: attack.attackBonus }],
+    };
+  }
+  try {
+    const damage = parseDamageExpression(attack.damage);
+    return {
+      category: "damage",
+      character,
+      label: `${npc.name} — ${attack.name} Damage`,
+      dice: damage.dice,
+      modifiers: damage.modifier ? [{ label: "Damage modifier", value: damage.modifier }] : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** NPC save targets are GM-only encounter data; share outcome, not the target number. */
+export function toPublicNpcCampaignSharedRoll(result: RollResult): CampaignSharedRoll {
+  const roll = toCampaignSharedRoll(result);
+  const publicRoll = { ...roll };
+  delete publicRoll.target;
+  return publicRoll;
 }

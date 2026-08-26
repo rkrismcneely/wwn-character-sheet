@@ -39,11 +39,13 @@ export function RollHistoryPanel({
   open,
   onClose,
   onClear,
+  description = "Stored only in this browser session",
 }: {
   history: RollResult[];
   open: boolean;
   onClose: () => void;
-  onClear: () => void;
+  onClear?: () => void;
+  description?: string;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
 
@@ -66,14 +68,14 @@ export function RollHistoryPanel({
   if (!open) return null;
   return <section className="roll-history" role="dialog" aria-modal="false" aria-labelledby="roll-history-title">
     <header>
-      <div><strong id="roll-history-title">Roll History</strong><span>Stored only in this browser session</span></div>
-      <div><button type="button" onClick={onClear} disabled={!history.length}>Clear history</button><button ref={closeButton} type="button" onClick={onClose}>Close</button></div>
+      <div><strong id="roll-history-title">Roll History</strong><span>{description}</span></div>
+      <div>{onClear && <button type="button" onClick={onClear} disabled={!history.length}>Clear history</button>}<button ref={closeButton} type="button" onClick={onClose}>Close</button></div>
     </header>
     {history.length ? <ol>
       {history.map(result => <li key={result.id}>
         <div><strong>{result.label}</strong><span>{result.character.name} · {formatRollBreakdown(result)}</span></div>
         <div className="roll-history-total"><b>{result.total}</b>{result.target !== undefined && <small>vs {result.target}+</small>}<ResultOutcome result={result} /></div>
       </li>)}
-    </ol> : <p>No rolls yet in this browser session.</p>}
+    </ol> : <p>{description === "Stored only in this browser session" ? "No rolls yet in this browser session." : "No shared rolls yet."}</p>}
   </section>;
 }

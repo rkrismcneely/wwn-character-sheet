@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { isSharedRollCategory, resolveRoll } from "../app/rolls.ts";
 import {
+  npcRollRequest,
   normalizeSharedRollRequest,
   toCampaignSharedRoll,
+  toPublicNpcCampaignSharedRoll,
 } from "../lib/campaigns/shared-roll.ts";
 
 test("only semantic contextual roll categories are shareable", () => {
@@ -35,20 +37,62 @@ test("the server-issued shared result preserves one authoritative raw roll", asy
   assert.deepEqual(result.character, { id: "chr_real", name: "Cecil the Amber" });
 });
 
+test("NPC rolls reuse the authoritative request resolver for rich, custom, multiple-attack, and sparse snapshots", async () => {
+  const richNpc = {
+    id: "cmb_internal", kind: "npc", name: "Apex Predator", initiative: 0, hpCurrent: 32,
+    combatStats: {
+      saves: { physical: 12, evasion: 13, mental: 14 }, notes: "",
+      attacks: [{ name: "Bite", attackBonus: 6, damage: "1d8+2", description: "" }, { name: "Claw", attackBonus: 4, damage: "1d6", description: "" }],
+    },
+  };
+  const attack = npcRollRequest(richNpc, { kind: "attack", attackIndex: 0 });
+  const damage = npcRollRequest(richNpc, { kind: "damage", attackIndex: 1 });
+  const save = npcRollRequest(richNpc, { kind: "save", save: "physical" });
+  assert.deepEqual(attack, { category: "attack", character: { id: "npc", name: "Apex Predator" }, label: "Apex Predator — Bite Attack", dice: { count: 1, sides: 20 }, modifiers: [{ label: "Attack bonus", value: 6 }] });
+  assert.deepEqual(damage, { category: "damage", character: { id: "npc", name: "Apex Predator" }, label: "Apex Predator — Claw Damage", dice: { count: 1, sides: 6 }, modifiers: [] });
+  assert.equal(save?.target, 12);
+  assert.equal(save?.targetKind, "saving-throw");
+  const resolved = await resolveRoll(attack, { roll: () => ({ count: 1, sides: 20, results: [12], total: 12 }), createId: () => "npc-roll" });
+  assert.equal(resolved.total, 18);
+  assert.equal(resolved.label, "Apex Predator — Bite Attack");
+
+  const customNpc = { ...richNpc, name: "Campaign Guard", combatStats: { saves: { physical: 15, evasion: 14, mental: 13 }, notes: "", attacks: [{ name: "Spear", attackBonus: 2, damage: "1d6", description: "" }] } };
+  assert.equal(npcRollRequest(customNpc, { kind: "attack", attackIndex: 0 })?.label, "Campaign Guard — Spear Attack");
+  assert.equal(npcRollRequest({ ...richNpc, combatStats: undefined }, { kind: "attack", attackIndex: 0 }), null);
+  assert.equal(npcRollRequest({ ...richNpc, combatStats: { ...richNpc.combatStats, attacks: [{ name: "Improvised", attackBonus: 0, damage: "Wpn", description: "" }] } }, { kind: "damage", attackIndex: 0 }), null);
+});
+
+test("published NPC rolls omit GM-only save targets and encounter identifiers", async () => {
+  const request = npcRollRequest({ id: "cmb_secret", kind: "npc", name: "Hidden Sentinel", initiative: 0, hpCurrent: 1, combatStats: { saves: { physical: 12, evasion: 13, mental: 14 }, attacks: [], notes: "" } }, { kind: "save", save: "physical" });
+  const result = await resolveRoll(request, { roll: () => ({ count: 1, sides: 20, results: [20], total: 20 }), createId: () => "npc-save" });
+  const published = toPublicNpcCampaignSharedRoll(result);
+  assert.equal(Object.hasOwn(published, "target"), false);
+  assert.equal(published.outcome, "success");
+  assert.deepEqual(published.character, { id: "npc", name: "Hidden Sentinel" });
+  assert.equal(JSON.stringify(published).includes("cmb_secret"), false);
+});
+
 test("shared session transport keeps party status authoritative, realtime, and reconnect-safe", async () => {
-  const [sheet, route, characterRoute, durable, sessionUi, sessionClient] = await Promise.all([
+  const [sheet, route, characterRoute, durable, sessionUi, sessionClient, liveSessionService] = await Promise.all([
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/rolls/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/characters/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/use-live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/live-session-service.ts", import.meta.url), "utf8"),
   ]);
   assert.match(sheet, /isSharedRollCategory\(request\.category\)/u);
   assert.match(sheet, /preparedSharedRoll\?\.dice \|\| rollDice/u);
   assert.match(sheet, /action: "publish"/u);
   assert.match(route, /authorizeLiveSessionRoll/u);
+  assert.match(route, /authorizeEncounterManagement/u);
+  assert.match(route, /npc_prepare/u);
+  assert.match(route, /npc_publish/u);
+  assert.match(route, /npcRollRequest/u);
+  assert.match(route, /toPublicNpcCampaignSharedRoll/u);
   assert.match(route, /resolveRoll\(rollRequest\)/u);
+  assert.match(liveSessionService, /requireOwner\(actor, campaign\.ownerUserId\)/u);
   assert.match(characterRoute, /activeCharacterStatusTargets/u);
   assert.match(characterRoute, /announceCharacterStatus/u);
   assert.match(durable, /INSERT OR IGNORE INTO session_rolls/u);

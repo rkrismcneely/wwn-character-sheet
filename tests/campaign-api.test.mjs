@@ -28,6 +28,8 @@ import {
 import {
   authorizeLiveSessionConnection,
   authorizeLiveSessionRoll,
+  authorizeEncounterCharacter,
+  authorizeEncounterManagement,
   activeCharacterStatusTargets,
   endLiveSession,
   joinLiveSession,
@@ -156,6 +158,10 @@ test("live sessions preserve owner-only lifecycle, member participation, and his
   assert.equal(joined.state.permissions.joined, true);
   assert.equal(joined.state.permissions.canJoin, false);
   await joinLiveSession(db, player, campaign.id, now);
+  const encounterManagement = await authorizeEncounterManagement(db, owner, campaign.id);
+  assert.equal(encounterManagement.sessionId, started.state.session.id);
+  await expectServiceError(authorizeEncounterManagement(db, player, campaign.id), 403);
+  await expectServiceError(authorizeEncounterManagement(db, admin, campaign.id), 403);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_session_participants").get().count, 2);
   const connection = await authorizeLiveSessionConnection(db, player, campaign.id);
   assert.equal(connection.sessionId, started.state.session.id);
@@ -190,6 +196,8 @@ test("shared rolls require a joined participant's own linked character", async (
   await joinLiveSession(db, player, campaign.id, now);
   const authorization = await authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012");
   assert.equal(authorization.character.name, "Player Hero");
+  assert.equal((await authorizeEncounterCharacter(db, authorization.campaignId, authorization.sessionId, "chr_1234567890123456789012")).id, "chr_1234567890123456789012");
+  await expectServiceError(authorizeEncounterCharacter(db, authorization.campaignId, authorization.sessionId, "chr_missing"), 422);
   const liveState = await readLiveSession(db, player, campaign.id);
   assert.deepEqual(liveState.session.participants.find(participant => participant.character?.id === "chr_1234567890123456789012")?.character, {
     id: "chr_1234567890123456789012", name: "Player Hero", level: 5, classLabel: "High Mage", hpCurrent: 9, hpMax: 13, armorClass: 15,

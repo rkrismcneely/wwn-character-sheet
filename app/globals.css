@@ -1975,6 +1975,36 @@ html[data-theme="dark"] .campaign-character-identity h3,
 html[data-theme="dark"] .campaign-character-empty h3{
   color:#f0dbb2;
 }
+html[data-theme="dark"] .campaign-encounter h3,
+html[data-theme="dark"] .campaign-encounter-name a,
+html[data-theme="dark"] .campaign-encounter-name strong,
+html[data-theme="dark"] .campaign-encounter-order label b,
+html[data-theme="dark"] .campaign-encounter-ac b{
+  color:#f0dbb2;
+}
+html[data-theme="dark"] .campaign-encounter p,
+html[data-theme="dark"] .campaign-encounter-heading span,
+html[data-theme="dark"] .campaign-encounter-add-pcs>span,
+html[data-theme="dark"] .campaign-encounter-npc label>span,
+html[data-theme="dark"] .campaign-encounter-order label>span,
+html[data-theme="dark"] .campaign-encounter-ac small,
+html[data-theme="dark"] .campaign-encounter-name small{
+  color:#b9a98d;
+}
+html[data-theme="dark"] .campaign-encounter-order li,
+html[data-theme="dark"] .campaign-encounter-no-combatants{
+  background:#211f19;
+  border-color:#645537;
+}
+html[data-theme="dark"] .campaign-encounter-order li.campaign-encounter-current{
+  background:#2d271b;
+  border-color:#a77a35;
+}
+html[data-theme="dark"] .campaign-encounter input{
+  background:#22211c;
+  border-color:#665a42;
+  color:#f0dfbd;
+}
 html[data-theme="dark"] .account-primary,
 html[data-theme="dark"] .dashboard-primary,
 html[data-theme="dark"] .campaign-primary{

@@ -1,4 +1,5 @@
 import type { CampaignNpcAttack, CampaignNpcDraft } from "./npcs.ts";
+import type { CampaignNpcCombatStats } from "./live-session.ts";
 
 /**
  * Immutable creature definitions derived exclusively from the CC0 Worlds
@@ -20,13 +21,19 @@ export interface BuiltInBestiaryCreature {
   readonly mentalSave: number;
   readonly attacks: readonly Readonly<CampaignNpcAttack>[];
   readonly notes: string;
+  readonly description: string;
+  readonly sourceStats: BuiltInBestiarySourceStats;
 }
 
-type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks"> & { attacks: CampaignNpcAttack[] };
+export interface BuiltInBestiarySourceStats { hitDice: number; shock: string; move: string; morale: number; instinct: number; skill: number }
+type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks" | "description" | "sourceStats"> & { attacks: CampaignNpcAttack[] };
 
 function defineCreature(creature: CreatureDefinition): BuiltInBestiaryCreature {
+  const context = creatureContext[creature.id];
   return Object.freeze({
     ...creature,
+    description: context.description,
+    sourceStats: context.sourceStats,
     attacks: Object.freeze(creature.attacks.map(attack => Object.freeze({ ...attack }))),
   });
 }
@@ -39,6 +46,25 @@ function statNotes(hitDice: number, shock: string, move: string, morale: number,
   const averageHp = Math.ceil(hitDice * 4.5);
   return `CC0 WWN SRD stat line: ${hitDice} HD (default HP ${averageHp}, rounded-up average of ${hitDice}d8); Shock ${shock}; Move ${move}; Morale ${morale}; Instinct ${instinct}; Skill +${skill}.${extra ? ` ${extra}` : ""}`;
 }
+
+const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {
+  "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "large-solitary-predator": { description: "A powerful lone hunter suited to dangerous wilderness territory.", sourceStats: { hitDice: 5, shock: "2/13", move: "30'", morale: 8, instinct: 6, skill: 1 } },
+  "apex-predator": { description: "A huge and exceptionally dangerous hunting beast, suitable for dire predators and other apex carnivores.", sourceStats: { hitDice: 6, shock: "2/13", move: "40'", morale: 8, instinct: 6, skill: 2 } },
+  "herd-beast": { description: "A common grazing animal that can become dangerous when startled or defending its young.", sourceStats: { hitDice: 2, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "vicious-large-herbivore": { description: "A large territorial herbivore with enough mass and aggression to threaten a party.", sourceStats: { hitDice: 4, shock: "1/13", move: "40'", morale: 9, instinct: 6, skill: 1 } },
+  "elephantine-grazer": { description: "An enormous grazer whose bulk and crushing attacks make it a formidable obstacle.", sourceStats: { hitDice: 6, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "automaton-humanlike": { description: "A human-shaped artificial servant or guardian carrying an ordinary weapon.", sourceStats: { hitDice: 2, shock: "Weapon", move: "30'", morale: 12, instinct: 3, skill: 1 } },
+  "automaton-laborer": { description: "A durable industrial construct designed for repetitive physical work.", sourceStats: { hitDice: 2, shock: "1/13", move: "30'", morale: 12, instinct: 3, skill: 1 } },
+  "automaton-military": { description: "A reinforced combat automaton built for disciplined military service.", sourceStats: { hitDice: 4, shock: "4/15", move: "30'", morale: 12, instinct: 3, skill: 1 } },
+  "slime-or-ooze": { description: "A mindless amorphous predator that attacks with engulfing pseudopods.", sourceStats: { hitDice: 6, shock: "1/-", move: "20'", morale: 12, instinct: 5, skill: 1 } },
+  "small-vicious-predator": { description: "A compact, aggressive predator that attacks quickly and without hesitation.", sourceStats: { hitDice: 1, shock: "1/13", move: "30'", morale: 7, instinct: 5, skill: 1 } },
+  "large-vicious-predator": { description: "A large and ferocious predator capable of multiple savage attacks.", sourceStats: { hitDice: 6, shock: "2/15", move: "40'", morale: 9, instinct: 5, skill: 2 } },
+  "hulking-predator": { description: "A massive predator with terrifying strength and a thick defensive hide.", sourceStats: { hitDice: 10, shock: "6/15", move: "30'", morale: 10, instinct: 4, skill: 1 } },
+  "unnatural-swarm": { description: "A supernatural swarm that assails foes with a mass of unnatural attackers.", sourceStats: { hitDice: 4, shock: "1/-", move: "30'", morale: 10, instinct: 5, skill: 1 } },
+  "terrible-warbeast": { description: "A monstrous war-trained beast bred or bound for brutal battlefield assaults.", sourceStats: { hitDice: 8, shock: "7/15", move: "40'", morale: 9, instinct: 4, skill: 2 } },
+  "legendary-god-titan": { description: "A legendary colossal being of near-divine power, appropriate only for mythic confrontations.", sourceStats: { hitDice: 20, shock: "10/-", move: "40'", morale: 10, instinct: 3, skill: 3 } },
+};
 
 export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze([
   defineCreature({ id: "small-pack-predator", name: "Small Pack Predator", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "1d4")], notes: statNotes(1, "1/13", "40'", 7, 6, 1) }),
@@ -83,7 +109,7 @@ export function builtInBestiaryCreatureDraft(id: string): CampaignNpcDraft | nul
   };
 }
 
-export function builtInBestiaryEncounterSeed(id: string): { name: string; initiative: number; hpCurrent: number; hpMax: number; armorClass: number; notes: string } | null {
+export function builtInBestiaryEncounterSeed(id: string): { name: string; initiative: number; hpCurrent: number; hpMax: number; armorClass: number; notes: string; combatStats: CampaignNpcCombatStats } | null {
   const creature = getBuiltInBestiaryCreature(id);
   if (!creature) return null;
   return {
@@ -93,5 +119,6 @@ export function builtInBestiaryEncounterSeed(id: string): { name: string; initia
     hpMax: creature.hpMax,
     armorClass: creature.armorClass,
     notes: creature.notes,
+    combatStats: { saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave }, attacks: creature.attacks.map(attack => ({ ...attack })), notes: creature.notes, sourceStats: { ...creature.sourceStats } },
   };
 }

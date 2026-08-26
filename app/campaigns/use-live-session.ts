@@ -78,7 +78,7 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
           if (message.type === "session.participants-changed") void load().catch(() => setError("The participant list could not be refreshed."));
           if (message.type === "session.character-status" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => participant.participantKey === message.participantKey ? { ...participant, characterName: message.character.name, character: message.character } : participant) } } : current);
           if (message.type === "session.roll" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId && !current.session.recentRolls.some(roll => roll.id === message.roll.id) ? { ...current, session: { ...current.session, recentRolls: [message.roll, ...current.session.recentRolls].slice(0, 50) } } : current);
-          if (message.type === "session.encounter" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, encounter: message.encounter } } : current);
+          if (message.type === "session.encounter" && message.sessionId === sessionId) void load().catch(() => setError("Encounter updates could not be refreshed."));
           if (message.type === "session.ended") void load().catch(() => setState(emptyLiveSessionState));
         } catch { /* Ignore malformed realtime messages. */ }
       };

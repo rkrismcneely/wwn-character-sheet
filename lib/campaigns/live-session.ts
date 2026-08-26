@@ -38,11 +38,18 @@ export interface CampaignEncounterNpc {
   name: string;
   initiative: number;
   hpCurrent: number;
-  hpMax: number;
-  armorClass: number;
-  notes: string;
+  hpMax?: number;
+  armorClass?: number;
+  notes?: string;
+  combatStats?: CampaignNpcCombatStats;
 }
 
+export interface CampaignNpcCombatStats {
+  saves: { physical: number; evasion: number; mental: number };
+  attacks: { name: string; attackBonus: number; damage: string; description: string }[];
+  notes: string;
+  sourceStats?: { hitDice: number; shock: string; move: string; morale: number; instinct: number; skill: number };
+}
 export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;
 
 export interface CampaignEncounter {
@@ -78,10 +85,15 @@ export interface CampaignLiveSessionState {
   };
 }
 
+export function memberEncounterProjection(encounter: CampaignEncounter | null): CampaignEncounter | null {
+  if (!encounter) return null;
+  return { ...encounter, combatants: encounter.combatants.map(combatant => combatant.kind === "pc" ? combatant : { id: combatant.id, kind: combatant.kind, name: combatant.name, initiative: combatant.initiative, hpCurrent: combatant.hpCurrent }) };
+}
+
 export type CampaignLiveSessionEvent =
   | { type: "session.presence"; sessionId: string; connectedParticipantKeys: string[] }
   | { type: "session.participants-changed"; sessionId: string }
   | { type: "session.character-status"; sessionId: string; participantKey: string; character: CampaignLiveSessionCharacter }
   | { type: "session.roll"; sessionId: string; roll: CampaignSharedRoll }
-  | { type: "session.encounter"; sessionId: string; encounter: CampaignEncounter | null }
+  | { type: "session.encounter"; sessionId: string }
   | { type: "session.ended"; sessionId: string };

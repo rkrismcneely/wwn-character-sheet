@@ -623,7 +623,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               {!campaign.permissions.adminReadOnly && (
                 <div className="campaign-management-actions">
                   {campaign.permissions.canArchive && (
-                    <button type="button" className="campaign-secondary" onClick={() => void changeCampaignLifecycle(true)} disabled={actionBusy}>Archive Campaign</button>
+                    <details className="campaign-secondary-actions"><summary>More actions</summary><div><button type="button" className="campaign-secondary" onClick={() => void changeCampaignLifecycle(true)} disabled={actionBusy}>Archive campaign</button></div></details>
                   )}
                   {campaign.permissions.canRestore && (
                     <button type="button" className="campaign-primary" onClick={() => void changeCampaignLifecycle(false)} disabled={actionBusy}>Restore Campaign</button>

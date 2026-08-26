@@ -1,10 +1,11 @@
 "use client";
 
 import type { FormEvent } from "react";
-import type { CampaignLiveSessionState, CampaignSharedRoll } from "@/lib/campaigns/live-session";
+import type { CampaignLiveSessionState, CampaignNpcCombatStats, CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useCampaignLiveSession } from "./use-live-session";
 
 function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
+function NpcCombatDetails({ stats }: { stats: CampaignNpcCombatStats }) { return <details className="campaign-encounter-npc-details"><summary>Combat details</summary><div className="campaign-encounter-npc-details-body"><section><h4>Saves</h4><p>Physical {signed(stats.saves.physical)} · Evasion {signed(stats.saves.evasion)} · Mental {signed(stats.saves.mental)}</p></section><section><h4>Attacks</h4><ul>{stats.attacks.map(attack => <li key={`${attack.name}-${attack.attackBonus}-${attack.damage}`}><strong>{attack.name}</strong> {signed(attack.attackBonus)} · {attack.damage}{attack.description ? ` — ${attack.description}` : ""}</li>)}</ul></section>{stats.sourceStats && <section><h4>Creature stats</h4><p>HD {stats.sourceStats.hitDice} · Shock {stats.sourceStats.shock} · Move {stats.sourceStats.move} · Morale {stats.sourceStats.morale} · Instinct {stats.sourceStats.instinct} · Skill {stats.sourceStats.skill}</p></section>}{stats.notes && <section><h4>Notes</h4><p>{stats.notes}</p></section>}</div></details>; }
 
 export function SharedRoll({ roll }: { roll: CampaignSharedRoll }) {
   const modifiers = roll.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" · ");
@@ -70,9 +71,10 @@ export function EncounterTracker({ campaignId, session, canManage, busy, onActio
         <span className="campaign-turn-marker" aria-label={current ? "Current turn" : undefined}>{current ? "→" : ""}</span>
         <div className="campaign-encounter-name">{character ? <a href={`/campaigns/${campaignId}/characters/${character.id}`}>{name}</a> : <strong>{name}</strong>}<small>{combatant.kind === "pc" ? "Player character" : "Temporary NPC"}</small></div>
         <label><span>Init</span>{canManage ? <input type="number" key={`${combatant.id}-${combatant.initiative}`} defaultValue={combatant.initiative} min={-1000} max={1000} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.initiative) void onAction({ action: "initiative", combatantId: combatant.id, initiative: value }); }} /> : <b>{combatant.initiative}</b>}</label>
-        <label><span>HP</span>{canManage && combatant.kind === "npc" ? <input type="number" key={`${combatant.id}-${combatant.hpCurrent}`} defaultValue={combatant.hpCurrent} min={0} max={combatant.hpMax} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.hpCurrent) void onAction({ action: "npc_hp", combatantId: combatant.id, hpCurrent: value }); }} /> : <b>{hpCurrent === undefined ? "—" : `${hpCurrent}/${hpMax}`}</b>}</label>
+        <label className="campaign-encounter-hp"><span>HP</span>{canManage && combatant.kind === "npc" ? <><input type="number" key={`${combatant.id}-${combatant.hpCurrent}`} defaultValue={combatant.hpCurrent} min={0} max={combatant.hpMax ?? 100000} onBlur={event => { const value = Number(event.currentTarget.value); if (value !== combatant.hpCurrent) void onAction({ action: "npc_hp", combatantId: combatant.id, hpCurrent: value }); }} /><b>/ {combatant.hpMax ?? "—"} HP</b></> : <b>{hpCurrent === undefined ? "—" : hpMax === undefined ? `${hpCurrent} HP` : `${hpCurrent} / ${hpMax} HP`}</b>}</label>
         <span className="campaign-encounter-ac"><small>AC</small><b>{armorClass ?? "—"}</b></span>
         {canManage && <button type="button" className="campaign-encounter-remove" disabled={busy} aria-label={`Remove ${name}`} onClick={() => void onAction({ action: "remove", combatantId: combatant.id })}>×</button>}
+        {canManage && combatant.kind === "npc" && combatant.combatStats && <NpcCombatDetails stats={combatant.combatStats} />}
       </li>;
     })}</ol> : <p className="campaign-encounter-no-combatants">Add linked characters or a temporary NPC to establish turn order.</p>}
     {canManage && encounter.combatants.length > 0 && <div className="campaign-encounter-turns"><button type="button" className="campaign-secondary" disabled={busy} onClick={() => void onAction({ action: "previous" })}>Previous Turn</button><button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAction({ action: "next" })}>Next Turn</button></div>}
@@ -84,7 +86,7 @@ export function CampaignLiveSession({ campaignId }: { campaignId: string }) {
 
   const session = state.session;
   return <section className="campaign-panel campaign-live-session" aria-labelledby="campaign-live-session-title">
-    <div className="campaign-section-heading"><div><p className="campaign-kicker">TABLE SESSION</p><h2 id="campaign-live-session-title">Live Session</h2></div>{session ? <span className="campaign-session-status">Session Active</span> : null}</div>
+    <div className="campaign-section-heading"><div><p className="campaign-kicker">TABLE SESSION</p><h2 id="campaign-live-session-title">Live Session</h2></div>{session ? <span className="campaign-live-indicator"><i aria-hidden="true" />Live session</span> : null}</div>
     {error && <p className="campaign-error campaign-session-error" role="status">{error}</p>}
     {!session && <div className="campaign-session-empty"><p>No session is active.</p></div>}
     {session && <><div className="campaign-session-actions">{state.permissions.canJoin && <button type="button" className="campaign-secondary" onClick={() => void action("join").catch(() => {})} disabled={busy}>Join Session</button>}</div><section className="campaign-live-party" aria-labelledby="campaign-live-party-title"><h3 id="campaign-live-party-title">Party</h3><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section>{state.permissions.joined && <section className="campaign-live-rolls" aria-labelledby="campaign-live-rolls-title"><h3 id="campaign-live-rolls-title">Live Rolls</h3>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section>}</>}

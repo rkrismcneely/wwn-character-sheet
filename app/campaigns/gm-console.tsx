@@ -22,8 +22,8 @@ const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMa
 
 function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
   return <>
-    <p>HP {creature.hpMax} · AC {creature.armorClass} · Saves P {creature.physicalSave} / E {creature.evasionSave} / M {creature.mentalSave}</p>
-    <details className="gm-bestiary-details"><summary>Inspect stat block</summary><ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul><small>{creature.notes}</small></details>
+    <p className="gm-bestiary-summary">HP {creature.hpMax} · AC {creature.armorClass} · Saves P {creature.physicalSave} / E {creature.evasionSave} / M {creature.mentalSave}</p>
+    <details className="gm-bestiary-details"><summary>Inspect stat block</summary><div className="gm-bestiary-stat-block"><section><h4>Creature stats</h4><p>HD {creature.sourceStats.hitDice} · Shock {creature.sourceStats.shock} · Move {creature.sourceStats.move} · Morale {creature.sourceStats.morale} · Instinct {creature.sourceStats.instinct} · Skill {creature.sourceStats.skill}</p></section><section><h4>Attacks</h4><ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul></section><section className="gm-bestiary-notes"><h4>Notes</h4><p>{creature.notes}</p></section></div></details>
   </>;
 }
 
@@ -49,7 +49,7 @@ function BuiltInBestiary({ activeEncounter, busy, onAddToEncounter, onSaveAsNpc 
     <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by creature name" /></label>
     {error && <p className="campaign-error" role="status">{error}</p>}
     {!creatures.length && <p className="campaign-empty-copy">No built-in creatures match “{query}”.</p>}
-    <div className="gm-bestiary-grid">{creatures.map(creature => <article key={creature.id} className="gm-npc-card gm-bestiary-card"><div><h3>{creature.name}</h3><BestiaryStatBlock creature={creature} /></div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void addToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void saveAsNpc(creature.id)}>Save as My NPC</button></div></article>)}</div>
+    <div className="gm-bestiary-grid">{creatures.map(creature => <article key={creature.id} className="gm-npc-card gm-bestiary-card"><div><h3>{creature.name}</h3><p className="gm-bestiary-description">{creature.description}</p><BestiaryStatBlock creature={creature} /></div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void addToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void saveAsNpc(creature.id)}>Save as My NPC</button></div></article>)}</div>
   </section>;
 }
 

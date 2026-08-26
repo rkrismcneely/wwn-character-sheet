@@ -2011,6 +2011,11 @@ html[data-theme="dark"] .campaign-encounter input{
   border-color:#665a42;
   color:#f0dfbd;
 }
+html[data-theme="dark"] .gm-bestiary-stat-block,
+html[data-theme="dark"] .campaign-encounter-npc-details-body{background:#211f19;border-color:#645537}
+html[data-theme="dark"] .gm-bestiary-description,
+html[data-theme="dark"] .gm-bestiary-stat-block p,
+html[data-theme="dark"] .campaign-encounter-npc-details p{color:#cdbd9f}
 html[data-theme="dark"] .account-primary,
 html[data-theme="dark"] .dashboard-primary,
 html[data-theme="dark"] .campaign-primary{

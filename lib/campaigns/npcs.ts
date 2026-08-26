@@ -1,6 +1,7 @@
 import { loadCampaignAccess, CampaignServiceError, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 import { builtInBestiaryCreatureDraft } from "./bestiary.ts";
+import type { CampaignNpcCombatStats } from "./live-session.ts";
 
 export interface CampaignNpcAttack {
   name: string;
@@ -171,5 +172,6 @@ export async function deleteCampaignNpcTemplate(db: D1Database, actor: CampaignA
 /** Called only after the encounter route has already established owner authority. */
 export async function campaignNpcEncounterSeed(db: D1Database, campaignId: string, npcId: string) {
   const npc = await findNpc(db, campaignId, npcId);
-  return { name: npc.name, initiative: 0, hpCurrent: npc.hpMax, hpMax: npc.hpMax, armorClass: npc.armorClass, notes: npc.notes };
+  const combatStats: CampaignNpcCombatStats = { saves: { physical: npc.physicalSave, evasion: npc.evasionSave, mental: npc.mentalSave }, attacks: npc.attacks.map(attack => ({ ...attack })), notes: npc.notes };
+  return { name: npc.name, initiative: 0, hpCurrent: npc.hpMax, hpMax: npc.hpMax, armorClass: npc.armorClass, notes: npc.notes, combatStats };
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
+import { memberEncounterProjection } from "../lib/campaigns/live-session.ts";
 
 const encounter = {
   id: "enc_one",
@@ -26,6 +27,16 @@ test("removing the current combatant selects the next surviving turn without cha
   assert.equal(encounterCurrentAfterRemoval({ ...encounter, currentCombatantId: "orc" }, "orc"), "todd");
   assert.equal(encounterCurrentAfterRemoval({ ...encounter, currentCombatantId: "todd" }, "todd"), "cecil");
   assert.equal(encounterCurrentAfterRemoval({ ...encounter, currentCombatantId: "cecil", combatants: [encounter.combatants[0]] }, "cecil"), null);
+});
+
+test("member encounter projections redact GM-only NPC details", () => {
+  const projected = memberEncounterProjection(encounter);
+  const npc = projected.combatants[1];
+  assert.equal(npc.kind, "npc");
+  assert.equal(npc.hpCurrent, 8);
+  assert.equal(Object.hasOwn(npc, "hpMax"), false);
+  assert.equal(Object.hasOwn(npc, "armorClass"), false);
+  assert.equal(Object.hasOwn(npc, "notes"), false);
 });
 
 test("encounters stay durable, ordered, owner-controlled, and realtime", async () => {

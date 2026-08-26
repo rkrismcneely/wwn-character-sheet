@@ -49,10 +49,13 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
       hp_max INTEGER,
       armor_class INTEGER,
       notes TEXT NOT NULL DEFAULT '',
+      combat_stats_json TEXT,
       added_order INTEGER NOT NULL
     );
     CREATE UNIQUE INDEX IF NOT EXISTS encounter_pc_idx ON encounter_combatants(encounter_id, character_id) WHERE kind = 'pc';
     CREATE INDEX IF NOT EXISTS encounter_order_idx ON encounter_combatants(encounter_id, initiative DESC, added_order ASC);`);
+    const columns = [...this.ctx.storage.sql.exec<{ name: string }>("PRAGMA table_info(encounter_combatants)")];
+    if (!columns.some(column => column.name === "combat_stats_json")) this.ctx.storage.sql.exec("ALTER TABLE encounter_combatants ADD COLUMN combat_stats_json TEXT");
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -152,14 +155,14 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     return this.broadcastEncounter(sessionId) as CampaignEncounter;
   }
 
-  async addNpc(sessionId: string, npc: Omit<CampaignEncounterNpc, "id" | "kind">): Promise<CampaignEncounter> {
+  async addNpc(sessionId: string, npc: Omit<CampaignEncounterNpc, "id" | "kind"> & { hpMax: number; armorClass: number }): Promise<CampaignEncounter> {
     const encounter = this.requireEncounter(sessionId);
     const id = `cmb_${crypto.randomUUID()}`;
     this.ctx.storage.sql.exec(
       `INSERT INTO encounter_combatants
-       (combatant_id, encounter_id, kind, name, initiative, hp_current, hp_max, armor_class, notes, added_order)
-       VALUES (?, ?, 'npc', ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(added_order), 0) + 1 FROM encounter_combatants WHERE encounter_id = ?))`,
-      id, encounter.id, npc.name, npc.initiative, npc.hpCurrent, npc.hpMax, npc.armorClass, npc.notes, encounter.id,
+       (combatant_id, encounter_id, kind, name, initiative, hp_current, hp_max, armor_class, notes, combat_stats_json, added_order)
+       VALUES (?, ?, 'npc', ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(added_order), 0) + 1 FROM encounter_combatants WHERE encounter_id = ?))`,
+      id, encounter.id, npc.name, npc.initiative, npc.hpCurrent, npc.hpMax, npc.armorClass, npc.notes ?? "", npc.combatStats ? JSON.stringify(npc.combatStats) : null, encounter.id,
     );
     this.ensureCurrentCombatant(encounter.id);
     return this.broadcastEncounter(sessionId) as CampaignEncounter;
@@ -204,7 +207,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
   async endEncounter(sessionId: string): Promise<null> {
     const encounter = this.activeEncounter(sessionId);
     if (encounter) this.ctx.storage.sql.exec("UPDATE encounters SET ended_at = ? WHERE encounter_id = ? AND ended_at IS NULL", Date.now(), encounter.id);
-    this.broadcast({ type: "session.encounter", sessionId, encounter: null });
+    this.broadcast({ type: "session.encounter", sessionId });
     return null;
   }
 
@@ -242,8 +245,8 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     if (!row) return null;
     const combatants = [...this.ctx.storage.sql.exec<{
       combatant_id: string; kind: "pc" | "npc"; character_id: string | null; name: string | null;
-      initiative: number; hp_current: number | null; hp_max: number | null; armor_class: number | null; notes: string;
-    }>(`SELECT combatant_id, kind, character_id, name, initiative, hp_current, hp_max, armor_class, notes
+      initiative: number; hp_current: number | null; hp_max: number | null; armor_class: number | null; notes: string; combat_stats_json: string | null;
+    }>(`SELECT combatant_id, kind, character_id, name, initiative, hp_current, hp_max, armor_class, notes, combat_stats_json
       FROM encounter_combatants WHERE encounter_id = ?
       ORDER BY initiative DESC, added_order ASC, combatant_id ASC`, row.encounter_id)];
     return {
@@ -255,7 +258,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
         : {
           id: combatant.combatant_id, kind: "npc", name: combatant.name as string, initiative: combatant.initiative,
           hpCurrent: combatant.hp_current as number, hpMax: combatant.hp_max as number,
-          armorClass: combatant.armor_class as number, notes: combatant.notes,
+          armorClass: combatant.armor_class as number, notes: combatant.notes, combatStats: combatant.combat_stats_json ? JSON.parse(combatant.combat_stats_json) : undefined,
         }) satisfies CampaignEncounterCombatant[],
     };
   }
@@ -275,7 +278,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
 
   private broadcastEncounter(sessionId: string): CampaignEncounter | null {
     const encounter = this.activeEncounter(sessionId);
-    this.broadcast({ type: "session.encounter", sessionId, encounter });
+    this.broadcast({ type: "session.encounter", sessionId });
     return encounter;
   }
 

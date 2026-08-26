@@ -64,4 +64,8 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /Previous Turn/u);
   assert.match(sessionUi, /Next Turn/u);
   assert.match(sessionUi, /Live Rolls/u);
+  assert.match(sessionUi, /collapsedNpcCombatSummary/u);
+  assert.match(sessionUi, /campaign-encounter-npc-combat/u);
+  assert.match(sessionUi, /additionalAttacks/u);
+  assert.match(sessionUi, /campaign-encounter-hp-control/u);
 });

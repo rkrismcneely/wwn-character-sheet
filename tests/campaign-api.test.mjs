@@ -26,6 +26,14 @@ import {
   updateCampaignResource,
 } from "../lib/campaigns/resources.ts";
 import {
+  campaignNpcEncounterSeed,
+  createCampaignNpcTemplate,
+  deleteCampaignNpcTemplate,
+  duplicateCampaignNpcTemplate,
+  listCampaignNpcTemplates,
+  updateCampaignNpcTemplate,
+} from "../lib/campaigns/npcs.ts";
+import {
   authorizeLiveSessionConnection,
   authorizeLiveSessionRoll,
   authorizeEncounterCharacter,
@@ -127,7 +135,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
@@ -231,6 +239,32 @@ test("live-session state keeps administrators read-only and does not expose dura
   assert.equal(adminState.permissions.canStart, false);
   await addMember(sqlite, campaign.id, admin);
   await expectServiceError(joinLiveSession(db, admin, campaign.id, now), 403);
+});
+
+test("NPC templates are owner-only, campaign-scoped, and seed independent encounter instances", async () => {
+  const { sqlite, db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "NPC Company" }, now);
+  await addMember(sqlite, campaign.id, player);
+  const draft = { name: "Orc Warrior", hpMax: 12, armorClass: 15, physicalSave: 13, evasionSave: 15, mentalSave: 16, attacks: [{ name: "Axe", attackBonus: 4, damage: "1d8+2", description: "" }], notes: "Shield wall" };
+  await expectServiceError(createCampaignNpcTemplate(db, player, campaign.id, draft), 403);
+  const npc = await createCampaignNpcTemplate(db, owner, campaign.id, draft, now);
+  assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id))[0].name, "Orc Warrior");
+  await expectServiceError(listCampaignNpcTemplates(db, player, campaign.id), 403);
+  await expectServiceError(listCampaignNpcTemplates(db, admin, campaign.id), 403);
+  const duplicate = await duplicateCampaignNpcTemplate(db, owner, campaign.id, npc.id, now);
+  assert.equal(duplicate.name, "Orc Warrior Copy");
+  const updated = await updateCampaignNpcTemplate(db, owner, campaign.id, npc.id, { ...draft, hpMax: 18, notes: "Updated template" }, now);
+  const encounterSeed = await campaignNpcEncounterSeed(db, internalCampaign(sqlite, campaign.id).id, npc.id);
+  encounterSeed.hpCurrent = 3;
+  const secondEncounterSeed = await campaignNpcEncounterSeed(db, internalCampaign(sqlite, campaign.id).id, npc.id);
+  assert.equal(updated.hpMax, 18);
+  assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id)).find(candidate => candidate.id === npc.id)?.hpMax, 18);
+  assert.equal(encounterSeed.hpMax, 18);
+  assert.equal(secondEncounterSeed.hpCurrent, 18);
+  const otherCampaign = await createCampaign(db, owner, { name: "Other NPC Company" }, now);
+  await expectServiceError(campaignNpcEncounterSeed(db, internalCampaign(sqlite, otherCampaign.id).id, npc.id), 404);
+  await deleteCampaignNpcTemplate(db, owner, campaign.id, duplicate.id);
+  assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id)).length, 1);
 });
 
 test("live-session transport keeps authentication in the Worker and uses hibernating Durable Object presence", async () => {

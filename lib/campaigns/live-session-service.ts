@@ -170,7 +170,7 @@ export async function authorizeEncounterManagement(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,
-): Promise<{ campaignId: string; sessionId: string }> {
+): Promise<{ campaignId: string; sessionId: string; participantKey: string }> {
   const { campaign } = await loadCampaignAccess(db, actor, publicId);
   requireActiveCampaign(campaign);
   requireOwner(actor, campaign.ownerUserId);
@@ -179,7 +179,7 @@ export async function authorizeEncounterManagement(
   const joined = await db.prepare("SELECT 1 AS joined FROM campaign_session_participants WHERE session_id = ? AND user_id = ?")
     .bind(session.id, actor.userId).first<{ joined: number }>();
   if (!joined) throw new CampaignServiceError("Join the live session before managing an encounter.", 409);
-  return { campaignId: campaign.id, sessionId: session.id };
+  return { campaignId: campaign.id, sessionId: session.id, participantKey: await participantKey(session.id, actor.userId) };
 }
 
 export async function authorizeEncounterCharacter(

@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { SignedInHeader } from "../app-header";
-import { EncounterTracker, PartyMember, SharedRoll } from "./campaign-live-session";
+import { EncounterTracker, PartyMember } from "./campaign-live-session";
 import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
 import { searchBuiltInBestiaryCreatures, type BuiltInBestiaryCreature } from "@/lib/campaigns/bestiary";
+import { RollHistoryPanel, RollResultTray } from "@/app/roll-presentation";
+import type { RollResult } from "@/app/rolls";
+import { useDiceStylePreference, useVirtualDicePreference } from "@/app/virtual-dice-preference";
+import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "@/app/virtual-dice-overlay";
+import { useDisplayTheme } from "@/app/theme-provider";
 
-type ConsoleTab = "encounter" | "bestiary" | "npcs" | "rolls" | "party";
+type ConsoleTab = "encounter" | "bestiary" | "npcs" | "party";
 
 type NpcDraft = {
   name: string; hpMax: number; armorClass: number;
@@ -134,6 +139,52 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
   const [tab, setTab] = useState<ConsoleTab>("encounter");
   const { state, setState, error, setError, busy, setBusy, action } = useCampaignLiveSession(campaignId);
   const session = state.session;
+  const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
+  const { style: diceStyle } = useDiceStylePreference();
+  const { theme: displayTheme } = useDisplayTheme();
+  const [pendingLatestRoll, setLatestRoll] = useState<RollResult | null>(null);
+  const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
+  const [npcRollBusy, setNpcRollBusy] = useState(false);
+  const [rollError, setRollError] = useState("");
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const virtualDiceOverlay = useRef<VirtualDiceOverlayHandle>(null);
+  const npcRollBusyRef = useRef(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update(); media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  async function rollNpc(combatantId: string, npcAction: Record<string, unknown>) {
+    if (!state.permissions.canManageEncounter || npcRollBusyRef.current) return;
+    npcRollBusyRef.current = true;
+    setNpcRollBusy(true); setRollError("");
+    try {
+      const preparedResponse = await fetch(`/api/campaigns/${campaignId}/session/rolls`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "npc_prepare", combatantId, npcAction }) });
+      const preparedBody = await preparedResponse.json() as { roll?: RollResult; error?: string };
+      if (!preparedResponse.ok || !preparedBody.roll) throw new Error(preparedBody.error || "The NPC roll could not be prepared.");
+      const roll = preparedBody.roll;
+      const shouldAnimate = virtualDiceEnabled && !reducedMotion && Boolean(virtualDiceOverlay.current);
+      let animationFailed = false;
+      if (shouldAnimate) {
+        let watchdog: number | undefined;
+        try {
+          const animation = virtualDiceOverlay.current?.roll({ dice: roll.dice.results.map(value => ({ sides: roll.dice.sides, value })), style: diceStyle });
+          if (!animation) throw new Error("The virtual dice overlay is unavailable.");
+          const timeout = new Promise<never>((_, reject) => { watchdog = window.setTimeout(() => reject(new Error("The virtual dice renderer timed out.")), 15000); });
+          await Promise.race([animation, timeout]);
+        } catch { animationFailed = true; virtualDiceOverlay.current?.cancel(); }
+        finally { if (watchdog !== undefined) window.clearTimeout(watchdog); }
+      }
+      setLatestRoll(roll);
+      const publishResponse = await fetch(`/api/campaigns/${campaignId}/session/rolls`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "npc_publish", rollId: roll.id }) });
+      if (!publishResponse.ok) throw new Error("The roll completed but could not be shared with the live session.");
+      if (animationFailed) setRollError("Animated dice were unavailable; the roll completed normally.");
+    } catch (rollActionError) { setRollError(rollActionError instanceof Error ? rollActionError.message : "The NPC roll could not be completed."); }
+    finally { npcRollBusyRef.current = false; setNpcRollBusy(false); }
+  }
 
   async function encounterAction(body: Record<string, unknown>) {
     setBusy(true); setError("");
@@ -156,5 +207,32 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     finally { setBusy(false); }
   }
 
-  return <main className="campaign-shell gm-console-shell"><SignedInHeader active="campaigns" /><section className="campaign-hero gm-console-hero"><div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div><div className="campaign-hero-actions"><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div></section>{error && <div className="campaign-error" role="status">{error}</div>}<nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "rolls", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav><section className="campaign-panel gm-console-panel">{tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Start a session to run encounters and follow party activity here.</p><button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("start").catch(() => {})}>Start Session</button></section>}{session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}{session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} canManage={true} busy={busy} onAction={encounterAction} />}{tab === "bestiary" && <BuiltInBestiary activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}{tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}{tab === "rolls" && (session && state.permissions.joined ? <section className="campaign-live-rolls gm-console-section"><h2>Live Rolls</h2>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.map(roll => <SharedRoll key={roll.id} roll={roll} />)}</ol> : <p>No contextual rolls have been shared yet.</p>}</section> : <p className="campaign-empty-copy">Start a session to follow shared rolls.</p>)}{tab === "party" && (session && state.permissions.joined ? <section className="campaign-live-party gm-console-section"><h2>Party</h2><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section> : <p className="campaign-empty-copy">Start a session to view party presence.</p>)}</section></main>;
+  const canManageEncounter = state.permissions.canManageEncounter;
+  const sharedHistory = session?.recentRolls ?? [];
+  const latestRoll = [pendingLatestRoll, sharedHistory[0]].filter((roll): roll is RollResult => Boolean(roll)).sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0] || null;
+  return <main className="campaign-shell gm-console-shell">
+    <SignedInHeader active="campaigns" />
+    <section className="campaign-hero gm-console-hero">
+      <div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div>
+      <div className="campaign-hero-actions"><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy || npcRollBusy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div>
+    </section>
+    {session && state.permissions.joined && <section className="gm-console-roll-row" aria-label="Campaign roll tools">
+      <div className="gm-console-latest-roll"><RollResultTray result={latestRoll || sharedHistory[0] || null} /></div>
+      <div className="gm-console-roll-history-control">
+        <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="gm-roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}>Roll History{sharedHistory.length ? ` (${sharedHistory.length})` : ""}</button>
+        {rollHistoryOpen && <div className="roll-history-popout" id="gm-roll-history-popout"><RollHistoryPanel history={sharedHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} description="Recent shared campaign rolls" /></div>}
+      </div>
+    </section>}
+    {(error || rollError) && <div className="campaign-error" role="status">{error || rollError}</div>}
+    <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    <section className="campaign-panel gm-console-panel">
+      {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Start a session to run encounters and follow party activity here.</p><button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("start").catch(() => {})}>Start Session</button></section>}
+      {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
+      {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
+      {tab === "bestiary" && <BuiltInBestiary activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
+      {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
+      {tab === "party" && (session && state.permissions.joined ? <section className="campaign-live-party gm-console-section"><h2>Party</h2><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section> : <p className="campaign-empty-copy">Start a session to view party presence.</p>)}
+    </section>
+    <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />
+  </main>;
 }

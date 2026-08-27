@@ -23,17 +23,25 @@ export interface BuiltInBestiaryCreature {
   readonly notes: string;
   readonly description: string;
   readonly sourceStats: BuiltInBestiarySourceStats;
+  readonly source: BuiltInBestiarySource;
 }
 
+export interface BuiltInBestiarySource { readonly name: string; readonly license: string }
 export interface BuiltInBestiarySourceStats { hitDice: number; shock: string; move: string; morale: number; instinct: number; skill: number }
-type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks" | "description" | "sourceStats"> & { attacks: CampaignNpcAttack[] };
+export const worldsWithoutNumberSrdSource: BuiltInBestiarySource = Object.freeze({
+  name: "Worlds Without Number SRD",
+  license: "CC0",
+});
+
+type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks" | "description" | "source" | "sourceStats"> & { attacks: CampaignNpcAttack[] };
 
 function defineCreature(creature: CreatureDefinition): BuiltInBestiaryCreature {
   const context = creatureContext[creature.id];
   return Object.freeze({
     ...creature,
     description: context.description,
-    sourceStats: context.sourceStats,
+    source: worldsWithoutNumberSrdSource,
+    sourceStats: Object.freeze({ ...context.sourceStats }),
     attacks: Object.freeze(creature.attacks.map(attack => Object.freeze({ ...attack }))),
   });
 }
@@ -85,13 +93,40 @@ export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Obje
   defineCreature({ id: "legendary-god-titan", name: "Legendary God-Titan", hpMax: 90, armorClass: 22, physicalSave: 2, evasionSave: 2, mentalSave: 2, attacks: [attack(20, "2d10+5", "Three attacks per Main Action.")], notes: statNotes(20, "10/-", "40'", 10, 3, 3) }),
 ]);
 
+const alphabeticalBuiltInBestiaryCreatures = Object.freeze(
+  [...builtInBestiaryCreatures].sort((left, right) => left.name.localeCompare(right.name)),
+);
+
 export function getBuiltInBestiaryCreature(id: string): BuiltInBestiaryCreature | null {
   return builtInBestiaryCreatures.find(creature => creature.id === id) ?? null;
 }
 
+function creatureMatchesSearch(creature: BuiltInBestiaryCreature, normalizedQuery: string): boolean {
+  return !normalizedQuery
+    || creature.name.toLocaleLowerCase().includes(normalizedQuery)
+    || creature.description.toLocaleLowerCase().includes(normalizedQuery);
+}
+
+export function searchBestiaryCreatures(
+  creatures: readonly BuiltInBestiaryCreature[],
+  query: string,
+): BuiltInBestiaryCreature[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  return [...creatures]
+    .filter(creature => creatureMatchesSearch(creature, normalized))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
 export function searchBuiltInBestiaryCreatures(query: string): BuiltInBestiaryCreature[] {
   const normalized = query.trim().toLocaleLowerCase();
-  return builtInBestiaryCreatures.filter(creature => !normalized || creature.name.toLocaleLowerCase().includes(normalized));
+  return alphabeticalBuiltInBestiaryCreatures.filter(creature => creatureMatchesSearch(creature, normalized));
+}
+
+export function selectBestiaryCreature(
+  creatures: readonly BuiltInBestiaryCreature[],
+  selectedId: string | null,
+): BuiltInBestiaryCreature | null {
+  return creatures.find(creature => creature.id === selectedId) ?? creatures[0] ?? null;
 }
 
 export function builtInBestiaryCreatureDraft(id: string): CampaignNpcDraft | null {

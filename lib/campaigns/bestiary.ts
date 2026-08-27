@@ -1,5 +1,6 @@
 import type { CampaignNpcAttack, CampaignNpcDraft } from "./npcs.ts";
 import type { CampaignNpcCombatStats } from "./live-session.ts";
+import { calculateWwnThreatEstimate, type WwnThreatBand } from "./wwn-threat.ts";
 
 /**
  * Immutable creature definitions derived exclusively from the CC0 Worlds
@@ -27,7 +28,7 @@ export interface BuiltInBestiaryCreature {
 }
 
 export interface BuiltInBestiarySource { readonly name: string; readonly license: string }
-export interface BuiltInBestiarySourceStats { hitDice: number; shock: string; move: string; morale: number; instinct: number; skill: number }
+export interface BuiltInBestiarySourceStats { readonly hitDice: number; readonly attacksPerMainAction: number; readonly shock: string; readonly move: string; readonly morale: number; readonly instinct: number; readonly skill: number }
 export const worldsWithoutNumberSrdSource: BuiltInBestiarySource = Object.freeze({
   name: "Worlds Without Number SRD",
   license: "CC0",
@@ -56,41 +57,41 @@ function statNotes(hitDice: number, shock: string, move: string, morale: number,
 }
 
 const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {
-  "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
-  "large-solitary-predator": { description: "A powerful lone hunter suited to dangerous wilderness territory.", sourceStats: { hitDice: 5, shock: "2/13", move: "30'", morale: 8, instinct: 6, skill: 1 } },
-  "apex-predator": { description: "A huge and exceptionally dangerous hunting beast, suitable for dire predators and other apex carnivores.", sourceStats: { hitDice: 6, shock: "2/13", move: "40'", morale: 8, instinct: 6, skill: 2 } },
-  "herd-beast": { description: "A common grazing animal that can become dangerous when startled or defending its young.", sourceStats: { hitDice: 2, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
-  "vicious-large-herbivore": { description: "A large territorial herbivore with enough mass and aggression to threaten a party.", sourceStats: { hitDice: 4, shock: "1/13", move: "40'", morale: 9, instinct: 6, skill: 1 } },
-  "elephantine-grazer": { description: "An enormous grazer whose bulk and crushing attacks make it a formidable obstacle.", sourceStats: { hitDice: 6, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
-  "automaton-humanlike": { description: "A human-shaped artificial servant or guardian carrying an ordinary weapon.", sourceStats: { hitDice: 2, shock: "Weapon", move: "30'", morale: 12, instinct: 3, skill: 1 } },
-  "automaton-laborer": { description: "A durable industrial construct designed for repetitive physical work.", sourceStats: { hitDice: 2, shock: "1/13", move: "30'", morale: 12, instinct: 3, skill: 1 } },
-  "automaton-military": { description: "A reinforced combat automaton built for disciplined military service.", sourceStats: { hitDice: 4, shock: "4/15", move: "30'", morale: 12, instinct: 3, skill: 1 } },
-  "slime-or-ooze": { description: "A mindless amorphous predator that attacks with engulfing pseudopods.", sourceStats: { hitDice: 6, shock: "1/-", move: "20'", morale: 12, instinct: 5, skill: 1 } },
-  "small-vicious-predator": { description: "A compact, aggressive predator that attacks quickly and without hesitation.", sourceStats: { hitDice: 1, shock: "1/13", move: "30'", morale: 7, instinct: 5, skill: 1 } },
-  "large-vicious-predator": { description: "A large and ferocious predator capable of multiple savage attacks.", sourceStats: { hitDice: 6, shock: "2/15", move: "40'", morale: 9, instinct: 5, skill: 2 } },
-  "hulking-predator": { description: "A massive predator with terrifying strength and a thick defensive hide.", sourceStats: { hitDice: 10, shock: "6/15", move: "30'", morale: 10, instinct: 4, skill: 1 } },
-  "unnatural-swarm": { description: "A supernatural swarm that assails foes with a mass of unnatural attackers.", sourceStats: { hitDice: 4, shock: "1/-", move: "30'", morale: 10, instinct: 5, skill: 1 } },
-  "terrible-warbeast": { description: "A monstrous war-trained beast bred or bound for brutal battlefield assaults.", sourceStats: { hitDice: 8, shock: "7/15", move: "40'", morale: 9, instinct: 4, skill: 2 } },
-  "legendary-god-titan": { description: "A legendary colossal being of near-divine power, appropriate only for mythic confrontations.", sourceStats: { hitDice: 20, shock: "10/-", move: "40'", morale: 10, instinct: 3, skill: 3 } },
-  "peaceful-human": { description: "An ordinary civilian or commoner, useful for noncombatant townsfolk, retainers, and vulnerable bystanders.", sourceStats: { hitDice: 1, shock: "Weapon", move: "30'", morale: 7, instinct: 5, skill: 1 } },
-  "thug-or-militia": { description: "An ordinary armed combatant for rough bandits, local militia, inexperienced guards, or similar foes.", sourceStats: { hitDice: 1, shock: "Weapon", move: "30'", morale: 8, instinct: 4, skill: 1 } },
-  "barbarian-fighter": { description: "A hard-fighting barbarian raider who trades disciplined restraint for a more aggressive weapon attack.", sourceStats: { hitDice: 1, shock: "Weapon +1", move: "30'", morale: 8, instinct: 5, skill: 1 } },
-  "veteran-soldier": { description: "A seasoned soldier or mercenary with the same combat training as a barbarian fighter but more disciplined instincts.", sourceStats: { hitDice: 1, shock: "Weapon +1", move: "30'", morale: 8, instinct: 3, skill: 1 } },
-  "skilled-veteran": { description: "A capable professional soldier, veteran guard, or trusted mercenary who can withstand a tougher fight.", sourceStats: { hitDice: 2, shock: "Weapon +1", move: "30'", morale: 9, instinct: 2, skill: 1 } },
-  "elites-or-special-guards": { description: "An elite guard or special-operations warrior equipped and trained to protect an important person or place.", sourceStats: { hitDice: 3, shock: "Weapon +2", move: "30'", morale: 10, instinct: 2, skill: 2 } },
-  "knight-or-minor-hero": { description: "A knight, champion, or minor hero whose armor and personal prowess make them a serious frontline opponent.", sourceStats: { hitDice: 4, shock: "Weapon +2", move: "30'", morale: 10, instinct: 1, skill: 2 } },
-  "warrior-baron": { description: "A formidable warrior noble or battle leader suited to command guards, soldiers, and lesser champions.", sourceStats: { hitDice: 6, shock: "Weapon +3", move: "30'", morale: 9, instinct: 1, skill: 2 } },
-  "barbarian-warlord": { description: "A brutal barbarian warlord who leads raiders with relentless aggression and two punishing weapon attacks.", sourceStats: { hitDice: 8, shock: "Weapon +4/-", move: "30'", morale: 10, instinct: 3, skill: 2 } },
-  "mighty-general": { description: "A mighty general or supreme professional commander, equally at home directing soldiers and fighting beside them.", sourceStats: { hitDice: 8, shock: "Weapon +4/-", move: "30'", morale: 10, instinct: 1, skill: 3 } },
-  "major-hero": { description: "A major hero or renowned champion able to dominate a battle through exceptional martial ability.", sourceStats: { hitDice: 10, shock: "Weapon +5/-", move: "30'", morale: 10, instinct: 2, skill: 3 } },
-  "great-warrior-king": { description: "A great warrior king, legendary ruler, or supreme martial champion intended for climactic confrontations.", sourceStats: { hitDice: 12, shock: "Weapon +5/-", move: "30'", morale: 10, instinct: 1, skill: 3 } },
-  "petty-mage": { description: "A minor mage or hedge wizard with modest spellcasting appropriate to a low-level magical adversary or ally.", sourceStats: { hitDice: 2, shock: "Weapon", move: "30'", morale: 8, instinct: 4, skill: 1 } },
-  "tribal-shaman": { description: "A tribal shaman or ritual leader whose substantial experience supports capable tradition-appropriate magic.", sourceStats: { hitDice: 4, shock: "Weapon +1", move: "30'", morale: 9, instinct: 4, skill: 1 } },
-  "skilled-sorcerer": { description: "A skilled sorcerer or practiced wizard who relies on established magical tradition rather than a fixed spell list.", sourceStats: { hitDice: 5, shock: "Weapon", move: "30'", morale: 9, instinct: 4, skill: 2 } },
-  "master-wizard": { description: "A master wizard with formidable tradition-appropriate spellcasting, suitable for a powerful court or faction mage.", sourceStats: { hitDice: 8, shock: "Weapon", move: "30'", morale: 9, instinct: 3, skill: 2 } },
-  "famous-arch-mage": { description: "A famous arch-mage whose high-level tradition-appropriate magic can shape a major conflict.", sourceStats: { hitDice: 10, shock: "Weapon", move: "30'", morale: 9, instinct: 2, skill: 3 } },
-  "automaton-warbot": { description: "A towering combat automaton or ancient war machine built to endure heavy fire and devastate nearby foes.", sourceStats: { hitDice: 10, shock: "7/-", move: "40'", morale: 12, instinct: 2, skill: 2 } },
-  "predator-hellbeast": { description: "A hellbeast or other supernatural apex predator with extreme speed and a barrage of savage attacks.", sourceStats: { hitDice: 10, shock: "6/-", move: "60'", morale: 11, instinct: 4, skill: 3 } },
+  "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "large-solitary-predator": { description: "A powerful lone hunter suited to dangerous wilderness territory.", sourceStats: { hitDice: 5, attacksPerMainAction: 1, shock: "2/13", move: "30'", morale: 8, instinct: 6, skill: 1 } },
+  "apex-predator": { description: "A huge and exceptionally dangerous hunting beast, suitable for dire predators and other apex carnivores.", sourceStats: { hitDice: 6, attacksPerMainAction: 2, shock: "2/13", move: "40'", morale: 8, instinct: 6, skill: 2 } },
+  "herd-beast": { description: "A common grazing animal that can become dangerous when startled or defending its young.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "vicious-large-herbivore": { description: "A large territorial herbivore with enough mass and aggression to threaten a party.", sourceStats: { hitDice: 4, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 9, instinct: 6, skill: 1 } },
+  "elephantine-grazer": { description: "An enormous grazer whose bulk and crushing attacks make it a formidable obstacle.", sourceStats: { hitDice: 6, attacksPerMainAction: 1, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "automaton-humanlike": { description: "A human-shaped artificial servant or guardian carrying an ordinary weapon.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 12, instinct: 3, skill: 1 } },
+  "automaton-laborer": { description: "A durable industrial construct designed for repetitive physical work.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "1/13", move: "30'", morale: 12, instinct: 3, skill: 1 } },
+  "automaton-military": { description: "A reinforced combat automaton built for disciplined military service.", sourceStats: { hitDice: 4, attacksPerMainAction: 1, shock: "4/15", move: "30'", morale: 12, instinct: 3, skill: 1 } },
+  "slime-or-ooze": { description: "A mindless amorphous predator that attacks with engulfing pseudopods.", sourceStats: { hitDice: 6, attacksPerMainAction: 2, shock: "1/-", move: "20'", morale: 12, instinct: 5, skill: 1 } },
+  "small-vicious-predator": { description: "A compact, aggressive predator that attacks quickly and without hesitation.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "30'", morale: 7, instinct: 5, skill: 1 } },
+  "large-vicious-predator": { description: "A large and ferocious predator capable of multiple savage attacks.", sourceStats: { hitDice: 6, attacksPerMainAction: 2, shock: "2/15", move: "40'", morale: 9, instinct: 5, skill: 2 } },
+  "hulking-predator": { description: "A massive predator with terrifying strength and a thick defensive hide.", sourceStats: { hitDice: 10, attacksPerMainAction: 2, shock: "6/15", move: "30'", morale: 10, instinct: 4, skill: 1 } },
+  "unnatural-swarm": { description: "A supernatural swarm that assails foes with a mass of unnatural attackers.", sourceStats: { hitDice: 4, attacksPerMainAction: 3, shock: "1/-", move: "30'", morale: 10, instinct: 5, skill: 1 } },
+  "terrible-warbeast": { description: "A monstrous war-trained beast bred or bound for brutal battlefield assaults.", sourceStats: { hitDice: 8, attacksPerMainAction: 2, shock: "7/15", move: "40'", morale: 9, instinct: 4, skill: 2 } },
+  "legendary-god-titan": { description: "A legendary colossal being of near-divine power, appropriate only for mythic confrontations.", sourceStats: { hitDice: 20, attacksPerMainAction: 3, shock: "10/-", move: "40'", morale: 10, instinct: 3, skill: 3 } },
+  "peaceful-human": { description: "An ordinary civilian or commoner, useful for noncombatant townsfolk, retainers, and vulnerable bystanders.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 7, instinct: 5, skill: 1 } },
+  "thug-or-militia": { description: "An ordinary armed combatant for rough bandits, local militia, inexperienced guards, or similar foes.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 8, instinct: 4, skill: 1 } },
+  "barbarian-fighter": { description: "A hard-fighting barbarian raider who trades disciplined restraint for a more aggressive weapon attack.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "Weapon +1", move: "30'", morale: 8, instinct: 5, skill: 1 } },
+  "veteran-soldier": { description: "A seasoned soldier or mercenary with the same combat training as a barbarian fighter but more disciplined instincts.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "Weapon +1", move: "30'", morale: 8, instinct: 3, skill: 1 } },
+  "skilled-veteran": { description: "A capable professional soldier, veteran guard, or trusted mercenary who can withstand a tougher fight.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "Weapon +1", move: "30'", morale: 9, instinct: 2, skill: 1 } },
+  "elites-or-special-guards": { description: "An elite guard or special-operations warrior equipped and trained to protect an important person or place.", sourceStats: { hitDice: 3, attacksPerMainAction: 1, shock: "Weapon +2", move: "30'", morale: 10, instinct: 2, skill: 2 } },
+  "knight-or-minor-hero": { description: "A knight, champion, or minor hero whose armor and personal prowess make them a serious frontline opponent.", sourceStats: { hitDice: 4, attacksPerMainAction: 1, shock: "Weapon +2", move: "30'", morale: 10, instinct: 1, skill: 2 } },
+  "warrior-baron": { description: "A formidable warrior noble or battle leader suited to command guards, soldiers, and lesser champions.", sourceStats: { hitDice: 6, attacksPerMainAction: 1, shock: "Weapon +3", move: "30'", morale: 9, instinct: 1, skill: 2 } },
+  "barbarian-warlord": { description: "A brutal barbarian warlord who leads raiders with relentless aggression and two punishing weapon attacks.", sourceStats: { hitDice: 8, attacksPerMainAction: 2, shock: "Weapon +4/-", move: "30'", morale: 10, instinct: 3, skill: 2 } },
+  "mighty-general": { description: "A mighty general or supreme professional commander, equally at home directing soldiers and fighting beside them.", sourceStats: { hitDice: 8, attacksPerMainAction: 1, shock: "Weapon +4/-", move: "30'", morale: 10, instinct: 1, skill: 3 } },
+  "major-hero": { description: "A major hero or renowned champion able to dominate a battle through exceptional martial ability.", sourceStats: { hitDice: 10, attacksPerMainAction: 2, shock: "Weapon +5/-", move: "30'", morale: 10, instinct: 2, skill: 3 } },
+  "great-warrior-king": { description: "A great warrior king, legendary ruler, or supreme martial champion intended for climactic confrontations.", sourceStats: { hitDice: 12, attacksPerMainAction: 2, shock: "Weapon +5/-", move: "30'", morale: 10, instinct: 1, skill: 3 } },
+  "petty-mage": { description: "A minor mage or hedge wizard with modest spellcasting appropriate to a low-level magical adversary or ally.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 8, instinct: 4, skill: 1 } },
+  "tribal-shaman": { description: "A tribal shaman or ritual leader whose substantial experience supports capable tradition-appropriate magic.", sourceStats: { hitDice: 4, attacksPerMainAction: 1, shock: "Weapon +1", move: "30'", morale: 9, instinct: 4, skill: 1 } },
+  "skilled-sorcerer": { description: "A skilled sorcerer or practiced wizard who relies on established magical tradition rather than a fixed spell list.", sourceStats: { hitDice: 5, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 9, instinct: 4, skill: 2 } },
+  "master-wizard": { description: "A master wizard with formidable tradition-appropriate spellcasting, suitable for a powerful court or faction mage.", sourceStats: { hitDice: 8, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 9, instinct: 3, skill: 2 } },
+  "famous-arch-mage": { description: "A famous arch-mage whose high-level tradition-appropriate magic can shape a major conflict.", sourceStats: { hitDice: 10, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 9, instinct: 2, skill: 3 } },
+  "automaton-warbot": { description: "A towering combat automaton or ancient war machine built to endure heavy fire and devastate nearby foes.", sourceStats: { hitDice: 10, attacksPerMainAction: 3, shock: "7/-", move: "40'", morale: 12, instinct: 2, skill: 2 } },
+  "predator-hellbeast": { description: "A hellbeast or other supernatural apex predator with extreme speed and a barrage of savage attacks.", sourceStats: { hitDice: 10, attacksPerMainAction: 4, shock: "6/-", move: "60'", morale: 11, instinct: 4, skill: 3 } },
 };
 
 export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze([
@@ -152,6 +153,29 @@ export function searchBestiaryCreatures(
   const normalized = query.trim().toLocaleLowerCase();
   return [...creatures]
     .filter(creature => creatureMatchesSearch(creature, normalized))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export interface BestiaryBrowseFilters {
+  readonly query?: string;
+  readonly minHitDice?: number | null;
+  readonly maxHitDice?: number | null;
+  readonly partyLevels?: readonly unknown[];
+  readonly threatBand?: WwnThreatBand | null;
+  readonly quantity?: number;
+}
+
+/** Local, derived Bestiary filtering. It never writes or augments creature definitions. */
+export function filterBestiaryCreatures(
+  creatures: readonly BuiltInBestiaryCreature[],
+  { query = "", minHitDice = null, maxHitDice = null, partyLevels = [], threatBand = null, quantity = 1 }: BestiaryBrowseFilters = {},
+): BuiltInBestiaryCreature[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  return [...creatures]
+    .filter(creature => creatureMatchesSearch(creature, normalized))
+    .filter(creature => minHitDice === null || creature.sourceStats.hitDice >= minHitDice)
+    .filter(creature => maxHitDice === null || creature.sourceStats.hitDice <= maxHitDice)
+    .filter(creature => !threatBand || calculateWwnThreatEstimate(partyLevels, [{ hitDice: creature.sourceStats.hitDice, attacksPerMainAction: creature.sourceStats.attacksPerMainAction, quantity }])?.band === threatBand)
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 

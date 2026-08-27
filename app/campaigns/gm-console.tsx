@@ -215,7 +215,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     <SignedInHeader active="campaigns" />
     <section className="campaign-hero gm-console-hero">
       <div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div>
-      <div className="campaign-hero-actions"><RulesAssistant compact className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy || npcRollBusy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div>
+      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy || npcRollBusy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div>
     </section>
     {session && state.permissions.joined && <section className="gm-console-roll-row" aria-label="Campaign roll tools">
       <div className="gm-console-latest-roll"><RollResultTray result={latestRoll || sharedHistory[0] || null} /></div>

@@ -18,7 +18,8 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /RollResultTray/u);
   assert.match(consoleUi, /RollHistoryPanel/u);
   assert.match(consoleUi, /RulesAssistant/u);
-  assert.match(consoleUi, /<RulesAssistant compact className="gm-console-rules-assistant" id="gm-rules-question" \/>/u);
+  assert.match(consoleUi, /<RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" \/>/u);
+  assert.doesNotMatch(consoleUi, /<RulesAssistant compact/u);
   assert.match(consoleUi, /npc_prepare/u);
   assert.match(consoleUi, /npc_publish/u);
   assert.match(consoleUi, /VirtualDiceOverlay/u);

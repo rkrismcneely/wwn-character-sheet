@@ -4,10 +4,15 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { SignedInHeader } from "../app-header";
 import { EncounterTracker, PartyMember } from "./campaign-live-session";
+import { BestiaryBrowseItem } from "./bestiary-browse";
 import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
-import { searchBuiltInBestiaryCreatures, type BuiltInBestiaryCreature } from "@/lib/campaigns/bestiary";
+import {
+  searchBuiltInBestiaryCreatures,
+  selectBestiaryCreature,
+  type BuiltInBestiaryCreature,
+} from "@/lib/campaigns/bestiary";
 import { RollHistoryPanel, RollResultTray } from "@/app/roll-presentation";
 import type { RollResult } from "@/app/rolls";
 import { useDiceStylePreference, useVirtualDicePreference } from "@/app/virtual-dice-preference";
@@ -27,35 +32,73 @@ const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physical
 const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks, notes: npc.notes });
 
 function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
-  return <>
-    <p className="gm-bestiary-summary">HP {creature.hpMax} · AC {creature.armorClass} · Saves P {creature.physicalSave} / E {creature.evasionSave} / M {creature.mentalSave}</p>
-    <details className="gm-bestiary-details"><summary>Inspect stat block</summary><div className="gm-bestiary-stat-block"><section><h4>Creature stats</h4><p>HD {creature.sourceStats.hitDice} · Shock {creature.sourceStats.shock} · Move {creature.sourceStats.move} · Morale {creature.sourceStats.morale} · Instinct {creature.sourceStats.instinct} · Skill {creature.sourceStats.skill}</p></section><section><h4>Attacks</h4><ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul></section><section className="gm-bestiary-notes"><h4>Notes</h4><p>{creature.notes}</p></section></div></details>
-  </>;
+  return <div className="gm-bestiary-stat-block">
+    <section>
+      <h4>Combat profile</h4>
+      <dl className="gm-bestiary-stat-grid">
+        <div><dt>HP</dt><dd>{creature.hpMax}</dd></div>
+        <div><dt>AC</dt><dd>{creature.armorClass}</dd></div>
+        <div><dt>HD</dt><dd>{creature.sourceStats.hitDice}</dd></div>
+        <div><dt>Shock</dt><dd>{creature.sourceStats.shock}</dd></div>
+        <div><dt>Move</dt><dd>{creature.sourceStats.move}</dd></div>
+        <div><dt>Morale</dt><dd>{creature.sourceStats.morale}</dd></div>
+        <div><dt>Instinct</dt><dd>{creature.sourceStats.instinct}</dd></div>
+        <div><dt>Skill</dt><dd>+{creature.sourceStats.skill}</dd></div>
+      </dl>
+    </section>
+    <section>
+      <h4>Saves</h4>
+      <p>P {creature.physicalSave} · E {creature.evasionSave} · M {creature.mentalSave}</p>
+    </section>
+    <section>
+      <h4>Attacks</h4>
+      <ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>
+    </section>
+    <section className="gm-bestiary-notes"><h4>Notes</h4><p>{creature.notes}</p></section>
+  </div>;
+}
+
+function BestiaryDetail({ creature, activeEncounter, busy, onAddToEncounter, onSaveAsNpc, onBack }: { creature: BuiltInBestiaryCreature | null; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void>; onBack: () => void }) {
+  if (!creature) return <section className="gm-bestiary-detail" aria-live="polite"><button type="button" className="campaign-secondary gm-bestiary-back" onClick={onBack}>Back to results</button><p className="campaign-empty-copy">Choose a creature from the matching results to inspect its full stat block.</p></section>;
+  return <section className="gm-bestiary-detail" aria-live="polite" aria-labelledby="gm-bestiary-detail-title">
+    <div className="gm-bestiary-detail-heading"><div><p className="campaign-kicker">SELECTED CREATURE</p><h3 id="gm-bestiary-detail-title">{creature.name}</h3></div><button type="button" className="campaign-secondary gm-bestiary-back" onClick={onBack}>Back to results</button></div>
+    <p className="gm-bestiary-description">{creature.description}</p>
+    <BestiaryStatBlock creature={creature} />
+    <section className="gm-bestiary-source"><h4>Source & license</h4><p>{creature.source.name} · {creature.source.license}</p></section>
+    <div className="gm-bestiary-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void onSaveAsNpc(creature.id)}>Copy to NPC Library</button></div>
+  </section>;
 }
 
 function BuiltInBestiary({ activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
   const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"browse" | "detail">("browse");
   const [error, setError] = useState("");
   const creatures = searchBuiltInBestiaryCreatures(query);
+  const selectedCreature = selectBestiaryCreature(creatures, selectedId);
 
-  async function addToEncounter(bestiaryId: string) {
+  async function runBestiaryAction(action: () => Promise<void>, fallbackMessage: string) {
     setError("");
-    try { await onAddToEncounter(bestiaryId); }
-    catch (actionError) { setError(actionError instanceof Error ? actionError.message : "The built-in creature could not be added to the encounter."); }
+    try { await action(); }
+    catch (actionError) { setError(actionError instanceof Error ? actionError.message : fallbackMessage); }
   }
 
-  async function saveAsNpc(bestiaryId: string) {
-    setError("");
-    try { await onSaveAsNpc(bestiaryId); }
-    catch (actionError) { setError(actionError instanceof Error ? actionError.message : "The campaign NPC template could not be created."); }
-  }
+  // The GM Console's tabs already use local state. Keep the search and selected
+  // creature local as well: it avoids new routing surface while a hidden mobile
+  // browse list retains its query and scroll position when detail is opened.
+  function selectCreature(id: string) { setSelectedId(id); setMobileView("detail"); }
 
   return <section className="gm-console-section" aria-labelledby="gm-bestiary-title">
     <div className="campaign-section-heading"><div><p className="campaign-kicker">CC0 SRD LIBRARY</p><h2 id="gm-bestiary-title">Built-In Bestiary</h2><p className="campaign-empty-copy">Immutable SRD stat lines. Adding or saving one always creates an independent campaign copy.</p></div></div>
-    <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by creature name" /></label>
     {error && <p className="campaign-error" role="status">{error}</p>}
-    {!creatures.length && <p className="campaign-empty-copy">No built-in creatures match “{query}”.</p>}
-    <div className="gm-bestiary-grid">{creatures.map(creature => <article key={creature.id} className="gm-npc-card gm-bestiary-card"><div><h3>{creature.name}</h3><p className="gm-bestiary-description">{creature.description}</p><BestiaryStatBlock creature={creature} /></div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void addToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void saveAsNpc(creature.id)}>Save as My NPC</button></div></article>)}</div>
+    <div className="gm-bestiary-browser" data-mobile-view={mobileView}>
+      <section className="gm-bestiary-browse" aria-label="Browse built-in creatures">
+        <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name or description" /></label>
+        <p className="gm-bestiary-result-count" role="status">{creatures.length} {creatures.length === 1 ? "creature" : "creatures"} shown</p>
+        {!creatures.length ? <p className="campaign-empty-copy">No built-in creatures match “{query}”.</p> : <ul className="gm-bestiary-list">{creatures.map(creature => <BestiaryBrowseItem key={creature.id} creature={creature} selected={selectedCreature?.id === creature.id} onSelect={() => selectCreature(creature.id)} />)}</ul>}
+      </section>
+      <BestiaryDetail creature={selectedCreature} activeEncounter={activeEncounter} busy={busy} onBack={() => setMobileView("browse")} onAddToEncounter={bestiaryId => runBestiaryAction(() => onAddToEncounter(bestiaryId), "The built-in creature could not be added to the encounter.")} onSaveAsNpc={bestiaryId => runBestiaryAction(() => onSaveAsNpc(bestiaryId), "The campaign NPC template could not be created.")} />
+    </div>
   </section>;
 }
 

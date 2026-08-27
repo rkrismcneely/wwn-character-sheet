@@ -38,7 +38,9 @@ import {
   builtInBestiaryCreatureDraft,
   builtInBestiaryEncounterSeed,
   getBuiltInBestiaryCreature,
+  searchBestiaryCreatures,
   searchBuiltInBestiaryCreatures,
+  selectBestiaryCreature,
 } from "../lib/campaigns/bestiary.ts";
 import {
   authorizeLiveSessionConnection,
@@ -281,11 +283,32 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(apex.name, "Apex Predator");
   assert.equal(apex.armorClass, 13);
   assert.equal(apex.attacks[0].damage, "1d8");
+  assert.deepEqual(apex.source, { name: "Worlds Without Number SRD", license: "CC0" });
   assert.equal(Object.isFrozen(apex), true);
   assert.equal(Object.isFrozen(apex.attacks), true);
+  assert.equal(Object.isFrozen(apex.source), true);
+  assert.equal(Object.isFrozen(apex.sourceStats), true);
   assert.deepEqual(searchBuiltInBestiaryCreatures("apex").map(creature => creature.id), ["apex-predator"]);
-  assert.ok(searchBuiltInBestiaryCreatures("").length >= 16);
+  const catalog = searchBuiltInBestiaryCreatures("");
+  assert.equal(catalog.length, 16);
+  assert.deepEqual(catalog.map(creature => creature.name), [...catalog.map(creature => creature.name)].sort((left, right) => left.localeCompare(right)));
   assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
+  assert.deepEqual(searchBuiltInBestiaryCreatures("amorphous").map(creature => creature.id), ["slime-or-ooze"]);
+  assert.deepEqual(searchBuiltInBestiaryCreatures("no such creature"), []);
+  assert.equal(selectBestiaryCreature(catalog, "apex-predator")?.id, "apex-predator");
+  assert.equal(selectBestiaryCreature(catalog, "filtered-out")?.id, catalog[0]?.id);
+
+  const syntheticCatalog = Array.from({ length: 512 }, (_, index) => ({
+    ...apex,
+    id: `synthetic-${index}`,
+    name: `Synthetic Creature ${String(512 - index).padStart(3, "0")}`,
+    description: index === 311 ? "Needle-in-a-haystack synthetic creature." : "Synthetic performance fixture.",
+  }));
+  const syntheticResults = searchBestiaryCreatures(syntheticCatalog, "");
+  assert.equal(syntheticResults.length, 512);
+  assert.equal(syntheticResults[0]?.name, "Synthetic Creature 001");
+  assert.deepEqual(searchBestiaryCreatures(syntheticCatalog, "needle-in-a-haystack").map(creature => creature.id), ["synthetic-311"]);
+  assert.equal(selectBestiaryCreature(syntheticResults, "filtered-out")?.id, "synthetic-511");
   const firstDraft = builtInBestiaryCreatureDraft("apex-predator");
   const secondDraft = builtInBestiaryCreatureDraft("apex-predator");
   assert.ok(firstDraft && secondDraft);

@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { BestiaryBrowseItem } from "../app/campaigns/bestiary-browse.ts";
+import { builtInBestiaryCreatures, searchBestiaryCreatures } from "../lib/campaigns/bestiary.ts";
 
 test("GM Console is owner-gated and reuses the existing session, encounter, party, and roll components", async () => {
-  const [page, consoleUi, encounterRoute, detail, migration] = await Promise.all([
+  const [page, consoleUi, encounterRoute, detail, migration, styles] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/gm/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/gm-console.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-detail.tsx", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0011_campaign_npc_templates.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-ui.css", import.meta.url), "utf8"),
   ]);
   assert.match(page, /campaign\.ownerUserId !== actor\.userId/u);
   assert.match(page, /notFound\(\)/u);
@@ -35,7 +40,17 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /Create NPC/u);
   assert.match(consoleUi, /Built-In Bestiary/u);
   assert.match(consoleUi, /Search creatures/u);
-  assert.match(consoleUi, /Save as My NPC/u);
+  assert.match(consoleUi, /Search name or description/u);
+  assert.match(consoleUi, /Copy to NPC Library/u);
+  assert.match(consoleUi, /Source & license/u);
+  assert.match(consoleUi, /BestiaryBrowseItem/u);
+  assert.match(consoleUi, /creatures\.map\(creature => <BestiaryBrowseItem/u);
+  assert.equal((consoleUi.match(/<BestiaryStatBlock/g) ?? []).length, 1, "only the selected creature mounts a full stat block");
+  assert.match(consoleUi, /data-mobile-view=\{mobileView\}/u);
+  assert.match(consoleUi, /setMobileView\("browse"\)/u);
+  assert.match(styles, /\.gm-bestiary-list\{[^}]*max-height:min\(66vh,720px\)[^}]*overflow:auto/u);
+  assert.match(styles, /\.gm-bestiary-browser\{display:grid;grid-template-columns:minmax\(270px,\.72fr\) minmax\(0,1\.28fr\)/u);
+  assert.match(styles, /\.gm-bestiary-browser\[data-mobile-view="detail"\] \.gm-bestiary-browse/u);
   assert.match(consoleUi, /End Session/u);
   assert.match(consoleUi, /Duplicate/u);
   assert.match(consoleUi, /Confirm Delete/u);
@@ -48,4 +63,24 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(detail, /Open GM Console/u);
   assert.match(migration, /campaign_npc_templates/u);
   assert.match(migration, /ON DELETE CASCADE/u);
+});
+
+test("Bestiary renders a 512-entry synthetic test catalog as compact browse rows", () => {
+  const baseCreature = builtInBestiaryCreatures[0];
+  const syntheticCatalog = Array.from({ length: 512 }, (_, index) => ({
+    ...baseCreature,
+    id: `synthetic-${index}`,
+    name: `Synthetic Creature ${String(512 - index).padStart(3, "0")}`,
+    description: index === 311 ? "Needle-in-a-haystack synthetic creature." : "Synthetic test-only creature description.",
+  }));
+  const sortedCreatures = searchBestiaryCreatures(syntheticCatalog, "");
+  const markup = renderToStaticMarkup(createElement(
+    "ul",
+    { className: "gm-bestiary-list" },
+    sortedCreatures.map((creature, index) => createElement(BestiaryBrowseItem, { key: creature.id, creature, selected: index === 0, onSelect: () => {} })),
+  ));
+
+  assert.equal((markup.match(/class="gm-bestiary-row"/gu) ?? []).length, 512);
+  assert.match(markup, /Synthetic Creature 001/u);
+  assert.doesNotMatch(markup, /gm-bestiary-stat-block/u);
 });

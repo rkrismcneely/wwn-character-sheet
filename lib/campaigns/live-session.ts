@@ -46,8 +46,9 @@ export interface CampaignEncounterNpc {
 
 export interface CampaignNpcCombatStats {
   saves: { physical: number; evasion: number; mental: number };
-  attacks: { name: string; attackBonus: number; damage: string; description: string }[];
+  attacks: import("./npc-combat.ts").CampaignNpcAttack[];
   notes: string;
+  threatStats?: import("./npc-combat.ts").CampaignNpcThreatStats;
   sourceStats?: { hitDice: number; attacksPerMainAction?: number; shock: string; move: string; morale: number; instinct: number; skill: number };
 }
 export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;

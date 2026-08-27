@@ -77,6 +77,9 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(route, /authorizeEncounterCharacter/u);
   assert.match(route, /startEncounter/u);
   assert.match(route, /setNpcHp/u);
+  assert.match(route, /npc_combat/u);
+  assert.match(route, /normalizeNpcAttacks/u);
+  assert.match(durable, /setNpcCombatStats/u);
   assert.match(route, /moveTurn/u);
   assert.match(sessionRoute, /durable\.encounter\(result\.state\.session\.id\)/u);
   assert.match(sessionClient, /message\.type === "session\.encounter"/u);
@@ -93,6 +96,9 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /campaign-encounter-initiative/u);
   assert.match(sessionUi, /NpcRollButtons/u);
   assert.match(sessionUi, /Physical Save/u);
+  assert.match(sessionUi, /Edit encounter combat/u);
+  assert.match(sessionUi, /Save encounter combat/u);
+  assert.match(sessionUi, /Changes apply only to this encounter instance/u);
   assert.match(sessionUi, /canRollDamage/u);
   assert.match(sessionUi, /canManage && onNpcRoll/u);
   assert.match(sessionCss, /campaign-encounter-initiative\{grid-column:3;grid-row:1\}/u);

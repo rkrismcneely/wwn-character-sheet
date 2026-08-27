@@ -186,6 +186,16 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     return this.broadcastEncounter(sessionId) as CampaignEncounter;
   }
 
+  /** The route has already validated a limited, owner-authorized snapshot update. */
+  async setNpcCombatStats(sessionId: string, combatantId: string, combatStats: NonNullable<CampaignEncounterNpc["combatStats"]>): Promise<CampaignEncounter> {
+    const encounter = this.requireEncounter(sessionId);
+    this.ctx.storage.sql.exec(
+      "UPDATE encounter_combatants SET combat_stats_json = ? WHERE encounter_id = ? AND combatant_id = ? AND kind = 'npc'",
+      JSON.stringify(combatStats), encounter.id, combatantId,
+    );
+    return this.broadcastEncounter(sessionId) as CampaignEncounter;
+  }
+
   async removeCombatant(sessionId: string, combatantId: string): Promise<CampaignEncounter> {
     const encounter = this.requireEncounter(sessionId);
     const nextCurrent = encounterCurrentAfterRemoval(encounter, combatantId);

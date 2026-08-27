@@ -7,12 +7,13 @@ import { BestiaryBrowseItem } from "../app/campaigns/bestiary-browse.ts";
 import { builtInBestiaryCreatures, searchBestiaryCreatures } from "../lib/campaigns/bestiary.ts";
 
 test("GM Console is owner-gated and reuses the existing session, encounter, party, and roll components", async () => {
-  const [page, consoleUi, encounterRoute, detail, migration, styles] = await Promise.all([
+  const [page, consoleUi, encounterRoute, detail, migration, threatMigration, styles] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/gm/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/gm-console.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-detail.tsx", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0011_campaign_npc_templates.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0012_campaign_npc_threat_stats.sql", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-ui.css", import.meta.url), "utf8"),
   ]);
   assert.match(page, /campaign\.ownerUserId !== actor\.userId/u);
@@ -68,6 +69,12 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /Duplicate/u);
   assert.match(consoleUi, /Confirm Delete/u);
   assert.match(consoleUi, /Add to Encounter/u);
+  assert.match(consoleUi, /Threat data/u);
+  assert.match(consoleUi, /Attacks per Main Action/u);
+  assert.match(consoleUi, /Weapon starter/u);
+  assert.match(consoleUi, /npcWeaponStarters/u);
+  assert.match(consoleUi, /Move attack/u);
+  assert.match(consoleUi, /Shock/u);
   assert.match(encounterRoute, /add_saved_npc/u);
   assert.match(encounterRoute, /add_bestiary_npc/u);
   assert.match(encounterRoute, /builtInBestiaryEncounterSeed/u);
@@ -76,6 +83,8 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(detail, /Open GM Console/u);
   assert.match(migration, /campaign_npc_templates/u);
   assert.match(migration, /ON DELETE CASCADE/u);
+  assert.match(threatMigration, /ADD COLUMN hit_dice/u);
+  assert.match(threatMigration, /ADD COLUMN attacks_per_main_action/u);
 });
 
 test("Bestiary renders a 512-entry synthetic test catalog as compact browse rows", () => {

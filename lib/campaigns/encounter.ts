@@ -13,7 +13,7 @@ export function collapsedNpcCombatSummary(stats: CampaignNpcCombatStats | undefi
     saves: `P ${stats.saves.physical} · E ${stats.saves.evasion} · M ${stats.saves.mental}`,
     primaryAttack: primaryAttack ? `${primaryAttack.name} ${signed(primaryAttack.attackBonus)} · ${primaryAttack.damage}` : null,
     additionalAttacks: Math.max(0, stats.attacks.length - 1),
-    shock: stats.sourceStats?.shock && stats.sourceStats.shock !== "None" ? stats.sourceStats.shock : null,
+    shock: primaryAttack?.shock ?? (stats.sourceStats?.shock && stats.sourceStats.shock !== "None" ? stats.sourceStats.shock : null),
     move: stats.sourceStats?.move ?? null,
     morale: stats.sourceStats?.morale ?? null,
   };

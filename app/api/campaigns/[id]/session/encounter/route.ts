@@ -3,7 +3,9 @@ import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
+import { normalizeNpcAttacks, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
 import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
+import type { CampaignNpcCombatStats } from "@/lib/campaigns/live-session";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
@@ -29,6 +31,18 @@ function integer(value: unknown, label: string, minimum: number, maximum: number
 }
 
 function combatantId(value: unknown): string { return boundedText(value, "Combatant", 100); }
+
+/** Only mutable encounter snapshot fields are accepted; provenance and saves stay intact. */
+function updatedNpcCombatStats(value: unknown, existing: CampaignNpcCombatStats): CampaignNpcCombatStats {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new CampaignServiceError("Combat data is invalid.", 422);
+  const candidate = value as Record<string, unknown>;
+  const threatStats = candidate.threatStats === undefined ? existing.threatStats : normalizeNpcThreatStats(candidate.threatStats) ?? undefined;
+  return {
+    ...existing,
+    attacks: normalizeNpcAttacks(candidate.attacks, existing.attacks),
+    ...(threatStats ? { threatStats } : { threatStats: undefined }),
+  };
+}
 
 export async function POST(request: Request, context: Context): Promise<Response> {
   try {
@@ -69,6 +83,13 @@ export async function POST(request: Request, context: Context): Promise<Response
         encounter = await durable.setInitiative(authorization.sessionId, combatantId(body.combatantId), integer(body.initiative, "Initiative", -1000, 1000));
       } else if (body.action === "npc_hp") {
         encounter = await durable.setNpcHp(authorization.sessionId, combatantId(body.combatantId), integer(body.hpCurrent, "Current HP", 0, 100000));
+      } else if (body.action === "npc_combat") {
+        const existing = await durable.encounter(authorization.sessionId);
+        const candidate = existing?.combatants.find(combatant => combatant.id === combatantId(body.combatantId));
+        if (!candidate || candidate.kind !== "npc") throw new CampaignServiceError("NPC combat data was not found.", 404);
+        const combatStats = candidate.combatStats;
+        if (!combatStats) throw new CampaignServiceError("NPC combat data was not found.", 404);
+        encounter = await durable.setNpcCombatStats(authorization.sessionId, candidate.id, updatedNpcCombatStats(body.combatStats, combatStats));
       } else if (body.action === "remove") {
         encounter = await durable.removeCombatant(authorization.sessionId, combatantId(body.combatantId));
       } else if (body.action === "next" || body.action === "previous") {

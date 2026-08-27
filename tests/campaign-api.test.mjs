@@ -144,7 +144,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
@@ -255,10 +255,12 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "NPC Company" }, now);
   await addMember(sqlite, campaign.id, player);
-  const draft = { name: "Orc Warrior", hpMax: 12, armorClass: 15, physicalSave: 13, evasionSave: 15, mentalSave: 16, attacks: [{ name: "Axe", attackBonus: 4, damage: "1d8+2", description: "" }], notes: "Shield wall" };
+  const draft = { name: "Orc Warrior", hpMax: 12, armorClass: 15, physicalSave: 13, evasionSave: 15, mentalSave: 16, attacks: [{ name: "Axe", attackBonus: 4, damage: "1d8+2", shock: "2/AC 13", description: "" }], hitDice: 2, attacksPerMainAction: 1, notes: "Shield wall" };
   await expectServiceError(createCampaignNpcTemplate(db, player, campaign.id, draft), 403);
   const npc = await createCampaignNpcTemplate(db, owner, campaign.id, draft, now);
   assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id))[0].name, "Orc Warrior");
+  assert.equal(npc.hitDice, 2);
+  assert.equal(npc.attacks[0].shock, "2/AC 13");
   await expectServiceError(listCampaignNpcTemplates(db, player, campaign.id), 403);
   await expectServiceError(listCampaignNpcTemplates(db, admin, campaign.id), 403);
   const duplicate = await duplicateCampaignNpcTemplate(db, owner, campaign.id, npc.id, now);
@@ -271,6 +273,7 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id)).find(candidate => candidate.id === npc.id)?.hpMax, 18);
   assert.equal(encounterSeed.hpMax, 18);
   assert.equal(secondEncounterSeed.hpCurrent, 18);
+  assert.deepEqual(secondEncounterSeed.combatStats.threatStats, { hitDice: 2, attacksPerMainAction: 1 });
   const otherCampaign = await createCampaign(db, owner, { name: "Other NPC Company" }, now);
   await expectServiceError(campaignNpcEncounterSeed(db, internalCampaign(sqlite, otherCampaign.id).id, npc.id), 404);
   await deleteCampaignNpcTemplate(db, owner, campaign.id, duplicate.id);
@@ -388,6 +391,7 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   await expectServiceError(createCampaignNpcTemplateFromBestiary(db, player, campaign.id, "apex-predator"), 403);
   const template = await createCampaignNpcTemplateFromBestiary(db, owner, campaign.id, "petty-mage", now);
   assert.equal(template.name, "Petty Mage");
+  assert.deepEqual({ hitDice: template.hitDice, attacksPerMainAction: template.attacksPerMainAction }, { hitDice: 2, attacksPerMainAction: 1 });
   const edited = await updateCampaignNpcTemplate(db, owner, campaign.id, template.id, { ...template, hpMax: 7, notes: "Campaign-owned copy" }, now);
   assert.equal(edited.hpMax, 7);
   assert.equal(getBuiltInBestiaryCreature("petty-mage")?.hpMax, 9);

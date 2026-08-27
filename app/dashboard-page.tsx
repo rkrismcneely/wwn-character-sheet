@@ -212,8 +212,7 @@ export function DashboardPage() {
       </dl>
       <div className="dashboard-card-actions">
         <Link className="dashboard-open" href={`/character/${character.id}`}>Open character <span aria-hidden="true">→</span></Link>
-        <button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button>
-        {character.archivedAt ? <button type="button" className="dashboard-secondary" onClick={() => void setArchived(character, false)} disabled={working}>{working ? "Working…" : "Restore"}</button> : <details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void setArchived(character, true)} disabled={working}>{working ? "Working…" : "Archive character"}</button></div></details>}
+        {character.archivedAt ? <><button type="button" className="dashboard-secondary" onClick={() => void setArchived(character, false)} disabled={working}>{working ? "Working…" : "Restore"}</button><details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button></div></details></> : <details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button><button type="button" className="dashboard-secondary dashboard-archive" onClick={() => void setArchived(character, true)} disabled={working}>{working ? "Working…" : "Archive character"}</button></div></details>}
       </div>
     </article>;
   }

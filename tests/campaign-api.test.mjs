@@ -288,15 +288,64 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(Object.isFrozen(apex.attacks), true);
   assert.equal(Object.isFrozen(apex.source), true);
   assert.equal(Object.isFrozen(apex.sourceStats), true);
-  assert.deepEqual(searchBuiltInBestiaryCreatures("apex").map(creature => creature.id), ["apex-predator"]);
+  assert.ok(searchBuiltInBestiaryCreatures("apex").some(creature => creature.id === "apex-predator"));
   const catalog = searchBuiltInBestiaryCreatures("");
-  assert.equal(catalog.length, 16);
+  assert.equal(catalog.length, 35);
   assert.deepEqual(catalog.map(creature => creature.name), [...catalog.map(creature => creature.name)].sort((left, right) => left.localeCompare(right)));
   assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("amorphous").map(creature => creature.id), ["slime-or-ooze"]);
   assert.deepEqual(searchBuiltInBestiaryCreatures("no such creature"), []);
   assert.equal(selectBestiaryCreature(catalog, "apex-predator")?.id, "apex-predator");
   assert.equal(selectBestiaryCreature(catalog, "filtered-out")?.id, catalog[0]?.id);
+
+  const originalIds = ["small-pack-predator", "large-solitary-predator", "apex-predator", "herd-beast", "vicious-large-herbivore", "elephantine-grazer", "automaton-humanlike", "automaton-laborer", "automaton-military", "slime-or-ooze", "small-vicious-predator", "large-vicious-predator", "hulking-predator", "unnatural-swarm", "terrible-warbeast", "legendary-god-titan"];
+  for (const id of originalIds) assert.ok(catalog.some(creature => creature.id === id), `existing creature ${id} remains present`);
+
+  const canonicalSrdEntries = [
+    ["peaceful-human", "Peaceful Human", 1, 5, 10, 0, "Weapon", "Weapon", "30'", 7, 5, 1, 15],
+    ["thug-or-militia", "Thug or Militia", 1, 5, 13, 1, "Weapon", "Weapon", "30'", 8, 4, 1, 15],
+    ["barbarian-fighter", "Barbarian Fighter", 1, 5, 13, 2, "Weapon +1", "Weapon +1", "30'", 8, 5, 1, 15],
+    ["veteran-soldier", "Veteran Soldier", 1, 5, 13, 2, "Weapon +1", "Weapon +1", "30'", 8, 3, 1, 15],
+    ["skilled-veteran", "Skilled Veteran", 2, 9, 15, 3, "Weapon +1", "Weapon +1", "30'", 9, 2, 1, 14],
+    ["elites-or-special-guards", "Elites or Special Guards", 3, 14, 18, 4, "Weapon +2", "Weapon +2", "30'", 10, 2, 2, 14],
+    ["knight-or-minor-hero", "Knight or Minor Hero", 4, 18, 18, 6, "Weapon +2", "Weapon +2", "30'", 10, 1, 2, 13],
+    ["warrior-baron", "Warrior Baron", 6, 27, 18, 8, "Weapon +3", "Weapon +3", "30'", 9, 1, 2, 12],
+    ["barbarian-warlord", "Barbarian Warlord", 8, 36, 16, 10, "Weapon +4", "Weapon +4/-", "30'", 10, 3, 2, 11],
+    ["mighty-general", "Mighty General", 8, 36, 18, 10, "Weapon +4", "Weapon +4/-", "30'", 10, 1, 3, 11],
+    ["major-hero", "Major Hero", 10, 45, 18, 12, "Weapon +5", "Weapon +5/-", "30'", 10, 2, 3, 10],
+    ["great-warrior-king", "Great Warrior King", 12, 54, 18, 14, "Weapon +5", "Weapon +5/-", "30'", 10, 1, 3, 9],
+    ["petty-mage", "Petty Mage", 2, 9, 10, 1, "Weapon", "Weapon", "30'", 8, 4, 1, 14],
+    ["tribal-shaman", "Tribal Shaman", 4, 18, 10, 3, "Weapon +1", "Weapon +1", "30'", 9, 4, 1, 13],
+    ["skilled-sorcerer", "Skilled Sorcerer", 5, 23, 10, 1, "Weapon", "Weapon", "30'", 9, 4, 2, 13],
+    ["master-wizard", "Master Wizard", 8, 36, 13, 1, "Weapon", "Weapon", "30'", 9, 3, 2, 11],
+    ["famous-arch-mage", "Famous Arch-Mage", 10, 45, 13, 2, "Weapon", "Weapon", "30'", 9, 2, 3, 10],
+    ["automaton-warbot", "Automaton, Warbot", 10, 45, 20, 12, "1d12+5", "7/-", "40'", 12, 2, 2, 10],
+    ["predator-hellbeast", "Predator, Hellbeast", 10, 45, 18, 12, "1d10+5", "6/-", "60'", 11, 4, 3, 10],
+  ];
+  for (const [id, name, hitDice, hpMax, armorClass, attackBonus, damage, shock, move, morale, instinct, skill, save] of canonicalSrdEntries) {
+    const creature = getBuiltInBestiaryCreature(id);
+    assert.ok(creature, `${name} exists`);
+    assert.deepEqual({ name: creature.name, hpMax: creature.hpMax, armorClass: creature.armorClass, attackBonus: creature.attacks[0]?.attackBonus, damage: creature.attacks[0]?.damage, sourceStats: creature.sourceStats, saves: [creature.physicalSave, creature.evasionSave, creature.mentalSave], source: creature.source }, { name, hpMax, armorClass, attackBonus, damage, sourceStats: { hitDice, shock, move, morale, instinct, skill }, saves: [save, save, save], source: { name: "Worlds Without Number SRD", license: "CC0" } });
+    assert.equal(Object.isFrozen(creature), true);
+    assert.equal(Object.isFrozen(creature.sourceStats), true);
+  }
+  assert.notEqual(getBuiltInBestiaryCreature("barbarian-fighter")?.sourceStats.instinct, getBuiltInBestiaryCreature("veteran-soldier")?.sourceStats.instinct);
+  assert.equal(getBuiltInBestiaryCreature("barbarian-warlord")?.attacks[0]?.description, "Two attacks per Main Action.");
+  assert.equal(getBuiltInBestiaryCreature("great-warrior-king")?.attacks[0]?.description, "Two attacks per Main Action.");
+  assert.equal(getBuiltInBestiaryCreature("automaton-warbot")?.attacks[0]?.description, "Three attacks per Main Action.");
+  assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.attacks[0]?.description, "Four attacks per Main Action.");
+  for (const [id, level, effort] of [["petty-mage", 2, 3], ["tribal-shaman", 4, 3], ["skilled-sorcerer", 5, 4], ["master-wizard", 8, 4], ["famous-arch-mage", 10, 5]]) {
+    const notes = getBuiltInBestiaryCreature(id)?.notes ?? "";
+    assert.match(notes, new RegExp(`appropriate mage tradition at level ${level}, with Effort ${effort}`, "u"));
+    assert.match(notes, /No specific tradition, spells, or Arts are assigned/u);
+  }
+  assert.ok(searchBuiltInBestiaryCreatures("bandit").some(creature => creature.id === "thug-or-militia"));
+  assert.ok(searchBuiltInBestiaryCreatures("soldier").some(creature => creature.id === "veteran-soldier"));
+  assert.ok(searchBuiltInBestiaryCreatures("guard").some(creature => creature.id === "elites-or-special-guards"));
+  assert.ok(searchBuiltInBestiaryCreatures("wizard").some(creature => creature.id === "master-wizard"));
+  assert.deepEqual(searchBuiltInBestiaryCreatures("shaman").map(creature => creature.id), ["tribal-shaman"]);
+  assert.deepEqual(searchBuiltInBestiaryCreatures("warbot").map(creature => creature.id), ["automaton-warbot"]);
+  assert.deepEqual(searchBuiltInBestiaryCreatures("hellbeast").map(creature => creature.id), ["predator-hellbeast"]);
 
   const syntheticCatalog = Array.from({ length: 512 }, (_, index) => ({
     ...apex,
@@ -322,15 +371,26 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   firstEncounter.hpCurrent = 1;
   assert.equal(secondEncounter.hpCurrent, apex.hpMax);
   assert.equal(apex.hpMax, 27);
+  for (const id of ["thug-or-militia", "petty-mage", "automaton-warbot", "predator-hellbeast"]) {
+    const builtIn = getBuiltInBestiaryCreature(id);
+    const firstSeed = builtInBestiaryEncounterSeed(id);
+    const secondSeed = builtInBestiaryEncounterSeed(id);
+    assert.ok(builtIn && firstSeed && secondSeed);
+    firstSeed.hpCurrent = 1;
+    firstSeed.combatStats.attacks[0].damage = "changed";
+    assert.equal(secondSeed.hpCurrent, builtIn.hpMax);
+    assert.equal(secondSeed.combatStats.attacks[0].damage, builtIn.attacks[0].damage);
+  }
 
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Bestiary Company" }, now);
   await addMember(sqlite, campaign.id, player);
   await expectServiceError(createCampaignNpcTemplateFromBestiary(db, player, campaign.id, "apex-predator"), 403);
-  const template = await createCampaignNpcTemplateFromBestiary(db, owner, campaign.id, "apex-predator", now);
-  assert.equal(template.name, apex.name);
+  const template = await createCampaignNpcTemplateFromBestiary(db, owner, campaign.id, "petty-mage", now);
+  assert.equal(template.name, "Petty Mage");
   const edited = await updateCampaignNpcTemplate(db, owner, campaign.id, template.id, { ...template, hpMax: 7, notes: "Campaign-owned copy" }, now);
   assert.equal(edited.hpMax, 7);
+  assert.equal(getBuiltInBestiaryCreature("petty-mage")?.hpMax, 9);
   assert.equal(getBuiltInBestiaryCreature("apex-predator")?.hpMax, 27);
   assert.equal(builtInBestiaryCreatureDraft("missing-creature"), null);
   assert.equal(builtInBestiaryEncounterSeed("missing-creature"), null);

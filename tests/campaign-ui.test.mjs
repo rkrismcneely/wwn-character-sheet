@@ -198,7 +198,7 @@ test("campaign character library uses scoped routes and owner-only link controls
   assert.match(detail, /Campaign Characters/u);
   assert.match(detail, /campaign\.permissions\.canLinkCharacters/u);
   assert.match(detail, /!characters\.some\(character => character\.isMine\)/u);
-  assert.match(detail, /Each member may have one character in a campaign/u);
+  assert.match(detail, /Each campaign participant may have one character in a campaign/u);
   assert.match(detail, /character\.permissions\.canUnlink/u);
   assert.match(detail, /Ownership and global visibility will not change/u);
   assert.match(detail, /\/campaigns\/\$\{campaign\.id\}\/characters\/\$\{character\.id\}/u);
@@ -220,7 +220,7 @@ test("owned characters expose only server-authorized campaign navigation below t
 
   assert.match(characterPage, /listAuthorizedCharacterCampaigns/u);
   assert.match(characters, /ch\.owner_user_id = \?/u);
-  assert.match(characters, /cm\.user_id = \?/u);
+  assert.match(characters, /c\.owner_user_id = \? OR cm\.user_id IS NOT NULL/u);
   assert.match(characters, /SELECT c\.public_id AS id, c\.name/u);
   assert.match(sheet, /cloudId && canEdit && campaignLinks\.length > 0/u);
   assert.match(sheet, /character-campaign-links/u);

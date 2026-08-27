@@ -535,7 +535,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                 <div className="campaign-character-heading-actions">
                   <span className="campaign-count" aria-label={`${characters.length} linked characters`}>{characters.length}</span>
                   {campaign.permissions.canLinkCharacters && !characters.some(character => character.isMine) && (
-                    <button type="button" className="campaign-primary" onClick={() => setAddCharacterOpen(true)}>Add Character</button>
+                    <button type="button" className="campaign-primary" onClick={() => setAddCharacterOpen(true)}>Add Your Character</button>
                   )}
                 </div>
               </div>
@@ -543,7 +543,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                 <div className="campaign-character-empty">
                   <span aria-hidden="true">✦</span>
                   <h3>No characters linked yet</h3>
-                  <p>Members can add characters they own without changing ownership or global visibility.</p>
+                  <p>Campaign owners and members can add a character they own without changing ownership or global visibility.</p>
                   {campaign.permissions.canLinkCharacters && !characters.some(character => character.isMine) && (
                     <button type="button" className="campaign-secondary" onClick={() => setAddCharacterOpen(true)}>Add Your Character</button>
                   )}
@@ -678,14 +678,14 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
 
       {addCharacterOpen && campaign && (
         <CampaignDialog
-          title="Add Character"
-          description="Choose your one character for this campaign. Ownership and global visibility will not change."
+          title="Add Your Character"
+          description="Choose one of your existing characters for this campaign. Ownership and global visibility will not change."
           onClose={() => setAddCharacterOpen(false)}
         >
           {eligibleCharacters.length === 0 ? (
             <div className="campaign-link-empty" role="status">
               <strong>Your campaign character is already linked.</strong>
-              <p>Each member may have one character in a campaign. Remove your current character before choosing a different one.</p>
+              <p>Each campaign participant may have one character in a campaign. Remove your current character before choosing a different one.</p>
             </div>
           ) : (
             <div className="campaign-link-list" aria-label="Characters eligible to add">

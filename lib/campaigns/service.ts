@@ -197,7 +197,7 @@ function campaignPayload(
       canInviteMembers: isActive && canInviteCampaignMembers(actor, campaign, membership),
       canRemovePlayers: isActive && canInviteCampaignMembers(actor, campaign, membership),
       canLeave: isActive && canLeaveCampaign(actor, campaign, membership),
-      canLinkCharacters: isActive && actor.role !== "admin",
+      canLinkCharacters: isActive && (actor.role !== "admin" || isOwner),
       adminReadOnly: actor.role === "admin" && !isOwner,
     },
   };

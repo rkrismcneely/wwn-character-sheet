@@ -207,7 +207,8 @@ test("shared rolls require a joined participant's own linked character", async (
     .run(campaignRow.id, "character-player", now);
   sqlite.prepare("INSERT INTO campaign_characters (campaign_id, character_id, added_at) VALUES (?, ?, ?)")
     .run(campaignRow.id, "character-owner", now);
-  await startLiveSession(db, owner, campaign.id, now);
+  const started = await startLiveSession(db, owner, campaign.id, now);
+  assert.equal(started.state.session?.participants[0]?.character?.name, "Owner Hero");
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
   await joinLiveSession(db, player, campaign.id, now);
   const authorization = await authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012");
@@ -499,6 +500,7 @@ test("campaign ownership remains authoritative when the owner also has the site-
   assert.equal(ownerView.membershipRole, "gm");
   assert.equal(ownerView.permissions.canInviteMembers, true);
   assert.equal(ownerView.permissions.canManageContent, true);
+  assert.equal(ownerView.permissions.canLinkCharacters, true);
   assert.equal(ownerView.permissions.adminReadOnly, false);
 
   const described = await updateCampaignDescription(db, ownerAsAdmin, campaign.id, {

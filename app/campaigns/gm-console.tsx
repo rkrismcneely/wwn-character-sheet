@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { SignedInHeader } from "../app-header";
 import { EncounterTracker, PartyMember } from "./campaign-live-session";
 import { BestiaryBrowseItem } from "./bestiary-browse";
@@ -9,10 +9,12 @@ import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
 import {
-  searchBuiltInBestiaryCreatures,
+  builtInBestiaryCreatures,
+  filterBestiaryCreatures,
   selectBestiaryCreature,
   type BuiltInBestiaryCreature,
 } from "@/lib/campaigns/bestiary";
+import { calculateWwnPartyScore, calculateWwnThreatEstimate, wwnThreatBands, wwnThreatBandDetails, type WwnThreatBand } from "@/lib/campaigns/wwn-threat";
 import { RollHistoryPanel, RollResultTray } from "@/app/roll-presentation";
 import type { RollResult } from "@/app/rolls";
 import { useDiceStylePreference, useVirtualDicePreference } from "@/app/virtual-dice-preference";
@@ -30,6 +32,13 @@ type NpcDraft = {
 
 const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [], notes: "" });
 const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks, notes: npc.notes });
+
+type CampaignThreatCharacter = { threatLevel: unknown };
+
+function wholeNumberOrNull(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
   return <div className="gm-bestiary-stat-block">
@@ -58,24 +67,67 @@ function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) 
   </div>;
 }
 
-function BestiaryDetail({ creature, activeEncounter, busy, onAddToEncounter, onSaveAsNpc, onBack }: { creature: BuiltInBestiaryCreature | null; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void>; onBack: () => void }) {
+function BestiaryThreatEstimate({ creature, partyLevels, quantity }: { creature: BuiltInBestiaryCreature; partyLevels: readonly unknown[]; quantity: number }) {
+  const estimate = calculateWwnThreatEstimate(partyLevels, [{ hitDice: creature.sourceStats.hitDice, attacksPerMainAction: creature.sourceStats.attacksPerMainAction, quantity }]);
+  return <section className="gm-bestiary-threat" aria-labelledby="gm-bestiary-threat-title">
+    <div className="gm-bestiary-threat-heading"><div><h4 id="gm-bestiary-threat-title">WWN Encounter Estimate</h4><p>Based on encounter-comparison guidance in Worlds Without Number.</p></div></div>
+    {estimate ? <>
+      <p className="gm-bestiary-party-summary">Party: {estimate.party.characterCount} {estimate.party.characterCount === 1 ? "character" : "characters"} · Levels {estimate.party.levels.join(", ")}</p>
+      <dl className="gm-bestiary-threat-grid">
+        <div><dt>Party Score</dt><dd>{estimate.party.score}</dd></div>
+        <div><dt>{quantity} × {creature.name}</dt><dd>Enemy Score {estimate.enemy.score}</dd></div>
+        <div><dt>Threat Ratio</dt><dd>{estimate.ratio.toFixed(2)}</dd></div>
+        <div><dt>Estimated Threat</dt><dd>{wwnThreatBandDetails[estimate.band].label}</dd></div>
+      </dl>
+      <p className="gm-bestiary-threat-summary">{wwnThreatBandDetails[estimate.band].summary}</p>
+    </> : <p className="campaign-empty-copy">Link campaign characters to estimate encounter threat.</p>}
+    <details className="gm-bestiary-threat-info"><summary>How this estimate works</summary><p>It compares linked character levels with creature Hit Dice and attacks per Main Action. It is only a rough guide: special abilities, spells, unusually strong damage or defenses, terrain, tactics, surprise, positioning, party composition, low-level fragility, and other circumstances can change actual danger substantially.</p><p>The estimate is a derived mechanic informed by the Worlds Without Number Free Edition. Creature stat lines remain attributed to the CC0 SRD.</p></details>
+  </section>;
+}
+
+function BestiaryDetail({ creature, partyLevels, quantity, activeEncounter, busy, onAddToEncounter, onSaveAsNpc, onBack }: { creature: BuiltInBestiaryCreature | null; partyLevels: readonly unknown[]; quantity: number; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void>; onBack: () => void }) {
   if (!creature) return <section className="gm-bestiary-detail" aria-live="polite"><button type="button" className="campaign-secondary gm-bestiary-back" onClick={onBack}>Back to results</button><p className="campaign-empty-copy">Choose a creature from the matching results to inspect its full stat block.</p></section>;
   return <section className="gm-bestiary-detail" aria-live="polite" aria-labelledby="gm-bestiary-detail-title">
     <div className="gm-bestiary-detail-heading"><div><p className="campaign-kicker">SELECTED CREATURE</p><h3 id="gm-bestiary-detail-title">{creature.name}</h3></div><button type="button" className="campaign-secondary gm-bestiary-back" onClick={onBack}>Back to results</button></div>
     <p className="gm-bestiary-description">{creature.description}</p>
     <BestiaryStatBlock creature={creature} />
+    <BestiaryThreatEstimate creature={creature} partyLevels={partyLevels} quantity={quantity} />
     <section className="gm-bestiary-source"><h4>Source & license</h4><p>{creature.source.name} · {creature.source.license}</p></section>
     <div className="gm-bestiary-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void onSaveAsNpc(creature.id)}>Copy to NPC Library</button></div>
   </section>;
 }
 
-function BuiltInBestiary({ activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
+function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { campaignId: string; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
   const [query, setQuery] = useState("");
+  const [minHitDice, setMinHitDice] = useState("");
+  const [maxHitDice, setMaxHitDice] = useState("");
+  const [threatBand, setThreatBand] = useState<WwnThreatBand | "">("");
+  const [quantity, setQuantity] = useState(1);
+  const [partyLevels, setPartyLevels] = useState<readonly unknown[]>([]);
+  const [partyLoaded, setPartyLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"browse" | "detail">("browse");
   const [error, setError] = useState("");
-  const creatures = searchBuiltInBestiaryCreatures(query);
-  const selectedCreature = selectBestiaryCreature(creatures, selectedId);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
+      .then(async response => {
+        const body = await response.json() as { characters?: CampaignThreatCharacter[] };
+        if (!response.ok || !Array.isArray(body.characters)) throw new Error("Campaign characters are unavailable.");
+        if (!cancelled) setPartyLevels(body.characters.map(character => character.threatLevel));
+      })
+      .catch(() => { if (!cancelled) setPartyLevels([]); })
+      .finally(() => { if (!cancelled) setPartyLoaded(true); });
+    return () => { cancelled = true; };
+  }, [campaignId]);
+  const partyScore = useMemo(() => calculateWwnPartyScore(partyLevels), [partyLevels]);
+  const creatures = useMemo(() => builtInBestiaryCreatures, []);
+  const filteredCreatures = useMemo(() => filterBestiaryCreatures(
+    // Keep the static catalog and every derived filter local; no per-creature requests.
+    creatures,
+    { query, minHitDice: wholeNumberOrNull(minHitDice), maxHitDice: wholeNumberOrNull(maxHitDice), partyLevels, threatBand: threatBand || null, quantity },
+  ), [creatures, maxHitDice, minHitDice, partyLevels, quantity, query, threatBand]);
+  const selectedCreature = selectBestiaryCreature(filteredCreatures, selectedId);
 
   async function runBestiaryAction(action: () => Promise<void>, fallbackMessage: string) {
     setError("");
@@ -94,10 +146,17 @@ function BuiltInBestiary({ activeEncounter, busy, onAddToEncounter, onSaveAsNpc 
     <div className="gm-bestiary-browser" data-mobile-view={mobileView}>
       <section className="gm-bestiary-browse" aria-label="Browse built-in creatures">
         <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name or description" /></label>
-        <p className="gm-bestiary-result-count" role="status">{creatures.length} {creatures.length === 1 ? "creature" : "creatures"} shown</p>
-        {!creatures.length ? <p className="campaign-empty-copy">No built-in creatures match “{query}”.</p> : <ul className="gm-bestiary-list">{creatures.map(creature => <BestiaryBrowseItem key={creature.id} creature={creature} selected={selectedCreature?.id === creature.id} onSelect={() => selectCreature(creature.id)} />)}</ul>}
+        <div className="gm-bestiary-filters" aria-label="Bestiary filters">
+          <label><span>Min HD</span><input aria-label="Minimum Hit Dice" type="number" min={1} max={99} inputMode="numeric" value={minHitDice} onChange={event => setMinHitDice(event.target.value)} placeholder="Any" /></label>
+          <label><span>Max HD</span><input aria-label="Maximum Hit Dice" type="number" min={1} max={99} inputMode="numeric" value={maxHitDice} onChange={event => setMaxHitDice(event.target.value)} placeholder="Any" /></label>
+          <label><span>Assumed quantity</span><input aria-label="Assumed creature quantity" type="number" min={1} max={99} inputMode="numeric" value={quantity} onChange={event => setQuantity(Math.min(99, Math.max(1, wholeNumberOrNull(event.target.value) ?? 1)))} /></label>
+          {partyScore && <label><span>Threat</span><select aria-label="Estimated threat" value={threatBand} onChange={event => setThreatBand(event.target.value as WwnThreatBand | "")}><option value="">Any</option>{wwnThreatBands.map(band => <option key={band} value={band}>{wwnThreatBandDetails[band].label}</option>)}</select></label>}
+        </div>
+        {partyLoaded && !partyScore && <p className="gm-bestiary-party-unavailable">Link campaign characters to estimate encounter threat.</p>}
+        <p className="gm-bestiary-result-count" role="status">{filteredCreatures.length} {filteredCreatures.length === 1 ? "creature" : "creatures"} shown · estimate assumes {quantity} {quantity === 1 ? "creature" : "creatures"}</p>
+        {!filteredCreatures.length ? <p className="campaign-empty-copy">No built-in creatures match these filters.</p> : <ul className="gm-bestiary-list">{filteredCreatures.map(creature => <BestiaryBrowseItem key={creature.id} creature={creature} selected={selectedCreature?.id === creature.id} onSelect={() => selectCreature(creature.id)} />)}</ul>}
       </section>
-      <BestiaryDetail creature={selectedCreature} activeEncounter={activeEncounter} busy={busy} onBack={() => setMobileView("browse")} onAddToEncounter={bestiaryId => runBestiaryAction(() => onAddToEncounter(bestiaryId), "The built-in creature could not be added to the encounter.")} onSaveAsNpc={bestiaryId => runBestiaryAction(() => onSaveAsNpc(bestiaryId), "The campaign NPC template could not be created.")} />
+      <BestiaryDetail creature={selectedCreature} partyLevels={partyLevels} quantity={quantity} activeEncounter={activeEncounter} busy={busy} onBack={() => setMobileView("browse")} onAddToEncounter={bestiaryId => runBestiaryAction(() => onAddToEncounter(bestiaryId), "The built-in creature could not be added to the encounter.")} onSaveAsNpc={bestiaryId => runBestiaryAction(() => onSaveAsNpc(bestiaryId), "The campaign NPC template could not be created.")} />
     </div>
   </section>;
 }
@@ -273,7 +332,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Start a session to run encounters and follow party activity here.</p><button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("start").catch(() => {})}>Start Session</button></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
       {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
-      {tab === "bestiary" && <BuiltInBestiary activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
+      {tab === "bestiary" && <BuiltInBestiary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
       {tab === "party" && (session && state.permissions.joined ? <section className="campaign-live-party gm-console-section"><h2>Party</h2><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section> : <p className="campaign-empty-copy">Start a session to view party presence.</p>)}
     </section>

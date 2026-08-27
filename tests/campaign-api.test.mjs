@@ -302,30 +302,30 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   for (const id of originalIds) assert.ok(catalog.some(creature => creature.id === id), `existing creature ${id} remains present`);
 
   const canonicalSrdEntries = [
-    ["peaceful-human", "Peaceful Human", 1, 5, 10, 0, "Weapon", "Weapon", "30'", 7, 5, 1, 15],
-    ["thug-or-militia", "Thug or Militia", 1, 5, 13, 1, "Weapon", "Weapon", "30'", 8, 4, 1, 15],
-    ["barbarian-fighter", "Barbarian Fighter", 1, 5, 13, 2, "Weapon +1", "Weapon +1", "30'", 8, 5, 1, 15],
-    ["veteran-soldier", "Veteran Soldier", 1, 5, 13, 2, "Weapon +1", "Weapon +1", "30'", 8, 3, 1, 15],
-    ["skilled-veteran", "Skilled Veteran", 2, 9, 15, 3, "Weapon +1", "Weapon +1", "30'", 9, 2, 1, 14],
-    ["elites-or-special-guards", "Elites or Special Guards", 3, 14, 18, 4, "Weapon +2", "Weapon +2", "30'", 10, 2, 2, 14],
-    ["knight-or-minor-hero", "Knight or Minor Hero", 4, 18, 18, 6, "Weapon +2", "Weapon +2", "30'", 10, 1, 2, 13],
-    ["warrior-baron", "Warrior Baron", 6, 27, 18, 8, "Weapon +3", "Weapon +3", "30'", 9, 1, 2, 12],
-    ["barbarian-warlord", "Barbarian Warlord", 8, 36, 16, 10, "Weapon +4", "Weapon +4/-", "30'", 10, 3, 2, 11],
-    ["mighty-general", "Mighty General", 8, 36, 18, 10, "Weapon +4", "Weapon +4/-", "30'", 10, 1, 3, 11],
-    ["major-hero", "Major Hero", 10, 45, 18, 12, "Weapon +5", "Weapon +5/-", "30'", 10, 2, 3, 10],
-    ["great-warrior-king", "Great Warrior King", 12, 54, 18, 14, "Weapon +5", "Weapon +5/-", "30'", 10, 1, 3, 9],
-    ["petty-mage", "Petty Mage", 2, 9, 10, 1, "Weapon", "Weapon", "30'", 8, 4, 1, 14],
-    ["tribal-shaman", "Tribal Shaman", 4, 18, 10, 3, "Weapon +1", "Weapon +1", "30'", 9, 4, 1, 13],
-    ["skilled-sorcerer", "Skilled Sorcerer", 5, 23, 10, 1, "Weapon", "Weapon", "30'", 9, 4, 2, 13],
-    ["master-wizard", "Master Wizard", 8, 36, 13, 1, "Weapon", "Weapon", "30'", 9, 3, 2, 11],
-    ["famous-arch-mage", "Famous Arch-Mage", 10, 45, 13, 2, "Weapon", "Weapon", "30'", 9, 2, 3, 10],
-    ["automaton-warbot", "Automaton, Warbot", 10, 45, 20, 12, "1d12+5", "7/-", "40'", 12, 2, 2, 10],
-    ["predator-hellbeast", "Predator, Hellbeast", 10, 45, 18, 12, "1d10+5", "6/-", "60'", 11, 4, 3, 10],
+    ["peaceful-human", "Peaceful Human", 1, 1, 5, 10, 0, "Weapon", "Weapon", "30'", 7, 5, 1, 15],
+    ["thug-or-militia", "Thug or Militia", 1, 1, 5, 13, 1, "Weapon", "Weapon", "30'", 8, 4, 1, 15],
+    ["barbarian-fighter", "Barbarian Fighter", 1, 1, 5, 13, 2, "Weapon +1", "Weapon +1", "30'", 8, 5, 1, 15],
+    ["veteran-soldier", "Veteran Soldier", 1, 1, 5, 13, 2, "Weapon +1", "Weapon +1", "30'", 8, 3, 1, 15],
+    ["skilled-veteran", "Skilled Veteran", 2, 1, 9, 15, 3, "Weapon +1", "Weapon +1", "30'", 9, 2, 1, 14],
+    ["elites-or-special-guards", "Elites or Special Guards", 3, 1, 14, 18, 4, "Weapon +2", "Weapon +2", "30'", 10, 2, 2, 14],
+    ["knight-or-minor-hero", "Knight or Minor Hero", 4, 1, 18, 18, 6, "Weapon +2", "Weapon +2", "30'", 10, 1, 2, 13],
+    ["warrior-baron", "Warrior Baron", 6, 1, 27, 18, 8, "Weapon +3", "Weapon +3", "30'", 9, 1, 2, 12],
+    ["barbarian-warlord", "Barbarian Warlord", 8, 2, 36, 16, 10, "Weapon +4", "Weapon +4/-", "30'", 10, 3, 2, 11],
+    ["mighty-general", "Mighty General", 8, 1, 36, 18, 10, "Weapon +4", "Weapon +4/-", "30'", 10, 1, 3, 11],
+    ["major-hero", "Major Hero", 10, 2, 45, 18, 12, "Weapon +5", "Weapon +5/-", "30'", 10, 2, 3, 10],
+    ["great-warrior-king", "Great Warrior King", 12, 2, 54, 18, 14, "Weapon +5", "Weapon +5/-", "30'", 10, 1, 3, 9],
+    ["petty-mage", "Petty Mage", 2, 1, 9, 10, 1, "Weapon", "Weapon", "30'", 8, 4, 1, 14],
+    ["tribal-shaman", "Tribal Shaman", 4, 1, 18, 10, 3, "Weapon +1", "Weapon +1", "30'", 9, 4, 1, 13],
+    ["skilled-sorcerer", "Skilled Sorcerer", 5, 1, 23, 10, 1, "Weapon", "Weapon", "30'", 9, 4, 2, 13],
+    ["master-wizard", "Master Wizard", 8, 1, 36, 13, 1, "Weapon", "Weapon", "30'", 9, 3, 2, 11],
+    ["famous-arch-mage", "Famous Arch-Mage", 10, 1, 45, 13, 2, "Weapon", "Weapon", "30'", 9, 2, 3, 10],
+    ["automaton-warbot", "Automaton, Warbot", 10, 3, 45, 20, 12, "1d12+5", "7/-", "40'", 12, 2, 2, 10],
+    ["predator-hellbeast", "Predator, Hellbeast", 10, 4, 45, 18, 12, "1d10+5", "6/-", "60'", 11, 4, 3, 10],
   ];
-  for (const [id, name, hitDice, hpMax, armorClass, attackBonus, damage, shock, move, morale, instinct, skill, save] of canonicalSrdEntries) {
+  for (const [id, name, hitDice, attacksPerMainAction, hpMax, armorClass, attackBonus, damage, shock, move, morale, instinct, skill, save] of canonicalSrdEntries) {
     const creature = getBuiltInBestiaryCreature(id);
     assert.ok(creature, `${name} exists`);
-    assert.deepEqual({ name: creature.name, hpMax: creature.hpMax, armorClass: creature.armorClass, attackBonus: creature.attacks[0]?.attackBonus, damage: creature.attacks[0]?.damage, sourceStats: creature.sourceStats, saves: [creature.physicalSave, creature.evasionSave, creature.mentalSave], source: creature.source }, { name, hpMax, armorClass, attackBonus, damage, sourceStats: { hitDice, shock, move, morale, instinct, skill }, saves: [save, save, save], source: { name: "Worlds Without Number SRD", license: "CC0" } });
+    assert.deepEqual({ name: creature.name, hpMax: creature.hpMax, armorClass: creature.armorClass, attackBonus: creature.attacks[0]?.attackBonus, damage: creature.attacks[0]?.damage, sourceStats: creature.sourceStats, saves: [creature.physicalSave, creature.evasionSave, creature.mentalSave], source: creature.source }, { name, hpMax, armorClass, attackBonus, damage, sourceStats: { hitDice, attacksPerMainAction, shock, move, morale, instinct, skill }, saves: [save, save, save], source: { name: "Worlds Without Number SRD", license: "CC0" } });
     assert.equal(Object.isFrozen(creature), true);
     assert.equal(Object.isFrozen(creature.sourceStats), true);
   }

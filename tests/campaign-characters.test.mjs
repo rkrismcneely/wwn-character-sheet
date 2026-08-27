@@ -410,6 +410,18 @@ test("campaign character library is visible only to participants and read-only a
   await expectServiceError(listCampaignCharacters(db, null, campaign.id), 401);
 });
 
+test("campaign threat levels include an owner's linked character and reject malformed stored levels", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  await linkCharacterToCampaign(db, owner, campaign.id, ids.owner, now);
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  const linked = await listCampaignCharacters(db, owner, campaign.id);
+  assert.deepEqual(linked.map(character => [character.id, character.threatLevel]), [[ids.owner, 4], [ids.player, 2]]);
+
+  sqlite.prepare("UPDATE characters SET level = 0 WHERE public_id = ?").run(ids.owner);
+  const malformed = await listCampaignCharacters(db, owner, campaign.id);
+  assert.equal(malformed.find(character => character.id === ids.owner)?.threatLevel, null);
+});
+
 test("campaign participants can read a linked private character through campaign context", async () => {
   const { db, campaign, ids } = await fixture();
   await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);

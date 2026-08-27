@@ -48,7 +48,7 @@ export interface CampaignNpcCombatStats {
   saves: { physical: number; evasion: number; mental: number };
   attacks: { name: string; attackBonus: number; damage: string; description: string }[];
   notes: string;
-  sourceStats?: { hitDice: number; shock: string; move: string; morale: number; instinct: number; skill: number };
+  sourceStats?: { hitDice: number; attacksPerMainAction?: number; shock: string; move: string; morale: number; instinct: number; skill: number };
 }
 export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;
 

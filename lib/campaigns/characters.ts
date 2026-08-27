@@ -45,6 +45,8 @@ export interface CampaignCharacterSummaryPayload {
   name: string;
   classLabel: string;
   level: number;
+  /** Null when persisted level data cannot safely participate in an encounter estimate. */
+  threatLevel: number | null;
   visibility: CharacterVisibility;
   updatedAt: string;
   ownerName: string;
@@ -108,6 +110,8 @@ function summaryPayload(
   campaignOwnerUserId: string,
 ): CampaignCharacterSummaryPayload {
   const isMine = row.ownerUserId === actor.userId;
+  const numericLevel = Number(row.level);
+  const threatLevel = Number.isSafeInteger(numericLevel) && numericLevel > 0 ? numericLevel : null;
   let cardData: CampaignCharacterCardData = {};
   try {
     cardData = JSON.parse(row.data || "{}") as CampaignCharacterCardData;
@@ -118,7 +122,8 @@ function summaryPayload(
     id: row.publicId,
     name: row.name,
     classLabel: campaignCardClassLabel(cardData, row.classLabel),
-    level: Number(row.level) || 1,
+    level: numericLevel || 1,
+    threatLevel,
     visibility: row.visibility,
     updatedAt: row.updatedAt,
     ownerName: effectiveDisplayName(row.customDisplayName, row.providerName),

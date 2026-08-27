@@ -105,6 +105,7 @@ function summaryPayload(
   actor: CampaignActor,
   row: CharacterLinkRow,
   campaignPublicId: string,
+  campaignOwnerUserId: string,
 ): CampaignCharacterSummaryPayload {
   const isMine = row.ownerUserId === actor.userId;
   let cardData: CampaignCharacterCardData = {};
@@ -127,7 +128,7 @@ function summaryPayload(
     armorClass: campaignCardArmorClass(cardData),
     isMine,
     permissions: {
-      canUnlink: actor.role !== "admin" && isMine,
+      canUnlink: isMine && (actor.role !== "admin" || actor.userId === campaignOwnerUserId),
       canEdit: isMine,
       adminReadOnly: actor.role === "admin" && !isMine,
     },
@@ -179,7 +180,12 @@ export async function listCampaignCharacters(
     )
     .bind(campaign.id)
     .all<CharacterLinkRow>();
-  return result.results.map(row => summaryPayload(authenticatedActor, row, campaignPublicId));
+  return result.results.map(row => summaryPayload(
+    authenticatedActor,
+    row,
+    campaignPublicId,
+    campaign.ownerUserId,
+  ));
 }
 
 /**
@@ -195,18 +201,22 @@ export async function listAuthorizedCharacterCampaigns(
   if (!actor || typeof rawCharacterId !== "string" || !isPlausiblePublicCharacterId(rawCharacterId)) {
     return [];
   }
+  // Campaign creation adds the owner to the GM roster, but ownership remains
+  // authoritative so owner character links and navigation never depend on that
+  // membership row being present.
   const result = await db
     .prepare(
       `SELECT c.public_id AS id, c.name
        FROM characters ch
        INNER JOIN campaign_characters cc ON cc.character_id = ch.id
        INNER JOIN campaigns c ON c.id = cc.campaign_id
-       INNER JOIN campaign_members cm
-         ON cm.campaign_id = c.id AND cm.user_id = ?
+       LEFT JOIN campaign_members cm
+         ON cm.campaign_id = c.id AND cm.user_id = ch.owner_user_id
        WHERE ch.public_id = ? AND ch.owner_user_id = ?
+         AND (c.owner_user_id = ? OR cm.user_id IS NOT NULL)
        ORDER BY lower(c.name), c.updated_at DESC`,
     )
-    .bind(actor.userId, rawCharacterId, actor.userId)
+    .bind(rawCharacterId, actor.userId, actor.userId)
     .all<CharacterCampaignLink>();
   return result.results.map(({ id, name }) => ({ id, name }));
 }
@@ -222,7 +232,10 @@ export async function listEligibleCampaignCharacters(
     authenticatedActor,
     campaignPublicId,
   );
-  if (authenticatedActor.role === "admin" || campaign.archivedAt) return [];
+  if (
+    campaign.archivedAt
+    || (authenticatedActor.role === "admin" && authenticatedActor.userId !== campaign.ownerUserId)
+  ) return [];
 
   const existingLink = await db
     .prepare(
@@ -265,7 +278,12 @@ export async function listEligibleCampaignCharacters(
       membership,
       row,
     ))
-    .map(row => summaryPayload(authenticatedActor, row, campaignPublicId));
+    .map(row => summaryPayload(
+      authenticatedActor,
+      row,
+      campaignPublicId,
+      campaign.ownerUserId,
+    ));
 }
 
 export async function replaceCampaignCharacter(
@@ -364,7 +382,12 @@ export async function replaceCampaignCharacter(
     throw error;
   }
 
-  return summaryPayload(authenticatedActor, replacement, campaignPublicId);
+  return summaryPayload(
+    authenticatedActor,
+    replacement,
+    campaignPublicId,
+    campaign.ownerUserId,
+  );
 }
 
 export async function linkCharacterToCampaign(
@@ -386,7 +409,7 @@ export async function linkCharacterToCampaign(
   if (!character) throw characterNotFound();
   if (
     character.archivedAt
-    || authenticatedActor.role === "admin"
+    || (authenticatedActor.role === "admin" && authenticatedActor.userId !== campaign.ownerUserId)
     || !canAttachCharacterToCampaign(
       authenticatedActor,
       campaign,
@@ -434,7 +457,12 @@ export async function linkCharacterToCampaign(
     }
     throw error;
   }
-  return summaryPayload(authenticatedActor, character, campaignPublicId);
+  return summaryPayload(
+    authenticatedActor,
+    character,
+    campaignPublicId,
+    campaign.ownerUserId,
+  );
 }
 
 export async function unlinkCharacterFromCampaign(
@@ -454,7 +482,7 @@ export async function unlinkCharacterFromCampaign(
   const character = await findCharacterForCampaign(db, characterPublicId);
   if (!character) throw characterNotFound();
   if (
-    authenticatedActor.role === "admin"
+    (authenticatedActor.role === "admin" && authenticatedActor.userId !== campaign.ownerUserId)
     || !canDetachCharacterFromCampaign(
       authenticatedActor,
       campaign,

@@ -209,8 +209,41 @@ test("eligible characters are restricted to the current member's owned, unlinked
   assert.deepEqual(await listEligibleCampaignCharacters(db, admin, campaign.id), []);
 });
 
-test("members and GMs link only their own characters", async () => {
-  const { db, campaign, ids } = await fixture();
+test("campaign owners, including owner-admins, members, and GMs link only their own characters", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  const ownerAsAdmin = { ...owner, role: "admin" };
+  sqlite.prepare("DELETE FROM campaign_members WHERE campaign_id = ? AND user_id = ?")
+    .run(campaign.id, owner.userId);
+
+  const ownerBefore = { ...sqlite.prepare(`
+    SELECT owner_user_id AS ownerUserId, visibility, data
+    FROM characters WHERE public_id = ?
+  `).get(ids.owner) };
+  assert.deepEqual(
+    (await listEligibleCampaignCharacters(db, ownerAsAdmin, campaign.id)).map(character => character.id),
+    [ids.owner],
+  );
+  const ownerLink = await linkCharacterToCampaign(db, ownerAsAdmin, campaign.id, ids.owner, now);
+  assert.equal(ownerLink.id, ids.owner);
+  assert.equal(ownerLink.permissions.canUnlink, true);
+  assert.deepEqual(
+    await listAuthorizedCharacterCampaigns(db, owner, ids.owner),
+    [{ id: campaign.id, name: "Amber Company" }],
+  );
+  await expectServiceError(linkCharacterToCampaign(db, ownerAsAdmin, campaign.id, ids.outsider), 403);
+  await expectServiceError(linkCharacterToCampaign(db, ownerAsAdmin, campaign.id, ids.owner, now), 409);
+  await unlinkCharacterFromCampaign(db, ownerAsAdmin, campaign.id, ids.owner);
+  assert.equal(Number(sqlite.prepare(`
+    SELECT count(*) AS count FROM campaign_characters WHERE campaign_id = ? AND character_id = 'character-owner'
+  `).get(campaign.id).count), 0);
+  assert.deepEqual(
+    { ...sqlite.prepare(`
+      SELECT owner_user_id AS ownerUserId, visibility, data
+      FROM characters WHERE public_id = ?
+    `).get(ids.owner) },
+    ownerBefore,
+  );
+
   assert.equal((await linkCharacterToCampaign(db, player, campaign.id, ids.player, now)).id, ids.player);
   assert.equal((await linkCharacterToCampaign(db, gm, campaign.id, ids.gm, now)).id, ids.gm);
   await expectServiceError(linkCharacterToCampaign(db, gm, campaign.id, ids.player), 403);

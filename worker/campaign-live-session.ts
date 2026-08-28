@@ -8,6 +8,7 @@ import type {
   CampaignSharedRoll,
 } from "../lib/campaigns/live-session.ts";
 import { encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
+import { repairLegacyBestiaryEncounterNpc } from "../lib/campaigns/bestiary.ts";
 
 interface SocketAttachment { sessionId: string; participantKey: string }
 
@@ -259,17 +260,28 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     }>(`SELECT combatant_id, kind, character_id, name, initiative, hp_current, hp_max, armor_class, notes, combat_stats_json
       FROM encounter_combatants WHERE encounter_id = ?
       ORDER BY initiative DESC, added_order ASC, combatant_id ASC`, row.encounter_id)];
+    const resolvedCombatants: CampaignEncounterCombatant[] = combatants.map((combatant): CampaignEncounterCombatant => combatant.kind === "pc"
+      ? { id: combatant.combatant_id, kind: "pc", characterId: combatant.character_id as string, initiative: combatant.initiative }
+      : {
+        id: combatant.combatant_id, kind: "npc", name: combatant.name as string, initiative: combatant.initiative,
+        hpCurrent: combatant.hp_current as number, hpMax: combatant.hp_max as number,
+        armorClass: combatant.armor_class as number, notes: combatant.notes, combatStats: combatant.combat_stats_json ? JSON.parse(combatant.combat_stats_json) : undefined,
+      });
+    for (const combatant of resolvedCombatants) {
+      if (combatant.kind !== "npc") continue;
+      const repaired = repairLegacyBestiaryEncounterNpc(combatant);
+      if (!repaired) continue;
+      this.ctx.storage.sql.exec(
+        "UPDATE encounter_combatants SET notes = ?, combat_stats_json = ? WHERE encounter_id = ? AND combatant_id = ?",
+        repaired.notes ?? "", JSON.stringify(repaired.combatStats), row.encounter_id, repaired.id,
+      );
+      Object.assign(combatant, repaired);
+    }
     return {
       id: row.encounter_id,
       round: row.round_number,
       currentCombatantId: row.current_combatant_id,
-      combatants: combatants.map(combatant => combatant.kind === "pc"
-        ? { id: combatant.combatant_id, kind: "pc", characterId: combatant.character_id as string, initiative: combatant.initiative }
-        : {
-          id: combatant.combatant_id, kind: "npc", name: combatant.name as string, initiative: combatant.initiative,
-          hpCurrent: combatant.hp_current as number, hpMax: combatant.hp_max as number,
-          armorClass: combatant.armor_class as number, notes: combatant.notes, combatStats: combatant.combat_stats_json ? JSON.parse(combatant.combat_stats_json) : undefined,
-        }) satisfies CampaignEncounterCombatant[],
+      combatants: resolvedCombatants,
     };
   }
 

@@ -1,5 +1,5 @@
 import type { CampaignNpcAttack, CampaignNpcDraft } from "./npcs.ts";
-import type { CampaignNpcCombatStats } from "./live-session.ts";
+import type { CampaignEncounterNpc, CampaignNpcCombatStats } from "./live-session.ts";
 import { calculateWwnThreatEstimate, type WwnThreatBand } from "./wwn-threat.ts";
 
 /**
@@ -55,6 +55,49 @@ function attack(attackBonus: number, damage: string, description = ""): Campaign
 }
 
 const spellcastingNote = (level: number, effort: number): string => `Mage level ${level}; Effort ${effort}. Choose an appropriate mage tradition; no spells or Arts are specified.`;
+
+/**
+ * Before structured encounter combat data was introduced, Built-In Bestiary
+ * encounter copies carried this complete, generated stat line in notes. It is
+ * a versioned TWE signature, not a general-purpose note parser.
+ */
+function legacyGeneratedBestiaryNotes(creature: BuiltInBestiaryCreature): string {
+  const { hitDice, shock, move, morale, instinct, skill } = creature.sourceStats;
+  const base = `CC0 WWN SRD stat line: ${hitDice} HD (default HP ${creature.hpMax}, rounded-up average of ${hitDice}d8); Shock ${shock}; Move ${move}; Morale ${morale}; Instinct ${instinct}; Skill +${skill}.`;
+  if (creature.armorAnnotation) return `${base} The SRD's ${creature.armorClass}a AC is the creature's usual armor.`;
+  if (creature.spellcasting) return `${base} Use the spellcasting and Arts of an appropriate mage tradition at level ${creature.spellcasting.level}, with Effort ${creature.spellcasting.effort}. No specific tradition, spells, or Arts are assigned by this stat line.`;
+  return base;
+}
+
+function legacyGeneratedBestiaryAttacks(creature: BuiltInBestiaryCreature): CampaignNpcAttack[] {
+  const descriptions: Record<number, string> = {
+    2: "Two attacks per Main Action.",
+    3: "Three attacks per Main Action.",
+    4: "Four attacks per Main Action.",
+  };
+  const description = descriptions[creature.sourceStats.attacksPerMainAction] ?? "";
+  return creature.attacks.map(attack => ({ ...attack, description }));
+}
+
+function exactLegacySourceStats(value: unknown, creature: BuiltInBestiaryCreature): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  const keys = ["hitDice", "shock", "move", "morale", "instinct", "skill"];
+  return Object.keys(candidate).length === keys.length
+    && keys.every(key => key in candidate)
+    && candidate.hitDice === creature.sourceStats.hitDice
+    && candidate.shock === creature.sourceStats.shock
+    && candidate.move === creature.sourceStats.move
+    && candidate.morale === creature.sourceStats.morale
+    && candidate.instinct === creature.sourceStats.instinct
+    && candidate.skill === creature.sourceStats.skill;
+}
+
+function exactLegacyCombatSnapshot(stats: CampaignNpcCombatStats, creature: BuiltInBestiaryCreature, legacyNotes: string): boolean {
+  return !stats.threatStats
+    && stats.notes === legacyNotes
+    && exactLegacySourceStats(stats.sourceStats, creature);
+}
 
 const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {
   "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
@@ -217,5 +260,43 @@ export function builtInBestiaryEncounterSeed(id: string): { name: string; initia
     armorClass: creature.armorClass,
     notes: creature.notes,
     combatStats: { saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave }, attacks: creature.attacks.map(attack => ({ ...attack })), notes: creature.notes, sourceStats: { ...creature.sourceStats } },
+  };
+}
+
+/**
+ * Repair only an exact historical TWE Bestiary encounter signature. The
+ * legacy form predates sourceStats.attacksPerMainAction (or all combatStats),
+ * so the catalog is consulted only after the stored snapshot proves its
+ * source. Encounter-local HP, AC, and any existing combat values stay intact.
+ */
+export function repairLegacyBestiaryEncounterNpc(npc: CampaignEncounterNpc): CampaignEncounterNpc | null {
+  const creature = builtInBestiaryCreatures.find(candidate => candidate.name === npc.name);
+  if (!creature) return null;
+  const legacyNotes = legacyGeneratedBestiaryNotes(creature);
+  if (npc.notes !== legacyNotes) return null;
+
+  if (!npc.combatStats) {
+    if (npc.hpMax !== creature.hpMax || npc.armorClass !== creature.armorClass) return null;
+    return {
+      ...npc,
+      notes: creature.notes,
+      combatStats: {
+        saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave },
+        attacks: legacyGeneratedBestiaryAttacks(creature),
+        notes: creature.notes,
+        sourceStats: { ...creature.sourceStats },
+      },
+    };
+  }
+
+  if (!exactLegacyCombatSnapshot(npc.combatStats, creature, legacyNotes)) return null;
+  return {
+    ...npc,
+    notes: creature.notes,
+    combatStats: {
+      ...npc.combatStats,
+      notes: creature.notes,
+      sourceStats: { ...creature.sourceStats },
+    },
   };
 }

@@ -54,8 +54,7 @@ function attack(attackBonus: number, damage: string, description = ""): Campaign
   return { name: "Attack", attackBonus, damage, description };
 }
 
-const usualArmorNote = (armorClass: number): string => `Usual armor: AC ${armorClass}.`;
-const spellcastingNote = (level: number, effort: number): string => `Spellcasting: Mage level ${level}, Effort ${effort}. Choose an appropriate mage tradition; no specific spells or Arts are assigned.`;
+const spellcastingNote = (level: number, effort: number): string => `Mage level ${level}; Effort ${effort}. Choose an appropriate mage tradition; no spells or Arts are specified.`;
 
 const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {
   "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
@@ -113,17 +112,17 @@ export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Obje
   defineCreature({ id: "terrible-warbeast", name: "Terrible Warbeast", hpMax: 36, armorClass: 15, physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "2d6+4")], notes: "" }),
   defineCreature({ id: "legendary-god-titan", name: "Legendary God-Titan", hpMax: 90, armorClass: 22, physicalSave: 2, evasionSave: 2, mentalSave: 2, attacks: [attack(20, "2d10+5")], notes: "" }),
   defineCreature({ id: "peaceful-human", name: "Peaceful Human", hpMax: 5, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(0, "Weapon")], notes: "" }),
-  defineCreature({ id: "thug-or-militia", name: "Thug or Militia", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(1, "Weapon")], notes: usualArmorNote(13) }),
-  defineCreature({ id: "barbarian-fighter", name: "Barbarian Fighter", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "Weapon +1")], notes: usualArmorNote(13) }),
-  defineCreature({ id: "veteran-soldier", name: "Veteran Soldier", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "Weapon +1")], notes: usualArmorNote(13) }),
-  defineCreature({ id: "skilled-veteran", name: "Skilled Veteran", hpMax: 9, armorClass: 15, armorAnnotation: "a", physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(3, "Weapon +1")], notes: usualArmorNote(15) }),
-  defineCreature({ id: "elites-or-special-guards", name: "Elites or Special Guards", hpMax: 14, armorClass: 18, armorAnnotation: "a", physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(4, "Weapon +2")], notes: usualArmorNote(18) }),
-  defineCreature({ id: "knight-or-minor-hero", name: "Knight or Minor Hero", hpMax: 18, armorClass: 18, armorAnnotation: "a", physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "Weapon +2")], notes: usualArmorNote(18) }),
-  defineCreature({ id: "warrior-baron", name: "Warrior Baron", hpMax: 27, armorClass: 18, armorAnnotation: "a", physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(8, "Weapon +3")], notes: usualArmorNote(18) }),
-  defineCreature({ id: "barbarian-warlord", name: "Barbarian Warlord", hpMax: 36, armorClass: 16, armorAnnotation: "a", physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "Weapon +4")], notes: usualArmorNote(16) }),
-  defineCreature({ id: "mighty-general", name: "Mighty General", hpMax: 36, armorClass: 18, armorAnnotation: "a", physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "Weapon +4")], notes: usualArmorNote(18) }),
-  defineCreature({ id: "major-hero", name: "Major Hero", hpMax: 45, armorClass: 18, armorAnnotation: "a", physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "Weapon +5")], notes: usualArmorNote(18) }),
-  defineCreature({ id: "great-warrior-king", name: "Great Warrior King", hpMax: 54, armorClass: 18, armorAnnotation: "a", physicalSave: 9, evasionSave: 9, mentalSave: 9, attacks: [attack(14, "Weapon +5")], notes: usualArmorNote(18) }),
+  defineCreature({ id: "thug-or-militia", name: "Thug or Militia", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(1, "Weapon")], notes: "" }),
+  defineCreature({ id: "barbarian-fighter", name: "Barbarian Fighter", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "Weapon +1")], notes: "" }),
+  defineCreature({ id: "veteran-soldier", name: "Veteran Soldier", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "Weapon +1")], notes: "" }),
+  defineCreature({ id: "skilled-veteran", name: "Skilled Veteran", hpMax: 9, armorClass: 15, armorAnnotation: "a", physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(3, "Weapon +1")], notes: "" }),
+  defineCreature({ id: "elites-or-special-guards", name: "Elites or Special Guards", hpMax: 14, armorClass: 18, armorAnnotation: "a", physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(4, "Weapon +2")], notes: "" }),
+  defineCreature({ id: "knight-or-minor-hero", name: "Knight or Minor Hero", hpMax: 18, armorClass: 18, armorAnnotation: "a", physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "Weapon +2")], notes: "" }),
+  defineCreature({ id: "warrior-baron", name: "Warrior Baron", hpMax: 27, armorClass: 18, armorAnnotation: "a", physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(8, "Weapon +3")], notes: "" }),
+  defineCreature({ id: "barbarian-warlord", name: "Barbarian Warlord", hpMax: 36, armorClass: 16, armorAnnotation: "a", physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "Weapon +4")], notes: "" }),
+  defineCreature({ id: "mighty-general", name: "Mighty General", hpMax: 36, armorClass: 18, armorAnnotation: "a", physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "Weapon +4")], notes: "" }),
+  defineCreature({ id: "major-hero", name: "Major Hero", hpMax: 45, armorClass: 18, armorAnnotation: "a", physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "Weapon +5")], notes: "" }),
+  defineCreature({ id: "great-warrior-king", name: "Great Warrior King", hpMax: 54, armorClass: 18, armorAnnotation: "a", physicalSave: 9, evasionSave: 9, mentalSave: 9, attacks: [attack(14, "Weapon +5")], notes: "" }),
   defineCreature({ id: "petty-mage", name: "Petty Mage", hpMax: 9, armorClass: 10, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(1, "Weapon")], spellcasting: { level: 2, effort: 3 }, notes: spellcastingNote(2, 3) }),
   defineCreature({ id: "tribal-shaman", name: "Tribal Shaman", hpMax: 18, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(3, "Weapon +1")], spellcasting: { level: 4, effort: 3 }, notes: spellcastingNote(4, 3) }),
   defineCreature({ id: "skilled-sorcerer", name: "Skilled Sorcerer", hpMax: 23, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(1, "Weapon")], spellcasting: { level: 5, effort: 4 }, notes: spellcastingNote(5, 4) }),

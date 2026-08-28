@@ -342,17 +342,19 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.sourceStats.attacksPerMainAction, 4);
   assert.equal(getBuiltInBestiaryCreature("elites-or-special-guards")?.armorAnnotation, "a");
   assert.equal(getBuiltInBestiaryCreature("automaton-military")?.armorAnnotation, undefined);
+  assert.deepEqual(catalog.filter(creature => creature.notes).map(creature => creature.id), ["famous-arch-mage", "master-wizard", "petty-mage", "skilled-sorcerer", "tribal-shaman"]);
   for (const [id, level, effort] of [["petty-mage", 2, 3], ["tribal-shaman", 4, 3], ["skilled-sorcerer", 5, 4], ["master-wizard", 8, 4], ["famous-arch-mage", 10, 5]]) {
     const creature = getBuiltInBestiaryCreature(id);
     assert.deepEqual(creature?.spellcasting, { level, effort });
-    assert.match(creature?.notes ?? "", new RegExp(`Mage level ${level}, Effort ${effort}`, "u"));
-    assert.match(creature?.notes ?? "", /no specific spells or Arts are assigned/u);
+    assert.match(creature?.notes ?? "", new RegExp(`Mage level ${level}; Effort ${effort}`, "u"));
+    assert.match(creature?.notes ?? "", /no spells or Arts are specified/u);
   }
   assert.ok(searchBuiltInBestiaryCreatures("bandit").some(creature => creature.id === "thug-or-militia"));
   assert.ok(searchBuiltInBestiaryCreatures("soldier").some(creature => creature.id === "veteran-soldier"));
   assert.ok(searchBuiltInBestiaryCreatures("guard").some(creature => creature.id === "elites-or-special-guards"));
   assert.ok(searchBuiltInBestiaryCreatures("wizard").some(creature => creature.id === "master-wizard"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("shaman").map(creature => creature.id), ["tribal-shaman"]);
+  assert.ok(searchBuiltInBestiaryCreatures("Apex Predator").some(creature => creature.id === "apex-predator"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("warbot").map(creature => creature.id), ["automaton-warbot"]);
   assert.deepEqual(searchBuiltInBestiaryCreatures("hellbeast").map(creature => creature.id), ["predator-hellbeast"]);
 
@@ -380,6 +382,19 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   firstEncounter.hpCurrent = 1;
   assert.equal(secondEncounter.hpCurrent, apex.hpMax);
   assert.equal(apex.hpMax, 27);
+  for (const [id, expectedNotes] of [["apex-predator", ""], ["thug-or-militia", ""], ["automaton-warbot", ""], ["master-wizard", "Mage level 8; Effort 4. Choose an appropriate mage tradition; no spells or Arts are specified."]]) {
+    const draft = builtInBestiaryCreatureDraft(id);
+    const firstSeed = builtInBestiaryEncounterSeed(id);
+    const secondSeed = builtInBestiaryEncounterSeed(id);
+    assert.ok(draft && firstSeed && secondSeed);
+    assert.equal(draft.notes, expectedNotes);
+    assert.equal(firstSeed.notes, expectedNotes);
+    assert.equal(firstSeed.combatStats.notes, expectedNotes);
+    firstSeed.notes = "changed";
+    firstSeed.combatStats.notes = "changed";
+    assert.equal(secondSeed.notes, expectedNotes);
+    assert.equal(secondSeed.combatStats.notes, expectedNotes);
+  }
   for (const id of ["thug-or-militia", "petty-mage", "automaton-warbot", "predator-hellbeast"]) {
     const builtIn = getBuiltInBestiaryCreature(id);
     const firstSeed = builtInBestiaryEncounterSeed(id);

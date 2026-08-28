@@ -56,7 +56,9 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /\/api\/campaigns\/\$\{campaignId\}\/characters/u);
   assert.match(consoleUi, /character\.threatLevel/u);
   assert.doesNotMatch(consoleUi, /character => character\.level/u);
-  assert.match(consoleUi, /Worlds Without Number Free Edition/u);
+  assert.match(consoleUi, /wwnThreatEstimateProvenance/u);
+  assert.match(consoleUi, /partyLevels=\{partyLevels\}/u);
+  assert.match(consoleUi, /partyLoaded=\{partyLoaded\}/u);
   assert.equal((consoleUi.match(/<BestiaryStatBlock/g) ?? []).length, 1, "only the selected creature mounts a full stat block");
   assert.match(consoleUi, /data-mobile-view=\{mobileView\}/u);
   assert.match(consoleUi, /setMobileView\("browse"\)/u);

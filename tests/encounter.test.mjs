@@ -94,6 +94,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /additionalAttacks/u);
   assert.match(sessionUi, /campaign-encounter-hp-control/u);
   assert.match(sessionUi, /campaign-encounter-initiative/u);
+  assert.match(sessionUi, /campaign-encounter-pc/u);
   assert.match(sessionUi, /NpcRollButtons/u);
   assert.match(sessionUi, /Physical Save/u);
   assert.match(sessionUi, /Edit encounter combat/u);
@@ -107,6 +108,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /canRollDamage/u);
   assert.match(sessionUi, /canManage && onNpcRoll/u);
   assert.match(sessionCss, /campaign-encounter-initiative\{grid-column:3;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-order li\.campaign-encounter-pc\{grid-template-columns:18px minmax\(128px,220px\) 52px/u);
   assert.match(sessionCss, /campaign-encounter-hp\{grid-column:4;grid-row:1\}/u);
   assert.match(sessionCss, /campaign-encounter-ac\{grid-column:5;grid-row:1\}/u);
   assert.match(sessionCss, /campaign-encounter-remove\{grid-column:6;grid-row:1\}/u);

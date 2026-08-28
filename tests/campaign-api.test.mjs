@@ -333,14 +333,20 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
     assert.equal(Object.isFrozen(creature.sourceStats), true);
   }
   assert.notEqual(getBuiltInBestiaryCreature("barbarian-fighter")?.sourceStats.instinct, getBuiltInBestiaryCreature("veteran-soldier")?.sourceStats.instinct);
-  assert.equal(getBuiltInBestiaryCreature("barbarian-warlord")?.attacks[0]?.description, "Two attacks per Main Action.");
-  assert.equal(getBuiltInBestiaryCreature("great-warrior-king")?.attacks[0]?.description, "Two attacks per Main Action.");
-  assert.equal(getBuiltInBestiaryCreature("automaton-warbot")?.attacks[0]?.description, "Three attacks per Main Action.");
-  assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.attacks[0]?.description, "Four attacks per Main Action.");
+  assert.equal(getBuiltInBestiaryCreature("barbarian-warlord")?.attacks[0]?.description, "");
+  assert.equal(getBuiltInBestiaryCreature("great-warrior-king")?.attacks[0]?.description, "");
+  assert.equal(getBuiltInBestiaryCreature("automaton-warbot")?.attacks[0]?.description, "");
+  assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.attacks[0]?.description, "");
+  assert.equal(getBuiltInBestiaryCreature("barbarian-warlord")?.sourceStats.attacksPerMainAction, 2);
+  assert.equal(getBuiltInBestiaryCreature("automaton-warbot")?.sourceStats.attacksPerMainAction, 3);
+  assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.sourceStats.attacksPerMainAction, 4);
+  assert.equal(getBuiltInBestiaryCreature("elites-or-special-guards")?.armorAnnotation, "a");
+  assert.equal(getBuiltInBestiaryCreature("automaton-military")?.armorAnnotation, undefined);
   for (const [id, level, effort] of [["petty-mage", 2, 3], ["tribal-shaman", 4, 3], ["skilled-sorcerer", 5, 4], ["master-wizard", 8, 4], ["famous-arch-mage", 10, 5]]) {
-    const notes = getBuiltInBestiaryCreature(id)?.notes ?? "";
-    assert.match(notes, new RegExp(`appropriate mage tradition at level ${level}, with Effort ${effort}`, "u"));
-    assert.match(notes, /No specific tradition, spells, or Arts are assigned/u);
+    const creature = getBuiltInBestiaryCreature(id);
+    assert.deepEqual(creature?.spellcasting, { level, effort });
+    assert.match(creature?.notes ?? "", new RegExp(`Mage level ${level}, Effort ${effort}`, "u"));
+    assert.match(creature?.notes ?? "", /no specific spells or Arts are assigned/u);
   }
   assert.ok(searchBuiltInBestiaryCreatures("bandit").some(creature => creature.id === "thug-or-militia"));
   assert.ok(searchBuiltInBestiaryCreatures("soldier").some(creature => creature.id === "veteran-soldier"));

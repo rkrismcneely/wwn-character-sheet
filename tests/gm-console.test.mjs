@@ -68,11 +68,17 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(styles, /\.gm-bestiary-filters\{display:grid/u);
   assert.match(styles, /\.gm-bestiary-threat-grid/u);
   assert.match(consoleUi, /End Session/u);
+  assert.match(consoleUi, /action\(session \? "end" : "start"\)/u);
+  assert.doesNotMatch(consoleUi, /Session Active/u);
   assert.match(consoleUi, /Duplicate/u);
   assert.match(consoleUi, /Confirm Delete/u);
   assert.match(consoleUi, /Add to Encounter/u);
   assert.match(consoleUi, /Threat data/u);
   assert.match(consoleUi, /Attacks per Main Action/u);
+  assert.match(consoleUi, /Attacks \/ Action/u);
+  assert.match(consoleUi, /Default HP is a table-ready value derived from Hit Dice/u);
+  assert.match(consoleUi, /Usual armor in the SRD/u);
+  assert.match(consoleUi, /Mage level \{creature\.spellcasting\.level\}/u);
   assert.match(consoleUi, /Weapon starter/u);
   assert.match(consoleUi, /npcWeaponStarters/u);
   assert.match(consoleUi, /Move attack/u);

@@ -42,14 +42,17 @@ function wholeNumberOrNull(value: string): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
+
 function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
   return <div className="gm-bestiary-stat-block">
     <section>
       <h4>Combat profile</h4>
       <dl className="gm-bestiary-stat-grid">
         <div><dt>HP</dt><dd>{creature.hpMax}</dd></div>
-        <div><dt>AC</dt><dd>{creature.armorClass}</dd></div>
+        <div><dt>AC</dt><dd>{creature.armorClass}{creature.armorAnnotation ? <abbr title="Usual armor in the SRD">{creature.armorAnnotation}</abbr> : null}</dd></div>
         <div><dt>HD</dt><dd>{creature.sourceStats.hitDice}</dd></div>
+        <div><dt>Attacks / Action</dt><dd>{creature.sourceStats.attacksPerMainAction}</dd></div>
         <div><dt>Shock</dt><dd>{creature.sourceStats.shock}</dd></div>
         <div><dt>Move</dt><dd>{creature.sourceStats.move}</dd></div>
         <div><dt>Morale</dt><dd>{creature.sourceStats.morale}</dd></div>
@@ -63,9 +66,9 @@ function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) 
     </section>
     <section>
       <h4>Attacks</h4>
-      <ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>
+      <ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}>{attack.name !== "Attack" && <><strong>{attack.name}</strong> </>}{signed(attack.attackBonus)} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>
     </section>
-    <section className="gm-bestiary-notes"><h4>Notes</h4><p>{creature.notes}</p></section>
+    {creature.spellcasting && <section><h4>Spellcasting</h4><p>Mage level {creature.spellcasting.level} · Effort {creature.spellcasting.effort}. Choose an appropriate mage tradition; no specific spells or Arts are assigned.</p></section>}
   </div>;
 }
 
@@ -143,7 +146,7 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
   function selectCreature(id: string) { setSelectedId(id); setMobileView("detail"); }
 
   return <section className="gm-console-section" aria-labelledby="gm-bestiary-title">
-    <div className="campaign-section-heading"><div><p className="campaign-kicker">CC0 SRD LIBRARY</p><h2 id="gm-bestiary-title">Built-In Bestiary</h2><p className="campaign-empty-copy">Immutable SRD stat lines. Adding or saving one always creates an independent campaign copy.</p></div></div>
+    <div className="campaign-section-heading"><div><p className="campaign-kicker">CC0 SRD LIBRARY</p><h2 id="gm-bestiary-title">Built-In Bestiary</h2><p className="campaign-empty-copy">Reference creatures from the Worlds Without Number SRD. Adding or saving one creates an independent campaign copy.</p><p className="gm-bestiary-default-hp">Default HP is a table-ready value derived from Hit Dice, not a fixed SRD HP score.</p></div></div>
     {error && <p className="campaign-error" role="status">{error}</p>}
     <div className="gm-bestiary-browser" data-mobile-view={mobileView}>
       <section className="gm-bestiary-browse" aria-label="Browse built-in creatures">
@@ -345,7 +348,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     <SignedInHeader active="campaigns" />
     <section className="campaign-hero gm-console-hero">
       <div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div>
-      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link>{session && <><span className="campaign-session-status">Session Active</span><button type="button" className="campaign-danger" disabled={busy || npcRollBusy} onClick={() => void action("end").catch(() => {})}>End Session</button></>}</div>
+      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link><button type="button" className={session ? "campaign-danger" : "campaign-primary"} disabled={busy || npcRollBusy} onClick={() => void action(session ? "end" : "start").catch(() => {})}>{session ? "End Session" : "Start Session"}</button></div>
     </section>
     {session && state.permissions.joined && <section className="gm-console-roll-row" aria-label="Campaign roll tools">
       <div className="gm-console-latest-roll"><RollResultTray result={latestRoll || sharedHistory[0] || null} /></div>
@@ -357,7 +360,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     {(error || rollError) && <div className="campaign-error" role="status">{error || rollError}</div>}
     <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
     <section className="campaign-panel gm-console-panel">
-      {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Start a session to run encounters and follow party activity here.</p><button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("start").catch(() => {})}>Start Session</button></section>}
+      {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
       {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} partyLevels={partyLevels} partyLoaded={partyLoaded} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
       {tab === "bestiary" && <BuiltInBestiary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}

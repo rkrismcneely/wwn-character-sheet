@@ -106,6 +106,9 @@ export const backgroundAttributeChoices = (result: string): BackgroundAttributeN
 export const backgroundAttributePointCount = (result: string) =>
   result === "+1 Any Stat" ? 1 : result === "+2 Physical" || result === "+2 Mental" ? 2 : 0;
 
+/** Interpret a canonical ranked skill result without changing its stored form. */
+export const normalizedBackgroundSkillResult = (result: string) => result.replace(/-\d+$/, "");
+
 export function rollBackgroundTable(
   backgroundName: string,
   table: BackgroundRollTable,
@@ -337,7 +340,7 @@ const resolvedSkillWithoutReplacement = (
   allowedSkills: readonly string[],
   combatSkills: readonly string[],
 ) => {
-  const bare = grant.result.replace(/-\d+$/, "");
+  const bare = normalizedBackgroundSkillResult(grant.result);
   if (bare === "Any Combat") {
     const choice = grant.choice || grant.combatChoice || "";
     return combatSkills.includes(choice) ? choice : "";
@@ -359,7 +362,7 @@ export function resolveBackgroundSkillGrants(
   const counts = Object.fromEntries(allowedSkills.map(skill => [skill, 0])) as Record<string, number>;
   return grants.map(grant => {
     const rawSkill = resolvedSkillWithoutReplacement(grant, allowedSkills, combatSkills);
-    const bare = grant.result.replace(/-\d+$/, "");
+    const bare = normalizedBackgroundSkillResult(grant.result);
     const needsChoice = (bare === "Any Combat" || bare === "Any Skill") && !rawSkill;
     if (!rawSkill) return { ...grant, rawSkill: "", resolvedSkill: "", needsChoice, needsReplacement: false };
     if (counts[rawSkill] < 2) {

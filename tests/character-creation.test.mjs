@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   creationSkillGrantResolutions,
   creationSkillSources,
+  choiceOptionsForBackgroundResult,
   levelOneCreationStatus,
 } from "../app/character-creation.ts";
 
@@ -175,6 +176,27 @@ test("creation ledger retains the normal background, class, and Focus sources", 
     unresolved.find((grant) => grant.id === "background-free")?.needsChoice,
     true,
   );
+});
+
+test("background choice options interpret canonical ranked results", () => {
+  assert.deepEqual(choiceOptionsForBackgroundResult("Any Combat"), ["Punch", "Shoot", "Stab"]);
+  assert.deepEqual(choiceOptionsForBackgroundResult("Any Combat-0"), ["Punch", "Shoot", "Stab"]);
+  assert.deepEqual(choiceOptionsForBackgroundResult("Any Skill"), skills);
+  assert.deepEqual(choiceOptionsForBackgroundResult("Any Skill-0"), skills);
+  assert.deepEqual(choiceOptionsForBackgroundResult("Stab-0"), []);
+});
+
+test("Soldier's canonical Any Combat-0 free skill resolves through the creation ledger", () => {
+  const unresolved = withFreePick({ ...baseCharacter(), backgroundCombatSkill: "" });
+  const pending = creationSkillGrantResolutions(unresolved).find((grant) => grant.id === "background-free");
+  assert.deepEqual(pending?.result, "Any Combat-0");
+  assert.equal(pending?.needsChoice, true);
+
+  const resolved = withFreePick({ ...baseCharacter(), backgroundCombatSkill: "Punch" });
+  const free = creationSkillGrantResolutions(resolved).find((grant) => grant.id === "background-free");
+  assert.equal(free?.resolvedSkill, "Punch");
+  assert.equal(free?.needsChoice, false);
+  assert.equal(levelOneCreationStatus(resolved).stepStatus.skills.complete, true);
 });
 
 test("the completeness layer keeps Background identity separate from its later choices", () => {

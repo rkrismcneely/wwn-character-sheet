@@ -24,6 +24,7 @@ import {
   backgroundAttributeBonuses,
   backgroundAttributeChoices,
   backgroundAttributePointCount,
+  normalizedBackgroundSkillResult,
   resolveBackgroundSkillGrants,
   resolvedBackgroundRollResult,
   type BackgroundDevelopmentEntry,
@@ -976,8 +977,9 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
 }
 
 export function choiceOptionsForBackgroundResult(result: string) {
-  if (result === "Any Combat") return [...creationCombatSkills];
-  if (result === "Any Skill") return [...creationSkills];
+  const normalized = normalizedBackgroundSkillResult(result);
+  if (normalized === "Any Combat") return [...creationCombatSkills];
+  if (normalized === "Any Skill") return [...creationSkills];
   return [];
 }
 

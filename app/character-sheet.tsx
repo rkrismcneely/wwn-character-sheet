@@ -35,6 +35,8 @@ import { CharacterLiveSessionPanel } from "./character-live-session-panel";
 import { GuidedCreationWizard } from "./character-creation-wizard";
 import { guidedCreationModeFromUrl, withGuidedCreationMode } from "./guided-creation-route";
 import {
+  creationBackgroundSkillChoiceOptions,
+  creationBackgroundSkillChoiceValue,
   creationFocusBonusSkill,
   creationSkillGrantResolutions,
   creationSkillGrants,
@@ -438,12 +440,6 @@ const focusChoiceLabel = (focusName: string) => {
 const normalizeLanguages = (value: unknown): string[] => {
   if (Array.isArray(value)) return [...new Set(value.filter((language): language is string => typeof language === "string" && Boolean(language.trim())).map(language => language.trim()))];
   if (typeof value === "string") return [...new Set(value.split(/[,;\n]/).map(language => language.trim()).filter(Boolean))];
-  return [];
-};
-
-const backgroundChoiceOptions = (result: string) => {
-  if (result === "Any Combat") return [...combatSkills];
-  if (result === "Any Skill") return [...skills];
   return [];
 };
 
@@ -2037,10 +2033,6 @@ export default function Home({
   const backgroundGrantResolutions = backgroundSkillGrantResolutions(sheet);
   const backgroundGrantResolution = (id: string, candidate = sheet) =>
     backgroundSkillGrantResolutions(candidate).find(grant => grant.id === id);
-  const backgroundGrantCanResolveAs = (id: string, candidate: Sheet, skill: string) => {
-    const resolution = backgroundGrantResolution(id, candidate);
-    return resolution?.resolvedSkill === skill && !resolution.needsReplacement;
-  };
   const activeBackground = backgrounds[sheet.background];
   const backgroundCombatGrantId = activeBackground?.freeSkill.startsWith("Any Combat")
     ? "background-free"
@@ -2616,8 +2608,8 @@ export default function Home({
     needsReplacement: boolean;
     onChoice: (value: string) => void;
     onReplacement: (value: string) => void;
-    choiceAvailable: (skill: string) => boolean;
-    replacementAvailable: (skill: string) => boolean;
+    choiceOptions: readonly string[];
+    replacementOptions: readonly string[];
   };
   const renderBackgroundSkillFollowUp = ({
     result,
@@ -2626,31 +2618,24 @@ export default function Home({
     needsReplacement,
     onChoice,
     onReplacement,
-    choiceAvailable,
-    replacementAvailable,
+    choiceOptions,
+    replacementOptions,
   }: BackgroundSkillFollowupProps) => {
-    const choices = backgroundChoiceOptions(result);
     const specialLabel = result === "Any Combat" ? "Choose combat skill" : "Choose skill";
     return <>
-      {choices.length > 0 && <label className="field">
+      {choiceOptions.length > 0 && <label className="field">
         <span>{needsReplacement ? `Choose another eligible ${result === "Any Combat" ? "combat skill" : "skill"}` : specialLabel}</span>
         <select value={choice} onChange={event => onChoice(event.target.value)}>
           <option value="">{specialLabel}…</option>
-          {choices.map(skill => {
-            const available = choiceAvailable(skill);
-            return <option key={skill} value={skill} disabled={!available}>{skill}{available ? "" : " — already level 1"}</option>;
-          })}
+          {choiceOptions.map(skill => <option key={skill} value={skill}>{skill}</option>)}
         </select>
         {needsReplacement && <small className="background-choice-note">This would be a third starting acquisition. Choose a skill that is not already level 1.</small>}
       </label>}
-      {needsReplacement && choices.length === 0 && <label className="field">
+      {needsReplacement && choiceOptions.length === 0 && <label className="field">
         <span>Choose another eligible skill</span>
         <select value={replacement} onChange={event => onReplacement(event.target.value)}>
           <option value="">Choose skill…</option>
-          {skills.map(skill => {
-            const available = replacementAvailable(skill);
-            return <option key={skill} value={skill} disabled={!available}>{skill}{available ? "" : " — already level 1"}</option>;
-          })}
+          {replacementOptions.map(skill => <option key={skill} value={skill}>{skill}</option>)}
         </select>
         <small className="background-choice-note">This result would be a third starting acquisition. Pick a skill that is still below level 1.</small>
       </label>}
@@ -3144,12 +3129,9 @@ export default function Home({
                     </div>}
                     {backgroundCombatGrantId && <label className="field background-skill-method">
                       <span>Background Any Combat skill</span>
-                      <select value={sheet.backgroundCombatSkill} onChange={event => patch("backgroundCombatSkill", event.target.value)}>
+                      <select value={creationBackgroundSkillChoiceValue(sheet, backgroundCombatGrantId)} onChange={event => patch("backgroundCombatSkill", event.target.value)}>
                         <option value="">Choose Punch, Shoot, or Stab…</option>
-                        {combatSkills.map(skill => {
-                          const available = backgroundGrantCanResolveAs(backgroundCombatGrantId, { ...sheet, backgroundCombatSkill: skill }, skill);
-                          return <option key={skill} value={skill} disabled={!available}>{skill}{available ? "" : " — already level 1"}</option>;
-                        })}
+                        {creationBackgroundSkillChoiceOptions(sheet, backgroundCombatGrantId).map(skill => <option key={skill} value={skill}>{skill}</option>)}
                       </select>
                     </label>}
                     {sheet.backgroundDevelopmentMethod === "quick" && <div className="background-development-summary">
@@ -3172,13 +3154,13 @@ export default function Home({
                           })}</select></label>
                           {renderBackgroundSkillFollowUp({
                             result: pick.result,
-                            choice: pick.choice || "",
+                            choice: creationBackgroundSkillChoiceValue(sheet, grantId),
                             replacement: pick.replacement || "",
                             needsReplacement: Boolean(resolution?.needsReplacement),
                             onChoice: value => updateBackgroundLearningPick(index, { choice: value, replacement: "" }),
                             onReplacement: value => updateBackgroundLearningPick(index, { replacement: value }),
-                            choiceAvailable: skill => backgroundGrantCanResolveAs(grantId, { ...sheet, backgroundLearningPicks: sheet.backgroundLearningPicks.map((value, row) => row === index ? { ...value, choice: skill, replacement: "" } : value) }, skill),
-                            replacementAvailable: skill => backgroundGrantCanResolveAs(grantId, { ...sheet, backgroundLearningPicks: sheet.backgroundLearningPicks.map((value, row) => row === index ? { ...value, replacement: skill } : value) }, skill),
+                            choiceOptions: creationBackgroundSkillChoiceOptions(sheet, grantId),
+                            replacementOptions: resolution?.replacementOptions || [],
                           })}
                         </div>;
                       })}
@@ -3199,13 +3181,13 @@ export default function Home({
                           {renderBackgroundAttributeChoices(roll, index)}
                           {result && renderBackgroundSkillFollowUp({
                             result,
-                            choice: roll.choice || "",
+                            choice: creationBackgroundSkillChoiceValue(sheet, grantId),
                             replacement: roll.replacement || "",
                             needsReplacement: Boolean(resolution?.needsReplacement),
                             onChoice: value => updateBackgroundDevelopmentRoll(index, { choice: value, replacement: "" }),
                             onReplacement: value => updateBackgroundDevelopmentRoll(index, { replacement: value }),
-                            choiceAvailable: skill => backgroundGrantCanResolveAs(grantId, { ...sheet, backgroundDevelopmentRolls: sheet.backgroundDevelopmentRolls.map((value, row) => row === index ? { ...value, choice: skill, replacement: "" } : value) }, skill),
-                            replacementAvailable: skill => backgroundGrantCanResolveAs(grantId, { ...sheet, backgroundDevelopmentRolls: sheet.backgroundDevelopmentRolls.map((value, row) => row === index ? { ...value, replacement: skill } : value) }, skill),
+                            choiceOptions: creationBackgroundSkillChoiceOptions(sheet, grantId),
+                            replacementOptions: resolution?.replacementOptions || [],
                           })}
                         </div>;
                       })}

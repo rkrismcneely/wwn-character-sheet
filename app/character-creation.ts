@@ -344,6 +344,88 @@ export function creationSkillGrantResolutions(
   );
 }
 
+type CreationSkillGrantState = Pick<
+  LevelOneCreationCharacter,
+  | "background"
+  | "backgroundDevelopmentMethod"
+  | "backgroundCombatSkill"
+  | "backgroundLearningPicks"
+  | "backgroundDevelopmentRolls"
+  | "classMode"
+  | "classOne"
+  | "classTwo"
+  | "focusPicks"
+  | "vowedEffortSkill"
+  | "wiseConceptSkill"
+>;
+
+const withBackgroundGrantChoice = (
+  state: CreationSkillGrantState,
+  grantId: string,
+  choice: string,
+): CreationSkillGrantState => {
+  if (grantId === "background-free" || grantId.startsWith("quick-"))
+    return { ...state, backgroundCombatSkill: choice };
+  if (grantId.startsWith("learning-")) {
+    const index = Number(grantId.slice("learning-".length));
+    return {
+      ...state,
+      backgroundLearningPicks: state.backgroundLearningPicks.map((pick, row) =>
+        row === index ? { ...pick, choice, replacement: "" } : pick,
+      ),
+    };
+  }
+  if (grantId.startsWith("roll-")) {
+    const index = Number(grantId.slice("roll-".length));
+    return {
+      ...state,
+      backgroundDevelopmentRolls: state.backgroundDevelopmentRolls.map((roll, row) =>
+        row === index ? { ...roll, choice, replacement: "" } : roll,
+      ),
+    };
+  }
+  return state;
+};
+
+/**
+ * Legal skill choices for an Any Combat or Any Skill grant at its exact place
+ * in the authoritative creation acquisition order.  The UI consumes this
+ * rather than duplicating level-1 cap calculations.
+ */
+export function creationBackgroundSkillChoiceOptions(
+  state: CreationSkillGrantState,
+  grantId: string,
+) {
+  const grant = creationSkillGrantResolutions(state).find(
+    (entry) => entry.id === grantId,
+  );
+  if (!grant) return [];
+  return choiceOptionsForBackgroundResult(grant.result).filter((choice) => {
+    const candidate = creationSkillGrantResolutions(
+      withBackgroundGrantChoice(state, grantId, choice),
+    ).find((entry) => entry.id === grantId);
+    return candidate?.rawSkill === choice
+      && candidate.resolvedSkill === choice
+      && !candidate.needsChoice
+      && !candidate.needsReplacement;
+  });
+}
+
+/** Returns a selected choice only while it remains legal in grant order. */
+export function creationBackgroundSkillChoiceValue(
+  state: CreationSkillGrantState,
+  grantId: string,
+) {
+  const grant = creationSkillGrantResolutions(state).find(
+    (entry) => entry.id === grantId,
+  );
+  if (!grant || grant.needsChoice || grant.needsReplacement) return "";
+  const choice = grant.choice || grant.combatChoice || "";
+  return creationBackgroundSkillChoiceOptions(state, grantId).some((option) => option === choice)
+    ? choice
+    : "";
+}
+
 export function creationSkillSources(
   state: Pick<
     LevelOneCreationCharacter,

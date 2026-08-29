@@ -7,6 +7,10 @@ import {
   choiceOptionsForBackgroundResult,
   levelOneCreationStatus,
 } from "../app/character-creation.ts";
+import {
+  guidedCreationModeFromUrl,
+  withGuidedCreationMode,
+} from "../app/guided-creation-route.ts";
 
 const skills = [
   "Administer",
@@ -197,6 +201,23 @@ test("Soldier's canonical Any Combat-0 free skill resolves through the creation 
   assert.equal(free?.resolvedSkill, "Punch");
   assert.equal(free?.needsChoice, false);
   assert.equal(levelOneCreationStatus(resolved).stepStatus.skills.complete, true);
+});
+
+test("guided creation route state survives reloads without storing a character draft", async () => {
+  const guided = withGuidedCreationMode("/character/chr_example?tab=core", true);
+  assert.equal(guided, "/character/chr_example?tab=core&guided=1");
+  assert.equal(guidedCreationModeFromUrl(guided), true);
+  assert.equal(
+    withGuidedCreationMode(guided, false),
+    "/character/chr_example?tab=core",
+  );
+  assert.equal(guidedCreationModeFromUrl("/character/chr_example"), false);
+
+  const sheet = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+  assert.match(sheet, /synchronizeGuidedCreationMode/u);
+  assert.match(sheet, /window\.addEventListener\("popstate", synchronizeGuidedCreationMode\)/u);
+  assert.match(sheet, /withGuidedCreationMode\(\s*`\/character\/\$\{payload\.id\}`/u);
+  assert.match(sheet, /setGuidedCreationMode\(false, "replace"\)/u);
 });
 
 test("the completeness layer keeps Background identity separate from its later choices", () => {

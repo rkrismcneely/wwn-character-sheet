@@ -33,6 +33,7 @@ import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "./virtual-dice-overlay";
 import { CharacterLiveSessionPanel } from "./character-live-session-panel";
 import { GuidedCreationWizard } from "./character-creation-wizard";
+import { guidedCreationModeFromUrl, withGuidedCreationMode } from "./guided-creation-route";
 import {
   creationFocusBonusSkill,
   creationSkillGrantResolutions,
@@ -925,9 +926,7 @@ export default function Home({
   const [creationEntry, setCreationEntry] = useState<"none" | "choose" | "guided" | "blank">(
     startNew && !initialCharacter ? "choose" : "none",
   );
-  const [wizardOpen, setWizardOpen] = useState(() =>
-    typeof window !== "undefined" && new URL(window.location.href).searchParams.get("guided") === "1",
-  );
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(() =>
     startNew && !initialCharacter
       ? createBlankSheet()
@@ -961,6 +960,23 @@ export default function Home({
   const [cloudAdminReadOnly, setCloudAdminReadOnly] = useState(
     initialCharacter?.permissions.adminReadOnly ?? false,
   );
+
+  function setGuidedCreationMode(
+    enabled: boolean,
+    historyMode: "push" | "replace" = "push",
+  ) {
+    setWizardOpen(enabled);
+    if (typeof window === "undefined") return;
+    const next = withGuidedCreationMode(window.location.href, enabled);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === current) return;
+    if (historyMode === "push") {
+      window.history.pushState(window.history.state, "", next);
+    } else {
+      window.history.replaceState(window.history.state, "", next);
+    }
+  }
+
   const [campaignLinks, setCampaignLinks] = useState<CharacterCampaignLink[]>(
     initialCharacter?.campaigns ?? [],
   );
@@ -1252,6 +1268,14 @@ export default function Home({
     }, 0);
     return () => clearTimeout(t);
   }, [initialCharacter, startNew]);
+
+  useEffect(() => {
+    const synchronizeGuidedCreationMode = () =>
+      setWizardOpen(guidedCreationModeFromUrl(window.location.href));
+    synchronizeGuidedCreationMode();
+    window.addEventListener("popstate", synchronizeGuidedCreationMode);
+    return () => window.removeEventListener("popstate", synchronizeGuidedCreationMode);
+  }, []);
 
   useEffect(() => {
     if (!hydrated || !canEdit) return;
@@ -1701,7 +1725,14 @@ export default function Home({
       setCampaignLinks([]);
       lastCloudData.current = JSON.stringify(nextCharacter);
       setSaved("Saved online");
-      window.history.pushState({ characterId: payload.id }, "", `/character/${payload.id}`);
+      window.history.pushState(
+        { characterId: payload.id },
+        "",
+        withGuidedCreationMode(
+          `/character/${payload.id}`,
+          guidedCreationModeFromUrl(window.location.href),
+        ),
+      );
       setLibraryScope("mine");
       await refreshLibrary("mine");
       setLibraryOpen(false);
@@ -1841,7 +1872,7 @@ export default function Home({
     };
     setSheet(fresh);
     setCreationEntry(mode);
-    setWizardOpen(mode === "guided");
+    setGuidedCreationMode(mode === "guided", "replace");
     setCloudId(null);
     setCloudVersion(null);
     setCloudVisibility("private");
@@ -1868,11 +1899,8 @@ export default function Home({
     } else {
       setTransferMessage("Guided creation closed. Every choice remains saved on this character.");
     }
-    setWizardOpen(false);
     setTab("core");
-    const url = new URL(window.location.href);
-    url.searchParams.delete("guided");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    setGuidedCreationMode(false, "replace");
   }
 
   async function duplicateCharacter(id: string) {
@@ -2695,10 +2723,7 @@ export default function Home({
               ? <button onClick={() => void saveToCloud()}>Save Now</button>
               : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
             {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <button type="button" onClick={() => {
-              setWizardOpen(true);
-              const url = new URL(window.location.href);
-              url.searchParams.set("guided", "1");
-              window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+              setGuidedCreationMode(true);
             }}>Guided Creation</button>}
             {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
             {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}

@@ -44,6 +44,7 @@ test("repairs an Apex Predator-era snapshot and restores its canonical multiatta
   const repaired = repairLegacyBestiaryEncounterNpc(legacy);
   assert.ok(repaired);
   assert.deepEqual(repaired.combatStats?.sourceStats, { hitDice: 6, attacksPerMainAction: 2, shock: "2/13", move: "40'", morale: 8, instinct: 6, skill: 2 });
+  assert.deepEqual(repaired.combatStats?.attacks[0], { name: "Attack", attackBonus: 6, damage: "1d8", description: "Two attacks per Main Action." }, "the matcher reconstructs the historical generic snapshot, not the new curated display attack");
   assert.equal(repaired.combatStats?.attacks[0]?.description, "Two attacks per Main Action.");
 });
 

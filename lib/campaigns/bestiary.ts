@@ -1,5 +1,6 @@
 import type { CampaignNpcAttack, CampaignNpcDraft } from "./npcs.ts";
 import type { CampaignEncounterNpc, CampaignNpcCombatStats } from "./live-session.ts";
+import { npcWeaponStarters } from "./npc-weapons.ts";
 import { calculateWwnThreatEstimate, type WwnThreatBand } from "./wwn-threat.ts";
 
 /**
@@ -19,7 +20,10 @@ export interface BuiltInBestiaryCreature {
   readonly physicalSave: number;
   readonly evasionSave: number;
   readonly mentalSave: number;
+  /** The playable, TWE-curated physical attacks copied into templates and encounters. */
   readonly attacks: readonly Readonly<CampaignNpcAttack>[];
+  /** The exact generic attack notation from the original SRD stat line. */
+  readonly sourceAttacks: readonly Readonly<CampaignNpcAttack>[];
   readonly notes: string;
   readonly armorAnnotation?: "a";
   readonly spellcasting?: BuiltInBestiarySpellcasting;
@@ -29,32 +33,209 @@ export interface BuiltInBestiaryCreature {
 }
 
 export interface BuiltInBestiarySource { readonly name: string; readonly license: string }
-export interface BuiltInBestiarySpellcasting { readonly level: number; readonly effort: number }
+export interface BuiltInBestiaryMagicReference { readonly name: string; readonly level?: number; readonly summary: string }
+export interface BuiltInBestiarySpellcasting {
+  readonly level: number;
+  readonly effort: number;
+  /** A TWE-curated High Magic loadout, using only the imported CC0 SRD corpus. */
+  readonly tradition: "High Magic";
+  readonly spells: readonly Readonly<BuiltInBestiaryMagicReference>[];
+  readonly arts: readonly Readonly<BuiltInBestiaryMagicReference>[];
+}
 export interface BuiltInBestiarySourceStats { readonly hitDice: number; readonly attacksPerMainAction: number; readonly shock: string; readonly move: string; readonly morale: number; readonly instinct: number; readonly skill: number }
 export const worldsWithoutNumberSrdSource: BuiltInBestiarySource = Object.freeze({
   name: "Worlds Without Number SRD",
   license: "CC0",
 });
 
-type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks" | "description" | "source" | "sourceStats"> & { attacks: CampaignNpcAttack[] };
+type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks" | "sourceAttacks" | "description" | "source" | "sourceStats" | "spellcasting"> & {
+  attacks: CampaignNpcAttack[];
+  spellcasting?: { readonly level: number; readonly effort: number };
+};
+
+interface CuratedPhysicalAttack { readonly name: string; readonly weapon?: string }
+
+const curatedPhysicalAttacks: Readonly<Record<string, CuratedPhysicalAttack>> = Object.freeze({
+  "small-pack-predator": { name: "Bite" },
+  "large-solitary-predator": { name: "Bite" },
+  "apex-predator": { name: "Rending Bite" },
+  "herd-beast": { name: "Horns" },
+  "vicious-large-herbivore": { name: "Goring Horns" },
+  "elephantine-grazer": { name: "Tusks" },
+  "automaton-humanlike": { name: "Sword, Long", weapon: "Sword, Long" },
+  "automaton-laborer": { name: "Piston Fists" },
+  "automaton-military": { name: "Halberd", weapon: "Halberd" },
+  "slime-or-ooze": { name: "Acidic Pseudopod" },
+  "small-vicious-predator": { name: "Fangs" },
+  "large-vicious-predator": { name: "Rending Bite" },
+  "hulking-predator": { name: "Rending Claws" },
+  "unnatural-swarm": { name: "Swarm of Bites" },
+  "terrible-warbeast": { name: "Goring Horns" },
+  "legendary-god-titan": { name: "Titanic Fist" },
+  "peaceful-human": { name: "Club", weapon: "Club" },
+  "thug-or-militia": { name: "Spear, Light", weapon: "Spear, Light" },
+  "barbarian-fighter": { name: "Axe, War", weapon: "Axe, War" },
+  "veteran-soldier": { name: "Sword, Long", weapon: "Sword, Long" },
+  "skilled-veteran": { name: "Mace", weapon: "Mace" },
+  "elites-or-special-guards": { name: "Halberd", weapon: "Halberd" },
+  "knight-or-minor-hero": { name: "Sword, Long", weapon: "Sword, Long" },
+  "warrior-baron": { name: "Sword, Long", weapon: "Sword, Long" },
+  "barbarian-warlord": { name: "Axe, War", weapon: "Axe, War" },
+  "mighty-general": { name: "Sword, Long", weapon: "Sword, Long" },
+  "major-hero": { name: "Sword, Great", weapon: "Sword, Great" },
+  "great-warrior-king": { name: "Hammer, Great", weapon: "Hammer, Great" },
+  "petty-mage": { name: "Dagger", weapon: "Dagger" },
+  "tribal-shaman": { name: "Staff", weapon: "Staff" },
+  "skilled-sorcerer": { name: "Dagger", weapon: "Dagger" },
+  "master-wizard": { name: "Dagger", weapon: "Dagger" },
+  "famous-arch-mage": { name: "Dagger", weapon: "Dagger" },
+  "automaton-warbot": { name: "Warbot Crusher" },
+  "predator-hellbeast": { name: "Hellfire Claws" },
+});
+
+type CuratedMagicLoadout = Omit<BuiltInBestiarySpellcasting, "level" | "effort">;
+
+const curatedMagicLoadouts: Readonly<Record<string, CuratedMagicLoadout>> = Object.freeze({
+  "petty-mage": {
+    tradition: "High Magic",
+    spells: [
+      { name: "The Coruscating Coffin", level: 1, summary: "Single-target arcane damage; Physical save halves it." },
+      { name: "The Wind of the Final Repose", level: 1, summary: "Puts living creatures of 4 HD or fewer to sleep in a small area." },
+    ],
+    arts: [
+      { name: "Sense Magic", summary: "Commit Effort to perceive active magic and inspect magical effects." },
+      { name: "Counter Magic", summary: "Commit Effort for the day to contest a visible enemy spell." },
+    ],
+  },
+  "tribal-shaman": {
+    tradition: "High Magic",
+    spells: [
+      { name: "Apprehending the Arcane Form", level: 1, summary: "Detects active magic and can identify magical items." },
+      { name: "The Coruscating Coffin", level: 1, summary: "Single-target arcane damage; Physical save halves it." },
+      { name: "Resounding Temporal Echo", level: 2, summary: "Grants allies a short burst of extra Main Actions." },
+    ],
+    arts: [
+      { name: "Sense Magic", summary: "Commit Effort to perceive active magic and inspect magical effects." },
+      { name: "Ward Allies", summary: "Commit Effort for the day to exclude allies from an area spell." },
+    ],
+  },
+  "skilled-sorcerer": {
+    tradition: "High Magic",
+    spells: [
+      { name: "The Coruscating Coffin", level: 1, summary: "Single-target arcane damage; Physical save halves it." },
+      { name: "Extirpate Arcana", level: 2, summary: "Dispels or suppresses unwanted magical effects." },
+      { name: "The Howl of Light", level: 3, summary: "Area flame, concussion, and sonic damage; Evasion save halves it." },
+    ],
+    arts: [
+      { name: "Counter Magic", summary: "Commit Effort for the day to contest a visible enemy spell." },
+      { name: "Hang Sorcery", summary: "Commit Effort to hold a cast spell for release as an On Turn action." },
+    ],
+  },
+  "master-wizard": {
+    tradition: "High Magic",
+    spells: [
+      { name: "Extirpate Arcana", level: 2, summary: "Dispels or suppresses unwanted magical effects." },
+      { name: "The Grinding Geas", level: 4, summary: "Binds a target to a specific command or inflicts a wasting curse." },
+      { name: "The Dazzling Prismatic Hemicycle", level: 5, summary: "A broad cone with a dangerous spectrum of effects." },
+    ],
+    arts: [
+      { name: "Inexorable Effect", summary: "Commit Effort for the day to force a successful enemy save to be rerolled." },
+      { name: "Swift Casting", summary: "Once per scene, Commit Effort to cast a Main Action spell as On Turn." },
+    ],
+  },
+  "famous-arch-mage": {
+    tradition: "High Magic",
+    spells: [
+      { name: "Banishment to the Black Glass Labyrinth", level: 5, summary: "Banishes creatures in a small area to an extradimensional maze." },
+      { name: "Deluge of Hell", level: 5, summary: "Devastating outdoor area attack; Physical save halves the damage." },
+      { name: "Invocation of the Invincible Citadel", level: 5, summary: "Creates a temporary, nearly impenetrable protective shelter." },
+    ],
+    arts: [
+      { name: "Retain Sorcery", summary: "Commit Effort for the day to preserve a cast spell slot once per day." },
+      { name: "Ward Allies", summary: "Commit Effort for the day to exclude allies from an area spell." },
+    ],
+  },
+});
+
+function weaponDamageWithSourceBonus(damage: string, sourceDamage: string): string {
+  const match = /^Weapon(?: \+(\d+))?$/u.exec(sourceDamage);
+  if (!match) return sourceDamage;
+  const bonus = Number(match[1] ?? 0);
+  return bonus ? `${damage}+${bonus}` : damage;
+}
+
+function weaponShockWithSourceBonus(shock: string, sourceDamage: string, sourceShock: string): string | undefined {
+  if (!shock) return undefined;
+  const match = /^(\d+)\/AC (\d+)$/u.exec(shock);
+  if (!match) throw new Error(`Expected a rollable SRD weapon Shock value, received ${shock}.`);
+  const sourceMatch = /^Weapon(?: \+(\d+))?$/u.exec(sourceDamage);
+  if (!sourceMatch) {
+    const sourceShockMatch = /^(\d+)\/(\d+|-)$/u.exec(sourceShock);
+    if (!sourceShockMatch) throw new Error(`Expected a concrete source Shock value, received ${sourceShock}.`);
+    return `${sourceShockMatch[1]}/${sourceShockMatch[2] === "-" ? "-" : `AC ${sourceShockMatch[2]}`}`;
+  }
+  const amount = Number(match[1]) + Number(sourceMatch[1] ?? 0);
+  const target = sourceShock.endsWith("/-") ? "-" : `AC ${match[2]}`;
+  return `${amount}/${target}`;
+}
+
+function curatedAttack(creature: CreatureDefinition, sourceAttack: CampaignNpcAttack): CampaignNpcAttack {
+  const selection = curatedPhysicalAttacks[creature.id];
+  if (!selection) throw new Error(`Missing curated physical attack for ${creature.id}.`);
+  if (!selection.weapon) {
+    return { ...sourceAttack, name: selection.name, ...(creatureContext[creature.id].sourceStats.shock !== "None" ? { shock: creatureContext[creature.id].sourceStats.shock } : {}) };
+  }
+  const weapon = npcWeaponStarters.find(candidate => candidate.name === selection.weapon);
+  if (!weapon) throw new Error(`Missing SRD weapon ${selection.weapon}.`);
+  const sourceStats = creatureContext[creature.id].sourceStats;
+  const shock = weaponShockWithSourceBonus(weapon.shock, sourceAttack.damage, sourceStats.shock);
+  return {
+    name: selection.name,
+    attackBonus: sourceAttack.attackBonus,
+    damage: weaponDamageWithSourceBonus(weapon.damage, sourceAttack.damage),
+    ...(shock ? { shock } : {}),
+    description: weapon.note,
+  };
+}
+
+function curatedSpellcasting(id: string, spellcasting: CreatureDefinition["spellcasting"]): BuiltInBestiarySpellcasting | undefined {
+  if (!spellcasting) return undefined;
+  const loadout = curatedMagicLoadouts[id];
+  if (!loadout) throw new Error(`Missing curated magic loadout for ${id}.`);
+  if (loadout.spells.some(spell => (spell.level ?? 0) > spellcasting.level)) throw new Error(`Curated spell exceeds ${id}'s mage level.`);
+  return Object.freeze({
+    ...spellcasting,
+    tradition: loadout.tradition,
+    spells: Object.freeze(loadout.spells.map(spell => Object.freeze({ ...spell }))),
+    arts: Object.freeze(loadout.arts.map(art => Object.freeze({ ...art }))),
+  });
+}
+
+function spellcastingNote(spellcasting: BuiltInBestiarySpellcasting): string {
+  const spells = spellcasting.spells.map(spell => `${spell.name} (L${spell.level}) — ${spell.summary}`).join("; ");
+  const arts = spellcasting.arts.map(art => `${art.name} — ${art.summary}`).join("; ");
+  return `TWE representative ${spellcasting.tradition} loadout — Mage level ${spellcasting.level}; Effort ${spellcasting.effort}. Spells: ${spells}. Arts: ${arts}.`;
+}
 
 function defineCreature(creature: CreatureDefinition): BuiltInBestiaryCreature {
   const context = creatureContext[creature.id];
+  const { attacks: definitionAttacks, spellcasting: definitionSpellcasting, ...definition } = creature;
+  const sourceAttacks = Object.freeze(definitionAttacks.map(attack => Object.freeze({ ...attack })));
+  const spellcasting = curatedSpellcasting(creature.id, definitionSpellcasting);
   return Object.freeze({
-    ...creature,
+    ...definition,
     description: context.description,
     source: worldsWithoutNumberSrdSource,
     sourceStats: Object.freeze({ ...context.sourceStats }),
-    spellcasting: creature.spellcasting && Object.freeze({ ...creature.spellcasting }),
-    attacks: Object.freeze(creature.attacks.map(attack => Object.freeze({ ...attack }))),
+    ...(spellcasting ? { spellcasting, notes: spellcastingNote(spellcasting) } : {}),
+    sourceAttacks,
+    attacks: Object.freeze(sourceAttacks.map(attack => Object.freeze(curatedAttack(creature, attack)))),
   });
 }
 
 function attack(attackBonus: number, damage: string, description = ""): CampaignNpcAttack {
   return { name: "Attack", attackBonus, damage, description };
 }
-
-const spellcastingNote = (level: number, effort: number): string => `Mage level ${level}; Effort ${effort}. Choose an appropriate mage tradition; no spells or Arts are specified.`;
 
 /**
  * Before structured encounter combat data was introduced, Built-In Bestiary
@@ -76,7 +257,7 @@ function legacyGeneratedBestiaryAttacks(creature: BuiltInBestiaryCreature): Camp
     4: "Four attacks per Main Action.",
   };
   const description = descriptions[creature.sourceStats.attacksPerMainAction] ?? "";
-  return creature.attacks.map(attack => ({ ...attack, description }));
+  return creature.sourceAttacks.map(attack => ({ ...attack, description }));
 }
 
 function exactLegacySourceStats(value: unknown, creature: BuiltInBestiaryCreature): boolean {
@@ -166,11 +347,11 @@ export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Obje
   defineCreature({ id: "mighty-general", name: "Mighty General", hpMax: 36, armorClass: 18, armorAnnotation: "a", physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "Weapon +4")], notes: "" }),
   defineCreature({ id: "major-hero", name: "Major Hero", hpMax: 45, armorClass: 18, armorAnnotation: "a", physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "Weapon +5")], notes: "" }),
   defineCreature({ id: "great-warrior-king", name: "Great Warrior King", hpMax: 54, armorClass: 18, armorAnnotation: "a", physicalSave: 9, evasionSave: 9, mentalSave: 9, attacks: [attack(14, "Weapon +5")], notes: "" }),
-  defineCreature({ id: "petty-mage", name: "Petty Mage", hpMax: 9, armorClass: 10, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(1, "Weapon")], spellcasting: { level: 2, effort: 3 }, notes: spellcastingNote(2, 3) }),
-  defineCreature({ id: "tribal-shaman", name: "Tribal Shaman", hpMax: 18, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(3, "Weapon +1")], spellcasting: { level: 4, effort: 3 }, notes: spellcastingNote(4, 3) }),
-  defineCreature({ id: "skilled-sorcerer", name: "Skilled Sorcerer", hpMax: 23, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(1, "Weapon")], spellcasting: { level: 5, effort: 4 }, notes: spellcastingNote(5, 4) }),
-  defineCreature({ id: "master-wizard", name: "Master Wizard", hpMax: 36, armorClass: 13, physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(1, "Weapon")], spellcasting: { level: 8, effort: 4 }, notes: spellcastingNote(8, 4) }),
-  defineCreature({ id: "famous-arch-mage", name: "Famous Arch-Mage", hpMax: 45, armorClass: 13, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(2, "Weapon")], spellcasting: { level: 10, effort: 5 }, notes: spellcastingNote(10, 5) }),
+  defineCreature({ id: "petty-mage", name: "Petty Mage", hpMax: 9, armorClass: 10, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(1, "Weapon")], spellcasting: { level: 2, effort: 3 }, notes: "" }),
+  defineCreature({ id: "tribal-shaman", name: "Tribal Shaman", hpMax: 18, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(3, "Weapon +1")], spellcasting: { level: 4, effort: 3 }, notes: "" }),
+  defineCreature({ id: "skilled-sorcerer", name: "Skilled Sorcerer", hpMax: 23, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(1, "Weapon")], spellcasting: { level: 5, effort: 4 }, notes: "" }),
+  defineCreature({ id: "master-wizard", name: "Master Wizard", hpMax: 36, armorClass: 13, physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(1, "Weapon")], spellcasting: { level: 8, effort: 4 }, notes: "" }),
+  defineCreature({ id: "famous-arch-mage", name: "Famous Arch-Mage", hpMax: 45, armorClass: 13, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(2, "Weapon")], spellcasting: { level: 10, effort: 5 }, notes: "" }),
   defineCreature({ id: "automaton-warbot", name: "Automaton, Warbot", hpMax: 45, armorClass: 20, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d12+5")], notes: "" }),
   defineCreature({ id: "predator-hellbeast", name: "Predator, Hellbeast", hpMax: 45, armorClass: 18, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d10+5")], notes: "" }),
 ]);

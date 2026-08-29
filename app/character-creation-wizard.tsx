@@ -14,6 +14,23 @@ import { rollDice } from "./dice";
 import { focusTargetAvailable } from "./phase2-rules";
 import { foci } from "./wwn-data";
 import {
+  creationEquipmentKindAlreadyPurchased,
+  creationEquipmentRemainingCopper,
+  purchaseCreationEquipment,
+  removeCreationEquipmentPurchase,
+  rollCreationStartingSilver,
+  selectCreationEquipmentMethod,
+  selectStartingEquipmentPackage,
+  type CreationEquipmentResult,
+} from "./creation-equipment";
+import {
+  formatEquipmentCost,
+  purchasableEquipment,
+  purchasableEquipmentById,
+  startingEquipmentPackageById,
+  startingEquipmentPackages,
+} from "./equipment-data";
+import {
   choiceOptionsForBackgroundResult,
   artSelectionName,
   creationBackgroundSkillChoiceOptions,
@@ -41,11 +58,6 @@ type Props = {
   sheet: LevelOneCreationCharacter;
   canEdit: boolean;
   persistenceKey: string;
-  equipmentOptions: {
-    items: readonly string[];
-    armor: readonly string[];
-    shields: readonly string[];
-  };
   reviewStats: { ac: number; attack: number };
   onChange: (update: Partial<LevelOneCreationCharacter>) => void;
   onPortrait: (file: File | undefined) => void;
@@ -186,7 +198,6 @@ export function GuidedCreationWizard({
   sheet,
   canEdit,
   persistenceKey,
-  equipmentOptions,
   reviewStats,
   onChange,
   onPortrait,
@@ -359,17 +370,13 @@ export function GuidedCreationWizard({
               },
       ),
     });
-  const addItem = (item: string, location: "readied" | "stowed") => {
-    if (!item) return;
-    const values = [...sheet[location], item];
-    change({ [location]: values } as Partial<LevelOneCreationCharacter>);
-  };
-  const removeItem = (item: string, location: "readied" | "stowed") => {
-    const index = sheet[location].indexOf(item);
-    if (index < 0) return;
-    change({
-      [location]: sheet[location].filter((_, row) => row !== index),
-    } as Partial<LevelOneCreationCharacter>);
+  const applyEquipmentResult = (result: CreationEquipmentResult) => {
+    if (!result.ok) {
+      setNotice(result.reason);
+      return;
+    }
+    setNotice("");
+    change(result.update);
   };
   const backgroundGrants = creationSkillGrantResolutions(sheet);
   const updateBackgroundGrant = (
@@ -1514,114 +1521,252 @@ export function GuidedCreationWizard({
         </>
       );
     if (step.id === "equipment")
-      return (
+      return (() => {
+        const selectedPackage = startingEquipmentPackageById.get(
+          sheet.creationEquipmentPackage,
+        );
+        const remainingCopper = creationEquipmentRemainingCopper(sheet);
+        const purchasedArmor = creationEquipmentKindAlreadyPurchased(
+          sheet,
+          "armor",
+        );
+        const purchasedShield = creationEquipmentKindAlreadyPurchased(
+          sheet,
+          "shield",
+        );
+        return (
         <>
           <StepTitle
-            eyebrow="Step 8 · Use the normal inventory"
-            title="Equipment"
+            eyebrow="Step 8 · Choose starting gear"
+            title="Starting Equipment"
           >
             <p>
-              Choose a GM-provided package or roll `3d6 × 10` starting silver.
-              This folio records the result and keeps equipment in the normal
-              inventory.
+              Take one of the six premade packages, or roll 3d6 × 10 silver
+              pieces once and buy from the canonical equipment lists.
             </p>
           </StepTitle>
-          <div className="creation-equipment-start">
-            <label>
-              <span>Starting silver pieces</span>
-              <input
-                type="number"
-                min="0"
-                value={sheet.sp || ""}
-                onChange={(event) =>
-                  change({ sp: Math.max(0, Number(event.target.value) || 0) })
-                }
-              />
-            </label>
+          <div className="creation-methods creation-equipment-methods" role="group" aria-label="Starting equipment method">
             <button
               type="button"
-              onClick={() =>
-                change({
-                  sp: rollDice(3, 6).total * 10,
-                })
-              }
+              className={sheet.creationEquipmentMethod === "package" ? "active" : ""}
+              aria-pressed={sheet.creationEquipmentMethod === "package"}
+              onClick={() => change(selectCreationEquipmentMethod(sheet, "package"))}
             >
-              Roll 3d6 × 10 SP
+              Premade Package
+            </button>
+            <button
+              type="button"
+              className={sheet.creationEquipmentMethod === "buy" ? "active" : ""}
+              aria-pressed={sheet.creationEquipmentMethod === "buy"}
+              onClick={() => change(selectCreationEquipmentMethod(sheet, "buy"))}
+            >
+              Buy Equipment
             </button>
           </div>
-          <div className="creation-fields two-columns">
-            <label>
-              <span>Worn armor</span>
-              <select
-                value={sheet.armor}
-                onChange={(event) => change({ armor: event.target.value })}
-              >
-                <option value="">No armor</option>
-                {equipmentOptions.armor.map((armor) => (
-                  <option key={armor} value={armor}>
-                    {armor}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Shield</span>
-              <select
-                value={sheet.shield}
-                onChange={(event) => change({ shield: event.target.value })}
-              >
-                <option value="">No shield</option>
-                {equipmentOptions.shields.filter(Boolean).map((shield) => (
-                  <option key={shield} value={shield}>
-                    {shield}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="creation-equipment-columns">
-            {(["readied", "stowed"] as const).map((location) => (
-              <section key={location}>
-                <h3>{location === "readied" ? "Readied" : "Stowed"}</h3>
-                <label>
-                  <span>Add existing item</span>
+
+          {sheet.creationEquipmentMethod === "package" && (
+            <section className="creation-equipment-panel">
+              <label className="creation-select">
+                <span>Starting package</span>
+                <select
+                  value={sheet.creationEquipmentPackage}
+                  onChange={(event) =>
+                    applyEquipmentResult(
+                      selectStartingEquipmentPackage(sheet, event.target.value),
+                    )
+                  }
+                >
+                  <option value="">Choose a package…</option>
+                  {startingEquipmentPackages.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedPackage && (
+                <div className="creation-package-summary">
+                  <h3>{selectedPackage.name}</h3>
+                  <p>
+                    {[
+                      selectedPackage.armor,
+                      selectedPackage.shield,
+                      ...selectedPackage.weapons,
+                      ...selectedPackage.stowed,
+                      selectedPackage.silver
+                        ? `${selectedPackage.silver} sp`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {sheet.creationEquipmentMethod === "buy" && (
+            <section className="creation-equipment-panel">
+              <div className="creation-equipment-budget">
+                <div>
+                  <span>Starting silver</span>
+                  <b>
+                    {sheet.creationStartingSilver === null
+                      ? "Not rolled"
+                      : `${sheet.creationStartingSilver} sp`}
+                  </b>
+                </div>
+                <div>
+                  <span>Remaining</span>
+                  <b>
+                    {formatEquipmentCost(remainingCopper)}
+                  </b>
+                </div>
+                <button
+                  type="button"
+                  disabled={sheet.creationStartingSilver !== null}
+                  onClick={() =>
+                    applyEquipmentResult(
+                      rollCreationStartingSilver(sheet, rollDice(3, 6).total),
+                    )
+                  }
+                >
+                  {sheet.creationStartingSilver === null
+                    ? "Roll Starting Silver"
+                    : "Starting Silver Rolled"}
+                </button>
+              </div>
+              {sheet.creationStartingSilver !== null && (
+                <label className="creation-select creation-purchase-select">
+                  <span>Buy equipment</span>
                   <select
                     value=""
-                    onChange={(event) => addItem(event.target.value, location)}
+                    onChange={(event) => {
+                      if (event.target.value)
+                        applyEquipmentResult(
+                          purchaseCreationEquipment(sheet, event.target.value),
+                        );
+                    }}
                   >
-                    <option value="">Choose item…</option>
-                    {equipmentOptions.items.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                    <option value="">Choose an item…</option>
+                    {(["weapon", "armor", "shield", "gear", "bundle"] as const).map(
+                      (kind) => (
+                        <optgroup
+                          key={kind}
+                          label={
+                            {
+                              weapon: "Weapons",
+                              armor: "Armor",
+                              shield: "Shields",
+                              gear: "Adventuring Gear",
+                              bundle: "Gear Bundles",
+                            }[kind]
+                          }
+                        >
+                          {purchasableEquipment
+                            .filter((item) => item.kind === kind)
+                            .map((item) => {
+                              const unavailableKind =
+                                (kind === "armor" && purchasedArmor) ||
+                                (kind === "shield" && purchasedShield);
+                              const unaffordable = item.costCopper > remainingCopper;
+                              return (
+                                <option
+                                  key={item.id}
+                                  value={item.id}
+                                  disabled={unavailableKind || unaffordable}
+                                >
+                                  {item.name} — {formatEquipmentCost(item.costCopper)}
+                                  {unavailableKind
+                                    ? ` — remove current ${kind} first`
+                                    : unaffordable
+                                      ? " — too expensive"
+                                      : ""}
+                                </option>
+                              );
+                            })}
+                        </optgroup>
+                      ),
+                    )}
                   </select>
                 </label>
-                <ul>
-                  {sheet[location]
-                    .filter((item) => item.trim())
-                    .map((item, index) => (
-                      <li key={`${item}-${index}`}>
-                        {item}
+              )}
+              {sheet.creationEquipmentPurchases.length > 0 && (
+                <ul className="creation-purchases">
+                  {sheet.creationEquipmentPurchases.map((id, index) => {
+                    const item = purchasableEquipmentById.get(id);
+                    if (!item) return null;
+                    return (
+                      <li key={`${id}-${index}`}>
+                        <span>
+                          <b>{item.name}</b>
+                          <small>{formatEquipmentCost(item.costCopper)}</small>
+                        </span>
                         <button
                           type="button"
-                          aria-label={`Remove ${item}`}
-                          onClick={() => removeItem(item, location)}
+                          aria-label={`Remove ${item.name}`}
+                          onClick={() =>
+                            applyEquipmentResult(
+                              removeCreationEquipmentPurchase(sheet, index),
+                            )
+                          }
                         >
-                          ×
+                          Remove
                         </button>
                       </li>
-                    ))}
+                    );
+                  })}
                 </ul>
-              </section>
-            ))}
+              )}
+            </section>
+          )}
+
+          {sheet.creationEquipmentMethod && (
+            <div className="creation-equipment-result">
+              <div>
+                <span>Worn armor</span>
+                <b>{sheet.armor || "No armor"}</b>
+              </div>
+              <div>
+                <span>Shield</span>
+                <b>{sheet.shield || "No shield"}</b>
+              </div>
+              <div>
+                <span>Coin purse</span>
+                <b>{sheet.sp} sp{sheet.cp ? ` ${sheet.cp} cp` : ""}</b>
+              </div>
+            </div>
+          )}
+          {sheet.creationEquipmentMethod && (
+          <div className="creation-equipment-columns">
+            <section>
+              <h3>Readied</h3>
+              <ul>
+                {sheet.readied.filter((item) => item.trim()).map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ul>
+              {!sheet.readied.some((item) => item.trim()) && <p>None</p>}
+            </section>
+            <section>
+              <h3>Stowed</h3>
+              <ul>
+                {sheet.stowed.filter((item) => item.trim()).map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ul>
+              {!sheet.stowed.some((item) => item.trim()) && <p>None</p>}
+            </section>
           </div>
+          )}
           <p className="creation-note">
-            Armor, weapon, Readied/Stowed capacity, and AC remain normal-sheet
-            calculations. You can refine equipment there after finishing.
+            Weapons are added as canonical Readied items, armor and shields use
+            their normal equipped fields, and other gear is Stowed. Everything
+            carries directly into the finished character sheet.
           </p>
         </>
-      );
+        );
+      })();
     return (
       <>
         <StepTitle
@@ -1724,6 +1869,7 @@ export function GuidedCreationWizard({
             <p>
               {sheet.armor || "No armor"}
               {sheet.shield ? ` · ${sheet.shield}` : ""} · {sheet.sp || 0} SP
+              {sheet.cp ? ` ${sheet.cp} CP` : ""}
             </p>
             <p>
               Readied:{" "}

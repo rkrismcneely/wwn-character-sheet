@@ -12,12 +12,10 @@ button,input,select,textarea{font:inherit;color:inherit}.topbar{min-height:68px;
 .site-footer{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:20px max(24px,calc((100vw - 1320px)/2));background:#1c1915;color:#bdae94;border-top:1px solid #6f5939;font:11px/1.45 var(--font-ui)}
 .site-footer strong{color:#e5d1a8;font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:.04em;white-space:nowrap}
 .site-footer span{text-align:right}
-.character-sheet-tools{display:flex;justify-content:flex-end;gap:10px;max-width:1450px;margin:14px auto -10px;padding:0 18px;color:#675239;font:11px var(--font-ui)}
-.character-sheet-tools summary{cursor:pointer;color:#6b4a1a;font-weight:700}
-.character-sheet-tools>div{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px;margin-top:7px}
-.character-sheet-tools button{border:1px solid #8e6b35;background:linear-gradient(#fff8e8,#ead7b2);color:#5d3d15;padding:7px 10px;cursor:pointer;font-weight:700}
-@media(max-width:720px){.site-footer{align-items:flex-start;flex-direction:column;padding:18px 14px}.site-footer span{text-align:left}.character-sheet-tools{margin:10px auto -6px;padding-inline:14px;justify-content:flex-start}.character-sheet-tools>div{justify-content:flex-start}}
-@media print{.app-header,.topbar,.site-footer,.character-sheet-tools{display:none!important}}
+.character-sheet-guided-action{display:flex;justify-content:flex-end;gap:10px;max-width:1450px;margin:14px auto -10px;padding:0 18px;color:#675239;font:11px var(--font-ui)}
+.character-sheet-guided-action button{border:1px solid #8e6b35;background:linear-gradient(#fff8e8,#ead7b2);color:#5d3d15;padding:7px 10px;cursor:pointer;font-weight:700}
+@media(max-width:720px){.site-footer{align-items:flex-start;flex-direction:column;padding:18px 14px}.site-footer span{text-align:left}.character-sheet-guided-action{margin:10px auto -6px;padding-inline:14px;justify-content:flex-start}}
+@media print{.app-header,.topbar,.site-footer,.character-sheet-guided-action{display:none!important}}
 
 /* Readable magic controls and full-width skill labels. */
 .skills label{grid-template-columns:minmax(0,1fr) minmax(112px,auto)}
@@ -1827,6 +1825,9 @@ html[data-theme="dark"] .read-only-banner button{
 @media (min-width:901px){
   .background-learning-rows{
     grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .background-learning-rows .background-result-row{
+    grid-template-columns:minmax(0,1fr);
   }
 }
 

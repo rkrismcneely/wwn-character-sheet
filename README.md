@@ -57,7 +57,7 @@ Open <http://localhost:5173>. The auth configuration also trusts
 
 ## Character privacy and URLs
 
-Every new or imported character is owned by the authenticated Better Auth user,
+Every new character is owned by the authenticated Better Auth user,
 starts private, and receives a server-generated opaque URL with 128 random bits:
 
 ```text
@@ -74,7 +74,7 @@ Server-side authorization applies to every write and portrait operation.
 - **Public:** readable by anyone and eligible for the Public Characters view;
   still editable only by the owner.
 
-Public responses, metadata, exports, URLs, and portrait keys omit account IDs,
+Public responses, metadata, URLs, and portrait keys omit account IDs,
 Google IDs, names, emails, credentials, and session data. Portrait objects are
 served through an authorization-aware route rather than exposed as public R2
 URLs.
@@ -205,7 +205,7 @@ npm run build
 Serve that artifact in a local Workers runtime with `npm run start`.
 
 Generated output (`dist/`, `.next/`), dependencies, Wrangler state, local D1
-state, environment files, and personal character exports are ignored.
+state, and environment files are ignored.
 
 ## Project layout
 

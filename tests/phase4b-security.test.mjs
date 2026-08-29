@@ -17,8 +17,6 @@ import {
 } from "../lib/characters/identifiers.ts";
 import {
   characterForStorage,
-  parseCharacterImport,
-  safeCharacterExport,
 } from "../lib/characters/sanitize.ts";
 import {
   isPortraitContentType,
@@ -48,11 +46,6 @@ async function source(path) {
 test("missing session cannot create a character", async () => {
   const route = await source("app/api/characters/route.ts");
   assert.match(route, /export async function POST[\s\S]*getSessionActor\(request\)[\s\S]*if \(!actor\)[\s\S]*status: 401/u);
-});
-
-test("missing session cannot import a character", async () => {
-  const route = await source("app/api/characters/import/route.ts");
-  assert.match(route, /getSessionActor\(request\)[\s\S]*if \(!actor\)[\s\S]*status: 401/u);
 });
 
 test("missing session cannot edit or delete a character", async () => {
@@ -107,10 +100,9 @@ test("all-character scope is guarded by the server session role", async () => {
 });
 
 test("admin read paths do not weaken mutation endpoints", async () => {
-  const [characterRoute, portraitRoute, exportRoute, claimRoute] = await Promise.all([
+  const [characterRoute, portraitRoute, claimRoute] = await Promise.all([
     source("app/api/characters/[id]/route.ts"),
     source("app/api/characters/[id]/portrait/route.ts"),
-    source("app/api/characters/[id]/export/route.ts"),
     source("app/api/legacy-claims/route.ts"),
   ]);
   for (const method of ["PUT", "PATCH", "DELETE"]) {
@@ -120,7 +112,6 @@ test("admin read paths do not weaken mutation endpoints", async () => {
   assert.match(characterRoute, /WHERE id = \? AND owner_user_id = \?/u);
   assert.match(portraitRoute, /authorizeCharacterWrite\(actor, row\)/u);
   assert.match(portraitRoute, /owner_user_id = \?/u);
-  assert.match(exportRoute, /authorizeCharacterWrite\(actor, row\)/u);
   assert.doesNotMatch(claimRoute, /role\s*===\s*["']admin/u);
 });
 
@@ -185,53 +176,6 @@ test("client-supplied owner and public IDs are removed before storage", async ()
   const database = await source("app/api/characters/db.ts");
   assert.match(database, /createOwnedCharacter[\s\S]*ownerUserId[\s\S]*generatePublicCharacterId\(\)/u);
   assert.doesNotMatch(database, /body\?\.owner/u);
-});
-
-test("imported ownership, auth, email, and token fields are ignored at every depth", () => {
-  const parsed = parseCharacterImport({
-    format: "wwn-character-sheet",
-    version: 1,
-    character: {
-      name: "Legacy",
-      ownerUserId: "attacker",
-      email: "hidden@example.invalid",
-      session: { sessionToken: "secret" },
-      companions: [{ id: "companion-ok", accountId: "remove-me" }],
-    },
-  });
-  assert.deepEqual(parsed, {
-    sourceVersion: 1,
-    character: { name: "Legacy", companions: [{ id: "companion-ok" }] },
-  });
-});
-
-test("v1, v2, and bare imports are supported but malformed versions fail", () => {
-  assert.equal(parseCharacterImport({ format: "wwn-character-sheet", version: 1, character: { name: "One" } })?.sourceVersion, 1);
-  assert.equal(parseCharacterImport({ format: "wwn-character-sheet", version: 2, character: { name: "Two" } })?.sourceVersion, 2);
-  assert.equal(parseCharacterImport({ name: "Bare" })?.sourceVersion, null);
-  assert.equal(parseCharacterImport({ format: "wwn-character-sheet", version: 99, character: {} }), null);
-  assert.equal(parseCharacterImport([]), null);
-});
-
-test("imported characters receive a fresh server-generated public ID", async () => {
-  const importRoute = await source("app/api/characters/import/route.ts");
-  const database = await source("app/api/characters/db.ts");
-  assert.match(importRoute, /createOwnedCharacter/u);
-  assert.match(database, /const publicId = generatePublicCharacterId\(\)/u);
-  assert.match(database, /VALUES \(\?, \?, \?, 'private'/u);
-});
-
-test("public output and exports omit owner, account, email, session, and internal portrait data", () => {
-  const clean = safeCharacterExport({
-    name: "Safe",
-    ownerUserId: "owner",
-    email: "owner@example.invalid",
-    googleSubjectId: "google-id",
-    sessionToken: "session",
-    claimToken: "claim",
-    portrait: "/api/portraits/portraits/opaque/internal.jpg",
-  });
-  assert.deepEqual(clean, { name: "Safe", portrait: "" });
 });
 
 test("portrait update and deletion require ownership", async () => {

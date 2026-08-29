@@ -281,7 +281,6 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
 
     for (const [pathname, method, body] of [
       ["/api/characters", "POST", { character: { name: "Denied" } }],
-      ["/api/characters/import", "POST", { name: "Denied" }],
       ["/api/characters/chr_AAAAAAAAAAAAAAAAAAAAAA", "PUT", { character: {}, version: 1 }],
       ["/api/characters/chr_AAAAAAAAAAAAAAAAAAAAAA", "DELETE", undefined],
       ["/api/legacy-claims", "POST", { token: `claim_${"A".repeat(43)}` }],

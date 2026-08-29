@@ -57,14 +57,12 @@ test("sitewide dark styling covers signed-in, public, and campaign surfaces with
   }
 
   for (const control of [
-    "Account",
     "Save Now",
-    "Export Character",
-    "Import Character",
     "Print",
   ]) {
     assert.ok(sheet.includes(control), `character header must retain ${control}`);
   }
+  assert.match(header, /Account/u);
   assert.doesNotMatch(header, /removeItem\("wwn-display-theme"\)|clear\(\)/u);
 });
 

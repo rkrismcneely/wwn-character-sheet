@@ -8,7 +8,6 @@ test("signed-in dashboard uses the owner-scoped character API", async () => {
   const dashboard = await source("app/dashboard-page.tsx");
   const header = await source("app/app-header.tsx");
   assert.match(dashboard, /\/api\/characters\?scope=mine/u);
-  assert.match(dashboard, /\/api\/characters\/import/u);
   assert.match(dashboard, /\/api\/legacy-claims/u);
   assert.match(dashboard, /href=\{`\/character\/\$\{character\.id\}`\}/u);
   assert.match(header, /authClient\.signOut/u);
@@ -31,9 +30,16 @@ test("dashboard exposes useful roster, empty, import, and claim states", async (
     "Your roster is waiting",
     "Claim a legacy character",
     "One-time claim code",
-    "Import Character",
   ]) assert.equal(dashboard.includes(copy), true, copy);
   assert.equal(header.includes("Sign Out"), true);
+});
+
+test("dashboard and character sheet no longer expose portable import/export tools", async () => {
+  const dashboard = await source("app/dashboard-page.tsx");
+  const sheet = await source("app/character-sheet.tsx");
+  for (const sourceText of [dashboard, sheet]) {
+    assert.doesNotMatch(sourceText, /Character tools|Import Character|Export Character|\/api\/characters\/import/u);
+  }
 });
 
 test("the create action offers guided and blank character-sheet flows without changing direct routes", async () => {

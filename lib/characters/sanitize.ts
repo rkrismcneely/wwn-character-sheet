@@ -53,40 +53,6 @@ export function parseCharacter(
   return sanitizeValue(value, 0) as Record<string, unknown>;
 }
 
-export interface SupportedCharacterImport {
-  character: Record<string, unknown>;
-  sourceVersion: number | null;
-}
-
-export function parseCharacterImport(
-  value: unknown,
-): SupportedCharacterImport | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const root = value as Record<string, unknown>;
-
-  if (root.format === "wwn-character-sheet") {
-    const version = Number(root.version);
-    if (!Number.isInteger(version) || version < 1 || version > 2) return null;
-    const character = parseCharacter(root.character);
-    return character ? { character, sourceVersion: version } : null;
-  }
-
-  const character = parseCharacter(root);
-  return character ? { character, sourceVersion: null } : null;
-}
-
-export function safeCharacterExport(character: unknown): Record<string, unknown> {
-  const clean = parseCharacter(character);
-  if (!clean) throw new Error("Invalid character data.");
-  if (
-    typeof clean.portrait === "string" &&
-    clean.portrait.startsWith("/api/portraits/")
-  ) {
-    clean.portrait = "";
-  }
-  return clean;
-}
-
 export function characterForStorage(character: unknown): Record<string, unknown> | null {
   const clean = parseCharacter(character);
   if (!clean) return null;

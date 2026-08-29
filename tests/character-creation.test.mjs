@@ -1,0 +1,320 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import {
+  creationSkillGrantResolutions,
+  creationSkillSources,
+  levelOneCreationStatus,
+} from "../app/character-creation.ts";
+
+const skills = [
+  "Administer",
+  "Connect",
+  "Convince",
+  "Craft",
+  "Exert",
+  "Heal",
+  "Know",
+  "Lead",
+  "Magic",
+  "Notice",
+  "Perform",
+  "Pray",
+  "Punch",
+  "Ride",
+  "Sail",
+  "Shoot",
+  "Sneak",
+  "Stab",
+  "Survive",
+  "Trade",
+  "Work",
+];
+
+const baseCharacter = () => ({
+  name: "Wizard test",
+  player: "",
+  species: "Human",
+  homeland: "",
+  profession: "",
+  description: "",
+  portrait: "",
+  level: 1,
+  attributeMethod: "array",
+  attributeRolls: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 },
+  attributeSubstitution: "",
+  attributeBoosts: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 },
+  attrs: { STR: 14, DEX: 12, CON: 11, INT: 10, WIS: 9, CHA: 7 },
+  background: "Soldier",
+  backgroundDevelopmentMethod: "quick",
+  backgroundCombatSkill: "Stab",
+  backgroundLearningPicks: [
+    { result: "", choice: "", replacement: "" },
+    { result: "", choice: "", replacement: "" },
+  ],
+  backgroundDevelopmentRolls: [],
+  classMode: "full",
+  classOne: "Warrior",
+  classTwo: "",
+  vowedEffortSkill: "Exert",
+  wiseConceptSkill: "",
+  focusPicks: [
+    { name: "Armsmaster", level: 1 },
+    { name: "Alert", level: 1 },
+  ],
+  artPicks: [],
+  spellPicks: [],
+  skillPurchases: Object.fromEntries(skills.map((skill) => [skill, -1])),
+  hpRolls: [4],
+  hpCurrent: 0,
+  hpMax: 0,
+  armor: "",
+  shield: "",
+  readied: ["Spear"],
+  stowed: [],
+  gp: 0,
+  sp: 120,
+  cp: 0,
+});
+
+const withFreePick = (character) => {
+  character.skillPurchases.Know = 0;
+  return character;
+};
+
+test("level-one guided creation validates ordinary martial and expert/warrior paths", () => {
+  const martial = withFreePick(baseCharacter());
+  const martialStatus = levelOneCreationStatus(martial);
+  assert.equal(martialStatus.canFinish, true);
+  assert.equal(martialStatus.startingHp, 6);
+  assert.equal(martialStatus.skillRanks.Stab, 1);
+  assert.deepEqual(martialStatus.sources.Stab, [
+    "Soldier Background: free skill",
+    "Armsmaster Focus: bonus skill",
+  ]);
+
+  const expertWarrior = withFreePick({
+    ...baseCharacter(),
+    classMode: "adventurer",
+    classOne: "Expert",
+    classTwo: "Warrior",
+    focusPicks: ["Alert", "Armsmaster", "Die Hard"].map((name) => ({
+      name,
+      level: 1,
+    })),
+  });
+  const expertWarriorStatus = levelOneCreationStatus(expertWarrior);
+  assert.equal(expertWarriorStatus.canFinish, true);
+  assert.equal(expertWarriorStatus.allowedFocusPicks, 3);
+  assert.equal(expertWarriorStatus.startingHp, 8);
+
+  const expert = withFreePick({
+    ...baseCharacter(),
+    background: "Scholar",
+    backgroundCombatSkill: "",
+    classOne: "Expert",
+    focusPicks: ["Alert", "Armsmaster"].map((name) => ({ name, level: 1 })),
+  });
+  const expertStatus = levelOneCreationStatus(expert);
+  assert.equal(expertStatus.canFinish, true);
+  assert.equal(expertStatus.hasMagicStep, false);
+});
+
+test("level-one guided creation validates full and partial Mage spell selections", () => {
+  const fullMage = withFreePick({
+    ...baseCharacter(),
+    background: "Scholar",
+    backgroundCombatSkill: "",
+    classOne: "High Mage",
+    focusPicks: [{ name: "Alert", level: 1 }],
+    artPicks: ["Arcane Lexicon", "Counter Magic"],
+    spellPicks: [
+      "Apprehending the Arcane Form",
+      "Cognitive Supersession of the Inferior Orders",
+      "The Coruscating Coffin",
+      "Damnation of the Sense",
+    ].map((name) => ({ name, prepared: false, cast: false })),
+  });
+  const fullMageStatus = levelOneCreationStatus(fullMage);
+  assert.equal(fullMageStatus.canFinish, true);
+  assert.equal(fullMageStatus.artAllowance, 2);
+  assert.equal(fullMageStatus.knownSpellAllowance, 4);
+  assert.deepEqual(fullMageStatus.sources.Magic, [
+    "High Mage Class: bonus skill",
+  ]);
+
+  const partialMage = withFreePick({
+    ...baseCharacter(),
+    classMode: "adventurer",
+    classOne: "Warrior",
+    classTwo: "High Mage",
+    artPicks: ["Arcane Lexicon"],
+    spellPicks: [
+      "Apprehending the Arcane Form",
+      "Cognitive Supersession of the Inferior Orders",
+    ].map((name) => ({ name, prepared: false, cast: false })),
+  });
+  const partialMageStatus = levelOneCreationStatus(partialMage);
+  assert.equal(partialMageStatus.canFinish, true);
+  assert.equal(partialMageStatus.artAllowance, 1);
+  assert.equal(partialMageStatus.knownSpellAllowance, 2);
+});
+
+test("creation ledger retains the normal background, class, and Focus sources", () => {
+  const character = withFreePick(baseCharacter());
+  const sources = creationSkillSources(character);
+  assert.deepEqual(sources.Exert, ["Soldier Background: Quick Skills"]);
+  assert.deepEqual(sources.Survive, ["Soldier Background: Quick Skills"]);
+  assert.deepEqual(sources.Notice, ["Alert Focus: bonus skill"]);
+
+  const unresolved = creationSkillGrantResolutions({
+    ...character,
+    backgroundCombatSkill: "",
+  });
+  assert.equal(
+    unresolved.find((grant) => grant.id === "background-free")?.needsChoice,
+    true,
+  );
+});
+
+test("the completeness layer keeps Background identity separate from its later choices", () => {
+  const early = {
+    ...baseCharacter(),
+    classOne: "",
+    focusPicks: [],
+    hpRolls: [],
+    skillPurchases: Object.fromEntries(skills.map((skill) => [skill, -1])),
+  };
+  const status = levelOneCreationStatus(early);
+  assert.equal(status.stepStatus.background.complete, true);
+  assert.equal(status.stepStatus.skills.complete, false);
+  assert.match(
+    status.stepStatus.skills.issues.join(" "),
+    /free creation skill/i,
+  );
+});
+
+test("a level-one hit die result is required and uses the ordinary d6 rule", () => {
+  const missingRoll = withFreePick({ ...baseCharacter(), hpRolls: [] });
+  assert.match(
+    levelOneCreationStatus(missingRoll).stepStatus.review.issues.join(" "),
+    /hit die result/i,
+  );
+  const invalidRoll = withFreePick({ ...baseCharacter(), hpRolls: [7] });
+  assert.match(
+    levelOneCreationStatus(invalidRoll).stepStatus.review.issues.join(" "),
+    /hit die result/i,
+  );
+});
+
+test("creation caps, Origin Focus choices, and magic-step visibility are explicit", () => {
+  const overCap = withFreePick(baseCharacter());
+  overCap.skillPurchases.Stab = 1;
+  assert.match(
+    levelOneCreationStatus(overCap).stepStatus.skills.issues.join(" "),
+    /above level 1/i,
+  );
+
+  const incompleteOrigin = withFreePick({
+    ...baseCharacter(),
+    focusPicks: [
+      { name: "Alert", level: 1 },
+      { name: "Xenoblooded", level: 1, choice: "" },
+    ],
+  });
+  assert.match(
+    levelOneCreationStatus(incompleteOrigin).stepStatus.foci.issues.join(" "),
+    /Xenoblooded needs/i,
+  );
+  const origin = {
+    ...incompleteOrigin,
+    focusPicks: [
+      { name: "Alert", level: 1 },
+      { name: "Xenoblooded", level: 1, choice: "STR +1 / DEX -1" },
+    ],
+  };
+  const originStatus = levelOneCreationStatus(origin);
+  assert.equal(originStatus.attributeModifier("STR"), 2);
+  assert.equal(originStatus.attributeModifier("DEX"), -1);
+  assert.equal(levelOneCreationStatus(baseCharacter()).hasMagicStep, false);
+  assert.equal(
+    levelOneCreationStatus({ ...baseCharacter(), classOne: "High Mage" })
+      .hasMagicStep,
+    true,
+  );
+});
+
+test("class structure and repeatable Focus targets keep normal eligibility rules", () => {
+  const invalidFullClass = withFreePick({
+    ...baseCharacter(),
+    classMode: "full",
+    classOne: "Duelist",
+  });
+  assert.match(
+    levelOneCreationStatus(invalidFullClass).stepStatus.class.issues.join(" "),
+    /full Class/i,
+  );
+  const repeatedSpecialistTarget = withFreePick({
+    ...baseCharacter(),
+    focusPicks: [
+      { name: "Specialist", level: 1, choice: "Know" },
+      { name: "Specialist", level: 1, choice: "Know" },
+    ],
+  });
+  assert.match(
+    levelOneCreationStatus(
+      repeatedSpecialistTarget,
+    ).stepStatus.foci.issues.join(" "),
+    /target not used/i,
+  );
+});
+
+test("class backtracking exposes invalid dependent choices without mutating the character", () => {
+  const mage = withFreePick({
+    ...baseCharacter(),
+    classOne: "High Mage",
+    focusPicks: [{ name: "Armored Magic", level: 1 }],
+    artPicks: ["Arcane Lexicon", "Counter Magic"],
+    spellPicks: [
+      "Apprehending the Arcane Form",
+      "Cognitive Supersession of the Inferior Orders",
+      "The Coruscating Coffin",
+      "Damnation of the Sense",
+    ].map((name) => ({ name, prepared: false, cast: false })),
+  });
+  const changedClass = { ...mage, classOne: "Warrior" };
+  const status = levelOneCreationStatus(changedClass);
+  assert.equal(changedClass.focusPicks[0].name, "Armored Magic");
+  assert.match(
+    status.stepStatus.foci.issues.join(" "),
+    /Armored Magic requires/i,
+  );
+  assert.match(
+    status.stepStatus.magic.issues.join(" "),
+    /Choose 0 level-1 Arts/i,
+  );
+});
+
+test("guided creation entry and wizard use the canonical sheet rather than a parallel draft", async () => {
+  const [sheet, wizard] = await Promise.all([
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/character-creation-wizard.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(sheet, /Guided Creation/u);
+  assert.match(sheet, /Blank Character/u);
+  assert.match(sheet, /onChange=\{update =>\s*setSheet/u);
+  assert.match(sheet, /equipmentOptions=\{\{ items: officialInventoryItems/u);
+  assert.match(wizard, /Resolve Background choices/u);
+  assert.match(wizard, /Character so far/u);
+  assert.match(wizard, /Needs attention/u);
+  assert.match(wizard, /lastStepStorageKey/u);
+  assert.match(wizard, /Worn armor/u);
+  assert.match(wizard, /ReviewSection/u);
+  assert.match(wizard, /Level 1 hit-die roll/u);
+  assert.match(wizard, /rollDice\(3, 6\)\.total \* 10/u);
+  assert.doesNotMatch(wizard, /Math\.random/u);
+  assert.doesNotMatch(wizard, /useState<LevelOneCreationCharacter>/u);
+});

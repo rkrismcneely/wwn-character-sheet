@@ -74,6 +74,18 @@ export function artSlots(tradition: TraditionName, level: number, partial: boole
   return (partial ? partialTraditionArtProgression : traditionArtProgression)[tradition][index];
 }
 
+/** Arts a partial tradition grants automatically at first level. */
+export function forcedArtsForTraditions(traditions: readonly TraditionName[]) {
+  return [
+    ...new Set(
+      traditions.flatMap(
+        (tradition) =>
+          additionalClassData[tradition as AdditionalTraditionName]?.forcedArts || [],
+      ),
+    ),
+  ];
+}
+
 export function knownSpellSlots(traditions: readonly TraditionName[], level: number, partial: boolean) {
   const spellcasters = traditions.filter(tradition => traditionInfo[tradition]?.spells);
   const boundedLevel = Math.min(10, Math.max(1, level));

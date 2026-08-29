@@ -58,6 +58,7 @@ const baseCharacter = () => ({
   background: "Soldier",
   backgroundDevelopmentMethod: "quick",
   backgroundCombatSkill: "Stab",
+  backgroundQuickSkillReplacements: ["", ""],
   backgroundLearningPicks: [
     { result: "", choice: "", replacement: "" },
     { result: "", choice: "", replacement: "" },

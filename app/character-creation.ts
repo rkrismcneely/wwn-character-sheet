@@ -10,6 +10,7 @@ import {
   classRules,
   dualCasterLimits,
   fullClasses,
+  forcedArtsForTraditions,
   invokerLimits,
   knownSpellSlots,
   partialClasses,
@@ -111,6 +112,7 @@ export type LevelOneCreationCharacter = {
   background: string;
   backgroundDevelopmentMethod: BackgroundDevelopmentMethod;
   backgroundCombatSkill: string;
+  backgroundQuickSkillReplacements: string[];
   backgroundLearningPicks: BackgroundLearningPick[];
   backgroundDevelopmentRolls: BackgroundDevelopmentRoll[];
   classMode: "full" | "adventurer";
@@ -172,6 +174,29 @@ const signedModifier = (score: number) =>
   score <= 3 ? -2 : score <= 7 ? -1 : score <= 13 ? 0 : score <= 17 ? 1 : 2;
 const capped = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
+const artSelectionSeparator = "::";
+
+/** Keeps same-named Arts from different traditions distinct in character state. */
+export const artSelectionValue = (tradition: string, name: string) =>
+  name === "A Thousand Tongues" ? `${tradition}${artSelectionSeparator}${name}` : name;
+
+export const artSelectionName = (value: string) =>
+  value.includes(artSelectionSeparator)
+    ? value.slice(value.indexOf(artSelectionSeparator) + artSelectionSeparator.length)
+    : value;
+
+export function creationArtForSelection<Art extends { name: string; value: string }>(
+  arts: readonly Art[],
+  selection: string,
+) {
+  return (
+    arts.find((art) => art.value === selection) ||
+    // Pre-identity saved values remain readable. A mixed-tradition legacy
+    // record is resolved to the prior display-order behavior rather than
+    // silently overwriting a player choice.
+    arts.find((art) => art.name === selection)
+  );
+}
 const creationSkillRankCost = (rank: number) =>
   rank < 0 ? 0 : [1, 3, 6, 10, 15][Math.min(4, rank)];
 const storedCreationSkillRank = (
@@ -233,12 +258,23 @@ export function creationFocusChoiceLabel(name: string) {
   return options.length > 1 ? "Bonus skill" : "";
 }
 
+/** Keeps the wizard's partial-class picker aligned with completion validation. */
+export function creationPartialClassPairIsLegal(first: string, second: string) {
+  if (!first || !second) return true;
+  if (first === second) return false;
+  const other = first === "Mageslayer" ? second : second === "Mageslayer" ? first : "";
+  if (other && traditionKinds[other] === "mage") return false;
+  const invokerOther = first === "Invoker" ? second : second === "Invoker" ? first : "";
+  return !invokerOther || !traditionInfo[invokerOther as TraditionName]?.spells;
+}
+
 export function creationSkillGrants(
   state: Pick<
     LevelOneCreationCharacter,
     | "background"
     | "backgroundDevelopmentMethod"
     | "backgroundCombatSkill"
+    | "backgroundQuickSkillReplacements"
     | "backgroundLearningPicks"
     | "backgroundDevelopmentRolls"
     | "classMode"
@@ -327,6 +363,7 @@ export function creationSkillGrantResolutions(
     | "background"
     | "backgroundDevelopmentMethod"
     | "backgroundCombatSkill"
+    | "backgroundQuickSkillReplacements"
     | "backgroundLearningPicks"
     | "backgroundDevelopmentRolls"
     | "classMode"
@@ -349,6 +386,7 @@ type CreationSkillGrantState = Pick<
   | "background"
   | "backgroundDevelopmentMethod"
   | "backgroundCombatSkill"
+  | "backgroundQuickSkillReplacements"
   | "backgroundLearningPicks"
   | "backgroundDevelopmentRolls"
   | "classMode"
@@ -364,8 +402,20 @@ const withBackgroundGrantChoice = (
   grantId: string,
   choice: string,
 ): CreationSkillGrantState => {
-  if (grantId === "background-free" || grantId.startsWith("quick-"))
+  if (grantId === "background-free")
     return { ...state, backgroundCombatSkill: choice };
+  if (grantId.startsWith("quick-")) {
+    const grant = creationSkillGrants(state).find((entry) => entry.id === grantId);
+    if (grant && normalizedBackgroundSkillResult(grant.result) === "Any Combat")
+      return { ...state, backgroundCombatSkill: choice };
+    const index = Number(grantId.slice("quick-".length));
+    return {
+      ...state,
+      backgroundQuickSkillReplacements: state.backgroundQuickSkillReplacements.map(
+        (replacement, row) => (row === index ? choice : replacement),
+      ),
+    };
+  }
   if (grantId.startsWith("learning-")) {
     const index = Number(grantId.slice("learning-".length));
     return {
@@ -432,6 +482,7 @@ export function creationSkillSources(
     | "background"
     | "backgroundDevelopmentMethod"
     | "backgroundCombatSkill"
+    | "backgroundQuickSkillReplacements"
     | "backgroundLearningPicks"
     | "backgroundDevelopmentRolls"
     | "classMode"
@@ -638,6 +689,7 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       ...art,
       minLevel: "minLevel" in art ? art.minLevel : undefined,
       tradition,
+      value: artSelectionValue(tradition, art.name),
     })),
   );
   const artAllowance =
@@ -649,6 +701,11 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     (addedTradition
       ? artSlots(addedTradition, 1, state.classMode === "adventurer")
       : 0);
+  const forcedArts = artTraditions.flatMap((tradition) =>
+    forcedArtsForTraditions([tradition]).map((name) =>
+      artSelectionValue(tradition, name),
+    ),
+  );
   const isInvoker = castingTraditions.includes("Invoker");
   const limits =
     isInvoker && castingTraditions.length === 1
@@ -663,7 +720,9 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
           ? casterLimits(1, state.classMode === "adventurer")
           : { max: 0, casts: 0, prepared: 0, arts: 0 };
   const availableSpells = [
-    ...highMagic.map((spell) => ({ ...spell, tradition: "High Magic" })),
+    ...(castingTraditions.includes("High Mage") || castingTraditions.includes("Invoker") || addedTradition
+      ? highMagic.map((spell) => ({ ...spell, tradition: "High Magic" }))
+      : []),
     ...(castingTraditions.includes("Elementalist") ||
     addedTradition === "Elementalist"
       ? traditionSpells.Elementalist.map((spell) => ({
@@ -718,6 +777,8 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     })),
   );
   const issues: CreationIssue[] = [];
+  if (state.level !== 1)
+    issues.push({ step: "identity", message: "Guided Creation is available only for level-1 characters." });
   if (!state.name.trim())
     issues.push({ step: "identity", message: "Enter a character name." });
   const rolledComplete = creationAttributes.every(
@@ -743,6 +804,11 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
         state.attributeMethod === "rolled"
           ? "Record all six legal 3d6 scores."
           : "Assign each standard-array score once.",
+    });
+  if (creationAttributes.some((attribute) => state.attributeBoosts[attribute] !== 0))
+    issues.push({
+      step: "attributes",
+      message: "Level 1 characters cannot spend advancement points on attributes.",
     });
   if (!backgrounds[state.background])
     issues.push({ step: "background", message: "Choose a Background." });
@@ -874,8 +940,8 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     });
   if (
     state.classMode === "adventurer" &&
-    isInvoker &&
-    castingTraditions.length > 1
+    !creationPartialClassPairIsLegal(state.classOne, state.classTwo) &&
+    selectedClasses.includes("Invoker")
   )
     issues.push({
       step: "class",
@@ -900,15 +966,27 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       message: `Choose ${allowedFocusPicks} starting Focus pick${allowedFocusPicks === 1 ? "" : "s"}.`,
     });
   state.focusPicks.forEach((pick, index) => {
+    if (pick.name && pick.level !== 1)
+      issues.push({
+        step: "foci",
+        message: "Level 1 characters can take only level-1 Focus benefits.",
+      });
     if (pick.name && !focusEligibility(pick.name, index).eligible)
       issues.push({
         step: "foci",
         message: `${pick.name}: ${focusEligibility(pick.name, index).reason}`,
       });
-    if (pick.name && creationFocusChoiceLabel(pick.name) && !pick.choice)
+    const choiceLabel = creationFocusChoiceLabel(pick.name);
+    const choiceOptions = creationFocusChoiceOptions(pick.name);
+    if (pick.name && choiceLabel && !pick.choice)
       issues.push({
         step: "foci",
-        message: `${pick.name} needs ${creationFocusChoiceLabel(pick.name).toLowerCase()}.`,
+        message: `${pick.name} needs ${choiceLabel.toLowerCase()}.`,
+      });
+    if (pick.name && pick.choice && choiceOptions.length && !choiceOptions.includes(pick.choice))
+      issues.push({
+        step: "foci",
+        message: `${pick.name} needs a legal ${choiceLabel.toLowerCase()}.`,
       });
     if (
       (pick.name === "Developed Attribute" || pick.name === "Specialist") &&
@@ -926,8 +1004,15 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       step: "magic",
       message: `Choose ${artAllowance} level-1 Art${artAllowance === 1 ? "" : "s"}.`,
     });
+  forcedArts.forEach((name) => {
+    if (!selectedArts.some((selection) => creationArtForSelection(availableArts, selection)?.value === name))
+      issues.push({
+        step: "magic",
+        message: `${artSelectionName(name)} is a required starting Art for the selected tradition.`,
+      });
+  });
   selectedArts.forEach((name, index) => {
-    const art = availableArts.find((candidate) => candidate.name === name);
+    const art = creationArtForSelection(availableArts, name);
     if (!art)
       issues.push({
         step: "magic",
@@ -939,15 +1024,15 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
         message: `${name} requires level ${art?.minLevel}.`,
       });
     if (
-      name === "Deep Apprehension" &&
-      !selectedArts.includes("Surface Apprehension")
+      artSelectionName(name) === "Deep Apprehension" &&
+      !selectedArts.some((selection) => artSelectionName(selection) === "Surface Apprehension")
     )
       issues.push({
         step: "magic",
         message: "Deep Apprehension requires Surface Apprehension.",
       });
     if (
-      name !== "Skilled" &&
+      artSelectionName(name) !== "Skilled" &&
       selectedArts.findIndex((other) => other === name) !== index
     )
       issues.push({
@@ -1037,6 +1122,7 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     focusPicksUsed,
     availableArts,
     artAllowance,
+    forcedArts,
     availableSpells,
     knownSpellAllowance,
     limits,
@@ -1056,6 +1142,28 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       Luck: 15,
     },
   };
+}
+
+/**
+ * The wizard's visible skill ranks are derived from stored purchases plus
+ * ordered grants.  Offer only ranks that remain legal after that resolution.
+ */
+export function creationSkillRankCanBeSelected(
+  state: LevelOneCreationCharacter,
+  skill: string,
+  rank: number,
+) {
+  if (!creationSkills.includes(skill as (typeof creationSkills)[number])) return false;
+  const current = levelOneCreationStatus(state);
+  const sourceCount = current.sources[skill].length;
+  const minimum = Math.min(1, Math.max(-1, sourceCount - 1));
+  if (rank < minimum || rank > 1) return false;
+  const skillPurchases = {
+    ...state.skillPurchases,
+    [skill]: Math.max(-1, Math.min(1, rank - sourceCount)),
+  };
+  const candidate = levelOneCreationStatus({ ...state, skillPurchases });
+  return candidate.freeSkillPlan.spending === 0 && candidate.skillRanks[skill] <= 1;
 }
 
 export function choiceOptionsForBackgroundResult(result: string) {

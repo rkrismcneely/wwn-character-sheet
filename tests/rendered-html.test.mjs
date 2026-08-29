@@ -84,7 +84,7 @@ async function startLocalWorker({ auth = false } = {}) {
     ["fixture-private", "other-owner", fixtureIds.private, "private", "Private Expert"],
     ["fixture-legacy", null, fixtureIds.legacy, "private", "Legacy Wanderer"],
     ["fixture-normal-own", "runtime-proof-user", fixtureIds.normalOwn, "private", "Normal Owner"],
-    ["fixture-normal-delete", "runtime-proof-user", fixtureIds.normalDelete, "private", "Normal Delete"],
+    ["fixture-normal-delete", "runtime-proof-user", fixtureIds.normalDelete, "private", "Normal Delete", "2026-08-04T00:00:00.000Z"],
     ["fixture-admin-own", "runtime-admin", fixtureIds.adminOwn, "private", "Admin Owner"],
   ];
   const userInserts = `
@@ -98,14 +98,14 @@ async function startLocalWorker({ auth = false } = {}) {
       ('other-owner', 'Other Owner', 'other-owner@example.invalid',
        1, 'user', 1786348800000, 1786348800000);
   `;
-  const characterInserts = inserts.map(([id, ownerUserId, publicId, visibility, name]) => `
+  const characterInserts = inserts.map(([id, ownerUserId, publicId, visibility, name, archivedAt]) => `
     INSERT INTO characters
       (id, owner_user_id, public_id, visibility, portrait_key, name, player,
-       class_label, level, data, version, created_at, updated_at)
+       class_label, level, data, archived_at, version, created_at, updated_at)
     VALUES
       ('${id}', ${ownerUserId ? `'${ownerUserId}'` : "NULL"}, '${publicId}', '${visibility}', NULL, '${name}', '',
        'Expert', 1, '{"name":"${name}","level":1,"classOne":"Expert"}',
-       1, '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
+       ${archivedAt ? `'${archivedAt}'` : "NULL"}, 1, '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
   `).join("\n");
   const sessionInserts = auth ? `
     INSERT INTO session
@@ -353,9 +353,17 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
     const mine = await fetch(`${worker.origin}/api/characters?scope=mine`, { headers: normalHeaders });
     assert.equal(mine.status, 200);
     const minePayload = await mine.json();
-    assert.deepEqual(minePayload.characters.map(character => character.name), ["Normal Delete", "Normal Owner"]);
+    assert.deepEqual(minePayload.characters.map(character => character.name), ["Normal Owner"]);
     assert.equal(JSON.stringify(minePayload).includes("other-owner@example.invalid"), false);
     assert.equal(JSON.stringify(minePayload).includes("ownerUserId"), false);
+    const mineIncludingArchived = await fetch(`${worker.origin}/api/characters?scope=mine&archive=all`, { headers: normalHeaders });
+    assert.equal(mineIncludingArchived.status, 200);
+    const mineIncludingArchivedPayload = await mineIncludingArchived.json();
+    assert.deepEqual(mineIncludingArchivedPayload.characters.map(character => character.name), ["Normal Delete", "Normal Owner"]);
+    assert.equal(
+      mineIncludingArchivedPayload.characters.find(character => character.id === worker.fixtureIds.normalDelete).archivedAt,
+      "2026-08-04T00:00:00.000Z",
+    );
 
     const normalOwn = await fetch(
       `${worker.origin}/api/characters/${worker.fixtureIds.normalOwn}`,
@@ -437,7 +445,7 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
     });
     assert.equal(allResponse.status, 200);
     const allPayload = await allResponse.json();
-    assert.equal(allPayload.characters.length, 7);
+    assert.equal(allPayload.characters.length, 6);
     assert.equal(JSON.stringify(allPayload).includes("ownerUserId"), false);
     assert.equal(JSON.stringify(allPayload).includes("example.invalid"), false);
     assert.equal(
@@ -515,6 +523,11 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
       { method: "DELETE", headers: normalHeaders },
     );
     assert.equal(normalDelete.status, 200);
+    const deletedArchivedCharacter = await fetch(
+      `${worker.origin}/api/characters/${worker.fixtureIds.normalDelete}`,
+      { headers: normalHeaders },
+    );
+    assert.equal(deletedArchivedCharacter.status, 404);
 
     const adminOwnSave = await fetch(
       `${worker.origin}/api/characters/${worker.fixtureIds.adminOwn}`,

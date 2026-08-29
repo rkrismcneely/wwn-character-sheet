@@ -197,6 +197,25 @@ export function DashboardPage() {
     }
   }
 
+  async function deleteCharacter(character: DashboardCharacter) {
+    const characterName = character.name || "this character";
+    if (!window.confirm(`Delete ${characterName} from My Characters?\n\nThis cannot be undone.`)) return;
+    setLifecycleBusy(character.id);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/characters/${character.id}`, { method: "DELETE" });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "The character could not be deleted.");
+      await loadCharacters();
+      setNotice(`${characterName} was permanently deleted.`);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "The character could not be deleted.");
+    } finally {
+      setLifecycleBusy(null);
+    }
+  }
+
   function characterCard(character: DashboardCharacter) {
     const working = lifecycleBusy === character.id;
     return <article className={`dashboard-card${character.archivedAt ? " dashboard-card-archived" : ""}`} key={character.id}>
@@ -212,7 +231,7 @@ export function DashboardPage() {
       </dl>
       <div className="dashboard-card-actions">
         <Link className="dashboard-open" href={`/character/${character.id}`}>Open character <span aria-hidden="true">→</span></Link>
-        {character.archivedAt ? <><button type="button" className="dashboard-secondary" onClick={() => void setArchived(character, false)} disabled={working}>{working ? "Working…" : "Restore"}</button><details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button></div></details></> : <details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button><button type="button" className="dashboard-secondary dashboard-archive" onClick={() => void setArchived(character, true)} disabled={working}>{working ? "Working…" : "Archive character"}</button></div></details>}
+        {character.archivedAt ? <details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void setArchived(character, false)} disabled={working}>{working ? "Working…" : "Restore"}</button><button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button><button type="button" className="dashboard-secondary dashboard-danger" onClick={() => void deleteCharacter(character)} disabled={working}>{working ? "Working…" : "Delete"}</button></div></details> : <details className="dashboard-secondary-actions"><summary>More actions</summary><div><button type="button" className="dashboard-secondary" onClick={() => void duplicate(character)} disabled={working}>Duplicate</button><button type="button" className="dashboard-secondary dashboard-archive" onClick={() => void setArchived(character, true)} disabled={working}>{working ? "Working…" : "Archive character"}</button></div></details>}
       </div>
     </article>;
   }

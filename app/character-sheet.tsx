@@ -22,7 +22,6 @@ import {
   type BackgroundDevelopmentMethod,
   type BackgroundDevelopmentRoll,
   type BackgroundLearningPick,
-  type BackgroundSkillGrant,
 } from "./background-development";
 import { RulesAssistant } from "./rules-assistant";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
@@ -33,6 +32,14 @@ import { useDisplayTheme } from "./theme-provider";
 import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice-preference";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "./virtual-dice-overlay";
 import { CharacterLiveSessionPanel } from "./character-live-session-panel";
+import { GuidedCreationWizard } from "./character-creation-wizard";
+import {
+  creationFocusBonusSkill,
+  creationSkillGrantResolutions,
+  creationSkillGrants,
+  creationSkillSources,
+  levelOneCreationStatus,
+} from "./character-creation";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
 import { TalesBrandLink } from "./app-header";
@@ -190,12 +197,6 @@ const npcArchetypes: readonly NpcArchetype[] = [
   { name: "Performer", base: { STR: 8, DEX: 12, CON: 9, INT: 11, WIS: 10, CHA: 13 }, bonus: "CHA", penalty: "STR", skills: "Perform +1 with their chosen art", strengths: "Performance, storytelling, rumours, and attention.", weaknesses: "Heavy labor and prolonged combat." },
 ];
 const npcArchetypeNames = npcArchetypes.map(archetype => archetype.name);
-const skillClassBonuses: Record<string, string> = {
-  "High Mage": "Magic", Elementalist: "Magic", Necromancer: "Magic", Invoker: "Magic",
-  Healer: "Heal", Accursed: "Magic", Bard: "Perform",
-  Beastmaster: "Survive", "Blood Priest": "Pray", Duelist: "Stab",
-  Mageslayer: "Magic", Skinshifter: "Survive", "Thought Noble": "Notice",
-};
 const skillRankCost = (rank: number) => rank < 0 ? 0 : [1, 3, 6, 10, 15][Math.min(4, rank)];
 const skillRankCap = (level: number) => level >= 9 ? 4 : level >= 6 ? 3 : level >= 3 ? 2 : 1;
 const officialLanguages = [
@@ -456,41 +457,15 @@ const normalizedBackgroundRules = (stored: Partial<Sheet>) => {
 const backgroundAttributeGrowth = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundDevelopmentRolls" | "attrs">) =>
   backgroundAttributeBonuses(state.background, state.backgroundDevelopmentMethod, state.backgroundDevelopmentRolls, state.attrs);
 
-const focusBonusSkill = (pick: FocusPick) => {
-  const choices = bonusSkillChoices(pick.name);
-  return choices.length === 1 ? choices[0] : choices.includes(pick.choice || "") ? pick.choice! : "";
-};
+const focusBonusSkill = (pick: FocusPick) => creationFocusBonusSkill(pick);
 
 const backgroundSkillGrants = (
   state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">,
   developmentEntries = activeBackgroundDevelopmentEntries(state.background, state),
-) => {
-  const grants: BackgroundSkillGrant[] = [];
-  const background = backgrounds[state.background];
-  if (background) grants.push({
-    id: "background-free",
-    result: background.freeSkill,
-    source: `${state.background} Background: free skill`,
-    combatChoice: state.backgroundCombatSkill,
-  });
-  const classes = (state.classMode === "adventurer" ? [state.classOne, state.classTwo] : [state.classOne]).filter(Boolean);
-  classes.forEach((className, index) => {
-    const result = className === "Vowed" ? state.vowedEffortSkill
-      : className === "Wise" ? state.wiseConceptSkill
-        : skillClassBonuses[className];
-    grants.push({ id: `class-${index}`, result: result || "", source: className === "Vowed" ? "Vowed Order: bonus skill" : className === "Wise" ? "Wise Concept: bonus skill" : `${className} Class: bonus skill` });
-  });
-  state.focusPicks.filter(pick => pick.name).forEach((pick, index) => {
-    grants.push({ id: `focus-${index}`, result: focusBonusSkill(pick), source: `${pick.name} Focus: bonus skill` });
-  });
-  developmentEntries.forEach(entry => {
-    grants.push({ ...entry, combatChoice: entry.id.startsWith("quick-") ? state.backgroundCombatSkill : "" });
-  });
-  return grants;
-};
+) => creationSkillGrants(state, developmentEntries);
 
 const backgroundSkillGrantResolutions = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) =>
-  resolveBackgroundSkillGrants(backgroundSkillGrants(state), skills, combatSkills);
+  creationSkillGrantResolutions(state);
 
 const legacyReviewSkillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "backgroundDevelopmentLegacy" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => {
   const legacy = state.backgroundDevelopmentLegacy;
@@ -519,13 +494,7 @@ const legacyReviewSkillSourcesFor = (state: Pick<Sheet, "background" | "backgrou
 };
 
 /** Returns each active rule source without folding it into purchased ranks. */
-const skillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => {
-  const sources = Object.fromEntries(skills.map(skill => [skill, [] as string[]])) as Record<string, string[]>;
-  backgroundSkillGrantResolutions(state).forEach(grant => {
-    if (grant.resolvedSkill) sources[grant.resolvedSkill].push(grant.source);
-  });
-  return sources;
-};
+const skillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => creationSkillSources(state);
 
 const migratedSkillPurchases = (stored: Partial<Sheet>) => {
   if (stored.skillPurchases && typeof stored.skillPurchases === "object") {
@@ -953,6 +922,12 @@ export default function Home({
   const signedIn = Boolean(session?.user?.id) && !locallySignedOut;
   const isAdmin = signedIn && session?.user?.role === "admin";
   const [tab, setTab] = useState<Tab>("core");
+  const [creationEntry, setCreationEntry] = useState<"none" | "choose" | "guided" | "blank">(
+    startNew && !initialCharacter ? "choose" : "none",
+  );
+  const [wizardOpen, setWizardOpen] = useState(() =>
+    typeof window !== "undefined" && new URL(window.location.href).searchParams.get("guided") === "1",
+  );
   const [sheet, setSheet] = useState<Sheet>(() =>
     startNew && !initialCharacter
       ? createBlankSheet()
@@ -1012,7 +987,6 @@ export default function Home({
   const virtualDiceOverlay = useRef<VirtualDiceOverlayHandle>(null);
   const virtualDiceBusyRef = useRef(false);
   const authIntentHandled = useRef(false);
-  const startNewHandled = useRef(false);
   const lastCloudData = useRef(
     initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
   );
@@ -1278,14 +1252,6 @@ export default function Home({
     }, 0);
     return () => clearTimeout(t);
   }, [initialCharacter, startNew]);
-
-  useEffect(() => {
-    if (!startNew || !hydrated || sessionPending || !signedIn || startNewHandled.current) return;
-    startNewHandled.current = true;
-    void addCurrentToLibrary(createBlankSheet());
-  // The dashboard's create action intentionally creates one fresh, blank record.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startNew, hydrated, sessionPending, signedIn]);
 
   useEffect(() => {
     if (!hydrated || !canEdit) return;
@@ -1864,13 +1830,18 @@ export default function Home({
     }
   }
 
-  async function newOnlineCharacter() {
+  function beginNewCharacter(mode: "guided" | "blank") {
     if (!signedIn) {
       requireSignIn("create a character");
       return;
     }
-    const fresh = createBlankSheet();
+    const fresh = {
+      ...createBlankSheet(),
+      ...(mode === "guided" ? { level: 1 } : {}),
+    };
     setSheet(fresh);
+    setCreationEntry(mode);
+    setWizardOpen(mode === "guided");
     setCloudId(null);
     setCloudVersion(null);
     setCloudVisibility("private");
@@ -1878,7 +1849,30 @@ export default function Home({
     setCloudAdminReadOnly(false);
     setCampaignLinks([]);
     lastCloudData.current = "";
-    await addCurrentToLibrary(fresh);
+    void addCurrentToLibrary(fresh);
+  }
+
+  function closeGuidedCreation(finished = false) {
+    if (finished) {
+      const completion = levelOneCreationStatus(sheet);
+      if (!completion.canFinish) {
+        setTransferMessage("Finish is blocked until the remaining level-1 choices are complete.");
+        return;
+      }
+      setSheet(current => ({
+        ...current,
+        hpMax: completion.startingHp || current.hpMax,
+        hpCurrent: current.hpCurrent || completion.startingHp,
+      }));
+      setTransferMessage("Guided creation is complete. This is now an ordinary editable character sheet.");
+    } else {
+      setTransferMessage("Guided creation closed. Every choice remains saved on this character.");
+    }
+    setWizardOpen(false);
+    setTab("core");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("guided");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
   async function duplicateCharacter(id: string) {
@@ -2697,9 +2691,15 @@ export default function Home({
               }}
             >Sign in with Google</button>}
             {signedIn && <a className="quiet account-state" href="/account">Account</a>}
-            {signedIn && canEdit && (cloudId
+            {signedIn && canEdit && creationEntry !== "choose" && (cloudId
               ? <button onClick={() => void saveToCloud()}>Save Now</button>
               : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
+            {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <button type="button" onClick={() => {
+              setWizardOpen(true);
+              const url = new URL(window.location.href);
+              url.searchParams.set("guided", "1");
+              window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+            }}>Guided Creation</button>}
             {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
             {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}
             <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
@@ -2787,7 +2787,7 @@ export default function Home({
             <div><input id="library-search" type="search" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} /><button type="submit">Search</button></div>
           </form>}
           <div className="library-actions">
-            {signedIn && libraryScope === "mine" && <button className="primary-action" onClick={() => void newOnlineCharacter()}>＋ Create New Character</button>}
+            {signedIn && libraryScope === "mine" && <button className="primary-action" onClick={() => window.location.assign("/?new=1")}>＋ Create New Character</button>}
             {signedIn && libraryScope === "mine" && !cloudId && <button onClick={() => void addCurrentToLibrary()}>☁ Add Current Browser Character</button>}
             <button onClick={() => void refreshLibrary(libraryScope)}>↻ Refresh</button>
           </div>
@@ -2845,6 +2845,35 @@ export default function Home({
       </div>}
 
       <div ref={editableSurface} className={`folio ${canEdit ? "" : "read-only-folio"}`}>
+        {startNew && creationEntry === "choose" ? <section className="creation-entry" aria-labelledby="creation-entry-title">
+          <p>NEW CHARACTER</p>
+          <h1 id="creation-entry-title">How would you like to begin?</h1>
+          <div className="creation-entry-options">
+            <article>
+              <span>BEGINNER-FRIENDLY</span>
+              <h2>Guided Creation</h2>
+              <p>Work through existing Worlds Without Number level-1 choices in a dependency-aware order. Your normal character record saves as you go.</p>
+              <button type="button" className="primary-button" onClick={() => beginNewCharacter("guided")} disabled={sessionPending}>Start Guided Creation</button>
+            </article>
+            <article>
+              <span>EXPERIENCED PLAYERS</span>
+              <h2>Blank Character</h2>
+              <p>Open the familiar direct character-sheet workflow with no wizard layer.</p>
+              <button type="button" className="secondary-button" onClick={() => beginNewCharacter("blank")} disabled={sessionPending}>Start Blank Character</button>
+            </article>
+          </div>
+          {!signedIn && <p className="creation-warning">Sign in to create and save a private character.</p>}
+        </section> : wizardOpen ? <GuidedCreationWizard
+          sheet={sheet}
+          canEdit={canEdit}
+          persistenceKey={cloudId || "new-character"}
+          equipmentOptions={{ items: officialInventoryItems, armor: inventoryArmors, shields }}
+          reviewStats={{ ac: calculatedAc, attack: baseAttack }}
+          onChange={update => setSheet(current => ({ ...current, ...update }))}
+          onPortrait={file => void uploadPortrait(file)}
+          onExit={() => closeGuidedCreation(false)}
+          onFinish={() => closeGuidedCreation(true)}
+        /> : <>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
           <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
@@ -3787,6 +3816,7 @@ export default function Home({
           <small className="character-sharing-status">{cloudVisibility === "private" ? "Not available to other visitors." : cloudVisibility === "unlisted" ? "Viewable at its stable link, but absent from Public Characters." : "Viewable at its stable link and listed in Public Characters."}</small>
         </section>}
         <footer>Rules authority: Worlds Without Number SRD 1.0 (March 13, 2024, CC0). Fan-made utility; not an official Sine Nomine product.</footer>
+        </>}
       </div>
     </main>
   );

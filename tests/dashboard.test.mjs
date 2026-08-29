@@ -36,7 +36,7 @@ test("dashboard exposes useful roster, empty, import, and claim states", async (
   assert.equal(header.includes("Sign Out"), true);
 });
 
-test("the create action starts the existing character-sheet flow without changing direct routes", async () => {
+test("the create action offers guided and blank character-sheet flows without changing direct routes", async () => {
   const page = await source("app/page.tsx");
   const sheet = await source("app/character-sheet.tsx");
   const characterPage = await source("app/character/[publicId]/page.tsx");
@@ -44,6 +44,8 @@ test("the create action starts the existing character-sheet flow without changin
   assert.match(page, /params\?\.new === "1"/u);
   assert.match(sheet, /startNew\?: boolean/u);
   assert.match(sheet, /createBlankSheet\(\)/u);
+  assert.match(sheet, /Guided Creation/u);
+  assert.match(sheet, /Blank Character/u);
   assert.match(characterPage, /<CharacterSheet initialCharacter=\{payload\} \/>/u);
 });
 

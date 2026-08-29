@@ -11,3 +11,12 @@ test("character dashboard keeps Duplicate as the first More actions item and Arc
   assert.match(dashboard, /fetch\(`\/api\/characters\/\$\{character\.id\}\/duplicate`, \{ method: "POST" \}\)/u);
   assert.match(dashboard, /fetch\(`\/api\/characters\/\$\{character\.id\}\/archive`,/u);
 });
+
+test("archived character actions are ordered in one menu and reuse permanent deletion", async () => {
+  const dashboard = await readFile(new URL("../app/dashboard-page.tsx", import.meta.url), "utf8");
+
+  assert.match(dashboard, /character\.archivedAt \? <details className="dashboard-secondary-actions"><summary>More actions<\/summary><div><button type="button" className="dashboard-secondary" onClick=\{\(\) => void setArchived\(character, false\)\} disabled=\{working\}>\{working \? "Working…" : "Restore"\}<\/button><button type="button" className="dashboard-secondary" onClick=\{\(\) => void duplicate\(character\)\} disabled=\{working\}>Duplicate<\/button><button type="button" className="dashboard-secondary dashboard-danger" onClick=\{\(\) => void deleteCharacter\(character\)\} disabled=\{working\}>\{working \? "Working…" : "Delete"\}<\/button><\/div><\/details>/u);
+  assert.doesNotMatch(dashboard, /character\.archivedAt \? <><button[^>]*>\{working \? "Working…" : "Restore"\}<\/button>/u);
+  assert.match(dashboard, /window\.confirm\(`Delete \$\{characterName\} from My Characters\?\\n\\nThis cannot be undone\.`\)/u);
+  assert.match(dashboard, /fetch\(`\/api\/characters\/\$\{character\.id\}`, \{ method: "DELETE" \}\)/u);
+});

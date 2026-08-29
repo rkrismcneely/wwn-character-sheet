@@ -45,6 +45,7 @@ function wholeNumberOrNull(value: string): number | null {
 function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
 
 function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
+  const selectedShock = creature.attacks[0]?.shock;
   return <div className="gm-bestiary-stat-block">
     <section>
       <h4>Combat profile</h4>
@@ -53,7 +54,7 @@ function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) 
         <div><dt>AC</dt><dd>{creature.armorClass}{creature.armorAnnotation ? <abbr title="Usual armor in the SRD">{creature.armorAnnotation}</abbr> : null}</dd></div>
         <div><dt>HD</dt><dd>{creature.sourceStats.hitDice}</dd></div>
         <div><dt>Attacks / Action</dt><dd>{creature.sourceStats.attacksPerMainAction}</dd></div>
-        <div><dt>Shock</dt><dd>{creature.sourceStats.shock}</dd></div>
+        <div><dt>Shock</dt><dd>{creature.sourceStats.shock.startsWith("Weapon") ? selectedShock ?? "None" : creature.sourceStats.shock}</dd></div>
         <div><dt>Move</dt><dd>{creature.sourceStats.move}</dd></div>
         <div><dt>Morale</dt><dd>{creature.sourceStats.morale}</dd></div>
         <div><dt>Instinct</dt><dd>{creature.sourceStats.instinct}</dd></div>
@@ -66,9 +67,9 @@ function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) 
     </section>
     <section>
       <h4>Attacks</h4>
-      <ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}>{attack.name !== "Attack" && <><strong>{attack.name}</strong> </>}{signed(attack.attackBonus)} · {attack.damage}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>
+      <ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> {signed(attack.attackBonus)} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>
     </section>
-    {creature.spellcasting && <section><h4>Spellcasting</h4><p>Mage level {creature.spellcasting.level} · Effort {creature.spellcasting.effort}. Choose an appropriate mage tradition; no specific spells or Arts are assigned.</p></section>}
+    {creature.spellcasting && <section><h4>Spellcasting</h4><p>{creature.spellcasting.tradition} · Mage level {creature.spellcasting.level} · Effort {creature.spellcasting.effort}. TWE-curated representative loadout; use the imported SRD text for full rules.</p><p><strong>Spells</strong></p><ul>{creature.spellcasting.spells.map(spell => <li key={spell.name}><strong>{spell.name}</strong> · Level {spell.level} — {spell.summary}</li>)}</ul><p><strong>Arts</strong></p><ul>{creature.spellcasting.arts.map(art => <li key={art.name}><strong>{art.name}</strong> — {art.summary}</li>)}</ul></section>}
   </div>;
 }
 

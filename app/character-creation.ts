@@ -983,4 +983,15 @@ export function choiceOptionsForBackgroundResult(result: string) {
   return [];
 }
 
+/** Manual Learning is a choice list, unlike the duplicate-weighted roll table. */
+export function manualBackgroundLearningOptions(backgroundName: string) {
+  return [
+    ...new Set(
+      (backgrounds[backgroundName]?.learning || []).filter(
+        (result) => result !== "Any Skill",
+      ),
+    ),
+  ];
+}
+
 export { backgroundAttributeChoices, backgroundAttributePointCount };

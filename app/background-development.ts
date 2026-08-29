@@ -55,6 +55,8 @@ export type BackgroundSkillGrantResolution = BackgroundSkillGrant & {
   resolvedSkill: string;
   needsChoice: boolean;
   needsReplacement: boolean;
+  /** Legal substitutions at this exact point in acquisition order. */
+  replacementOptions: string[];
 };
 
 const isAttribute = (value: unknown): value is BackgroundAttributeName =>
@@ -350,6 +352,15 @@ const resolvedSkillWithoutReplacement = (
 };
 
 /**
+ * Replacement eligibility uses the same ordered acquisition counts as the
+ * resolver, rather than the character's displayed skill ranks.
+ */
+export const legalBackgroundReplacementSkills = (
+  allowedSkills: readonly string[],
+  acquisitionCounts: Readonly<Record<string, number>>,
+) => allowedSkills.filter((skill) => acquisitionCounts[skill] < 2);
+
+/**
  * Character-creation acquisitions are capped at two per skill. A fixed third
  * result is held pending until a valid replacement is selected, rather than
  * accidentally creating a starting skill above level 1.
@@ -364,16 +375,17 @@ export function resolveBackgroundSkillGrants(
     const rawSkill = resolvedSkillWithoutReplacement(grant, allowedSkills, combatSkills);
     const bare = normalizedBackgroundSkillResult(grant.result);
     const needsChoice = (bare === "Any Combat" || bare === "Any Skill") && !rawSkill;
-    if (!rawSkill) return { ...grant, rawSkill: "", resolvedSkill: "", needsChoice, needsReplacement: false };
+    if (!rawSkill) return { ...grant, rawSkill: "", resolvedSkill: "", needsChoice, needsReplacement: false, replacementOptions: [] };
     if (counts[rawSkill] < 2) {
       counts[rawSkill] += 1;
-      return { ...grant, rawSkill, resolvedSkill: rawSkill, needsChoice: false, needsReplacement: false };
+      return { ...grant, rawSkill, resolvedSkill: rawSkill, needsChoice: false, needsReplacement: false, replacementOptions: [] };
     }
-    const replacement = allowedSkills.includes(grant.replacement || "") ? grant.replacement || "" : "";
-    if (replacement && counts[replacement] < 2) {
+    const replacementOptions = legalBackgroundReplacementSkills(allowedSkills, counts);
+    const replacement = replacementOptions.includes(grant.replacement || "") ? grant.replacement || "" : "";
+    if (replacement) {
       counts[replacement] += 1;
-      return { ...grant, rawSkill, resolvedSkill: replacement, needsChoice: false, needsReplacement: false };
+      return { ...grant, rawSkill, resolvedSkill: replacement, needsChoice: false, needsReplacement: false, replacementOptions };
     }
-    return { ...grant, rawSkill, resolvedSkill: "", needsChoice: false, needsReplacement: true };
+    return { ...grant, rawSkill, resolvedSkill: "", needsChoice: false, needsReplacement: true, replacementOptions };
   });
 }

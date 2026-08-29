@@ -6,7 +6,10 @@ import {
   creationSkillSources,
   choiceOptionsForBackgroundResult,
   levelOneCreationStatus,
+  manualBackgroundLearningOptions,
 } from "../app/character-creation.ts";
+import { backgrounds } from "../app/background-data.ts";
+import { resolveBackgroundSkillGrants } from "../app/background-development.ts";
 import {
   guidedCreationModeFromUrl,
   withGuidedCreationMode,
@@ -201,6 +204,114 @@ test("Soldier's canonical Any Combat-0 free skill resolves through the creation 
   assert.equal(free?.resolvedSkill, "Punch");
   assert.equal(free?.needsChoice, false);
   assert.equal(levelOneCreationStatus(resolved).stepStatus.skills.complete, true);
+});
+
+test("Soldier and Deadeye use ordered legal replacement options for a third acquisition", () => {
+  const blocked = withFreePick({
+    ...baseCharacter(),
+    backgroundDevelopmentMethod: "choose-learning",
+    backgroundCombatSkill: "Shoot",
+    backgroundLearningPicks: [
+      { result: "Any Combat", choice: "Shoot", replacement: "" },
+      { result: "", choice: "", replacement: "" },
+    ],
+    focusPicks: [{ name: "Deadeye", level: 1 }],
+  });
+  assert.deepEqual(creationSkillSources(blocked).Shoot, [
+    "Soldier Background: free skill",
+    "Deadeye Focus: bonus skill",
+  ]);
+  const pending = creationSkillGrantResolutions(blocked).find(
+    (grant) => grant.id === "learning-0",
+  );
+  assert.equal(pending?.rawSkill, "Shoot");
+  assert.equal(pending?.needsReplacement, true);
+  assert.equal(pending?.replacementOptions.includes("Shoot"), false);
+  assert.equal(pending?.replacementOptions.includes("Punch"), true);
+  assert.equal(pending?.replacementOptions.includes("Stab"), true);
+
+  const resolved = {
+    ...blocked,
+    backgroundLearningPicks: [
+      { result: "Any Combat", choice: "Shoot", replacement: "Punch" },
+      { result: "", choice: "", replacement: "" },
+    ],
+  };
+  const replacement = creationSkillGrantResolutions(resolved).find(
+    (grant) => grant.id === "learning-0",
+  );
+  assert.equal(replacement?.needsReplacement, false);
+  assert.equal(replacement?.resolvedSkill, "Punch");
+  assert.deepEqual(creationSkillSources(resolved).Punch, [
+    "Soldier Background: chosen Learning 1",
+  ]);
+
+  const stale = {
+    ...blocked,
+    backgroundLearningPicks: [
+      { result: "Any Combat", choice: "Shoot", replacement: "Shoot" },
+      { result: "", choice: "", replacement: "" },
+    ],
+  };
+  const invalidStoredReplacement = creationSkillGrantResolutions(stale).find(
+    (grant) => grant.id === "learning-0",
+  );
+  assert.equal(invalidStoredReplacement?.resolvedSkill, "");
+  assert.equal(invalidStoredReplacement?.needsReplacement, true);
+});
+
+test("ordered replacement candidates exclude every skill already at the acquisition cap", () => {
+  const state = {
+    ...baseCharacter(),
+    backgroundDevelopmentMethod: "choose-learning",
+    backgroundCombatSkill: "Shoot",
+    backgroundLearningPicks: [
+      { result: "Any Combat", choice: "Stab", replacement: "" },
+      { result: "Any Combat", choice: "Shoot", replacement: "" },
+    ],
+    focusPicks: [
+      { name: "Deadeye", level: 1 },
+      { name: "Armsmaster", level: 1 },
+    ],
+  };
+  const pending = creationSkillGrantResolutions(state).find(
+    (grant) => grant.id === "learning-1",
+  );
+  assert.equal(pending?.needsReplacement, true);
+  assert.equal(pending?.replacementOptions.includes("Shoot"), false);
+  assert.equal(pending?.replacementOptions.includes("Stab"), false);
+
+  const fixed = resolveBackgroundSkillGrants(
+    [{ id: "fixed", result: "Stab-0", source: "test" }],
+    skills,
+    ["Punch", "Shoot", "Stab"],
+  );
+  assert.equal(fixed[0].resolvedSkill, "Stab");
+});
+
+test("manual Learning deduplicates choices without changing canonical roll weighting", async () => {
+  assert.equal(backgrounds.Soldier.learning.filter((result) => result === "Any Combat").length, 2);
+  assert.equal(
+    manualBackgroundLearningOptions("Soldier").filter((result) => result === "Any Combat").length,
+    1,
+  );
+  assert.equal(
+    manualBackgroundLearningOptions("Artisan").filter((result) => result === "Craft").length,
+    1,
+  );
+  assert.deepEqual(
+    ["Any Combat", "Any Combat"],
+    Array.from({ length: 2 }, () => "Any Combat"),
+    "the same distinct Learning result remains selectable in both rows",
+  );
+
+  const wizard = await readFile(
+    new URL("../app/character-creation-wizard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(wizard, /manualBackgroundLearningOptions\(sheet\.background\)/u);
+  assert.match(wizard, /grant\.replacementOptions/u);
+  assert.match(wizard, /is already at the level-1 starting\s+maximum/u);
 });
 
 test("guided creation route state survives reloads without storing a character draft", async () => {

@@ -36,6 +36,20 @@ import { CharacterLiveSessionPanel } from "./character-live-session-panel";
 import { GuidedCreationWizard } from "./character-creation-wizard";
 import { guidedCreationModeFromUrl, withGuidedCreationMode } from "./guided-creation-route";
 import {
+  adventuringGear as adventuringGearData,
+  armors,
+  gearBundles as gearBundleData,
+  inventoryArmors,
+  inventoryWeapons,
+  officialInventoryItems,
+  shields as shieldData,
+} from "./equipment-data";
+import {
+  normalizeCreationEquipmentFields,
+  type CreationEquipmentBase,
+  type CreationEquipmentMethod,
+} from "./creation-equipment";
+import {
   creationBackgroundSkillChoiceOptions,
   creationBackgroundSkillChoiceValue,
   artSelectionName,
@@ -144,32 +158,9 @@ const initialPurchasedSkillRanks: Record<string, number> = {
   Know: 0,
   Magic: -1,
 };
-const armors = [
-  { name: "No Armor", ac: 10, enc: 0 }, { name: "War Shirt", ac: 11, enc: 0 }, { name: "Buff Coat", ac: 12, enc: 0 },
-  { name: "Linothorax", ac: 13, enc: 1 }, { name: "War Robe", ac: 14, enc: 3 }, { name: "Pieced Armor", ac: 14, enc: 2 },
-  { name: "Mail Shirt", ac: 14, enc: 1 }, { name: "Cuirass and Greaves", ac: 15, enc: 2 }, { name: "Scaled Armor", ac: 16, enc: 3 },
-  { name: "Mail Hauberk", ac: 16, enc: 2 }, { name: "Plate Armor", ac: 17, enc: 2 }, { name: "Great Armor", ac: 19, enc: 3 },
-  { name: "Grand Plate", ac: 16, enc: 3 },
-] as const;
-const shields = ["", "Small Shield", "Large Shield"] as const;
-const adventuringGear = [
-  "Arrows, 20", "Backpack", "Boots", "Candle", "Cart, one-horse", "Clothes, common",
-  "Clothes, fine", "Clothes, noble", "Cooking utensils", "Crowbar", "Firewood, one night's fire",
-  "Flask, metal, one pint", "Grappling hook", "Hammer or small tool", "Healer's pouch",
-  "Hurlant bolts, 20", "Iron spikes, 10", "Lantern", "Mirror, hand", "Oil, one pint",
-  "Paper, 10 sheets", "Rations, one week", "Rope, 50'", "Sack", "Shovel, pick, or similar tool",
-  "Tinder box", "Torch", "Waterskin, one gallon", "Writing kit",
-] as const;
-const gearBundles = [
-  "Artisan’s Equipment", "Criminal Tools", "Dungeoneering Kit", "Noble Courtier Outfit",
-  "Performer’s Implements", "Wilderness Travel Gear",
-] as const;
-const inventoryWeapons = weapons.filter(weapon => !["Unarmed Attack", "Shield Bash, Large", "Shield Bash, Small"].includes(weapon.name));
-const inventoryArmors = armors.filter(armor => armor.name !== "No Armor").map(armor => armor.name);
-const officialInventoryItems = [
-  ...inventoryWeapons.map(weapon => weapon.name), ...inventoryArmors, "Small Shield", "Large Shield",
-  ...adventuringGear, ...gearBundles,
-];
+const shields = shieldData.map((shield) => shield.name);
+const adventuringGear = adventuringGearData.map((item) => item.name);
+const gearBundles = gearBundleData.map((item) => item.name);
 const officialInventorySet = new Set<string>(officialInventoryItems);
 type CompanionAttributes = Record<typeof attributes[number], number>;
 type NpcArchetype = {
@@ -257,6 +248,11 @@ const initial = {
   initiative: 0,
   armor: "",
   shield: "",
+  creationEquipmentMethod: "" as CreationEquipmentMethod,
+  creationEquipmentPackage: "",
+  creationStartingSilver: null as number | null,
+  creationEquipmentPurchases: [] as string[],
+  creationEquipmentBase: null as CreationEquipmentBase | null,
   armorBonus: 0,
   focusPicks: [{ name: "Henchkeeper", level: 2 }] as FocusPick[],
   artPicks: ["Arcane Lexicon", "Sense Magic", "Retain Sorcery", "Wizard’s Grandeur"] as string[],
@@ -600,6 +596,7 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
     ...incoming,
     ...migratedAttributeState(incoming),
     ...rulesState,
+    ...normalizeCreationEquipmentFields(incoming),
     profession: incoming.profession || incoming.employer || "",
     skills: { ...initial.skills, ...(incoming.skills || {}) },
     skillPurchases: migratedSkillPurchases(incoming),
@@ -2857,7 +2854,6 @@ export default function Home({
           sheet={sheet}
           canEdit={canEdit}
           persistenceKey={cloudId || "new-character"}
-          equipmentOptions={{ items: officialInventoryItems, armor: inventoryArmors, shields }}
           reviewStats={{ ac: calculatedAc, attack: baseAttack }}
           onChange={update => setSheet(current => ({ ...current, ...update }))}
           onPortrait={file => void uploadPortrait(file)}

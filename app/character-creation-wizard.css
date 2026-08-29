@@ -229,7 +229,9 @@
 .secondary-button,
 .text-button,
 .creation-rolls button,
-.creation-equipment-start button {
+.creation-equipment-start button,
+.creation-equipment-budget button,
+.creation-purchases button {
   border: 1px solid #ad8a52;
   background: #fff7e6;
   color: #52391f;
@@ -242,6 +244,89 @@
   border-color: #82571e;
   background: #a87029;
   color: #fff9e9;
+}
+.creation-equipment-methods {
+  margin-bottom: 12px;
+}
+.creation-equipment-panel {
+  display: grid;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid #c6b083;
+  background: #fff9ec;
+}
+.creation-package-summary {
+  padding: 13px;
+  border-left: 4px solid #a87029;
+  background: #f1e4c9;
+}
+.creation-package-summary h3,
+.creation-package-summary p {
+  margin: 0;
+}
+.creation-package-summary p {
+  margin-top: 7px;
+  color: #6d5e4a;
+  font: 12px/1.5 var(--font-ui);
+}
+.creation-equipment-budget,
+.creation-equipment-result {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+}
+.creation-equipment-budget > div,
+.creation-equipment-result > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d2bd94;
+  background: #f6ead1;
+}
+.creation-equipment-budget span,
+.creation-equipment-result span {
+  color: #766852;
+  font: 700 9px var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.creation-equipment-budget b,
+.creation-equipment-result b {
+  color: #4b341c;
+  font: 700 14px var(--font-ui);
+  overflow-wrap: anywhere;
+}
+.creation-equipment-budget button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.creation-purchases {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.creation-purchases li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: #f1e4c9;
+}
+.creation-purchases li > span {
+  display: grid;
+  gap: 2px;
+}
+.creation-purchases small {
+  color: #77664e;
+}
+.creation-equipment-result {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
 }
 .creation-attributes {
   display: grid;
@@ -783,6 +868,13 @@
   .creation-equipment-columns,
   .creation-review-grid {
     grid-template-columns: 1fr;
+  }
+  .creation-equipment-budget,
+  .creation-equipment-result {
+    grid-template-columns: 1fr;
+  }
+  .creation-equipment-budget button {
+    width: 100%;
   }
   .creation-attributes {
     grid-template-columns: repeat(3, minmax(0, 1fr));

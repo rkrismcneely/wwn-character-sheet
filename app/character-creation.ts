@@ -40,6 +40,11 @@ import {
   focusIsRepeatable,
   focusTargetAvailable,
 } from "./phase2-rules.ts";
+import {
+  creationEquipmentChoiceIsComplete,
+  type CreationEquipmentBase,
+  type CreationEquipmentMethod,
+} from "./creation-equipment.ts";
 
 export const creationAttributes = [
   "STR",
@@ -134,6 +139,11 @@ export type LevelOneCreationCharacter = {
   gp: number;
   sp: number;
   cp: number;
+  creationEquipmentMethod: CreationEquipmentMethod;
+  creationEquipmentPackage: string;
+  creationStartingSilver: number | null;
+  creationEquipmentPurchases: string[];
+  creationEquipmentBase: CreationEquipmentBase | null;
 };
 
 export type CreationSkillLedgerEntry = {
@@ -1082,14 +1092,15 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       step: "review",
       message: "Record the level-1 hit die result.",
     });
-  if (
-    !state.readied.some((item) => item.trim()) &&
-    !state.stowed.some((item) => item.trim()) &&
-    !state.sp
-  )
+  const legacyEquipmentChoice =
+    !state.creationEquipmentMethod &&
+    (state.readied.some((item) => item.trim()) ||
+      state.stowed.some((item) => item.trim()) ||
+      Boolean(state.armor || state.shield || state.sp || state.cp));
+  if (!creationEquipmentChoiceIsComplete(state) && !legacyEquipmentChoice)
     issues.push({
       step: "equipment",
-      message: "Choose starting gear or record the SRD starting silver roll.",
+      message: "Choose a starting equipment package or roll starting silver.",
     });
   const stepStatus = Object.fromEntries(
     creationSteps.map((step) => [

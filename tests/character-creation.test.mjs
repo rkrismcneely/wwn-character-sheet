@@ -86,6 +86,11 @@ const baseCharacter = () => ({
   gp: 0,
   sp: 120,
   cp: 0,
+  creationEquipmentMethod: "buy",
+  creationEquipmentPackage: "",
+  creationStartingSilver: 120,
+  creationEquipmentPurchases: [],
+  creationEquipmentBase: null,
 });
 
 const withFreePick = (character) => {
@@ -129,6 +134,21 @@ test("level-one guided creation validates ordinary martial and expert/warrior pa
   const expertStatus = levelOneCreationStatus(expert);
   assert.equal(expertStatus.canFinish, true);
   assert.equal(expertStatus.hasMagicStep, false);
+});
+
+test("level-one guided creation requires an explicit starting-equipment path", () => {
+  const character = withFreePick({
+    ...baseCharacter(),
+    armor: "",
+    shield: "",
+    readied: [],
+    stowed: [],
+    sp: 0,
+    cp: 0,
+    creationEquipmentMethod: "",
+    creationStartingSilver: null,
+  });
+  assert.equal(levelOneCreationStatus(character).stepStatus.equipment.complete, false);
 });
 
 test("level-one guided creation validates full and partial Mage spell selections", () => {
@@ -527,7 +547,7 @@ test("guided creation entry and wizard use the canonical sheet rather than a par
   assert.match(sheet, /Guided Creation/u);
   assert.match(sheet, /Blank Character/u);
   assert.match(sheet, /onChange=\{update =>\s*setSheet/u);
-  assert.match(sheet, /equipmentOptions=\{\{ items: officialInventoryItems/u);
+  assert.match(sheet, /normalizeCreationEquipmentFields/u);
   assert.match(wizard, /Resolve Background choices/u);
   assert.match(wizard, /Character so far/u);
   assert.match(wizard, /Needs attention/u);
@@ -535,7 +555,10 @@ test("guided creation entry and wizard use the canonical sheet rather than a par
   assert.match(wizard, /Worn armor/u);
   assert.match(wizard, /ReviewSection/u);
   assert.match(wizard, /Level 1 hit-die roll/u);
-  assert.match(wizard, /rollDice\(3, 6\)\.total \* 10/u);
+  assert.match(
+    wizard,
+    /rollCreationStartingSilver\(sheet, rollDice\(3, 6\)\.total\)/u,
+  );
   assert.doesNotMatch(wizard, /Math\.random/u);
   assert.doesNotMatch(wizard, /useState<LevelOneCreationCharacter>/u);
 });

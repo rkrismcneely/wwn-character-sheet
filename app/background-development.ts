@@ -31,6 +31,8 @@ export type BackgroundDevelopmentLegacy = {
 export type BackgroundDevelopmentFields = {
   backgroundDevelopmentMethod: BackgroundDevelopmentMethod;
   backgroundCombatSkill: string;
+  /** One legal substitute per Quick Skill when a fixed result would be a third acquisition. */
+  backgroundQuickSkillReplacements: string[];
   backgroundLearningPicks: BackgroundLearningPick[];
   backgroundDevelopmentRolls: BackgroundDevelopmentRoll[];
   backgroundDevelopmentLegacy?: BackgroundDevelopmentLegacy;
@@ -77,6 +79,12 @@ const numberDie = (value: unknown, maximum: number) => {
 
 export const blankBackgroundLearningPicks = (): BackgroundLearningPick[] =>
   Array.from({ length: 2 }, () => ({ result: "", choice: "", replacement: "" }));
+
+export const blankBackgroundQuickSkillReplacements = (backgroundName = "") =>
+  Array.from(
+    { length: backgrounds[backgroundName]?.quickSkills.length || 2 },
+    () => "",
+  );
 
 export const blankBackgroundDevelopmentRoll = (table: BackgroundRollTable = "growth"): BackgroundDevelopmentRoll => ({
   table,
@@ -243,6 +251,12 @@ export function normalizeBackgroundDevelopment(storedValue: unknown, backgroundN
   const stored = storedValue && typeof storedValue === "object" ? storedValue as Record<string, unknown> : {};
   const method = isMethod(stored.backgroundDevelopmentMethod) ? stored.backgroundDevelopmentMethod : undefined;
   const backgroundCombatSkill = stringValue(stored.backgroundCombatSkill);
+  const rawQuickReplacements = Array.isArray(stored.backgroundQuickSkillReplacements)
+    ? stored.backgroundQuickSkillReplacements
+    : [];
+  const backgroundQuickSkillReplacements = blankBackgroundQuickSkillReplacements(backgroundName).map(
+    (_, index) => stringValue(rawQuickReplacements[index]),
+  );
   const newRollsRaw = Array.isArray(stored.backgroundDevelopmentRolls) ? stored.backgroundDevelopmentRolls : [];
   const newRolls = Array.from({ length: 3 }, (_, index) => normalizeRoll(backgroundName, newRollsRaw[index]));
   const newLearningRaw = Array.isArray(stored.backgroundLearningPicks) ? stored.backgroundLearningPicks : [];
@@ -255,6 +269,7 @@ export function normalizeBackgroundDevelopment(storedValue: unknown, backgroundN
       return {
         backgroundDevelopmentMethod: "review",
         backgroundCombatSkill,
+        backgroundQuickSkillReplacements,
         backgroundLearningPicks: newLearningPicks,
         backgroundDevelopmentRolls: newRolls,
         backgroundDevelopmentLegacy: storedLegacy || legacyRecord("invalid-chosen-any-skill", newRolls, newLearningPicks),
@@ -263,6 +278,7 @@ export function normalizeBackgroundDevelopment(storedValue: unknown, backgroundN
     return {
       backgroundDevelopmentMethod: method,
       backgroundCombatSkill,
+      backgroundQuickSkillReplacements,
       backgroundLearningPicks: newLearningPicks,
       backgroundDevelopmentRolls: newRolls,
       backgroundDevelopmentLegacy: storedLegacy,
@@ -280,6 +296,7 @@ export function normalizeBackgroundDevelopment(storedValue: unknown, backgroundN
       return {
         backgroundDevelopmentMethod: "review",
         backgroundCombatSkill,
+        backgroundQuickSkillReplacements,
         backgroundLearningPicks: learningPicks,
         backgroundDevelopmentRolls: growthRolls,
         backgroundDevelopmentLegacy: legacyRecord(invalidChosenAnySkill ? "invalid-chosen-any-skill" : "combined-growth-learning", growthRolls, learningPicks),
@@ -288,6 +305,7 @@ export function normalizeBackgroundDevelopment(storedValue: unknown, backgroundN
     return {
       backgroundDevelopmentMethod: learningUsed ? "choose-learning" : "roll-growth-learning",
       backgroundCombatSkill,
+      backgroundQuickSkillReplacements,
       backgroundLearningPicks: learningPicks,
       backgroundDevelopmentRolls: growthRolls,
     };
@@ -296,13 +314,18 @@ export function normalizeBackgroundDevelopment(storedValue: unknown, backgroundN
   return {
     backgroundDevelopmentMethod: "quick",
     backgroundCombatSkill,
+    backgroundQuickSkillReplacements,
     backgroundLearningPicks: newLearningPicks,
     backgroundDevelopmentRolls: newRolls,
   };
 }
 
 /** Returns only the currently active development benefits; the Free Skill is handled separately. */
-export function activeBackgroundDevelopmentEntries(backgroundName: string, fields: Pick<BackgroundDevelopmentFields, "backgroundDevelopmentMethod" | "backgroundLearningPicks" | "backgroundDevelopmentRolls">): BackgroundDevelopmentEntry[] {
+export function activeBackgroundDevelopmentEntries(
+  backgroundName: string,
+  fields: Pick<BackgroundDevelopmentFields, "backgroundDevelopmentMethod" | "backgroundLearningPicks" | "backgroundDevelopmentRolls"> &
+    Partial<Pick<BackgroundDevelopmentFields, "backgroundQuickSkillReplacements">>,
+): BackgroundDevelopmentEntry[] {
   const background = backgrounds[backgroundName];
   if (!background) return [];
   if (fields.backgroundDevelopmentMethod === "quick") {
@@ -311,7 +334,7 @@ export function activeBackgroundDevelopmentEntries(backgroundName: string, field
       source: `${backgroundName} Background: Quick Skills`,
       result,
       choice: "",
-      replacement: "",
+      replacement: fields.backgroundQuickSkillReplacements?.[index] || "",
     }));
   }
   if (fields.backgroundDevelopmentMethod === "choose-learning") {

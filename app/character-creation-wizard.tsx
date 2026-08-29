@@ -6,14 +6,16 @@ import {
   blankBackgroundDevelopmentRoll,
   blankBackgroundDevelopmentRolls,
   blankBackgroundLearningPicks,
+  blankBackgroundQuickSkillReplacements,
   rollBackgroundTable,
 } from "./background-development";
-import { fullClasses, partialClasses, traditionKinds } from "./class-data";
+import { fullClasses, partialClasses } from "./class-data";
 import { rollDice } from "./dice";
 import { focusTargetAvailable } from "./phase2-rules";
 import { foci } from "./wwn-data";
 import {
   choiceOptionsForBackgroundResult,
+  artSelectionName,
   creationBackgroundSkillChoiceOptions,
   creationBackgroundSkillChoiceValue,
   creationAttributes,
@@ -22,6 +24,8 @@ import {
   creationFocusChoiceLabel,
   creationFocusChoiceOptions,
   creationNoncombatSkills,
+  creationPartialClassPairIsLegal,
+  creationSkillRankCanBeSelected,
   creationSkillGrantResolutions,
   creationSkills,
   creationSteps,
@@ -69,13 +73,6 @@ const focusCategories: Record<string, string> = {
   Xenoblooded: "Origin",
 };
 const focusCategory = (name: string) => focusCategories[name] || "General";
-const invalidPartialPair = (first: string, second: string) =>
-  first === second ||
-  ((first === "Mageslayer" || second === "Mageslayer") &&
-    traditionKinds[first === "Mageslayer" ? second : first] === "mage") ||
-  ((first === "Invoker" || second === "Invoker") &&
-    traditionKinds[first === "Invoker" ? second : first] === "mage");
-
 function StepTitle({
   eyebrow,
   title,
@@ -258,6 +255,8 @@ export function GuidedCreationWizard({
     change({
       background,
       backgroundCombatSkill: "",
+      backgroundQuickSkillReplacements:
+        blankBackgroundQuickSkillReplacements(background),
       backgroundDevelopmentMethod:
         sheet.backgroundDevelopmentMethod === "review"
           ? "quick"
@@ -308,6 +307,12 @@ export function GuidedCreationWizard({
   const removeFocus = (index: number) =>
     change({ focusPicks: sheet.focusPicks.filter((_, row) => row !== index) });
   const setSkill = (skill: string, rank: number) => {
+    if (!creationSkillRankCanBeSelected(sheet, skill, rank)) {
+      setNotice(
+        "At level 1, the single free creation pick cannot create a skill above level 1 or fund extra skill ranks.",
+      );
+      return;
+    }
     const sourceCount = status.sources[skill].length;
     const storedRank = Math.max(-1, Math.min(1, rank - sourceCount));
     const next = { ...sheet.skillPurchases, [skill]: storedRank };
@@ -372,8 +377,25 @@ export function GuidedCreationWizard({
     field: "choice" | "replacement",
     value: string,
   ) => {
-    if (id === "background-free" || id.startsWith("quick-")) {
+    if (id === "background-free") {
       change({ backgroundCombatSkill: value });
+      return;
+    }
+    if (id.startsWith("quick-")) {
+      const index = Number(id.slice("quick-".length));
+      if (field === "choice") {
+        change({ backgroundCombatSkill: value });
+        return;
+      }
+      change({
+        backgroundQuickSkillReplacements:
+          blankBackgroundQuickSkillReplacements(sheet.background).map(
+            (_, row) =>
+              row === index
+                ? value
+                : sheet.backgroundQuickSkillReplacements[row] || "",
+          ),
+      });
       return;
     }
     if (id.startsWith("learning-")) {
@@ -758,7 +780,7 @@ export function GuidedCreationWizard({
                     value={name}
                     disabled={
                       sheet.classMode === "adventurer" &&
-                      invalidPartialPair(name, sheet.classTwo)
+                      !creationPartialClassPairIsLegal(name, sheet.classTwo)
                     }
                   >
                     {name}
@@ -778,7 +800,7 @@ export function GuidedCreationWizard({
                     <option
                       key={name}
                       value={name}
-                      disabled={invalidPartialPair(sheet.classOne, name)}
+                      disabled={!creationPartialClassPairIsLegal(sheet.classOne, name)}
                     >
                       {name}
                     </option>
@@ -955,6 +977,7 @@ export function GuidedCreationWizard({
                       <option
                         value={2}
                         disabled={
+                          sheet.level !== 1 ||
                           !foci.find((focus) => focus.name === pick.name)
                             ?.level2 ||
                           (pick.level !== 2 &&
@@ -1240,6 +1263,7 @@ export function GuidedCreationWizard({
                     grant.id === "background-free" ||
                     grant.id.startsWith("quick-");
                   const canStoreReplacement =
+                    grant.id.startsWith("quick-") ||
                     grant.id.startsWith("learning-") ||
                     grant.id.startsWith("roll-");
                   const constrainedChoice = choiceOptionsForBackgroundResult(grant.result).length > 0;
@@ -1331,11 +1355,7 @@ export function GuidedCreationWizard({
                         key={rank}
                         value={rank}
                         disabled={
-                          rank <
-                          Math.min(
-                            1,
-                            Math.max(-1, status.sources[skill].length - 1),
-                          )
+                          !creationSkillRankCanBeSelected(sheet, skill, rank)
                         }
                       >
                         {skillRankLabel(rank)}
@@ -1388,29 +1408,46 @@ export function GuidedCreationWizard({
               </h3>
               {Array.from({ length: status.artAllowance }, (_, index) => (
                 <label key={index}>
-                  <span>Art {index + 1}</span>
+                  <span>
+                    {status.forcedArts[index]
+                      ? `Required Art · ${artSelectionName(status.forcedArts[index])}`
+                      : `Art ${index + 1}`}
+                  </span>
                   <select
                     value={sheet.artPicks[index] || ""}
                     onChange={(event) => setArt(index, event.target.value)}
                   >
-                    <option value="">Choose an Art…</option>
+                    <option value="">
+                      {status.forcedArts[index]
+                        ? `Choose ${artSelectionName(status.forcedArts[index])}…`
+                        : "Choose an Art…"}
+                    </option>
                     {status.availableArts
                       .filter((art) => (art.minLevel || 1) <= 1)
+                      .filter(
+                        (art) =>
+                          !status.forcedArts[index] ||
+                          art.value === status.forcedArts[index],
+                      )
                       .map((art) => {
                         const prerequisiteMissing =
                           art.name === "Deep Apprehension" &&
-                          !sheet.artPicks.includes("Surface Apprehension");
+                          !sheet.artPicks.some(
+                            (choice) =>
+                              artSelectionName(choice) ===
+                              "Surface Apprehension",
+                          );
                         const duplicate =
                           art.name !== "Skilled" &&
                           sheet.artPicks.some(
                             (choice, row) =>
-                              row !== index && choice === art.name,
+                              row !== index && choice === art.value,
                           );
                         const available = !prerequisiteMissing && !duplicate;
                         return (
                           <option
                             key={`${art.tradition}-${art.name}`}
-                            value={art.name}
+                            value={art.value}
                             disabled={!available}
                           >
                             {art.tradition} · {art.name}

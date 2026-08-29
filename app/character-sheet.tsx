@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
-import { artSlots, casterLimits, classRules, dualCasterLimits, fullClasses, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
+import { artSlots, casterLimits, classRules, dualCasterLimits, forcedArtsForTraditions, fullClasses, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
 import { backgroundNames, backgrounds } from "./background-data";
 import {
   activeBackgroundDevelopmentEntries,
@@ -14,6 +14,7 @@ import {
   blankBackgroundDevelopmentRoll,
   blankBackgroundDevelopmentRolls,
   blankBackgroundLearningPicks,
+  blankBackgroundQuickSkillReplacements,
   normalizeBackgroundDevelopment,
   resolveBackgroundSkillGrants,
   resolvedBackgroundRollResult,
@@ -37,7 +38,12 @@ import { guidedCreationModeFromUrl, withGuidedCreationMode } from "./guided-crea
 import {
   creationBackgroundSkillChoiceOptions,
   creationBackgroundSkillChoiceValue,
+  artSelectionName,
+  artSelectionValue,
+  creationArtForSelection,
   creationFocusBonusSkill,
+  creationFocusChoiceOptions,
+  creationPartialClassPairIsLegal,
   creationSkillGrantResolutions,
   creationSkillGrants,
   creationSkillSources,
@@ -229,6 +235,7 @@ const initial = {
   background: "Scholar",
   backgroundDevelopmentMethod: "quick" as BackgroundDevelopmentMethod,
   backgroundCombatSkill: "",
+  backgroundQuickSkillReplacements: blankBackgroundQuickSkillReplacements("Scholar"),
   backgroundLearningPicks: blankBackgroundLearningPicks() as BackgroundLearningPick[],
   backgroundDevelopmentRolls: blankBackgroundDevelopmentRolls() as BackgroundDevelopmentRoll[],
   backgroundDevelopmentLegacy: undefined as BackgroundDevelopmentLegacy | undefined,
@@ -318,6 +325,7 @@ const blankCharacter: Sheet = {
   background: "",
   backgroundDevelopmentMethod: "quick" as BackgroundDevelopmentMethod,
   backgroundCombatSkill: "",
+  backgroundQuickSkillReplacements: blankBackgroundQuickSkillReplacements(),
   backgroundLearningPicks: blankBackgroundLearningPicks(),
   backgroundDevelopmentRolls: blankBackgroundDevelopmentRolls(),
   backgroundDevelopmentLegacy: undefined as BackgroundDevelopmentLegacy | undefined,
@@ -457,14 +465,14 @@ const backgroundAttributeGrowth = (state: Pick<Sheet, "background" | "background
 const focusBonusSkill = (pick: FocusPick) => creationFocusBonusSkill(pick);
 
 const backgroundSkillGrants = (
-  state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">,
+  state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundQuickSkillReplacements" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">,
   developmentEntries = activeBackgroundDevelopmentEntries(state.background, state),
 ) => creationSkillGrants(state, developmentEntries);
 
-const backgroundSkillGrantResolutions = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) =>
+const backgroundSkillGrantResolutions = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundQuickSkillReplacements" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) =>
   creationSkillGrantResolutions(state);
 
-const legacyReviewSkillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "backgroundDevelopmentLegacy" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => {
+const legacyReviewSkillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundQuickSkillReplacements" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "backgroundDevelopmentLegacy" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => {
   const legacy = state.backgroundDevelopmentLegacy;
   const entries = legacy ? [
     ...legacy.growthRolls.flatMap((roll, index) => {
@@ -491,7 +499,7 @@ const legacyReviewSkillSourcesFor = (state: Pick<Sheet, "background" | "backgrou
 };
 
 /** Returns each active rule source without folding it into purchased ranks. */
-const skillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => creationSkillSources(state);
+const skillSourcesFor = (state: Pick<Sheet, "background" | "backgroundDevelopmentMethod" | "backgroundCombatSkill" | "backgroundQuickSkillReplacements" | "backgroundLearningPicks" | "backgroundDevelopmentRolls" | "classMode" | "classOne" | "classTwo" | "focusPicks" | "vowedEffortSkill" | "wiseConceptSkill">) => creationSkillSources(state);
 
 const migratedSkillPurchases = (stored: Partial<Sheet>) => {
   if (stored.skillPurchases && typeof stored.skillPurchases === "object") {
@@ -659,6 +667,7 @@ function createBlankSheet(): Sheet {
     attrs: { ...blankCharacter.attrs },
     skills: { ...blankCharacter.skills },
     skillPurchases: { ...blankCharacter.skillPurchases },
+    backgroundQuickSkillReplacements: [...blankCharacter.backgroundQuickSkillReplacements],
     backgroundLearningPicks: blankCharacter.backgroundLearningPicks.map(pick => ({ ...pick })),
     backgroundDevelopmentRolls: blankCharacter.backgroundDevelopmentRolls.map(roll => ({ ...roll, attributeChoices: [...roll.attributeChoices] })),
     focusPicks: [],
@@ -1436,6 +1445,7 @@ export default function Home({
       ...current,
       background,
       backgroundCombatSkill: "",
+      backgroundQuickSkillReplacements: blankBackgroundQuickSkillReplacements(background),
       backgroundDevelopmentMethod: current.backgroundDevelopmentMethod === "review" ? "quick" : current.backgroundDevelopmentMethod,
       backgroundLearningPicks: blankBackgroundLearningPicks(),
       backgroundDevelopmentRolls: blankBackgroundDevelopmentRolls(),
@@ -2123,8 +2133,8 @@ export default function Home({
   const vowedArmorBase = selectedClasses.includes("Vowed") && wornArmor.name === "No Armor" && !sheet.shield
     ? 13 + Math.floor(effectiveLevel / 2)
     : 0;
-  const coldFleshArmorBase = sheet.artPicks.includes("Cold Flesh") ? 12 + Math.floor(effectiveLevel / 2) : 0;
-  const pavisIndex = sheet.artPicks.indexOf("Pavis of Elements");
+  const coldFleshArmorBase = sheet.artPicks.some(name => artSelectionName(name) === "Cold Flesh") ? 12 + Math.floor(effectiveLevel / 2) : 0;
+  const pavisIndex = sheet.artPicks.findIndex(name => artSelectionName(name) === "Pavis of Elements");
   const pavisActive = pavisIndex >= 0 && Boolean(sheet.artEffort[pavisIndex]);
   const defensiveBase = Math.max(bestArmorBase, vowedArmorBase, coldFleshArmorBase + (sheet.shield ? 1 : 0));
   const calculatedAcBeforePavis = defensiveBase + attributeMod("DEX") + (sheet.armorBonus || 0);
@@ -2148,17 +2158,20 @@ export default function Home({
   const calculatedHpMax = hpRollsComplete ? calculatedHp : sheet.hpMax;
   const availableArts = artTraditions.flatMap(t => {
     const arts = t === "High Mage" ? highMageArts : traditionInfo[t].arts;
-    return arts.map(a => ({...a, minLevel: "minLevel" in a ? a.minLevel : undefined, tradition:t}));
+    return arts.map(a => ({...a, minLevel: "minLevel" in a ? a.minLevel : undefined, tradition:t, value: artSelectionValue(t, a.name)}));
   });
+  const forcedArts = artTraditions.flatMap(t =>
+    forcedArtsForTraditions([t]).map(name => artSelectionValue(t, name)),
+  );
   const repeatableArt = (name: string) => name === "Skilled";
   const artEligibility = (name: string, slotIndex: number) => {
-    const art = availableArts.find(candidate => candidate.name === name);
+    const art = creationArtForSelection(availableArts, name);
     if (!art) return { eligible: false, reason: "This Art is not available to the character’s traditions." };
     if ((art.minLevel || 1) > effectiveLevel) return { eligible: false, reason: `Requires level ${art.minLevel}.` };
-    if (name === "Deep Apprehension" && !sheet.artPicks.includes("Surface Apprehension")) {
+    if (artSelectionName(name) === "Deep Apprehension" && !sheet.artPicks.some(selection => artSelectionName(selection) === "Surface Apprehension")) {
       return { eligible: false, reason: "Requires Surface Apprehension." };
     }
-    if (!repeatableArt(name) && sheet.artPicks.some((picked, index) => index !== slotIndex && picked === name)) {
+    if (!repeatableArt(artSelectionName(name)) && sheet.artPicks.some((picked, index) => index !== slotIndex && picked === name)) {
       return { eligible: false, reason: "This Art cannot be selected more than once." };
     }
     return { eligible: true, reason: "" };
@@ -2174,11 +2187,13 @@ export default function Home({
     const max = traditionalEducationTradition === t
       ? Math.max(1, effectiveSkill("Magic"))
       : info.usesEffort === false ? 0 : Math.max(1, info.effortBase + effectiveSkill(skill) + attribute - partialPenalty);
-    const used = sheet.artPicks.filter((name,i) => sheet.artEffort[i] && availableArts.find(a=>a.name===name)?.tradition === t).length;
+    const used = sheet.artPicks.filter((name,i) => sheet.artEffort[i] && creationArtForSelection(availableArts, name)?.tradition === t).length;
     return {tradition:t,skill,max,used};
   });
   const availableSpells = [
-    ...highMagic.map(s => ({...s, tradition:"High Magic"})),
+    ...(castingTraditions.includes("High Mage") || castingTraditions.includes("Invoker") || traditionalEducationTradition
+      ? highMagic.map(s => ({...s, tradition:"High Magic"}))
+      : []),
     ...(castingTraditions.includes("Elementalist") || traditionalEducationTradition === "Elementalist" ? traditionSpells.Elementalist.map(s => ({...s,tradition:"Elementalist"})) : []),
     ...(castingTraditions.includes("Necromancer") || traditionalEducationTradition === "Necromancer" ? traditionSpells.Necromancer.map(s => ({...s,tradition:"Necromancer"})) : []),
   ];
@@ -2312,14 +2327,15 @@ export default function Home({
     if (preparedCount > limits.prepared) issues.push(`${preparedCount}/${limits.prepared} spells prepared`);
     if (castsUsed > limits.casts) issues.push(isInvoker ? `${castsUsed}/${limits.casts} Invoker spell points spent` : `${castsUsed}/${limits.casts} spell castings used`);
     if (sheet.artPicks.filter(Boolean).length > artAllowance) issues.push(`${sheet.artPicks.filter(Boolean).length}/${artAllowance} arts selected`);
+    if (forcedArts.some(name => !sheet.artPicks.some(selection => creationArtForSelection(availableArts, selection)?.value === name))) issues.push("choose each required starting Art");
     if (sheet.spellPicks.some(p => (availableSpells.find(s => s.name === p.name)?.level ?? 0) > limits.max)) issues.push(`spell above level ${limits.max}`);
-    if (sheet.artPicks.some(name => name && !availableArts.some(a => a.name === name))) issues.push("an art belongs to a different tradition");
+    if (sheet.artPicks.some(name => name && !creationArtForSelection(availableArts, name))) issues.push("an art belongs to a different tradition");
     if (sheet.classMode === "adventurer" && sheet.classOne === sheet.classTwo) issues.push("choose two different partial classes");
-    if (selectedClasses.includes("Mageslayer") && selectedClasses.some(name => traditionKinds[name] === "mage")) issues.push("Mageslayer cannot be combined with a Mage partial class");
-    if (sheet.classMode === "adventurer" && isInvoker && castingTraditions.length > 1) issues.push("Partial Invoker cannot be combined with another partial spellcaster");
+    if (sheet.classMode === "adventurer" && !creationPartialClassPairIsLegal(sheet.classOne, sheet.classTwo)) issues.push("choose a legal partial class pairing");
     if (traditionalEducation && !isInvoker) issues.push("Traditional Education is available only to Invokers");
     if (focusPicksUsed > rules.focusPicks) issues.push(`${focusPicksUsed}/${rules.focusPicks} Focus picks used`);
     if (selectedFocusPicks.some(pick => focusChoiceLabel(pick.name) && !pick.choice)) issues.push("a Focus needs a choice");
+    if (selectedFocusPicks.some(pick => pick.choice && creationFocusChoiceOptions(pick.name).length && !creationFocusChoiceOptions(pick.name).includes(pick.choice))) issues.push("a Focus has an invalid choice");
     if (selectedClasses.includes("Wise") && !sheet.wiseConceptSkill) issues.push("choose the Wise concept bonus skill");
     if (sheet.backgroundDevelopmentMethod === "review") {
       issues.push("review legacy Background Development before applying a method");
@@ -2984,19 +3000,11 @@ export default function Home({
                 <label className="field class-field">
                   <span>Class</span>
                   <select aria-label={sheet.classMode === "full" ? "Class" : "First partial class"} value={sheet.classOne} onChange={e => patch("classOne", e.target.value)}><option value="">{sheet.classMode === "full" ? "Choose a class…" : "Choose first partial class…"}</option>{(sheet.classMode === "full" ? fullClasses : partialClasses).map(c => {
-                    const incompatible = sheet.classMode === "adventurer" && Boolean(sheet.classTwo) && (
-                      c === sheet.classTwo
-                      || (c === "Mageslayer" && traditionKinds[sheet.classTwo] === "mage")
-                      || (sheet.classTwo === "Mageslayer" && traditionKinds[c] === "mage")
-                      || ((c === "Invoker" || sheet.classTwo === "Invoker") && traditionKinds[c === "Invoker" ? sheet.classTwo : c] === "mage")
-                    );
+                    const incompatible = sheet.classMode === "adventurer" && Boolean(sheet.classTwo) && !creationPartialClassPairIsLegal(c, sheet.classTwo);
                     return <option key={c} disabled={incompatible}>{c}</option>;
                   })}</select>
                   {sheet.classMode === "adventurer" && <select aria-label="Second partial class" value={sheet.classTwo} onChange={e => patch("classTwo", e.target.value)}><option value="">Choose second partial class…</option>{partialClasses.map(c => {
-                    const incompatible = c === sheet.classOne
-                      || (c === "Mageslayer" && traditionKinds[sheet.classOne] === "mage")
-                      || (sheet.classOne === "Mageslayer" && traditionKinds[c] === "mage")
-                      || ((c === "Invoker" || sheet.classOne === "Invoker") && traditionKinds[c === "Invoker" ? sheet.classOne : c] === "mage");
+                    const incompatible = !creationPartialClassPairIsLegal(sheet.classOne, c);
                     return <option key={c} disabled={incompatible}>{c}</option>;
                   })}</select>}
                 </label>
@@ -3138,6 +3146,22 @@ export default function Home({
                       <strong>Quick Skills Package</strong>
                       <span>Applies {backgrounds[sheet.background].quickSkills.join(" · ")}.</span>
                     </div>}
+                    {sheet.backgroundDevelopmentMethod === "quick" && backgroundGrantResolutions
+                      .filter(grant => grant.id.startsWith("quick-") && grant.needsReplacement)
+                      .map(grant => {
+                        const index = Number(grant.id.slice("quick-".length));
+                        return <label className="field background-skill-method" key={grant.id}>
+                          <span>Replace capped Quick Skill: {grant.rawSkill}</span>
+                          <select
+                            value={grant.replacementOptions.includes(grant.replacement || "") ? grant.replacement || "" : ""}
+                            onChange={event => patch("backgroundQuickSkillReplacements", blankBackgroundQuickSkillReplacements(sheet.background).map((_, row) => row === index ? event.target.value : sheet.backgroundQuickSkillReplacements[row] || ""))}
+                          >
+                            <option value="">Choose another skill…</option>
+                            {grant.replacementOptions.map(skill => <option key={skill} value={skill}>{skill}</option>)}
+                          </select>
+                          <small className="background-choice-note">This Quick Skill would be a third starting acquisition. Pick a skill that is still below level 1.</small>
+                        </label>;
+                      })}
                     {sheet.backgroundDevelopmentMethod === "choose-learning" && <div className="background-growth">
                       <div className="background-growth-heading"><strong>Choose Learning</strong><span>Choose exactly two results from this background’s Learning table. Any Skill cannot be deliberately selected.</span></div>
                       <div className="background-learning-rows">
@@ -3266,7 +3290,7 @@ export default function Home({
                     const eligibility = focusEligibility(f.name, i);
                     return <option key={f.name} disabled={!eligibility.eligible} title={eligibility.reason}>{f.name}{eligibility.eligible ? "" : " — unavailable"}</option>;
                   })}</select>
-                  <select value={pick.level} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,level:Number(e.target.value)}:x))}><option value={1}>Lvl 1</option><option value={2} disabled={!focus?.level2 || (pick.level !== 2 && focusPicksUsed >= allowedFocusPicks)}>Lvl 2</option></select>
+                  <select value={pick.level} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,level:Number(e.target.value)}:x))}><option value={1}>Lvl 1</option><option value={2} disabled={sheet.level < 2 || !focus?.level2 || (pick.level !== 2 && focusPicksUsed >= allowedFocusPicks)}>Lvl 2</option></select>
                   {pick.name === "Developed Attribute" && <select aria-label="Developed Attribute choice" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose attribute…</option>{attributes.map(attribute => { const available = focusTargetAvailable(sheet.focusPicks, "Developed Attribute", attribute, i); return <option key={attribute} disabled={!available}>{attribute}{available ? "" : " — already improved"}</option>; })}</select>}
                   {pick.name === "Xenoblooded" && <select aria-label="Xenoblooded gravity adaptation" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose heritage benefit…</option><option>STR +1 / DEX -1</option><option>DEX +1 / STR -1</option><option value="Other">Other non-stat benefit</option></select>}
                   {pick.name === "Traditional Education" && <select aria-label="Traditional Education tradition" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose tradition…</option><option>High Mage</option><option>Elementalist</option><option>Necromancer</option></select>}
@@ -3395,7 +3419,7 @@ export default function Home({
             </div>
           </Section>}
           <Section title="Arts" aside={<span className="caption">{artTraditions.join(" + ")} · {sheet.artPicks.filter(Boolean).length}/{artAllowance} available by level {sheet.level}</span>}>
-            <div className="arts-grid">{sheet.artPicks.map((name,i)=>{const art=availableArts.find(a=>a.name===name);return <div className={`art-card ${dragging?.kind==="art"&&dragging.index===i ? "dragging":""}`} key={i} data-drag-kind="art" data-drag-index={i}
+            <div className="arts-grid">{sheet.artPicks.map((name,i)=>{const art=creationArtForSelection(availableArts, name);const requiredArt = forcedArts[i];return <div className={`art-card ${dragging?.kind==="art"&&dragging.index===i ? "dragging":""}`} key={i} data-drag-kind="art" data-drag-index={i}
               onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const from=Number(e.dataTransfer.getData("text/plain"));if(Number.isInteger(from))moveItem("art",from,i);setDragging(null)}}>
               <button className="drag-handle" aria-label={`Reorder ${name || `art row ${i+1}`}`} title="Drag to reorder"
                 draggable onDragStart={e=>{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",String(i));setDragging({kind:"art",index:i})}} onDragEnd={()=>setDragging(null)}
@@ -3404,10 +3428,10 @@ export default function Home({
                 const next = e.target.value;
                 if (next && !artEligibility(next, i).eligible) { setTransferMessage(artEligibility(next, i).reason); return; }
                 patch("artPicks",sheet.artPicks.map((x,j)=>j===i?next:x));
-              }}><option value="">Choose an art…</option>{artTraditions.filter(t=>t!=="Invoker").map(t=><optgroup key={t} label={t}>{availableArts.filter(a=>a.tradition===t).map(a=>{
-                const eligibility = artEligibility(a.name, i);
-                return <option disabled={!eligibility.eligible} key={`${t}-${a.name}`}>{a.name}{eligibility.eligible ? "" : ` — ${eligibility.reason}`}</option>;
-              })}</optgroup>)}</select>{art ? <Tip title="?"><RulesTooltip name={art.name} text={art.text} extra={art.minLevel ? `Minimum level ${art.minLevel}.` : undefined}/></Tip> :
+              }}><option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : "Choose an art…"}</option>{artTraditions.filter(t=>t!=="Invoker").map(t=><optgroup key={t} label={t}>{availableArts.filter(a=>(!requiredArt || a.value===requiredArt) && a.tradition===t).map(a=>{
+                const eligibility = artEligibility(a.value, i);
+                return <option value={a.value} disabled={!eligibility.eligible} key={`${t}-${a.name}`}>{a.name}{eligibility.eligible ? "" : ` — ${eligibility.reason}`}</option>;
+              })}</optgroup>)}</select>{requiredArt && <small>Required starting Art</small>}{art ? <Tip title="?"><RulesTooltip name={art.name} text={art.text} extra={art.minLevel ? `Minimum level ${art.minLevel}.` : undefined}/></Tip> :
                 <span className="slot-number" aria-label={`Art selection ${i + 1}`}>{i + 1}</span>}<label className="check"><input type="checkbox" checked={Boolean(sheet.artEffort[i])} disabled={!name || (Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked) || (!sheet.artEffort[i] && (effortPools.find(p=>p.tradition===art?.tradition)?.used ?? 0) >= (effortPools.find(p=>p.tradition===art?.tradition)?.max ?? 0))} onChange={e=>patch("artEffort",sheet.artPicks.map((_,j)=>j===i?e.target.checked:Boolean(sheet.artEffort[j])))}/><span>Effort</span></label></div>})}</div>
             {!sheet.artPicks.length && <p className="empty-slots">This class has no Art selections at the current level.</p>}
           </Section>

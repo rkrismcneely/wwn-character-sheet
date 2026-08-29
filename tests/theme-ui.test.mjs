@@ -8,7 +8,7 @@ test("the display theme is a root-level persistent preference", async () => {
   const layout = await source("app/layout.tsx");
   const provider = await source("app/theme-provider.tsx");
 
-  assert.match(layout, /<ThemeProvider>\{children\}<\/ThemeProvider>/u);
+  assert.match(layout, /<ThemeProvider>\{children\}<SiteFooter \/><\/ThemeProvider>/u);
   assert.match(layout, /dangerouslySetInnerHTML/u);
   assert.match(layout, /localStorage\.getItem\("wwn-display-theme"\)/u);
   assert.match(provider, /DISPLAY_THEME_STORAGE_KEY = "wwn-display-theme"/u);
@@ -61,8 +61,7 @@ test("sitewide dark styling covers signed-in, public, and campaign surfaces with
     "Save Now",
     "Export Character",
     "Import Character",
-    "Sign Out",
-    "Print / PDF",
+    "Print",
   ]) {
     assert.ok(sheet.includes(control), `character header must retain ${control}`);
   }

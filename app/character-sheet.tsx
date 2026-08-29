@@ -51,7 +51,7 @@ import {
 } from "./character-creation";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { authClient } from "@/lib/auth-client";
-import { TalesBrandLink } from "./app-header";
+import { SignedInHeader, TalesBrandLink } from "./app-header";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 
@@ -919,13 +919,8 @@ export default function Home({
   const { theme: displayTheme } = useDisplayTheme();
   const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
   const { style: diceStyle } = useDiceStylePreference();
-  const {
-    data: session,
-    isPending: sessionPending,
-    refetch: refetchSession,
-  } = authClient.useSession();
-  const [locallySignedOut, setLocallySignedOut] = useState(false);
-  const signedIn = Boolean(session?.user?.id) && !locallySignedOut;
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const signedIn = Boolean(session?.user?.id);
   const isAdmin = signedIn && session?.user?.role === "admin";
   const [tab, setTab] = useState<Tab>("core");
   const [creationEntry, setCreationEntry] = useState<"none" | "choose" | "guided" | "blank">(
@@ -2683,7 +2678,14 @@ export default function Home({
   return (
     <main>
       <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />
-      <div className="topbar">
+      <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
+      {signedIn ? <SignedInHeader utilities={<>
+        <span className="save-state"><span className="dot" />{saved}</span>
+        {canEdit && creationEntry !== "choose" && (cloudId
+          ? <button type="button" onClick={() => void saveToCloud()}>Save Now</button>
+          : <button type="button" onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
+        <button type="button" className="print-button" onClick={() => window.print()}>Print</button>
+      </>} /> : <div className="topbar">
         <TalesBrandLink href={signedIn ? "/account" : "/"} />
         <div className="status">
           <div className="status-meta">
@@ -2719,48 +2721,10 @@ export default function Home({
                 }
               }}
             >Sign in with Google</button>}
-            {signedIn && <a className="quiet account-state" href="/account">Account</a>}
-            {signedIn && canEdit && creationEntry !== "choose" && (cloudId
-              ? <button onClick={() => void saveToCloud()}>Save Now</button>
-              : <button onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
-            {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <button type="button" onClick={() => {
-              setGuidedCreationMode(true);
-            }}>Guided Creation</button>}
-            {signedIn && canEdit && <button onClick={() => void exportCharacter()}>Export Character</button>}
-            {signedIn && <button onClick={() => importInput.current?.click()}>Import Character</button>}
-            <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
-            {signedIn && <button
-              type="button"
-              className="account-signout"
-              onClick={async () => {
-                setLibraryError("");
-                try {
-                  const { error } = await authClient.signOut();
-                  if (error) {
-                    throw new Error(error.message || "Better Auth rejected sign out.");
-                  }
-                  setLocallySignedOut(true);
-                  setCloudCanEdit(false);
-                  setCloudAdminReadOnly(false);
-                  setLibraryScope("public");
-                  setSaved(cloudId ? "Read-only" : "Sign in to edit");
-                  setTransferMessage("Signed out. Owner-only controls have been disabled.");
-                  await refetchSession();
-                  void refreshLibrary("public");
-                } catch (error) {
-                  const detail = error instanceof Error
-                    ? error.message
-                    : "The request could not be completed.";
-                  const feedback = `Sign out failed: ${detail}`;
-                  setTransferMessage(feedback);
-                  setLibraryError(feedback);
-                }
-              }}
-            >Sign Out</button>}
             <button className="print-button" onClick={() => window.print()}>Print / PDF</button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {campaignContext && (
         <div className="campaign-character-context" role="status">
@@ -2901,6 +2865,14 @@ export default function Home({
           onFinish={() => closeGuidedCreation(true)}
         /> : <>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
+        {signedIn && <details className="character-sheet-tools" data-readonly-interactive="true">
+          <summary>Character tools</summary>
+          <div>
+            {canEdit && creationEntry !== "choose" && sheet.level === 1 && <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>}
+            {canEdit && <button type="button" onClick={() => void exportCharacter()}>Export Character</button>}
+            <button type="button" onClick={() => importInput.current?.click()}>Import Character</button>
+          </div>
+        </details>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
           <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
           <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
@@ -3846,7 +3818,6 @@ export default function Home({
           {cloudVisibility !== "private" && <button type="button" onClick={() => void copyShareLink()}>Copy Share Link</button>}
           <small className="character-sharing-status">{cloudVisibility === "private" ? "Not available to other visitors." : cloudVisibility === "unlisted" ? "Viewable at its stable link, but absent from Public Characters." : "Viewable at its stable link and listed in Public Characters."}</small>
         </section>}
-        <footer>Rules authority: Worlds Without Number SRD 1.0 (March 13, 2024, CC0). Fan-made utility; not an official Sine Nomine product.</footer>
         </>}
       </div>
     </main>

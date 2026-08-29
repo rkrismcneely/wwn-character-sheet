@@ -512,7 +512,7 @@ export function GuidedCreationWizard({
       return (
         <>
           <StepTitle
-            eyebrow="Step 2 · Existing SRD attribute rules"
+            eyebrow="Step 2 · Choose your attributes"
             title="Attributes"
           >
             <p>
@@ -1521,9 +1521,9 @@ export function GuidedCreationWizard({
             title="Equipment"
           >
             <p>
-              The SRD permits a GM-provided package or a `3d6 × 10`
-              starting-silver roll. TWE has no campaign package data, so this
-              step records the roll and uses the normal inventory directly.
+              Choose a GM-provided package or roll `3d6 × 10` starting silver.
+              This folio records the result and keeps equipment in the normal
+              inventory.
             </p>
           </StepTitle>
           <div className="creation-equipment-start">

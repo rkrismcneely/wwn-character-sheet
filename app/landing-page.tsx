@@ -60,7 +60,6 @@ export function LandingPage() {
       <header className="landing-header">
         <TalesBrandLink href="/" />
         <nav aria-label="Primary navigation">
-          <Link href="/public-characters">Browse Public Characters</Link>
           <GoogleSignInButton className="landing-button landing-button-small" />
         </nav>
       </header>
@@ -138,11 +137,6 @@ export function LandingPage() {
           <Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link>
         </div>
       </section>
-
-      <footer className="landing-footer">
-        <span>Tales Without End</span>
-        <p>Unofficial fan-made character tool. Not affiliated with or endorsed by Sine Nomine Publishing.</p>
-      </footer>
     </main>
   );
 }

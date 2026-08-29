@@ -317,10 +317,6 @@ export function DashboardPage() {
         </aside>
       </div>
 
-      <footer className="dashboard-footer">
-        <span>Tales Without End</span>
-        <span>Private by default · Owners control sharing</span>
-      </footer>
     </main>
   );
 }

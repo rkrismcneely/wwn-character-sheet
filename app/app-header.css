@@ -53,7 +53,8 @@
 html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
 
 .app-header nav,
-.header-actions{
+.header-actions,
+.app-header-utilities{
   display:flex;
   align-items:center;
   justify-content:flex-end;
@@ -61,6 +62,11 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
   gap:var(--twe-header-control-gap);
   min-width:0;
   font:12px var(--font-ui);
+}
+
+.app-header-utilities{
+  margin-left:auto;
+  gap:var(--twe-header-control-gap);
 }
 
 .status{
@@ -86,6 +92,7 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
 
 .app-header nav a,
 .app-header nav button,
+.app-header-utilities button,
 .status button,
 .status .account-state{
   box-sizing:border-box;
@@ -128,6 +135,7 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
 }
 
 .app-header nav button:disabled{cursor:wait;opacity:.65}
+.app-header-utilities .save-state{color:#d8ccb8;font:12px var(--font-ui)}
 
 .app-header-error{
   width:min(1320px,calc(100% - 48px));
@@ -146,7 +154,9 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
     padding:10px 18px;
   }
 
-  .app-header nav{flex:1 1 500px}
+  .app-header nav{flex:0 1 auto}
+
+  .app-header-utilities{margin-left:auto}
 
   .topbar{
     display:flex;
@@ -199,7 +209,8 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
     padding:10px 14px;
   }
 
-  .app-header nav{
+  .app-header nav,
+  .app-header-utilities{
     width:100%;
     justify-content:flex-start;
     gap:6px;
@@ -227,6 +238,7 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
 
   .app-header nav a,
   .app-header nav button,
+  .app-header-utilities button,
   .status button,
   .status .account-state{
     min-height:var(--twe-header-control-height);
@@ -252,12 +264,14 @@ html[data-theme="dark"] .twe-brand strong{color:#f2c76f}
   }
 
   .app-header nav,
-  .header-actions{
+  .header-actions,
+  .app-header-utilities{
     gap:5px;
   }
 
   .app-header nav a,
   .app-header nav button,
+  .app-header-utilities button,
   .status button,
   .status .account-state{
     padding-inline:7px;

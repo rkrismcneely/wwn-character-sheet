@@ -390,9 +390,10 @@ test("visible Google sign-in controls keep direct Better Auth click paths", asyn
 test("sign-out removes access to owner-only operations", async () => {
   assert.deepEqual(authorizeCharacterWrite(owner, privateCharacter), { allowed: true });
   assert.deepEqual(authorizeCharacterWrite(null, privateCharacter), { allowed: false, status: 401 });
-  const page = await source("app/character-sheet.tsx");
-  assert.match(page, /className="account-signout"[\s\S]*authClient\.signOut\(\)[\s\S]*setLocallySignedOut\(true\)[\s\S]*setCloudCanEdit\(false\)[\s\S]*refetchSession\(\)/u);
-  assert.match(page, /Sign out failed:/u);
+  const header = await source("app/app-header.tsx");
+  assert.match(header, /authClient\.signOut\(\)/u);
+  assert.match(header, /window\.location\.assign\("\/"\)/u);
+  assert.match(header, /Sign out could not be completed\./u);
 });
 
 test("auth build configuration references runtime binding names without secret values", async () => {

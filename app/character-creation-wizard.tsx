@@ -24,6 +24,7 @@ import {
   creationSkills,
   creationSteps,
   levelOneCreationStatus,
+  manualBackgroundLearningOptions,
   standardCreationArray,
   type CreationAttribute,
   type LevelOneCreationCharacter,
@@ -1104,8 +1105,7 @@ export function GuidedCreationWizard({
                         }
                       >
                         <option value="">Choose…</option>
-                        {backgrounds[sheet.background].learning
-                          .filter((result) => result !== "Any Skill")
+                        {manualBackgroundLearningOptions(sheet.background)
                           .map((result) => (
                             <option key={result}>{result}</option>
                           ))}
@@ -1242,11 +1242,13 @@ export function GuidedCreationWizard({
                     grant.id.startsWith("roll-");
                   const options =
                     grant.needsReplacement && canStoreReplacement
-                      ? [...creationSkills]
+                      ? grant.replacementOptions
                       : choiceOptionsForBackgroundResult(grant.result);
                   const value =
                     grant.needsReplacement && canStoreReplacement
-                      ? grant.replacement || ""
+                      ? grant.replacementOptions.includes(grant.replacement || "")
+                        ? grant.replacement || ""
+                        : ""
                       : grant.choice || grant.combatChoice || "";
                   const field =
                     grant.needsReplacement && canStoreReplacement
@@ -1261,6 +1263,12 @@ export function GuidedCreationWizard({
                     <label key={grant.id}>
                       <span>
                         {grant.source}: {label}
+                        {grant.needsReplacement && (
+                          <small>
+                            {grant.rawSkill} is already at the level-1 starting
+                            maximum. Choose a different skill.
+                          </small>
+                        )}
                       </span>
                       <select
                         value={value}

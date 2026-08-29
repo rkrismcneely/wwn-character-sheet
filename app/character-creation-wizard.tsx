@@ -14,6 +14,8 @@ import { focusTargetAvailable } from "./phase2-rules";
 import { foci } from "./wwn-data";
 import {
   choiceOptionsForBackgroundResult,
+  creationBackgroundSkillChoiceOptions,
+  creationBackgroundSkillChoiceValue,
   creationAttributes,
   backgroundAttributeChoices,
   backgroundAttributePointCount,
@@ -1223,7 +1225,7 @@ export function GuidedCreationWizard({
             </section>
           )}
           {backgroundGrants.some(
-            (grant) => grant.needsChoice || grant.needsReplacement,
+            (grant) => choiceOptionsForBackgroundResult(grant.result).length > 0 || grant.needsReplacement,
           ) && (
             <section className="creation-choice-resolutions">
               <h3>Resolve Background choices</h3>
@@ -1232,7 +1234,7 @@ export function GuidedCreationWizard({
                 method. The ledger updates immediately.
               </p>
               {backgroundGrants
-                .filter((grant) => grant.needsChoice || grant.needsReplacement)
+                .filter((grant) => choiceOptionsForBackgroundResult(grant.result).length > 0 || grant.needsReplacement)
                 .map((grant) => {
                   const usesSharedCombatChoice =
                     grant.id === "background-free" ||
@@ -1240,22 +1242,20 @@ export function GuidedCreationWizard({
                   const canStoreReplacement =
                     grant.id.startsWith("learning-") ||
                     grant.id.startsWith("roll-");
-                  const options =
-                    grant.needsReplacement && canStoreReplacement
-                      ? grant.replacementOptions
-                      : choiceOptionsForBackgroundResult(grant.result);
-                  const value =
-                    grant.needsReplacement && canStoreReplacement
-                      ? grant.replacementOptions.includes(grant.replacement || "")
-                        ? grant.replacement || ""
-                        : ""
-                      : grant.choice || grant.combatChoice || "";
-                  const field =
-                    grant.needsReplacement && canStoreReplacement
-                      ? ("replacement" as const)
-                      : ("choice" as const);
+                  const constrainedChoice = choiceOptionsForBackgroundResult(grant.result).length > 0;
+                  const options = constrainedChoice
+                    ? creationBackgroundSkillChoiceOptions(sheet, grant.id)
+                    : grant.replacementOptions;
+                  const value = constrainedChoice
+                    ? creationBackgroundSkillChoiceValue(sheet, grant.id)
+                    : grant.replacementOptions.includes(grant.replacement || "")
+                      ? grant.replacement || ""
+                      : "";
+                  const field = constrainedChoice || !canStoreReplacement
+                    ? ("choice" as const)
+                    : ("replacement" as const);
                   const label = grant.needsReplacement
-                    ? usesSharedCombatChoice
+                    ? usesSharedCombatChoice || grant.result.startsWith("Any Combat")
                       ? "choose a different combat skill"
                       : "choose another skill"
                     : grant.result;

@@ -380,7 +380,10 @@ export function resolveBackgroundSkillGrants(
       counts[rawSkill] += 1;
       return { ...grant, rawSkill, resolvedSkill: rawSkill, needsChoice: false, needsReplacement: false, replacementOptions: [] };
     }
-    const replacementOptions = legalBackgroundReplacementSkills(allowedSkills, counts);
+    const replacementOptions = legalBackgroundReplacementSkills(
+      bare === "Any Combat" ? combatSkills : allowedSkills,
+      counts,
+    );
     const replacement = replacementOptions.includes(grant.replacement || "") ? grant.replacement || "" : "";
     if (replacement) {
       counts[replacement] += 1;

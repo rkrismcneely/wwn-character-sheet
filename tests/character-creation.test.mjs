@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  creationBackgroundSkillChoiceOptions,
+  creationBackgroundSkillChoiceValue,
   creationSkillGrantResolutions,
   creationSkillSources,
   choiceOptionsForBackgroundResult,
@@ -206,6 +208,66 @@ test("Soldier's canonical Any Combat-0 free skill resolves through the creation 
   assert.equal(levelOneCreationStatus(resolved).stepStatus.skills.complete, true);
 });
 
+test("resolver-backed skill choices stay visible, editable, and constrained by grant order", () => {
+  const withShoot = withFreePick({
+    ...baseCharacter(),
+    backgroundCombatSkill: "Shoot",
+  });
+  assert.equal(
+    creationBackgroundSkillChoiceValue(withShoot, "background-free"),
+    "Shoot",
+  );
+  assert.deepEqual(
+    creationBackgroundSkillChoiceOptions(withShoot, "background-free"),
+    ["Punch", "Shoot", "Stab"],
+  );
+
+  const withPunch = { ...withShoot, backgroundCombatSkill: "Punch" };
+  assert.equal(
+    creationBackgroundSkillChoiceValue(withPunch, "background-free"),
+    "Punch",
+  );
+  assert.deepEqual(creationSkillSources(withPunch).Punch, [
+    "Soldier Background: free skill",
+  ]);
+
+  const cappedShoot = withFreePick({
+    ...baseCharacter(),
+    backgroundCombatSkill: "Shoot",
+    backgroundDevelopmentMethod: "choose-learning",
+    backgroundLearningPicks: [
+      { result: "Any Combat", choice: "", replacement: "" },
+      { result: "", choice: "", replacement: "" },
+    ],
+    focusPicks: [{ name: "Deadeye", level: 1 }],
+  });
+  assert.deepEqual(
+    creationBackgroundSkillChoiceOptions(cappedShoot, "learning-0"),
+    ["Punch", "Stab"],
+  );
+  assert.deepEqual(
+    creationBackgroundSkillChoiceOptions(
+      { ...cappedShoot, backgroundCombatSkill: "Punch" },
+      "learning-0",
+    ),
+    ["Punch", "Shoot", "Stab"],
+    "changing an earlier grant recomputes later legal choices",
+  );
+
+  const staleShoot = {
+    ...cappedShoot,
+    backgroundLearningPicks: [
+      { result: "Any Combat", choice: "Shoot", replacement: "" },
+      { result: "", choice: "", replacement: "" },
+    ],
+  };
+  assert.equal(creationBackgroundSkillChoiceValue(staleShoot, "learning-0"), "");
+  assert.equal(
+    creationSkillGrantResolutions(staleShoot).find((grant) => grant.id === "learning-0")?.needsReplacement,
+    true,
+  );
+});
+
 test("Soldier and Deadeye use ordered legal replacement options for a third acquisition", () => {
   const blocked = withFreePick({
     ...baseCharacter(),
@@ -229,6 +291,7 @@ test("Soldier and Deadeye use ordered legal replacement options for a third acqu
   assert.equal(pending?.replacementOptions.includes("Shoot"), false);
   assert.equal(pending?.replacementOptions.includes("Punch"), true);
   assert.equal(pending?.replacementOptions.includes("Stab"), true);
+  assert.deepEqual(pending?.replacementOptions, ["Punch", "Stab"]);
 
   const resolved = {
     ...blocked,
@@ -310,6 +373,9 @@ test("manual Learning deduplicates choices without changing canonical roll weigh
     "utf8",
   );
   assert.match(wizard, /manualBackgroundLearningOptions\(sheet\.background\)/u);
+  assert.match(wizard, /creationBackgroundSkillChoiceOptions\(sheet, grant\.id\)/u);
+  assert.match(wizard, /creationBackgroundSkillChoiceValue\(sheet, grant\.id\)/u);
+  assert.doesNotMatch(wizard, /\.filter\(\(grant\) => grant\.needsChoice \|\| grant\.needsReplacement\)/u);
   assert.match(wizard, /grant\.replacementOptions/u);
   assert.match(wizard, /is already at the level-1 starting\s+maximum/u);
 });

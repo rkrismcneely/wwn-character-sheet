@@ -19,7 +19,7 @@ test("Tales Without End branding survives Phase 4B reconciliation", async () => 
   assert.doesNotMatch(page, /<strong>WORLDS WITHOUT NUMBER<\/strong>/u);
   assert.doesNotMatch(page, /Interactive character folio<\/small>/u);
   assert.match(page, /authClient\.signIn\.social/u);
-  assert.match(page, /authClient\.signOut/u);
+  assert.match(header, /authClient\.signOut/u);
   assert.match(layout, /metadataBase: new URL\(CANONICAL_ORIGIN\)/u);
   assert.match(layout, /title: "Tales Without End - An Interactive Worlds Without Number Character Folio"/u);
   assert.match(css, /\.brand-logo\{[\s\S]*width:72px;[\s\S]*height:42px/u);

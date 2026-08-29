@@ -37,21 +37,21 @@ test("profile API derives the target from the authenticated session only", async
   assert.doesNotMatch(route, /body\?\.(userId|email|role)|ownerUserId|Authorization/u);
 });
 
-test("signed-in header and canonical brand unify Account, characters, campaigns, and archive navigation", async () => {
+test("signed-in header and canonical brand unify Account, characters, and campaigns without a persistent public-archive link", async () => {
   const header = await source("app/app-header.tsx");
   const dashboard = await source("app/dashboard-page.tsx");
   const campaigns = await source("app/campaigns/campaign-dashboard.tsx");
   const detail = await source("app/campaigns/campaign-detail.tsx");
   const sheet = await source("app/character-sheet.tsx");
-  for (const copy of ["Account", "My Characters", "My Campaigns", "Public Characters", "Sign Out"]) {
+  for (const copy of ["Account", "My Characters", "My Campaigns", "Sign Out"]) {
     assert.equal(header.includes(copy), true, copy);
   }
   assert.match(header, /<TalesBrandLink href="\/account"/u);
   assert.match(dashboard, /<SignedInHeader active="characters"/u);
   assert.match(campaigns, /<SignedInHeader active="campaigns"/u);
   assert.match(detail, /<SignedInHeader active="campaigns"/u);
-  assert.match(sheet, /<TalesBrandLink href=\{signedIn \? "\/account" : "\/"\}/u);
-  assert.match(sheet, /className="quiet account-state" href="\/account">Account<\/a>/u);
+  assert.match(sheet, /<SignedInHeader utilities=\{<>/u);
+  assert.doesNotMatch(header, /link\("public", "\/public-characters", "Public Characters"\)/u);
   assert.match(sheet, /\{!signedIn && <button className="library-button"/u);
 });
 

@@ -327,14 +327,11 @@ test("campaign read-only sheets keep one context notice and headers retain every
   assert.match(sheet, /!canEdit && !campaignContext\?\.readOnly && <div className="read-only-banner"/u);
   assert.match(sheet, /<div className="hero">/u);
 
-  assert.match(sheet, /className="header-actions"/u);
   for (const label of [
-    "Account",
     "Save Now",
     "Export Character",
     "Import Character",
-    "Sign Out",
-    "Print / PDF",
+    "Print",
   ]) {
     assert.ok(sheet.includes(label), label);
   }
@@ -345,7 +342,6 @@ test("campaign read-only sheets keep one context notice and headers retain every
     "Account",
     "My Characters",
     "My Campaigns",
-    "Public Characters",
     "Sign Out",
   ]) {
     assert.ok(appHeader.includes(label), label);
@@ -357,11 +353,7 @@ test("campaign read-only sheets keep one context notice and headers retain every
     "narrow layouts must not hide character-sheet controls",
   );
   assert.match(headerCss, /--twe-header-control-height:40px/u);
-  assert.match(
-    headerCss,
-    /\.app-header nav,\s*\.header-actions\{[\s\S]*flex-wrap:wrap/u,
-    "both header variants should use intrinsic flex wrapping",
-  );
+  assert.match(headerCss, /\.app-header-utilities/u);
   assert.match(
     headerCss,
     /\.app-header nav a,[\s\S]*\.status \.account-state\{[\s\S]*min-width:max-content;[\s\S]*white-space:nowrap/u,
@@ -389,15 +381,17 @@ test("campaign read-only sheets keep one context notice and headers retain every
   );
 });
 
-test("character-sheet learning choices and privacy footer use responsive layout", async () => {
+test("character-sheet learning choices and privacy controls use responsive layout", async () => {
   const sheet = await source("app/character-sheet.tsx");
   const css = await source("app/globals.css");
+  const footer = await source("app/site-footer.tsx");
 
   assert.match(sheet, /background-learning-rows/u);
   assert.match(sheet, /sheet\.backgroundLearningPicks\.map/u);
   assert.match(sheet, /Learning \{index \+ 1\}/u);
   assert.match(sheet, /Privacy & Sharing/u);
-  assert.match(sheet, /<footer>Rules authority:/u);
+  assert.doesNotMatch(sheet, /Rules authority:/u);
+  assert.match(footer, /Tales Without End · v/u);
 
   assert.match(css, /\.background-learning-rows\{[\s\S]*display:grid/u);
   assert.match(

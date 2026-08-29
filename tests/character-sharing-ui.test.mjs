@@ -10,11 +10,12 @@ test("character sharing is an owner-only bottom-of-folio utility", async () => {
   const sharingMarker = 'className="character-sharing character-sharing-footer"';
   const sharingIndex = sheet.indexOf(sharingMarker);
   const heroIndex = sheet.indexOf('<div className="hero">');
-  const footerIndex = sheet.indexOf("<footer>Rules authority:");
+  const footer = await source("app/site-footer.tsx");
 
   assert.notEqual(sharingIndex, -1);
   assert.ok(sharingIndex > heroIndex, "sharing should follow the character identity/header");
-  assert.ok(sharingIndex < footerIndex, "sharing should remain inside the folio before its footer");
+  assert.doesNotMatch(sheet, /Rules authority:/u);
+  assert.match(footer, /Worlds Without Number SRD 1\.0 rules content used under CC0/u);
   assert.equal((sheet.match(/className="character-sharing(?: |")/g) || []).length, 1);
   assert.match(sheet, /cloudId && canEdit && <section className="character-sharing character-sharing-footer"/u);
   assert.match(sheet, /value=\{cloudVisibility\}/u);

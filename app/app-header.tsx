@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- shared static navigation mark */
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 
 export type AppHeaderDestination =
@@ -35,8 +35,10 @@ export function TalesBrandLink({
 
 export function SignedInHeader({
   active,
+  utilities,
 }: {
   active?: AppHeaderDestination;
+  utilities?: ReactNode;
 }) {
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [error, setError] = useState("");
@@ -74,11 +76,11 @@ export function SignedInHeader({
     <>
       <header className="app-header">
         <TalesBrandLink href="/account" />
+        {utilities && <div className="app-header-utilities" aria-label="Character controls">{utilities}</div>}
         <nav aria-label="Signed-in navigation">
           {link("account", "/account", "Account")}
           {link("characters", "/", "My Characters")}
           {link("campaigns", "/campaigns", "My Campaigns")}
-          {link("public", "/public-characters", "Public Characters")}
           <button type="button" onClick={() => void signOut()} disabled={signOutBusy}>
             {signOutBusy ? "Signing out…" : "Sign Out"}
           </button>

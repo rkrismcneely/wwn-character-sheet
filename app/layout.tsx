@@ -13,6 +13,7 @@ import "@fontsource/jost/700.css";
 import "./globals.css";
 import "./app-header.css";
 import { ThemeProvider } from "./theme-provider";
+import { SiteFooter } from "./site-footer";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {
@@ -50,7 +51,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>{children}<SiteFooter /></ThemeProvider>
       </body>
     </html>
   );

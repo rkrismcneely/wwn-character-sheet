@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { PublicCharacterBrowser } from "./public-character-browser";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
@@ -30,10 +29,6 @@ export default async function PublicCharactersPage() {
         <p>Discover adventurers their owners have chosen to share. Public folios are always read-only to visitors.</p>
       </section>
       <PublicCharacterBrowser />
-      <footer className="landing-footer">
-        <Link href="/">Return to Tales Without End</Link>
-        <p>Unofficial fan-made character tool. Not affiliated with or endorsed by Sine Nomine Publishing.</p>
-      </footer>
     </main>
   );
 }

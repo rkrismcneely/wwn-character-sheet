@@ -6,10 +6,10 @@ import "./landing-density.css";
 /* eslint-disable @next/next/no-img-element -- the small shared static brand mark is served directly */
 
 const playerFeatures = [
-  ["✦", "Guided at level 1", "Work through a Worlds Without Number character one meaningful choice at a time, then keep the finished folio in your library."],
-  ["⌁", "A rules-aware folio", "Keep attributes, skills, saves, attacks, equipment, spells, Arts, and notes together in the same readable record."],
-  ["⚄", "Roll where you play", "Use the sheet's built-in dice controls and roll history without breaking your place at the table."],
-  ["◈", "Saved and yours", "Characters are private by default, available from any device, and shareable only when you choose."],
+  ["✦", "Guided Level 1 creation", "Choose a background, class, skills, Foci, and starting equipment in order. The sheet applies the resulting level-1 character as you go."],
+  ["⌁", "A sheet that does the bookkeeping", "Keep attributes, skills, saves, combat values, armor, and equipment together, with derived values based on your character choices."],
+  ["⚄", "Roll and check rules", "Roll skills, saves, attacks, damage, and initiative from the sheet. Recent rolls and the Rules Assistant are there when a rule comes up."],
+  ["◈", "Keep the character", "Save it to your account, reopen it from another device, print it, or choose private, unlisted, or public sharing."],
 ];
 
 function FolioShowcase() {
@@ -59,43 +59,43 @@ export function LandingPage() {
       <div className="landing-hero-copy">
         <p className="landing-kicker">A WORLDS WITHOUT NUMBER PLAY COMPANION</p>
         <h1 id="landing-title">Your Adventures.<br />Your Characters.<br /><em>Without End.</em></h1>
-        <p className="landing-hero-deck">An online character sheet and campaign companion for Worlds Without Number—built to keep the useful parts of play close at hand.</p>
+        <p className="landing-hero-deck">Tales Without End is an online character sheet and Level 1 character builder for Worlds Without Number. Build a character, use it at the table, then save it to return to whenever you play.</p>
         <div className="landing-actions">
           <GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton>
           <Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link>
         </div>
-        <ul className="landing-trust" aria-label="Tales Without End highlights"><li>Guided character creation</li><li>Saved online folios</li><li>Campaign-ready tools</li></ul>
+        <ul className="landing-trust" aria-label="Tales Without End highlights"><li>Guided Level 1 creation</li><li>Interactive WWN sheets</li><li>Campaign tools for GMs</li></ul>
       </div>
       <FolioShowcase />
     </section>
 
     <section id="character-folio" className="landing-features" aria-labelledby="player-features-title">
-      <p className="landing-kicker">FROM FIRST CHOICES TO THE NEXT SESSION</p>
-      <h2 id="player-features-title">A character sheet made for the table</h2>
-      <p className="landing-section-intro">Tales Without End follows the structure of Worlds Without Number while leaving your attention where it belongs: on the adventure.</p>
+      <p className="landing-kicker">BUILD IT. THEN PLAY IT.</p>
+      <h2 id="player-features-title">A WWN character sheet that stays useful after creation</h2>
+      <p className="landing-section-intro">Build a level-1 character with guided choices, then keep the numbers, gear, and rules details you use at the table on the same sheet.</p>
       <div className="feature-grid">{playerFeatures.map(([icon, title, copy]) => <article key={title}><span aria-hidden="true">{icon}</span><h3>{title}</h3><p>{copy}</p></article>)}</div>
     </section>
 
     <section className="landing-detail landing-detail-folio">
       <div>
-        <p className="landing-kicker">A USEFUL RECORD, NOT A BLANK FORM</p>
-        <h2>Keep every part of your adventurer within reach.</h2>
-        <p>Use a detailed, responsive folio for the things that matter during play: class choices, skills, weapons, armor, inventory, spells and Arts, notes, dice, and the history of your recent rolls.</p>
-        <ul><li>Built around the current Worlds Without Number SRD</li><li>Print-friendly records for the physical table</li><li>Private, unlisted, and public sharing choices</li></ul>
+        <p className="landing-kicker">BUILT FOR ACTUAL SESSIONS</p>
+        <h2>More useful than a static sheet</h2>
+        <p>Tales Without End keeps the information that changes during play attached to the character. Track HP and System Strain, manage structured equipment and coin, roll a readied attack, and keep spells, Arts, and notes on hand.</p>
+        <ul><li>Equipment and armor stay in the record instead of a notes field</li><li>Spells, Arts, Foci, and companions sit beside the rest of the sheet</li><li>Print or save a PDF when you want paper at the table</li></ul>
       </div>
-      <div className="landing-detail-card"><span>THE CHARACTER LIBRARY</span><strong>Your adventurers, ready to reopen</strong><p>Save a fresh sheet today and return to the same record from your next device or your next session.</p></div>
+      <div className="landing-detail-card"><span>THE CHARACTER LIBRARY</span><strong>Open the same character at the next session</strong><p>Saved characters stay in your library. Reopen them where you play and choose who can see each one when you are ready to share.</p></div>
     </section>
 
     <section id="campaign-tools" className="landing-campaign" aria-labelledby="campaign-tools-title">
-      <div className="landing-campaign-copy"><p className="landing-kicker">FOR THE WHOLE TABLE</p><h2 id="campaign-tools-title">Bring the campaign ledger to the session.</h2><p>Campaigns connect characters to a GM workspace with encounters, a searchable Built-In Bestiary, editable NPC templates, shared session rolls, and practical threat guidance.</p><ul><li>Organize a party without exposing private folios</li><li>Run encounter order and NPC combat snapshots</li><li>Keep table-facing rolls and campaign tools together</li></ul></div>
+      <div className="landing-campaign-copy"><p className="landing-kicker">FOR GMS AND CAMPAIGNS</p><h2 id="campaign-tools-title">Run the encounter, not another tracker.</h2><p>The GM Console puts the party, encounter order, hit points, and NPC combat in one place. Add a creature from the Built-In Bestiary or a campaign NPC, roll attacks and damage, and check practical encounter threat guidance.</p><ul><li>Keep campaign membership separate from a player&apos;s private folio</li><li>Use Built-In Bestiary creatures and editable campaign NPC templates</li><li>See live session rolls alongside the encounter</li></ul></div>
       <CampaignShowcase />
     </section>
 
     <section className="landing-final" aria-labelledby="landing-final-title">
       <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
-      <p className="landing-kicker">YOUR NEXT FOLIO AWAITS</p>
-      <h2 id="landing-final-title">Start with the character. Keep the tale.</h2>
-      <p>Sign in to create a Worlds Without Number character, or browse the public archive for inspiration.</p>
+      <p className="landing-kicker">BUILD A CHARACTER YOU CAN KEEP</p>
+      <h2 id="landing-final-title">Create a WWN character, then bring it to the table.</h2>
+      <p>Sign in to begin a character and save it in your library, or browse public character sheets for inspiration.</p>
       <div className="landing-actions"><GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton><Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link></div>
     </section>
   </main>;

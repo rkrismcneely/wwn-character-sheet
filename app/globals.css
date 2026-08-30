@@ -662,7 +662,7 @@ html[data-theme="dark"] .familiar-status{background:rgba(207,155,68,.06)}
 .background-result-row .field{margin:0}
 .background-result{padding:7px 0;font:12px/1.2 var(--font-body);color:var(--ink);overflow-wrap:anywhere}
 .background-result small,.background-result b{display:block}.background-result small{font:10px/1.2 var(--font-ui);color:var(--muted);letter-spacing:.03em}.background-result b{margin-top:2px;font:600 13px/1.25 var(--font-body)}
-.background-roll-row{grid-template-columns:auto minmax(110px,.8fr) auto minmax(125px,1fr)}
+.background-roll-row{grid-template-columns:auto minmax(110px,.8fr) auto minmax(110px,.8fr) minmax(125px,1fr)}
 .background-roll-name{align-self:center;font:600 13px var(--font-heading);color:var(--ink);white-space:nowrap}
 .background-roll-button{align-self:end;border:1px solid var(--line);background:#fffaf0;padding:7px 9px;cursor:pointer;font:600 10px var(--font-ui);color:var(--amber);white-space:nowrap}
 .background-attribute-points{grid-column:1/-1;display:flex;gap:8px;align-items:end;flex-wrap:wrap}.background-attribute-points .field{flex:1 1 120px}.background-attribute-points .background-choice-note{flex:1 1 100%;margin:0}
@@ -1435,7 +1435,7 @@ main,
   }
 }
 
-/* A two-column tablet Core Sheet can make a four-part roll row too narrow.
+/* A two-column tablet Core Sheet can make a five-part roll row too narrow.
    Keep every control usable without changing the full desktop presentation. */
 @media (min-width:721px) and (max-width:900px){
   .background-roll-row{grid-template-columns:repeat(2,minmax(0,1fr))}

@@ -139,7 +139,11 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     total + Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))), 0);
   const skillBudget = plan.skillPoints + Math.max(0, Number(sheet.levelUpUnspentSkillPoints) || 0);
   const pointsRemaining = skillBudget - pointsSpent;
-  const hpRollComplete = Number.isFinite(state.hpRoll) && Number(state.hpRoll) > 0;
+  const hpRollMinimum = plan.to;
+  const hpRollMaximum = plan.to * 6;
+  const hpRollComplete = Number.isInteger(state.hpRoll)
+    && Number(state.hpRoll) >= hpRollMinimum
+    && Number(state.hpRoll) <= hpRollMaximum;
   const developedCon = state.draft.focusPicks.some((pick) => pick.name === "Developed Attribute" && pick.choice === "CON");
   const dieHard = state.draft.focusPicks.some((pick) => pick.name === "Die Hard");
   const hpMaximum = hpRollComplete
@@ -225,10 +229,37 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       <StepTitle eyebrow="HIT POINTS" title="Roll your new total">
         Roll {plan.to}d6. The result is compared to your current maximum; the character always gains at least 1 maximum HP.
       </StepTitle>
-      {!hpRollComplete ? <button type="button" className="primary-button" onClick={() => {
-        const result = rollDice(plan.to, 6);
-        setState((current) => ({ ...current, hpRoll: result.total }));
-      }}>Roll {plan.to}d6 for HP</button> : <div className="creation-success"><strong>Rolled {state.hpRoll}</strong><span> · new maximum HP: {hpMaximum}</span><p>Current HP rises by the same amount as maximum HP, preserving the character’s current damage state.</p></div>}
+      {!hpRollComplete ? <div className="creation-roll-entry">
+        <button type="button" className="primary-button" onClick={() => {
+          const result = rollDice(plan.to, 6);
+          setState((current) => ({ ...current, hpRoll: result.total }));
+          setNotice("");
+        }}>Roll {plan.to}d6 for HP</button>
+        <label>
+          <span>Enter your {plan.to}d6 total</span>
+          <input
+            type="number"
+            min={hpRollMinimum}
+            max={hpRollMaximum}
+            step={1}
+            value={state.hpRoll || ""}
+            onChange={(event) => {
+              const raw = event.target.value;
+              const value = Number(raw);
+              if (!raw) {
+                setState((current) => ({ ...current, hpRoll: undefined }));
+                setNotice("");
+              } else if (!Number.isInteger(value) || value < hpRollMinimum || value > hpRollMaximum) {
+                setState((current) => ({ ...current, hpRoll: undefined }));
+                setNotice(`Enter an HP dice total from ${hpRollMinimum} to ${hpRollMaximum}.`);
+              } else {
+                setState((current) => ({ ...current, hpRoll: value }));
+                setNotice("");
+              }
+            }}
+          />
+        </label>
+      </div> : <div className="creation-success"><strong>HP dice total: {state.hpRoll}</strong><span> · new maximum HP: {hpMaximum}</span><p>Current HP rises by the same amount as maximum HP, preserving the character’s current damage state.</p></div>}
     </>;
     if (state.step === 2) return <>
       <StepTitle eyebrow="SKILLS & ATTRIBUTES" title="Spend advancement points">

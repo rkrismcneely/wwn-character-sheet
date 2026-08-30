@@ -7,6 +7,8 @@ import {
   blankBackgroundDevelopmentRolls,
   blankBackgroundLearningPicks,
   blankBackgroundQuickSkillReplacements,
+  backgroundDevelopmentRollFromDie,
+  backgroundTableDieSides,
   rollBackgroundTable,
 } from "./background-development";
 import { fullClasses, partialClasses } from "./class-data";
@@ -217,6 +219,7 @@ export function GuidedCreationWizard({
   const [focusQuery, setFocusQuery] = useState("");
   const [focusFilter, setFocusFilter] = useState("All Foci");
   const [notice, setNotice] = useState("");
+  const [startingSilverInput, setStartingSilverInput] = useState("");
   const status = useMemo(() => levelOneCreationStatus(sheet), [sheet]);
   const effectiveStepIndex =
     !status.hasMagicStep && creationSteps[stepIndex]?.id === "magic"
@@ -620,10 +623,15 @@ export function GuidedCreationWizard({
               <label key={attribute}>
                 <span>{attribute}</span>
                 {sheet.attributeMethod === "rolled" ? (
-                  <select
+                  <input
+                    type="number"
+                    min={3}
+                    max={18}
+                    step={1}
                     value={sheet.attributeRolls[attribute] || ""}
                     onChange={(event) => {
-                      const value = Number(event.target.value) || 0;
+                      const parsed = Number(event.target.value);
+                      const value = Number.isInteger(parsed) && parsed >= 3 && parsed <= 18 ? parsed : 0;
                       change({
                         attributeRolls: {
                           ...sheet.attributeRolls,
@@ -639,16 +647,7 @@ export function GuidedCreationWizard({
                         },
                       });
                     }}
-                  >
-                    <option value="">—</option>
-                    {Array.from({ length: 16 }, (_, index) => index + 3).map(
-                      (value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                  />
                 ) : (
                   <select
                     value={sheet.attrs[attribute]}
@@ -1196,6 +1195,32 @@ export function GuidedCreationWizard({
                         >
                           Roll
                         </button>
+                        <label>
+                          <span>Physical result</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={backgroundTableDieSides(sheet.background, roll.table)}
+                            step={1}
+                            value={roll.die || ""}
+                            onChange={(event) => {
+                              const die = Number(event.target.value);
+                              change({
+                                backgroundDevelopmentRolls:
+                                  sheet.backgroundDevelopmentRolls.map(
+                                    (value, row) =>
+                                      row === index
+                                        ? backgroundDevelopmentRollFromDie(
+                                            sheet.background,
+                                            value.table,
+                                            die,
+                                          )
+                                        : value,
+                                  ),
+                              });
+                            }}
+                          />
+                        </label>
                         <b>{roll.result || "Not rolled"}</b>
                         {pointCount > 0 && (
                           <div className="creation-growth-choices">
@@ -1635,6 +1660,28 @@ export function GuidedCreationWizard({
                     ? "Roll Starting Silver"
                     : "Starting Silver Rolled"}
                 </button>
+                <label className="creation-select">
+                  <span>Physical 3d6 total</span>
+                  <input
+                    type="number"
+                    min={3}
+                    max={18}
+                    step={1}
+                    disabled={sheet.creationStartingSilver !== null}
+                    value={sheet.creationStartingSilver === null ? startingSilverInput : sheet.creationStartingSilver / 10}
+                    onChange={(event) => {
+                      const raw = event.target.value;
+                      setStartingSilverInput(raw);
+                      if (!raw) {
+                        setNotice("");
+                        return;
+                      }
+                      applyEquipmentResult(
+                        rollCreationStartingSilver(sheet, Number(raw)),
+                      );
+                    }}
+                  />
+                </label>
               </div>
               {sheet.creationStartingSilver !== null && (
                 <label className="creation-select creation-purchase-select">
@@ -1820,13 +1867,20 @@ export function GuidedCreationWizard({
                   const roll = Number(event.target.value);
                   change({
                     hpRolls:
-                      Number.isFinite(roll) && roll > 0
+                      Number.isInteger(roll) && roll >= 1 && roll <= 6
                         ? [roll, ...sheet.hpRolls.slice(1)]
                         : sheet.hpRolls.slice(1),
                   });
                 }}
               />
             </label>
+            <button
+              type="button"
+              disabled={Number.isInteger(sheet.hpRolls[0]) && sheet.hpRolls[0] >= 1 && sheet.hpRolls[0] <= 6}
+              onClick={() => change({ hpRolls: [rollDice(1, 6).total, ...sheet.hpRolls.slice(1)] })}
+            >
+              Roll 1d6 for HP
+            </button>
           </ReviewSection>
           <ReviewSection title="Skills" step="skills" onEdit={goToStep}>
             <p>

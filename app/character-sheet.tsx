@@ -11,6 +11,8 @@ import {
   backgroundAttributeBonuses,
   backgroundAttributeChoices,
   backgroundAttributePointCount,
+  backgroundDevelopmentRollFromDie,
+  backgroundTableDieSides,
   blankBackgroundDevelopmentRoll,
   blankBackgroundDevelopmentRolls,
   blankBackgroundLearningPicks,
@@ -3166,6 +3168,22 @@ export default function Home({
                           <strong className="background-roll-name">Roll {index + 1}</strong>
                           <label className="field"><span>Table</span><select value={roll.table} onChange={event => setBackgroundRollTable(index, event.target.value as BackgroundDevelopmentRoll["table"])}><option value="growth">Growth</option><option value="learning">Learning</option></select></label>
                           <button className="background-roll-button" type="button" onClick={() => rollBackgroundDevelopmentRow(index)}>Roll d{dieSize}</button>
+                          <label className="field">
+                            <span>Physical d{dieSize} result</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={backgroundTableDieSides(sheet.background, roll.table)}
+                              step={1}
+                              value={roll.die || ""}
+                              onChange={event => setSheet(current => ({
+                                ...current,
+                                backgroundDevelopmentRolls: current.backgroundDevelopmentRolls.map((value, row) => row === index
+                                  ? backgroundDevelopmentRollFromDie(current.background, value.table, Number(event.target.value))
+                                  : value),
+                              }))}
+                            />
+                          </label>
                           <span className="background-result"><small>{roll.die ? `d${dieSize} → ${roll.die}` : `d${dieSize} not rolled`}</small><b>{result || "Result pending"}</b></span>
                           {renderBackgroundAttributeChoices(roll, index)}
                           {result && renderBackgroundSkillFollowUp({

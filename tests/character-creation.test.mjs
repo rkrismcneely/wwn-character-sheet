@@ -153,6 +153,22 @@ test("level-one guided creation requires an explicit starting-equipment path", (
   assert.equal(levelOneCreationStatus(character).stepStatus.equipment.complete, false);
 });
 
+test("guided creation exposes physical parity controls for every setup die", async () => {
+  const [wizard, sheet] = await Promise.all([
+    readFile(new URL("../app/character-creation-wizard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(wizard, /Roll 3d6 in order/u);
+  assert.match(wizard, /min=\{3\}/u);
+  assert.match(wizard, /max=\{18\}/u);
+  assert.match(wizard, /Physical 3d6 total/u);
+  assert.match(wizard, /Roll 1d6 for HP/u);
+  assert.match(wizard, /backgroundDevelopmentRollFromDie/u);
+  assert.match(wizard, /Physical result/u);
+  assert.match(sheet, /backgroundDevelopmentRollFromDie/u);
+  assert.match(sheet, /Physical d\{dieSize\} result/u);
+});
+
 test("level-one guided creation validates full and partial Mage spell selections", () => {
   const fullMage = withFreePick({
     ...baseCharacter(),

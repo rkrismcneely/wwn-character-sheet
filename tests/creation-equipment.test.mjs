@@ -153,6 +153,18 @@ test("starting silver is one 3d6 total multiplied by 10 and cannot be rerolled",
   assert.equal(rollCreationStartingSilver(baseState({ creationEquipmentMethod: "buy" }), 2).ok, false);
 });
 
+test("physical starting silver accepts only a raw 3d6 total through the same resolver", () => {
+  let state = baseState({ creationEquipmentMethod: "buy" });
+  for (const die of [2, 19]) {
+    const invalid = rollCreationStartingSilver(state, die);
+    assert.equal(invalid.ok, false);
+    assert.equal(state.creationStartingSilver, null);
+  }
+  state = update(state, rollCreationStartingSilver(state, 18));
+  assert.equal(state.creationStartingSilver, 180);
+  assert.equal(state.sp, 180);
+});
+
 test("buying deducts canonical prices, removal refunds exactly, and overspending is rejected", () => {
   let state = baseState();
   state = { ...state, ...selectCreationEquipmentMethod(state, "buy") };

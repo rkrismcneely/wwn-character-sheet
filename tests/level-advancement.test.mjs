@@ -100,9 +100,10 @@ test("Focus options respect existing Focus levels and class restrictions", () =>
 });
 
 test("Level-Up Wizard remains transactional, URL-addressable, and version-guarded", async () => {
-  const [wizard, sheet] = await Promise.all([
+  const [wizard, sheet, css] = await Promise.all([
     readFile(new URL("../app/level-up-wizard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/character-creation-wizard.css", import.meta.url), "utf8"),
   ]);
   assert.match(wizard, /window\.sessionStorage\.setItem\(storageKey\(persistenceKey\)/u);
   assert.match(wizard, /onFinish\(final, sourceLevel\)/u);
@@ -119,4 +120,15 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(sheet, /Number\(currentPayload\.version\) !== cloudVersion/u);
   assert.match(sheet, /Number\(currentPayload\.character\.level\) !== sourceLevel/u);
   assert.match(sheet, /Use the Level-Up Wizard to apply one legal level at a time/u);
+  assert.match(wizard, /className="level-up-attribute-card"/u);
+  assert.match(wizard, /className="level-up-skill-field"/u);
+  assert.match(wizard, /aria-label=\{`Increase \$\{attribute\}`\}/u);
+  assert.match(wizard, /aria-label=\{`Decrease \$\{attribute\}`\}/u);
+  assert.match(wizard, /aria-label=\{`\$\{skill\} advancement rank`\}/u);
+  assert.match(css, /\.level-up-attributes-grid\s*\{[\s\S]*?repeat\(3/u);
+  assert.match(css, /\.level-up-skills-grid\s*\{[\s\S]*?repeat\(3/u);
+  assert.match(css, /\.level-up-attribute-controls button\s*\{[\s\S]*?width:\s*40px/u);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?level-up-skills-grid[\s\S]*?repeat\(2/u);
+  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?level-up-skills-grid[\s\S]*?grid-template-columns: 1fr/u);
+  assert.match(css, /@media \(max-width: 420px\)[\s\S]*?level-up-attributes-grid[\s\S]*?grid-template-columns: 1fr/u);
 });

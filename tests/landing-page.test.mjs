@@ -12,20 +12,22 @@ test("root selects the landing page only for signed-out visitors", async () => {
   assert.match(page, /<CharacterSheet startNew \/>/u);
 });
 
-test("landing page exposes the required signed-out actions and product story", async () => {
+test("landing page exposes the signed-out product story, entry actions, and campaign tools", async () => {
   const landing = await source("app/landing-page.tsx");
   for (const copy of [
-    "Your Adventures.",
-    "Your Characters.",
-    "Without End.",
-    "Create Your First Character",
+    "Tales Without End",
+    "Worlds Without Number",
+    "Sign in with Google",
     "Browse Public Characters",
-    "Complete Character Management",
-    "Rules-Aligned Calculations",
-    "Built-In Tools",
-    "Private by Default",
+    "Guided at level 1",
+    "A rules-aware folio",
+    "GM Console",
+    "Built-In Bestiary",
+    "Saved online",
   ]) assert.equal(landing.includes(copy), true, copy);
   assert.match(landing, /GoogleSignInButton/u);
+  assert.match(landing, /href="\/public-characters"/u);
+  assert.match(landing, /TalesBrandLink/u);
   assert.doesNotMatch(landing, /ownerUserId|owner_user_id|adminReadOnly|legacy-claim/u);
 });
 

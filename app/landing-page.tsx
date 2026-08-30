@@ -3,140 +3,100 @@ import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { TalesBrandLink } from "./app-header";
 import "./landing-density.css";
 
-/* eslint-disable @next/next/no-img-element -- small existing brand SVGs are served directly */
+/* eslint-disable @next/next/no-img-element -- the small shared static brand mark is served directly */
 
-const featureCards = [
-  {
-    icon: "✦",
-    title: "Complete Character Management",
-    copy: "Create, edit, and organize your adventurers with every essential detail in one coherent folio.",
-  },
-  {
-    icon: "⌁",
-    title: "Rules-Aligned Calculations",
-    copy: "Keep attributes, saves, combat values, skills, and progression legible and close at hand.",
-  },
-  {
-    icon: "⚔",
-    title: "Built-In Tools",
-    copy: "Roll dice, search rules, manage equipment, prepare spells, and print from the same sheet.",
-  },
-  {
-    icon: "◈",
-    title: "Private by Default",
-    copy: "Your characters begin private. Share publicly only when you deliberately choose to.",
-  },
+const playerFeatures = [
+  ["✦", "Guided at level 1", "Work through a Worlds Without Number character one meaningful choice at a time, then keep the finished folio in your library."],
+  ["⌁", "A rules-aware folio", "Keep attributes, skills, saves, attacks, equipment, spells, Arts, and notes together in the same readable record."],
+  ["⚄", "Roll where you play", "Use the sheet's built-in dice controls and roll history without breaking your place at the table."],
+  ["◈", "Saved and yours", "Characters are private by default, available from any device, and shareable only when you choose."],
 ];
 
-function CharacterPreview() {
-  return (
-    <div className="landing-preview" aria-label="Preview of the Tales Without End character folio">
-      <div className="preview-toolbar">
-        <span>THE COMPANY ARCHIVE</span>
-        <span>Saved</span>
-      </div>
-      <div className="preview-hero">
-        <div className="preview-portrait" aria-hidden="true">✥</div>
-        <div>
-          <small>WANDERING SCHOLAR</small>
-          <strong>Mara of the Lantern Road</strong>
-          <span>Expert · Level 3</span>
-        </div>
-        <div className="preview-vital"><small>HP</small><b>14 / 14</b></div>
-      </div>
-      <div className="preview-tabs"><b>Core</b><span>Magic</span><span>Inventory</span><span>Notes</span></div>
-      <div className="preview-grid">
-        <section><h3>Attributes</h3><div className="preview-scores">{["STR 10", "DEX 14", "CON 12", "INT 13", "WIS 11", "CHA 9"].map(score => <span key={score}>{score}</span>)}</div></section>
-        <section><h3>Skills & Saves</h3><p>Notice +1 · Connect +1 · Shoot +0</p><p>Physical 12 · Evasion 10 · Mental 11</p></section>
-        <section className="preview-wide"><h3>Equipment</h3><p>Traveler’s coat · Shortbow · Field journal · Lantern</p></section>
-      </div>
+function FolioShowcase() {
+  return <section className="landing-folio-showcase" aria-label="Example Tales Without End character sheet">
+    <div className="landing-folio-bar"><span>CHARACTER FOLIO</span><span><i aria-hidden="true" /> Saved online</span></div>
+    <div className="landing-folio-identity">
+      <div className="landing-folio-portrait" aria-hidden="true">✦</div>
+      <div><p>LEVEL 3 · EXPERT</p><h2>Ilyra Venn</h2><span>Wayfarer, map-maker, and reluctant hero</span></div>
+      <div className="landing-folio-vital"><small>HIT POINTS</small><b>14 <span>/ 14</span></b><small>ARMOR CLASS 13</small></div>
     </div>
-  );
+    <div className="landing-folio-tabs"><b>CORE SHEET</b><span>MAGIC &amp; ARTS</span><span>INVENTORY</span><span>NOTES</span></div>
+    <div className="landing-folio-body">
+      <section className="landing-folio-card landing-folio-attributes"><h3>Attributes</h3><div>{[["STR", "10"], ["DEX", "14"], ["CON", "12"], ["INT", "13"], ["WIS", "11"], ["CHA", "9"]].map(([label, score]) => <span key={label}><small>{label}</small><b>{score}</b></span>)}</div></section>
+      <section className="landing-folio-card"><h3>Skills &amp; saves</h3><p><b>Notice +1</b><b>Connect +1</b><b>Know +0</b></p><p className="landing-folio-muted">Physical 12 · Evasion 10 · Mental 11</p></section>
+      <section className="landing-folio-card landing-folio-combat"><h3>Ready for play</h3><p><b>Shortbow</b><span>+1 hit · 1d6 damage</span></p><p><b>Traveling coat</b><span>AC 13 · Shock 1/15</span></p></section>
+      <section className="landing-folio-card landing-folio-gear"><h3>Equipment &amp; notes</h3><p>Field journal · lantern · rope · 21 silver</p><div><small>LATEST ROLL</small><b>Notice check <strong>17</strong></b></div></section>
+    </div>
+    <div className="landing-folio-foot"><span>Interactive fields · click-to-roll tools · printable record</span><span aria-hidden="true">↗</span></div>
+  </section>;
+}
+
+function CampaignShowcase() {
+  return <section className="landing-campaign-showcase" aria-label="Example Tales Without End GM Console">
+    <div className="landing-campaign-bar"><span>GM CONSOLE</span><span>LIVE SESSION</span></div>
+    <div className="landing-campaign-tabs"><b>Encounter</b><span>Bestiary</span><span>My NPCs</span><span>Party</span></div>
+    <div className="landing-campaign-body">
+      <div className="landing-campaign-heading"><div><small>ROUND 2</small><strong>The Broken Road</strong></div><b>Moderate</b></div>
+      <div className="landing-combatant landing-combatant-pc"><span>→</span><div><b>Ilyra Venn</b><small>Player character</small></div><strong>Init 16</strong><strong>14 / 14 HP</strong><strong>AC 13</strong></div>
+      <div className="landing-combatant"><span /> <div><b>Roadside Thug</b><small>Built-In Bestiary</small></div><strong>Init 11</strong><strong>5 / 5 HP</strong><strong>AC 12</strong></div>
+      <div className="landing-campaign-tools"><span><b>35</b> SRD creatures</span><span><b>2</b> campaign NPCs</span><span><b>Live</b> rolls</span></div>
+    </div>
+  </section>;
 }
 
 export function LandingPage() {
-  return (
-    <main className="landing-shell">
-      <header className="landing-header">
-        <TalesBrandLink href="/" />
-        <nav aria-label="Primary navigation">
-          <GoogleSignInButton className="landing-button landing-button-small" />
-        </nav>
-      </header>
+  return <main className="landing-shell landing-codex">
+    <header className="landing-header">
+      <TalesBrandLink href="/" />
+      <nav aria-label="Signed-out navigation">
+        <a href="#character-folio">Character folio</a>
+        <a href="#campaign-tools">Campaign tools</a>
+        <GoogleSignInButton className="landing-button landing-button-small">Sign in with Google</GoogleSignInButton>
+      </nav>
+    </header>
 
-      <section className="landing-hero" aria-labelledby="landing-title">
-        <div className="landing-hero-copy">
-          <p className="landing-kicker">AN INTERACTIVE CHARACTER FOLIO</p>
-          <h1 id="landing-title">Your Adventures.<br />Your Characters.<br /><em>Without End.</em></h1>
-          <p className="landing-lede">A polished digital character folio for Worlds Without Number—built for creating, managing, and sharing adventurers at the table and between sessions.</p>
-          <div className="landing-actions">
-            <GoogleSignInButton className="landing-button landing-button-primary">Create Your First Character</GoogleSignInButton>
-            <Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link>
-          </div>
-          <ul className="landing-trust" aria-label="Service highlights">
-            <li>Free to use</li>
-            <li>Private by default</li>
-            <li>Google sign-in</li>
-          </ul>
-        </div>
-        <CharacterPreview />
-      </section>
-
-      <section className="landing-features" aria-labelledby="features-title">
-        <p className="landing-kicker">EVERYTHING IN ITS PLACE</p>
-        <h2 id="features-title">Built for the whole journey</h2>
-        <div className="feature-grid">
-          {featureCards.map(feature => (
-            <article key={feature.title}>
-              <span aria-hidden="true">{feature.icon}</span>
-              <h3>{feature.title}</h3>
-              <p>{feature.copy}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="landing-detail">
-        <div>
-          <p className="landing-kicker">A LIVING FOLIO</p>
-          <h2>Every detail, ready when the story turns</h2>
-          <p>Move from first-level choices to a seasoned adventurer without leaving the sheet. Core statistics, foci, equipment, magic, companions, notes, and table-ready tools stay organized in a readable ledger.</p>
-          <ul>
-            <li>Clear creation and advancement controls</li>
-            <li>Automatic derived values and save tracking</li>
-            <li>Built-in dice, rules search, and print tools</li>
-          </ul>
-        </div>
-        <div className="detail-card">
-          <span>CHARACTER FOLIO</span>
-          <strong>One trusted record</strong>
-          <p>From the first attribute roll to the final campaign note.</p>
-        </div>
-      </section>
-
-      <section className="landing-detail landing-detail-reverse">
-        <div>
-          <p className="landing-kicker">SHARE ON YOUR TERMS</p>
-          <h2>Private first. Discoverable when you decide.</h2>
-          <p>Characters remain private by default. Owners can make a folio public for the wider table, while unlisted links support direct sharing without placing the character in public browsing.</p>
-          <Link href="/public-characters" className="text-link">Explore the public archive <span aria-hidden="true">→</span></Link>
-        </div>
-        <div className="privacy-card" aria-label="Character visibility choices">
-          <div><b>Private</b><span>Only you</span></div>
-          <div><b>Unlisted</b><span>Anyone with the link</span></div>
-          <div><b>Public</b><span>Visible in the archive</span></div>
-        </div>
-      </section>
-
-      <section className="landing-final">
-        <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
-        <h2>Your next character is waiting.</h2>
-        <p>Begin a new folio, bring an existing adventurer online, or explore the public archive.</p>
+    <section className="landing-hero" aria-labelledby="landing-title">
+      <div className="landing-hero-copy">
+        <p className="landing-kicker">A WORLDS WITHOUT NUMBER PLAY COMPANION</p>
+        <h1 id="landing-title">Tales Without End</h1>
+        <p className="landing-hero-deck">An online character sheet and campaign companion for Worlds Without Number—built to keep the useful parts of play close at hand.</p>
         <div className="landing-actions">
-          <GoogleSignInButton className="landing-button landing-button-primary">Start Your Adventure</GoogleSignInButton>
+          <GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton>
           <Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link>
         </div>
-      </section>
-    </main>
-  );
+        <ul className="landing-trust" aria-label="Tales Without End highlights"><li>Guided character creation</li><li>Saved online folios</li><li>Campaign-ready tools</li></ul>
+      </div>
+      <FolioShowcase />
+    </section>
+
+    <section id="character-folio" className="landing-features" aria-labelledby="player-features-title">
+      <p className="landing-kicker">FROM FIRST CHOICES TO THE NEXT SESSION</p>
+      <h2 id="player-features-title">A character sheet made for the table</h2>
+      <p className="landing-section-intro">Tales Without End follows the structure of Worlds Without Number while leaving your attention where it belongs: on the adventure.</p>
+      <div className="feature-grid">{playerFeatures.map(([icon, title, copy]) => <article key={title}><span aria-hidden="true">{icon}</span><h3>{title}</h3><p>{copy}</p></article>)}</div>
+    </section>
+
+    <section className="landing-detail landing-detail-folio">
+      <div>
+        <p className="landing-kicker">A USEFUL RECORD, NOT A BLANK FORM</p>
+        <h2>Keep every part of your adventurer within reach.</h2>
+        <p>Use a detailed, responsive folio for the things that matter during play: class choices, skills, weapons, armor, inventory, spells and Arts, notes, dice, and the history of your recent rolls.</p>
+        <ul><li>Built around the current Worlds Without Number SRD</li><li>Print-friendly records for the physical table</li><li>Private, unlisted, and public sharing choices</li></ul>
+      </div>
+      <div className="landing-detail-card"><span>THE CHARACTER LIBRARY</span><strong>Your adventurers, ready to reopen</strong><p>Save a fresh sheet today and return to the same record from your next device or your next session.</p></div>
+    </section>
+
+    <section id="campaign-tools" className="landing-campaign" aria-labelledby="campaign-tools-title">
+      <div className="landing-campaign-copy"><p className="landing-kicker">FOR THE WHOLE TABLE</p><h2 id="campaign-tools-title">Bring the campaign ledger to the session.</h2><p>Campaigns connect characters to a GM workspace with encounters, a searchable Built-In Bestiary, editable NPC templates, shared session rolls, and practical threat guidance.</p><ul><li>Organize a party without exposing private folios</li><li>Run encounter order and NPC combat snapshots</li><li>Keep table-facing rolls and campaign tools together</li></ul></div>
+      <CampaignShowcase />
+    </section>
+
+    <section className="landing-final" aria-labelledby="landing-final-title">
+      <img src="/assets/tales-without-end-navigation-logo.svg" alt="" />
+      <p className="landing-kicker">YOUR NEXT FOLIO AWAITS</p>
+      <h2 id="landing-final-title">Start with the character. Keep the tale.</h2>
+      <p>Sign in to create a Worlds Without Number character, or browse the public archive for inspiration.</p>
+      <div className="landing-actions"><GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton><Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link></div>
+    </section>
+  </main>;
 }

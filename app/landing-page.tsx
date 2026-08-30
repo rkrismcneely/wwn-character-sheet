@@ -19,7 +19,7 @@ const featureCards = [
   {
     icon: "⚔",
     title: "Built-In Tools",
-    copy: "Roll dice, search rules, manage equipment, prepare spells, and print or export from the same sheet.",
+    copy: "Roll dice, search rules, manage equipment, prepare spells, and print from the same sheet.",
   },
   {
     icon: "◈",
@@ -104,7 +104,7 @@ export function LandingPage() {
           <ul>
             <li>Clear creation and advancement controls</li>
             <li>Automatic derived values and save tracking</li>
-            <li>Built-in dice, rules search, export, and print tools</li>
+            <li>Built-in dice, rules search, and print tools</li>
           </ul>
         </div>
         <div className="detail-card">

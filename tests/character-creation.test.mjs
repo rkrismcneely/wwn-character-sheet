@@ -562,3 +562,11 @@ test("guided creation entry and wizard use the canonical sheet rather than a par
   assert.doesNotMatch(wizard, /Math\.random/u);
   assert.doesNotMatch(wizard, /useState<LevelOneCreationCharacter>/u);
 });
+
+test("Choose Learning keeps both selects readable across responsive widths", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.background-learning-rows\s*\{[\s\S]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
+  assert.match(css, /\.background-learning-rows \.background-result-row\s*\{\s*grid-template-columns:minmax\(0,1fr\)/u);
+  assert.match(css, /\.background-learning-rows \.background-result-row select\s*\{[\s\S]*width:100%/u);
+  assert.match(css, /\.background-result-row\{grid-template-columns:minmax\(0,1fr\)\}/u);
+});

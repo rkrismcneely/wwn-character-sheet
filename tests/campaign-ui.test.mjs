@@ -329,8 +329,6 @@ test("campaign read-only sheets keep one context notice and headers retain every
 
   for (const label of [
     "Save Now",
-    "Export Character",
-    "Import Character",
     "Print",
   ]) {
     assert.ok(sheet.includes(label), label);

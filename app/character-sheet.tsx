@@ -993,7 +993,6 @@ export default function Home({
   const [diceError, setDiceError] = useState("");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [virtualDiceBusy, setVirtualDiceBusy] = useState(false);
-  const importInput = useRef<HTMLInputElement>(null);
   const portraitInput = useRef<HTMLInputElement>(null);
   const characterNameInput = useRef<HTMLTextAreaElement>(null);
   const editableSurface = useRef<HTMLDivElement>(null);
@@ -2510,93 +2509,6 @@ export default function Home({
     return { w, skillName, hit, damage: `${w.damage}${extraDamage ? signed(extraDamage) : ""}`, shock, range: w.range, virtual: false, note: `${skillName} ${skill >= 0 ? signed(skill) : "untrained"} effective${armsmasterNote}` };
   }
 
-  function downloadCharacterExport(payload: unknown) {
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${(sheet.name || "wwn-character").trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "wwn-character"}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setTransferMessage("Character exported as a personal JSON backup. Account and ownership data are not included.");
-  }
-
-  async function exportCharacter() {
-    if (!signedIn) {
-      requireSignIn("export a character");
-      return;
-    }
-    if (cloudId) {
-      if (!canEdit) {
-        setTransferMessage("Only this character’s owner can export it.");
-        return;
-      }
-      const response = await fetch(`/api/characters/${cloudId}/export`, { cache: "no-store" });
-      const payload = await response.json() as { error?: string };
-      if (!response.ok) {
-        setTransferMessage(payload.error || "The character could not be exported.");
-        return;
-      }
-      downloadCharacterExport(payload);
-      return;
-    }
-
-    const character = {
-      ...sheet,
-      portrait: sheet.portrait.startsWith("/api/portraits/") ? "" : sheet.portrait,
-    };
-    downloadCharacterExport({
-      format: "wwn-character-sheet",
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      character,
-    });
-  }
-
-  async function importCharacter(file?: File) {
-    if (!file) return;
-    if (!signedIn) {
-      requireSignIn("import a character");
-      if (importInput.current) importInput.current.value = "";
-      return;
-    }
-    try {
-      const parsed = JSON.parse(await file.text());
-      const incoming = parsed?.format === "wwn-character-sheet" ? parsed.character : parsed;
-      if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) throw new Error("Invalid character data");
-      const portrait = typeof incoming.portrait === "string" && (
-        incoming.portrait.startsWith("data:image/")
-        || incoming.portrait.startsWith("/api/portraits/")
-      )
-        ? incoming.portrait
-        : "";
-      const response = await fetch("/api/characters/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(parsed?.format === "wwn-character-sheet"
-          ? { ...parsed, character: { ...incoming, portrait: "" } }
-          : { ...incoming, portrait: "" }),
-      });
-      const payload = await response.json() as { id?: string; version?: number; error?: string };
-      if (!response.ok || !payload.id || !payload.version) throw new Error(payload.error || "Import failed.");
-      let version = payload.version;
-      if (portrait) {
-        const portraitBlob = await (await fetch(portrait)).blob();
-        const uploaded = await uploadPortraitBlob(portraitBlob, payload.id, version);
-        version = uploaded.version;
-      }
-      setCloudVersion(version);
-      setLibraryScope("mine");
-      await openCloudCharacter(payload.id);
-      await refreshLibrary("mine");
-      setTransferMessage(`Imported ${String(incoming.name || "character")} as a new private character.`);
-    } catch (error) {
-      setTransferMessage(error instanceof Error ? error.message : "That file could not be imported. Choose a supported WWN character JSON file.");
-    } finally {
-      if (importInput.current) importInput.current.value = "";
-    }
-  }
-
   const updateBackgroundLearningPick = (index: number, update: Partial<BackgroundLearningPick>) => {
     setSheet(current => ({
       ...current,
@@ -2675,7 +2587,6 @@ export default function Home({
   return (
     <main>
       <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />
-      <input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={e => importCharacter(e.target.files?.[0])} />
       {signedIn ? <SignedInHeader utilities={<>
         <span className="save-state"><span className="dot" />{saved}</span>
         {canEdit && creationEntry !== "choose" && (cloudId
@@ -2779,7 +2690,7 @@ export default function Home({
             <button onClick={() => void refreshLibrary(libraryScope)}>↻ Refresh</button>
           </div>
           {!signedIn && <div className="library-signin">
-            <p>Sign in with Google to create, import, edit, and manage private characters.</p>
+            <p>Sign in with Google to create, edit, and manage private characters.</p>
             <button
               type="button"
               className="primary-action"
@@ -2813,7 +2724,7 @@ export default function Home({
           {libraryError && <div className="library-error" role="alert">{libraryError}</div>}
           <div className="library-list">
             {libraryBusy && library.length === 0 && <div className="library-empty"><span>⌛</span><h2>Opening the archive…</h2></div>}
-            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : libraryScope === "all" ? "No characters found" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character, import a backup, or use a legacy claim token." : "Try a different search or return later."}</p></div>}
+            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : libraryScope === "all" ? "No characters found" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character or use a legacy claim token." : "Try a different search or return later."}</p></div>}
             {library.map(character => <article className={`library-card ${cloudId === character.id ? "current" : ""}`} key={character.id}>
               <button className="library-card-main" onClick={() => void openCloudCharacter(character.id)}>
                 <span className="library-level">LVL <b>{character.level}</b></span>
@@ -2861,14 +2772,9 @@ export default function Home({
           onFinish={() => closeGuidedCreation(true)}
         /> : <>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
-        {signedIn && <details className="character-sheet-tools" data-readonly-interactive="true">
-          <summary>Character tools</summary>
-          <div>
-            {canEdit && creationEntry !== "choose" && sheet.level === 1 && <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>}
-            {canEdit && <button type="button" onClick={() => void exportCharacter()}>Export Character</button>}
-            <button type="button" onClick={() => importInput.current?.click()}>Import Character</button>
-          </div>
-        </details>}
+        {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
+          <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>
+        </div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
           <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
           <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { SignedInHeader } from "./app-header";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 import "./dashboard.css";
@@ -38,13 +38,11 @@ function formatUpdatedAt(value: string) {
 export function DashboardPage() {
   const [characters, setCharacters] = useState<DashboardCharacter[]>([]);
   const [busy, setBusy] = useState(true);
-  const [importBusy, setImportBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
   const [claimToken, setClaimToken] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const importInput = useRef<HTMLInputElement>(null);
 
   async function loadCharacters() {
     setBusy(true);
@@ -88,44 +86,6 @@ export function DashboardPage() {
       active = false;
     };
   }, []);
-
-  async function importCharacter(file?: File) {
-    if (!file) return;
-    setImportBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const parsed: unknown = JSON.parse(await file.text());
-      const isExport = Boolean(
-        parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        && (parsed as { format?: unknown }).format === "wwn-character-sheet",
-      );
-      const incoming = isExport
-        ? (parsed as { character?: unknown }).character
-        : parsed;
-      if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
-        throw new Error("That file does not contain a supported character.");
-      }
-      const character = { ...(incoming as Record<string, unknown>), portrait: "" };
-      const body = isExport
-        ? { ...(parsed as Record<string, unknown>), character }
-        : character;
-      const response = await fetch("/api/characters/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const payload = await response.json() as { id?: string; error?: string };
-      if (!response.ok || !payload.id) throw new Error(payload.error || "That character could not be imported.");
-      await loadCharacters();
-      setNotice("Imported as a new private character. Open it from your roster when you are ready.");
-    } catch (importError) {
-      setError(importError instanceof Error ? importError.message : "That file could not be imported.");
-    } finally {
-      setImportBusy(false);
-      if (importInput.current) importInput.current.value = "";
-    }
-  }
 
   async function claimLegacyCharacter(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -248,17 +208,6 @@ export function DashboardPage() {
         </div>
         <div className="dashboard-heading-actions">
           <Link className="dashboard-primary" href="/?new=1">＋ Create New Character</Link>
-          <button type="button" className="dashboard-secondary" onClick={() => importInput.current?.click()} disabled={importBusy}>
-            {importBusy ? "Importing…" : "Import Character"}
-          </button>
-          <input
-            ref={importInput}
-            className="dashboard-file-input"
-            type="file"
-            accept="application/json,.json"
-            aria-label="Import a character JSON file"
-            onChange={event => void importCharacter(event.currentTarget.files?.[0])}
-          />
         </div>
       </section>
 
@@ -280,7 +229,7 @@ export function DashboardPage() {
             <div className="dashboard-state dashboard-empty">
               <span aria-hidden="true">✦</span>
               <h3>Your roster is waiting</h3>
-              <p>Create a new folio, import a backup, or use a legacy claim token to bring an adventurer here.</p>
+              <p>Create a new folio or use a legacy claim token to bring an adventurer here.</p>
               <Link className="dashboard-primary" href="/?new=1">Create your first character</Link>
             </div>
           )}
@@ -297,7 +246,7 @@ export function DashboardPage() {
           </section>}
         </section>
 
-        <aside className="dashboard-sidebar" aria-label="Character tools">
+        <aside className="dashboard-sidebar" aria-label="Character recovery tools">
           <section className="dashboard-tool">
             <p className="dashboard-kicker">RECOVER A RECORD</p>
             <h2>Claim a legacy character</h2>

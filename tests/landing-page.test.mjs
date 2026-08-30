@@ -21,7 +21,7 @@ test("landing page exposes the signed-out product story, entry actions, and camp
     "Worlds Without Number",
     "Sign in with Google",
     "Browse Public Characters",
-    "Guided Level 1 creation",
+    "Guided character creation",
     "A sheet that does the bookkeeping",
     "Rules Assistant",
     "GM Console",

@@ -6,7 +6,7 @@ import "./landing-density.css";
 /* eslint-disable @next/next/no-img-element -- the small shared static brand mark is served directly */
 
 const playerFeatures = [
-  ["✦", "Guided Level 1 creation", "Choose a background, class, skills, Foci, and starting equipment in order. The sheet applies the resulting level-1 character as you go."],
+  ["✦", "Guided character creation", "Choose a background, class, skills, Foci, and starting equipment in order. The sheet applies the resulting level-1 character as you go."],
   ["⌁", "A sheet that does the bookkeeping", "Keep attributes, skills, saves, combat values, armor, and equipment together, with derived values based on your character choices."],
   ["⚄", "Roll and check rules", "Roll skills, saves, attacks, damage, and initiative from the sheet. Recent rolls and the Rules Assistant are there when a rule comes up."],
   ["◈", "Keep the character", "Save it to your account, reopen it from another device, print it, or choose private, unlisted, or public sharing."],
@@ -59,12 +59,12 @@ export function LandingPage() {
       <div className="landing-hero-copy">
         <p className="landing-kicker">A WORLDS WITHOUT NUMBER PLAY COMPANION</p>
         <h1 id="landing-title">Your Adventures.<br />Your Characters.<br /><em>Without End.</em></h1>
-        <p className="landing-hero-deck">Tales Without End is an online character sheet and Level 1 character builder for Worlds Without Number. Build a character, use it at the table, then save it to return to whenever you play.</p>
+        <p className="landing-hero-deck">Tales Without End is an online character sheet and character builder for Worlds Without Number. Build a character, use it at the table, then save it to return to whenever you play.</p>
         <div className="landing-actions">
           <GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton>
           <Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link>
         </div>
-        <ul className="landing-trust" aria-label="Tales Without End highlights"><li>Guided Level 1 creation</li><li>Interactive WWN sheets</li><li>Campaign tools for GMs</li></ul>
+        <ul className="landing-trust" aria-label="Tales Without End highlights"><li>Guided character creation</li><li>Interactive WWN sheets</li><li>Campaign tools for GMs</li></ul>
       </div>
       <FolioShowcase />
     </section>

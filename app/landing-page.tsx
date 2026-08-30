@@ -6,10 +6,10 @@ import "./landing-density.css";
 /* eslint-disable @next/next/no-img-element -- the small shared static brand mark is served directly */
 
 const playerFeatures = [
-  ["✦", "Guided character creation", "Choose a background, class, skills, Foci, and starting equipment in order. The sheet applies the resulting level-1 character as you go."],
+  ["✦", "Guided Creation", "Walk through the creation process step by step and finish with a complete character ready for the table."],
   ["⌁", "A sheet that does the bookkeeping", "Keep attributes, skills, saves, combat values, armor, and equipment together, with derived values based on your character choices."],
-  ["⚄", "Roll and check rules", "Roll skills, saves, attacks, damage, and initiative from the sheet. Recent rolls and the Rules Assistant are there when a rule comes up."],
-  ["◈", "Keep the character", "Save it to your account, reopen it from another device, print it, or choose private, unlisted, or public sharing."],
+  ["⚄", "Play without juggling extra tools", "Roll attacks and checks, see your roll history, and look up WWN rules from the same place you keep your character."],
+  ["◈", "Pick up where you left off", "Save your characters online, reopen them on another device, print them when you want paper, and decide whether each one stays private or gets shared."],
 ];
 
 function FolioShowcase() {
@@ -70,20 +70,20 @@ export function LandingPage() {
     </section>
 
     <section id="character-folio" className="landing-features" aria-labelledby="player-features-title">
-      <p className="landing-kicker">BUILD IT. THEN PLAY IT.</p>
-      <h2 id="player-features-title">A WWN character sheet that stays useful after creation</h2>
-      <p className="landing-section-intro">Build a level-1 character with guided choices, then keep the numbers, gear, and rules details you use at the table on the same sheet.</p>
+      <p className="landing-kicker">FROM CREATION TO THE TABLE</p>
+      <h2 id="player-features-title">A WWN character sheet built for actual play</h2>
+      <p className="landing-section-intro">Build a new WWN character step by step, save it to your account, and keep playing from the same interactive sheet session after session.</p>
       <div className="feature-grid">{playerFeatures.map(([icon, title, copy]) => <article key={title}><span aria-hidden="true">{icon}</span><h3>{title}</h3><p>{copy}</p></article>)}</div>
     </section>
 
     <section className="landing-detail landing-detail-folio">
       <div>
         <p className="landing-kicker">BUILT FOR ACTUAL SESSIONS</p>
-        <h2>More useful than a static sheet</h2>
-        <p>Tales Without End keeps the information that changes during play attached to the character. Track HP and System Strain, manage structured equipment and coin, roll a readied attack, and keep spells, Arts, and notes on hand.</p>
-        <ul><li>Equipment and armor stay in the record instead of a notes field</li><li>Spells, Arts, Foci, and companions sit beside the rest of the sheet</li><li>Print or save a PDF when you want paper at the table</li></ul>
+        <h2>A character sheet you can actually play from</h2>
+        <p>Track HP and System Strain, manage equipment, coin, and weapons, prepare and cast spells, and use your Arts and abilities all in one interactive sheet.</p>
+        <ul><li>Change your gear without rebuilding the character sheet around it</li><li>Keep your class abilities, magic, Foci, and companions available from the same sheet</li><li>Use the interactive sheet online or print a clean copy for an offline session</li></ul>
       </div>
-      <div className="landing-detail-card"><span>THE CHARACTER LIBRARY</span><strong>Open the same character at the next session</strong><p>Saved characters stay in your library. Reopen them where you play and choose who can see each one when you are ready to share.</p></div>
+      <div className="landing-detail-card"><span>YOUR CHARACTER LIBRARY</span><strong>Reopen your character wherever you play</strong><p>Keep multiple characters in one library, return to them from another device, and control who can see each one.</p></div>
     </section>
 
     <section id="campaign-tools" className="landing-campaign" aria-labelledby="campaign-tools-title">

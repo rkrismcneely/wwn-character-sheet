@@ -14,6 +14,8 @@ import { backgrounds } from "../app/background-data.ts";
 import { resolveBackgroundSkillGrants } from "../app/background-development.ts";
 import {
   guidedCreationModeFromUrl,
+  levelUpModeFromUrl,
+  withLevelUpMode,
   withGuidedCreationMode,
 } from "../app/guided-creation-route.ts";
 
@@ -410,6 +412,10 @@ test("guided creation route state survives reloads without storing a character d
     "/character/chr_example?tab=core",
   );
   assert.equal(guidedCreationModeFromUrl("/character/chr_example"), false);
+  const levelUp = withLevelUpMode("/character/chr_example?tab=core", true);
+  assert.equal(levelUp, "/character/chr_example?tab=core&levelup=1");
+  assert.equal(levelUpModeFromUrl(levelUp), true);
+  assert.equal(withLevelUpMode(levelUp, false), "/character/chr_example?tab=core");
 
   const sheet = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
   assert.match(sheet, /synchronizeGuidedCreationMode/u);

@@ -47,21 +47,45 @@ export type SkillProfileInput = {
   purchased: number;
   sourceCount: number;
   polymathFloor?: number;
+  /** Advancement Focus bonus-skill credit, kept separate from paid ranks. */
+  credit?: number;
 };
 
-export function deriveSkillProfile({ purchased, sourceCount, polymathFloor = -1 }: SkillProfileInput) {
+const skillRankCost = (rank: number) =>
+  rank < 0 ? 0 : [1, 3, 6, 10, 15][Math.min(4, rank)];
+
+function rankAfterSkillCredit(rank: number, credit: number) {
+  let result = Math.max(-1, Math.min(4, rank));
+  let remaining = Math.max(0, Math.floor(credit));
+  while (result < 4) {
+    const next = result + 1;
+    const cost = skillRankCost(next) - skillRankCost(result);
+    if (remaining < cost) break;
+    remaining -= cost;
+    result = next;
+  }
+  return { rank: result, remaining };
+}
+
+export function deriveSkillProfile({ purchased, sourceCount, polymathFloor = -1, credit = 0 }: SkillProfileInput) {
   const requestedPurchased = Number(purchased);
   const normalizedPurchased = Number.isFinite(requestedPurchased)
     ? Math.max(-1, Math.min(4, requestedPurchased))
     : -1;
   const granted = Math.min(4, normalizedPurchased + Math.max(0, sourceCount));
+  const creditResult = rankAfterSkillCredit(granted, credit);
   return {
     purchased: normalizedPurchased,
     sourceCount: Math.max(0, sourceCount),
     sourceFloor: sourceCount > 0 ? Math.min(4, sourceCount - 1) : -1,
     granted,
     polymathFloor,
-    effective: Math.max(granted, polymathFloor),
+    effective: Math.max(creditResult.rank, polymathFloor),
+    ...(credit > 0 ? {
+      credit: Math.max(0, Math.floor(credit)),
+      creditRank: creditResult.rank,
+      creditRemaining: creditResult.remaining,
+    } : {}),
   };
 }
 
@@ -71,9 +95,14 @@ export function deriveSkillProfile({ purchased, sourceCount, polymathFloor = -1 
  * therefore visible immediately as +0 (or +1 for a second acquisition), while
  * later increases remain reversible when that grant changes or is removed.
  */
-export function storedRankForDisplayedSkillRank(displayed: number, sourceCount: number) {
+export function storedRankForDisplayedSkillRank(displayed: number, sourceCount: number, credit = 0) {
   const rank = Number.isFinite(Number(displayed)) ? Number(displayed) : -1;
-  return Math.max(-1, Math.min(4, rank - Math.max(0, Number(sourceCount) || 0)));
+  const sources = Math.max(0, Number(sourceCount) || 0);
+  const choices = Array.from({ length: 6 }, (_, index) => index - 1)
+    .filter((purchased) => deriveSkillProfile({ purchased, sourceCount: sources, credit }).effective === rank);
+  return choices.length
+    ? choices[0]
+    : Math.max(-1, Math.min(4, rank - sources));
 }
 
 export type VowedUnarmedProgression = { hit: number; damage: string; shock: string };

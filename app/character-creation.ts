@@ -91,6 +91,8 @@ export type CreationFocusPick = {
   name: string;
   level: number;
   choice?: string;
+  /** A Focus taken during advancement grants a three-point skill credit instead of a creation source. */
+  advancement?: boolean;
 };
 export type CreationSpellPick = {
   name: string;
@@ -350,6 +352,7 @@ export function creationSkillGrants(
   state.focusPicks
     .filter((pick) => pick.name)
     .forEach((pick, index) => {
+      if (pick.advancement) return;
       grants.push({
         id: `focus-${index}`,
         result: creationFocusBonusSkill(pick),

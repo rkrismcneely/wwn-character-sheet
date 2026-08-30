@@ -569,6 +569,19 @@ test("guided creation entry and wizard use the canonical sheet rather than a par
   assert.doesNotMatch(wizard, /useState<LevelOneCreationCharacter>/u);
 });
 
+test("Level Up stays in the Character Level cell without changing the Identity grid", async () => {
+  const [sheet, styles] = await Promise.all([
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(sheet, /<span>Character Level<\/span>[\s\S]*className="level-control-row"[\s\S]*>Level Up<\/button>/u);
+  assert.match(sheet, /className="level-select"/u);
+  assert.doesNotMatch(sheet, /character-sheet-guided-action[\s\S]*Level Up · \{sheet\.level\}/u);
+  assert.match(sheet, /sheet\.level < 10[\s\S]*className="level-up-inline-button"/u);
+  assert.match(sheet, /if \(sheet\.level >= 1 && nextLevel > sheet\.level\)/u);
+  assert.match(styles, /\.level-control-row[\s\S]*\.level-select\{width:112px/u);
+});
+
 test("Choose Learning keeps both selects readable across responsive widths", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.background-learning-rows\s*\{[\s\S]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);

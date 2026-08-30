@@ -266,29 +266,42 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
         {skillBudget} point{skillBudget === 1 ? "" : "s"} available; {pointsRemaining} remaining. Reversing a selection refunds its cost immediately.
       </StepTitle>
       <div className="creation-rule-callout"><strong>Legal ranks only</strong><span>Skills cap at {skillLabel(plan.skillCap)} at level {plan.to}; Focus bonus skill credits are separate from this level’s normal skill-point pool.</span></div>
-      <div className="skill-ledger">{creationSkills.map((skill) => {
-        const profile = deriveSkillProfile({ purchased: state.draft.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
-        const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank <= plan.skillCap || rank === profile.effective);
-        return <label key={skill}><span>{skill}{profile.credit ? ` · Focus credit ${profile.credit}` : ""}</span><select value={profile.effective} onChange={(event) => {
-          const selected = Number(event.target.value);
-          const stored = storedRankForDisplayedSkillRank(selected, profile.sourceCount, profile.credit);
-          update((draft) => ({ ...draft, skillPurchases: { ...draft.skillPurchases, [skill]: stored } }));
-        }}>{options.map((rank) => {
-          const stored = storedRankForDisplayedSkillRank(rank, profile.sourceCount, profile.credit);
-          const candidateCost = pointsSpent - Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))) + Math.max(0, skillRankCostAtLevel(stored) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill])));
-          const isCombatSkill = ["Punch", "Shoot", "Stab"].includes(skill);
-          const candidateCombat = combatSkillSpent + (isCombatSkill
-            ? -Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))) + Math.max(0, skillRankCostAtLevel(stored) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill])))
-            : 0);
-          const disabled = candidateCost > skillBudget || (plan.quickLearner && candidateCombat > 3 && candidateCost > 3);
-          return <option key={rank} value={rank} disabled={disabled}>{skillLabel(rank)}</option>;
-        })}</select></label>;
-      })}</div>
-      <div className="creation-fields two-columns">{attributes.map((attribute) => {
-        const boosts = state.draft.attributeBoosts[attribute] || 0;
-        const canIncrease = draftBoosts < plan.attributeBoostLimit && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= draftBoosts + 1;
-        return <div className="creation-rule-callout" key={attribute}><strong>{attribute} {state.draft.attrs[attribute]}</strong><span>{boosts} purchased increase{boosts === 1 ? "" : "s"}</span><div><button type="button" disabled={boosts <= 0} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts - 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] - 1 } }))}>−</button><button type="button" disabled={!canIncrease} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts + 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] + 1 } }))}>+</button></div></div>;
-      })}</div>
+      <section className="level-up-spend-section" aria-labelledby="level-up-attributes-title">
+        <h3 id="level-up-attributes-title">Attributes</h3>
+        <div className="level-up-attributes-grid">{attributes.map((attribute) => {
+          const boosts = state.draft.attributeBoosts[attribute] || 0;
+          const canIncrease = draftBoosts < plan.attributeBoostLimit && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= draftBoosts + 1;
+          return <article className="level-up-attribute-card" key={attribute}>
+            <div className="level-up-attribute-heading"><strong>{attribute}</strong><b>{state.draft.attrs[attribute]}</b></div>
+            <span>{boosts} purchased increase{boosts === 1 ? "" : "s"}</span>
+            <div className="level-up-attribute-controls">
+              <button type="button" aria-label={`Decrease ${attribute}`} disabled={boosts <= 0} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts - 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] - 1 } }))}>−</button>
+              <button type="button" aria-label={`Increase ${attribute}`} disabled={!canIncrease} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts + 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] + 1 } }))}>+</button>
+            </div>
+          </article>;
+        })}</div>
+      </section>
+      <section className="level-up-spend-section" aria-labelledby="level-up-skills-title">
+        <h3 id="level-up-skills-title">Skills</h3>
+        <div className="level-up-skills-grid">{creationSkills.map((skill) => {
+          const profile = deriveSkillProfile({ purchased: state.draft.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
+          const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank <= plan.skillCap || rank === profile.effective);
+          return <label className="level-up-skill-field" key={skill}><span>{skill}{profile.credit ? ` · Focus credit ${profile.credit}` : ""}</span><select aria-label={`${skill} advancement rank`} value={profile.effective} onChange={(event) => {
+            const selected = Number(event.target.value);
+            const stored = storedRankForDisplayedSkillRank(selected, profile.sourceCount, profile.credit);
+            update((draft) => ({ ...draft, skillPurchases: { ...draft.skillPurchases, [skill]: stored } }));
+          }}>{options.map((rank) => {
+            const stored = storedRankForDisplayedSkillRank(rank, profile.sourceCount, profile.credit);
+            const candidateCost = pointsSpent - Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))) + Math.max(0, skillRankCostAtLevel(stored) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill])));
+            const isCombatSkill = ["Punch", "Shoot", "Stab"].includes(skill);
+            const candidateCombat = combatSkillSpent + (isCombatSkill
+              ? -Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))) + Math.max(0, skillRankCostAtLevel(stored) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill])))
+              : 0);
+            const disabled = candidateCost > skillBudget || (plan.quickLearner && candidateCombat > 3 && candidateCost > 3);
+            return <option key={rank} value={rank} disabled={disabled}>{skillLabel(rank)}</option>;
+          })}</select></label>;
+        })}</div>
+      </section>
     </>;
     if (state.step === 3) return <>
       <StepTitle eyebrow="FOCI" title={plan.gainsFocus ? "Choose a Focus" : "No Focus this level"}>

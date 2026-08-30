@@ -372,6 +372,101 @@
   font: 700 19px var(--font-numeric);
   color: #8a541e;
 }
+.level-up-spend-section {
+  margin-top: 18px;
+}
+.level-up-spend-section > h3 {
+  margin: 0 0 8px;
+  color: #49351d;
+  font: 600 22px/1 var(--font-display);
+}
+.level-up-attributes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.level-up-attribute-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #c7af82;
+  background: #f7edd8;
+}
+.level-up-attribute-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.level-up-attribute-heading strong {
+  color: #4b361f;
+  font: 700 12px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+}
+.level-up-attribute-heading b {
+  color: #8a541e;
+  font: 700 22px/1 var(--font-numeric);
+}
+.level-up-attribute-card > span {
+  min-height: 2.6em;
+  color: #77664e;
+  font: 10px/1.3 var(--font-ui);
+}
+.level-up-attribute-controls {
+  display: flex;
+  gap: 7px;
+}
+.level-up-attribute-controls button {
+  width: 40px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #b99a67;
+  background: #fffaf0;
+  color: #50371d;
+  font: 700 21px/1 var(--font-ui);
+  cursor: pointer;
+}
+.level-up-attribute-controls button:hover:not(:disabled) {
+  background: #f0dfbd;
+}
+.level-up-attribute-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.level-up-attribute-controls button:focus-visible,
+.level-up-skill-field select:focus-visible {
+  outline: 2px solid #a66e25;
+  outline-offset: 2px;
+}
+.level-up-skills-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+.level-up-skill-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px 9px;
+  border-bottom: 1px solid #dfcba3;
+}
+.level-up-skill-field > span {
+  min-height: 2.4em;
+  overflow-wrap: anywhere;
+  color: #766852;
+  font: 700 10px/1.2 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.level-up-skill-field select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #bfa87c;
+  background: #fffdf7;
+  padding: 7px;
+  color: #392718;
+}
 .creation-choice-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -957,6 +1052,32 @@
   }
   .creation-equipment-start label {
     width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .level-up-attributes-grid,
+  .level-up-skills-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .level-up-skills-grid {
+    grid-template-columns: 1fr;
+  }
+  .level-up-attributes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .level-up-attribute-controls button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 420px) {
+  .level-up-attributes-grid {
+    grid-template-columns: 1fr;
   }
 }
 

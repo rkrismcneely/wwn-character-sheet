@@ -34,7 +34,9 @@ import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "./virtual-dice-overlay";
 import { CharacterLiveSessionPanel } from "./character-live-session-panel";
 import { GuidedCreationWizard } from "./character-creation-wizard";
-import { guidedCreationModeFromUrl, withGuidedCreationMode } from "./guided-creation-route";
+import { LevelUpWizard } from "./level-up-wizard";
+import { guidedCreationModeFromUrl, levelUpModeFromUrl, withGuidedCreationMode, withLevelUpMode } from "./guided-creation-route";
+import { advancementSkillCreditBySkill } from "./level-advancement";
 import {
   adventuringGear as adventuringGearData,
   armors,
@@ -72,7 +74,7 @@ import type { CharacterVisibility } from "@/lib/characters/authorization";
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
 type AttributeMethod = "rolled" | "array";
 type AttributeName = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
-type FocusPick = { name: string; level: number; choice?: string };
+type FocusPick = { name: string; level: number; choice?: string; advancement?: boolean };
 type WeaponPick = { name: string; skill: number };
 type SpellPick = { name: string; prepared: boolean; cast: boolean; casts?: number };
 type CompanionKind = "henchman" | "familiar";
@@ -924,6 +926,7 @@ export default function Home({
     startNew && !initialCharacter ? "choose" : "none",
   );
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [levelUpOpen, setLevelUpOpen] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(() =>
     startNew && !initialCharacter
       ? createBlankSheet()
@@ -972,6 +975,19 @@ export default function Home({
     } else {
       window.history.replaceState(window.history.state, "", next);
     }
+  }
+
+  function setLevelUpMode(
+    enabled: boolean,
+    historyMode: "push" | "replace" = "push",
+  ) {
+    setLevelUpOpen(enabled);
+    if (typeof window === "undefined") return;
+    const next = withLevelUpMode(window.location.href, enabled);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === current) return;
+    if (historyMode === "push") window.history.pushState(window.history.state, "", next);
+    else window.history.replaceState(window.history.state, "", next);
   }
 
   const [campaignLinks, setCampaignLinks] = useState<CharacterCampaignLink[]>(
@@ -1271,6 +1287,14 @@ export default function Home({
     synchronizeGuidedCreationMode();
     window.addEventListener("popstate", synchronizeGuidedCreationMode);
     return () => window.removeEventListener("popstate", synchronizeGuidedCreationMode);
+  }, []);
+
+  useEffect(() => {
+    const synchronizeLevelUpMode = () =>
+      setLevelUpOpen(levelUpModeFromUrl(window.location.href));
+    synchronizeLevelUpMode();
+    window.addEventListener("popstate", synchronizeLevelUpMode);
+    return () => window.removeEventListener("popstate", synchronizeLevelUpMode);
   }, []);
 
   useEffect(() => {
@@ -1900,6 +1924,54 @@ export default function Home({
     setGuidedCreationMode(false, "replace");
   }
 
+  async function commitLevelUp(nextCharacter: Sheet, sourceLevel: number) {
+    if (!cloudId || cloudVersion === null || !canEdit || cloudArchivedAt) {
+      setTransferMessage("Level-up is available only for an active character you own.");
+      return false;
+    }
+    setSaved("Applying level-up…");
+    try {
+      const currentResponse = await fetch(`/api/characters/${cloudId}`, { cache: "no-store" });
+      const currentPayload = await currentResponse.json() as { character?: Partial<Sheet>; version?: number; error?: string };
+      if (!currentResponse.ok || !currentPayload.character || !Number.isInteger(currentPayload.version)) throw new Error(currentPayload.error || "The character could not be checked before level-up.");
+      if (Number(currentPayload.version) !== cloudVersion) {
+        setSaved("Newer online copy found");
+        setTransferMessage("This character changed elsewhere while the level-up wizard was open. No advancement was saved; reload the current sheet first.");
+        return false;
+      }
+      if (Number(currentPayload.character.level) !== sourceLevel) {
+        setSaved("Newer online copy found");
+        setTransferMessage(`This character is no longer level ${sourceLevel}. Reload the current sheet before trying to advance it again.`);
+        return false;
+      }
+      const response = await fetch(`/api/characters/${cloudId}`, {
+        method: "PUT", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ character: nextCharacter, version: currentPayload.version }),
+      });
+      const payload = await response.json() as { version?: number; error?: string };
+      if (response.status === 409) {
+        setSaved("Newer online copy found");
+        setTransferMessage("This character changed in another tab before the level-up could be applied. No advancement was saved.");
+        return false;
+      }
+      if (!response.ok || !payload.version) throw new Error(payload.error || "The level-up could not be saved.");
+      const normalized = normalizeIncomingSheet(nextCharacter);
+      setSheet(normalized);
+      setCloudVersion(Number(payload.version));
+      lastCloudData.current = JSON.stringify(normalized);
+      setSaved("Saved online");
+      setTransferMessage(`Level ${sourceLevel} → ${sourceLevel + 1} saved successfully.`);
+      setLevelUpMode(false, "replace");
+      setTab("core");
+      void refreshLibrary("mine");
+      return true;
+    } catch (error) {
+      setSaved("Not saved online");
+      setTransferMessage(error instanceof Error ? error.message : "The level-up could not be saved.");
+      return false;
+    }
+  }
+
   async function duplicateCharacter(id: string) {
     if (!signedIn) {
       requireSignIn("duplicate a character into My Characters");
@@ -2031,6 +2103,7 @@ export default function Home({
     return Math.min(3, value);
   };
   const minimumSkillSources = skillSourcesFor(sheet);
+  const advancementSkillCredits = advancementSkillCreditBySkill(sheet);
   const backgroundGrantResolutions = backgroundSkillGrantResolutions(sheet);
   const backgroundGrantResolution = (id: string, candidate = sheet) =>
     backgroundSkillGrantResolutions(candidate).find(grant => grant.id === id);
@@ -2051,7 +2124,7 @@ export default function Home({
   const skillProfile = (skill: string, purchases = sheet.skillPurchases) => {
     const sourceCount = minimumSkillSources[skill].length;
     const polymathFloor = noncombatSkills.includes(skill) && polymathLevel ? (polymathLevel >= 2 ? 1 : 0) : -1;
-    return deriveSkillProfile({ purchased: purchases[skill], sourceCount, polymathFloor });
+    return deriveSkillProfile({ purchased: purchases[skill], sourceCount, polymathFloor, credit: advancementSkillCredits[skill] || 0 });
   };
   const effectiveSkill = (skill: string) => skillProfile(skill).effective;
   const skillPointAllowance = Math.max(0, (effectiveLevel - 1) * (selectedClasses.includes("Expert") ? 4 : 3));
@@ -2770,10 +2843,19 @@ export default function Home({
           onPortrait={file => void uploadPortrait(file)}
           onExit={() => closeGuidedCreation(false)}
           onFinish={() => closeGuidedCreation(true)}
+        /> : levelUpOpen && canEdit && cloudId && !cloudArchivedAt && sheet.level >= 1 && sheet.level < 10 ? <LevelUpWizard
+          sheet={sheet}
+          canEdit={canEdit}
+          persistenceKey={cloudId}
+          onCancel={() => setLevelUpMode(false, "replace")}
+          onFinish={(next, sourceLevel) => commitLevelUp(next as Sheet, sourceLevel)}
         /> : <>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
         {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
           <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>
+        </div>}
+        {signedIn && canEdit && cloudId && !cloudArchivedAt && creationEntry !== "choose" && sheet.level >= 1 && sheet.level < 10 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
+          <button type="button" onClick={() => setLevelUpMode(true)}>Level Up · {sheet.level} → {sheet.level + 1}</button>
         </div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
           <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
@@ -2861,11 +2943,19 @@ export default function Home({
                   <span>Character Level</span>
                   <select
                     value={sheet.level || ""}
-                    onChange={e => patch("level", e.target.value === "" ? 0 : Number(e.target.value))}
+                    onChange={e => {
+                      const nextLevel = e.target.value === "" ? 0 : Number(e.target.value);
+                      if (sheet.level >= 1 && nextLevel > sheet.level) {
+                        setLevelUpMode(true);
+                        setTransferMessage("Use the Level-Up Wizard to apply one legal level at a time.");
+                        return;
+                      }
+                      patch("level", nextLevel);
+                    }}
                   >
                     <option value="">Choose level…</option>
                     {Array.from({ length: 10 }, (_, index) => index + 1).map(level => (
-                      <option key={level} value={level}>{level}</option>
+                      <option key={level} value={level} disabled={sheet.level >= 1 && level > sheet.level}>{level}</option>
                     ))}
                   </select>
                 </label>
@@ -3198,7 +3288,7 @@ export default function Home({
                   // value: a background Free/Quick/Learning result immediately
                   // appears as its minimum (+0 or +1) instead of "Untrained".
                   const minimumSelectable = Math.max(minimumSkillRanks[skill], profile.polymathFloor);
-                  const purchasesForDisplayedRank = (rank: number) => storedRankForDisplayedSkillRank(rank, profile.sourceCount);
+                  const purchasesForDisplayedRank = (rank: number) => storedRankForDisplayedSkillRank(rank, profile.sourceCount, profile.credit);
                   return <div className="skill-row" key={skill}><label><span><span className="skill-name" title={skillOverviews[skill]} tabIndex={0}>{skill}</span>
                     {profile.sourceCount > 0 && <small className="skill-minimum" tabIndex={0}>
                       <span className="skill-minimum-word">Granted</span> {profile.sourceFloor >= 0 ? `+${profile.sourceFloor}` : "untrained"}
@@ -3224,7 +3314,7 @@ export default function Home({
                       const legalCap = Math.min(4, maxSkillRank + (profile.sourceCount ? 1 : 0));
                       const disabled = n < minimumSelectable ||
                         nextProfile.effective < minimumSelectable ||
-                        nextProfile.granted > legalCap ||
+                        (nextProfile.granted > legalCap && nextProfile.effective > profile.effective) ||
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}

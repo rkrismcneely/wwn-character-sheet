@@ -2854,9 +2854,6 @@ export default function Home({
         {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
           <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>
         </div>}
-        {signedIn && canEdit && cloudId && !cloudArchivedAt && creationEntry !== "choose" && sheet.level >= 1 && sheet.level < 10 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
-          <button type="button" onClick={() => setLevelUpMode(true)}>Level Up · {sheet.level} → {sheet.level + 1}</button>
-        </div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
           <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
           <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
@@ -2941,23 +2938,27 @@ export default function Home({
                 <Field label="Player" value={sheet.player} onChange={v => patch("player", v)} />
                 <label className="field">
                   <span>Character Level</span>
-                  <select
-                    value={sheet.level || ""}
-                    onChange={e => {
-                      const nextLevel = e.target.value === "" ? 0 : Number(e.target.value);
-                      if (sheet.level >= 1 && nextLevel > sheet.level) {
-                        setLevelUpMode(true);
-                        setTransferMessage("Use the Level-Up Wizard to apply one legal level at a time.");
-                        return;
-                      }
-                      patch("level", nextLevel);
-                    }}
-                  >
-                    <option value="">Choose level…</option>
-                    {Array.from({ length: 10 }, (_, index) => index + 1).map(level => (
-                      <option key={level} value={level} disabled={sheet.level >= 1 && level > sheet.level}>{level}</option>
-                    ))}
-                  </select>
+                  <span className="level-control-row">
+                    <select
+                      className="level-select"
+                      value={sheet.level || ""}
+                      onChange={e => {
+                        const nextLevel = e.target.value === "" ? 0 : Number(e.target.value);
+                        if (sheet.level >= 1 && nextLevel > sheet.level) {
+                          setLevelUpMode(true);
+                          setTransferMessage("Use the Level-Up Wizard to apply one legal level at a time.");
+                          return;
+                        }
+                        patch("level", nextLevel);
+                      }}
+                    >
+                      <option value="">Choose level…</option>
+                      {Array.from({ length: 10 }, (_, index) => index + 1).map(level => (
+                        <option key={level} value={level} disabled={sheet.level >= 1 && level > sheet.level}>{level}</option>
+                      ))}
+                    </select>
+                    {signedIn && canEdit && cloudId && !cloudArchivedAt && creationEntry !== "choose" && sheet.level >= 1 && sheet.level < 10 && <button type="button" className="level-up-inline-button" onClick={() => setLevelUpMode(true)}>Level Up</button>}
+                  </span>
                 </label>
                 <label className="field"><span>Class structure</span><select value={sheet.classMode} onChange={e => patch("classMode", e.target.value as Sheet["classMode"])}><option value="full">Full class</option><option value="adventurer">Adventurer (two partial classes)</option></select></label>
                 <Field label="Race / Species" value={sheet.species} onChange={v => patch("species", v)} />

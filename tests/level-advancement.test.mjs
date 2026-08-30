@@ -108,6 +108,10 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(wizard, /onFinish\(final, sourceLevel\)/u);
   assert.match(wizard, /Canceling or closing it leaves the saved character unchanged/u);
   assert.match(wizard, /Roll \{plan\.to\}d6 for HP/u);
+  assert.match(wizard, /Enter your \{plan\.to\}d6 total/u);
+  assert.match(wizard, /hpRollMinimum/u);
+  assert.match(wizard, /hpRollMaximum/u);
+  assert.match(wizard, /HP dice total:/u);
   assert.match(wizard, /Traditional Education/u);
   assert.match(wizard, /Deep Apprehension/u);
   assert.match(sheet, /levelUpModeFromUrl/u);

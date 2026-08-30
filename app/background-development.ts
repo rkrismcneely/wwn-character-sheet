@@ -103,6 +103,24 @@ export const backgroundTableResult = (backgroundName: string, table: BackgroundR
   return background?.[table][die - 1] || "";
 };
 
+export const backgroundTableDieSides = (backgroundName: string, table: BackgroundRollTable) =>
+  backgrounds[backgroundName]?.[table].length || 0;
+
+/** Resolve a physical table-die result through the same canonical table path as a digital roll. */
+export const backgroundDevelopmentRollFromDie = (
+  backgroundName: string,
+  table: BackgroundRollTable,
+  die: number,
+): BackgroundDevelopmentRoll => {
+  const sides = backgroundTableDieSides(backgroundName, table);
+  if (!Number.isInteger(die) || die < 1 || die > sides) return blankBackgroundDevelopmentRoll(table);
+  return {
+    ...blankBackgroundDevelopmentRoll(table),
+    die,
+    result: backgroundTableResult(backgroundName, table, die),
+  };
+};
+
 export const resolvedBackgroundRollResult = (backgroundName: string, roll: Pick<BackgroundDevelopmentRoll, "table" | "die" | "result">) =>
   roll.die ? backgroundTableResult(backgroundName, roll.table, roll.die) : "";
 
@@ -124,14 +142,10 @@ export function rollBackgroundTable(
   table: BackgroundRollTable,
   random: () => number = Math.random,
 ): BackgroundDevelopmentRoll {
-  const outcomes = backgrounds[backgroundName]?.[table] || [];
-  if (!outcomes.length) return blankBackgroundDevelopmentRoll(table);
-  const die = Math.min(outcomes.length, Math.max(1, Math.floor(random() * outcomes.length) + 1));
-  return {
-    ...blankBackgroundDevelopmentRoll(table),
-    die,
-    result: outcomes[die - 1],
-  };
+  const sides = backgroundTableDieSides(backgroundName, table);
+  if (!sides) return blankBackgroundDevelopmentRoll(table);
+  const die = Math.min(sides, Math.max(1, Math.floor(random() * sides) + 1));
+  return backgroundDevelopmentRollFromDie(backgroundName, table, die);
 }
 
 /**

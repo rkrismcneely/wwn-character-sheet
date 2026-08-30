@@ -18,6 +18,8 @@ import {
   blankBackgroundDevelopmentRoll,
   blankBackgroundDevelopmentRolls,
   blankBackgroundLearningPicks,
+  backgroundDevelopmentRollFromDie,
+  backgroundTableDieSides,
   normalizeBackgroundDevelopment,
   resolveBackgroundSkillGrants,
   rollBackgroundTable,
@@ -88,6 +90,18 @@ test("SRD backgrounds retain Quick Skills and the complete Growth and Learning t
   assert.deepEqual(backgrounds.Artisan.growth, ["+1 Any Stat", "+2 Physical", "+2 Physical", "+2 Mental", "Exert", "Any Skill"]);
   assert.deepEqual(backgrounds.Scholar.learning, ["Administer", "Heal", "Craft", "Know", "Notice", "Perform", "Pray", "Convince"]);
   assert.equal(backgrounds.Slave.learning.filter(result => result === "Any Skill").length, 1);
+});
+
+test("physical Background Development dice use the canonical table resolver", () => {
+  assert.equal(backgroundTableDieSides("Soldier", "growth"), 6);
+  assert.equal(backgroundTableDieSides("Soldier", "learning"), 8);
+  assert.deepEqual(backgroundDevelopmentRollFromDie("Soldier", "growth", 1), {
+    ...blankBackgroundDevelopmentRoll("growth"),
+    die: 1,
+    result: backgrounds.Soldier.growth[0],
+  });
+  assert.equal(backgroundDevelopmentRollFromDie("Soldier", "growth", 0).result, "");
+  assert.equal(backgroundDevelopmentRollFromDie("Soldier", "learning", 9).die, 0);
 });
 
 test("Phase 2A Focus data exposes explicit combat choices", () => {

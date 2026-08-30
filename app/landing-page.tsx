@@ -39,7 +39,7 @@ function CampaignShowcase() {
       <div className="landing-campaign-heading"><div><small>ROUND 2</small><strong>The Broken Road</strong></div><b>Moderate</b></div>
       <div className="landing-combatant landing-combatant-pc"><span>→</span><div><b>Ilyra Venn</b><small>Player character</small></div><strong>Init 16</strong><strong>14 / 14 HP</strong><strong>AC 13</strong></div>
       <div className="landing-combatant"><span /> <div><b>Roadside Thug</b><small>Built-In Bestiary</small></div><strong>Init 11</strong><strong>5 / 5 HP</strong><strong>AC 12</strong></div>
-      <div className="landing-campaign-tools"><span><b>35</b> SRD creatures</span><span><b>2</b> campaign NPCs</span><span><b>Live</b> rolls</span></div>
+      <div className="landing-campaign-tools"><span>SRD Creatures</span><span>Campaign NPCs</span><span>Live Rolls</span></div>
     </div>
   </section>;
 }
@@ -58,7 +58,7 @@ export function LandingPage() {
     <section className="landing-hero" aria-labelledby="landing-title">
       <div className="landing-hero-copy">
         <p className="landing-kicker">A WORLDS WITHOUT NUMBER PLAY COMPANION</p>
-        <h1 id="landing-title">Tales Without End</h1>
+        <h1 id="landing-title">Your Adventures.<br />Your Characters.<br /><em>Without End.</em></h1>
         <p className="landing-hero-deck">An online character sheet and campaign companion for Worlds Without Number—built to keep the useful parts of play close at hand.</p>
         <div className="landing-actions">
           <GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton>

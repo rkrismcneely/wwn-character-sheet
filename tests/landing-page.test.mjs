@@ -15,7 +15,9 @@ test("root selects the landing page only for signed-out visitors", async () => {
 test("landing page exposes the signed-out product story, entry actions, and campaign tools", async () => {
   const landing = await source("app/landing-page.tsx");
   for (const copy of [
-    "Tales Without End",
+    "Your Adventures.",
+    "Your Characters.",
+    "Without End.",
     "Worlds Without Number",
     "Sign in with Google",
     "Browse Public Characters",
@@ -24,6 +26,9 @@ test("landing page exposes the signed-out product story, entry actions, and camp
     "GM Console",
     "Built-In Bestiary",
     "Saved online",
+    "SRD Creatures",
+    "Campaign NPCs",
+    "Live Rolls",
   ]) assert.equal(landing.includes(copy), true, copy);
   assert.match(landing, /GoogleSignInButton/u);
   assert.match(landing, /href="\/public-characters"/u);

@@ -145,7 +145,7 @@ export function EncounterTracker({ campaignId, session, partyLevels, partyLoaded
       const hpMax = combatant.kind === "npc" ? combatant.hpMax : character?.hpMax;
       const armorClass = combatant.kind === "npc" ? combatant.armorClass : character?.armorClass;
       const current = encounter.currentCombatantId === combatant.id;
-      return <li key={combatant.id} className={`${current ? "campaign-encounter-current " : ""}${combatant.kind === "pc" ? "campaign-encounter-pc" : ""}`.trim() || undefined}>
+      return <li key={combatant.id} className={`${current ? "campaign-encounter-current " : ""}${combatant.kind === "pc" ? "campaign-encounter-pc" : "campaign-encounter-npc-row"}`.trim()}>
         <span className="campaign-turn-marker" aria-label={current ? "Current turn" : undefined}>{current ? "→" : ""}</span>
         <div className="campaign-encounter-name">{character ? <a href={`/campaigns/${campaignId}/characters/${character.id}`}>{name}</a> : <strong>{name}</strong>}<small>{combatant.kind === "pc" ? "Player character" : "Temporary NPC"}</small></div>
         {combatant.kind === "npc" && <NpcCombatStrip stats={canManage ? combatant.combatStats : undefined} onRoll={canManage && onNpcRoll ? action => void onNpcRoll(combatant.id, action) : undefined} busy={busy} />}

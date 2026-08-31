@@ -14,6 +14,7 @@ import {
 } from "../virtual-dice-preference";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "../virtual-dice-overlay";
 import { STANDARD_RPG_DICE_SIDES } from "../virtual-dice-style";
+import { ConnectedAccounts } from "./connected-accounts";
 
 function DicePreviewControl() {
   const { theme } = useDisplayTheme();
@@ -139,7 +140,7 @@ export function AccountPageClient({
     }
   }
 
-  async function resetToGoogleName() {
+  async function resetToProviderName() {
     setBusy(true);
     setNotice("");
     setError("");
@@ -154,7 +155,7 @@ export function AccountPageClient({
       }
       setProfile(payload.profile);
       setDisplayName(payload.profile.effectiveDisplayName);
-      setNotice("Your Google profile name is now used throughout Tales Without End.");
+      setNotice("Your original profile name is now used throughout Tales Without End.");
     } catch (resetError) {
       setError(
         resetError instanceof Error
@@ -187,12 +188,12 @@ export function AccountPageClient({
               <p className="account-kicker">APPLICATION IDENTITY</p>
               <h2 id="username-title">Username</h2>
             </div>
-            <span>{profile.usesProviderName ? "Google fallback" : "Custom"}</span>
+            <span>{profile.usesProviderName ? "Profile fallback" : "Custom"}</span>
           </div>
           <p className="account-explanation">
             This is your public display name inside Tales Without End. It appears in
             campaign rosters and beside your linked campaign characters. It does not
-            change your Google account or sign-in.
+            change your connected accounts or sign-in.
           </p>
           <form onSubmit={saveDisplayName} className="account-form">
             <label htmlFor="account-display-name">Username</label>
@@ -214,19 +215,21 @@ export function AccountPageClient({
               <button
                 type="button"
                 className="account-secondary"
-                onClick={() => void resetToGoogleName()}
+                onClick={() => void resetToProviderName()}
                 disabled={busy || profile.usesProviderName}
               >
-                Use Google Name
+                Use Original Name
               </button>
             </div>
           </form>
           <dl className="account-provider">
             <div><dt>Current display</dt><dd>{profile.effectiveDisplayName}</dd></div>
-            <div><dt>Google profile name</dt><dd>{profile.providerName}</dd></div>
+            <div><dt>Original profile name</dt><dd>{profile.providerName}</dd></div>
             <div><dt>Signed in as</dt><dd>{profile.email}</dd></div>
           </dl>
           </section>
+
+          <ConnectedAccounts />
 
           <section className="account-panel account-appearance" aria-labelledby="appearance-title">
           <div className="account-section-heading">

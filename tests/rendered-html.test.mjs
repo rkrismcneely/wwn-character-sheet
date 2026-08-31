@@ -253,7 +253,7 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
     assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
     const html = await response.text();
     assert.match(html, developmentPreviewMeta);
-    assert.match(html, /Sign in with Google/u);
+    assert.match(html, /Continue with Google/u);
     assert.match(html, /Public Characters/u);
 
     const publicLibrary = await fetch(`${worker.origin}/api/characters?scope=public`);
@@ -595,6 +595,16 @@ test("local Worker signs out an authenticated session and reports the request", 
     assert.equal(before.status, 200);
     assert.equal((await before.json()).user.id, "runtime-proof-user");
 
+    const providers = await fetch(`${worker.origin}/api/sign-in-providers`);
+    assert.deepEqual(await providers.json(), { providers: ["google"] });
+    const connections = await fetch(`${worker.origin}/api/account/connections`, { headers });
+    assert.equal(connections.status, 200);
+    assert.equal(connections.headers.get("cache-control"), "no-store");
+    const connectionPayload = await connections.json();
+    assert.deepEqual(connectionPayload.accounts.map(account => account.provider), ["google", "discord"]);
+    assert.doesNotMatch(JSON.stringify(connectionPayload), /runtime-proof|token|accountId|userId/u);
+    assert.equal((await fetch(`${worker.origin}/api/account/connections`)).status, 401);
+
     const signOut = await fetch(`${worker.origin}/api/auth/sign-out`, {
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },
@@ -606,6 +616,7 @@ test("local Worker signs out an authenticated session and reports the request", 
     const after = await fetch(`${worker.origin}/api/auth/get-session`, { headers });
     assert.equal(after.status, 200);
     assert.equal(await after.json(), null);
+    assert.equal((await fetch(`${worker.origin}/api/account/connections`, { headers })).status, 401);
 
     const signIn = await fetch(`${worker.origin}/api/auth/sign-in/social`, {
       method: "POST",

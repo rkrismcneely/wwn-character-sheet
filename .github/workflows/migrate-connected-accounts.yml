@@ -1,0 +1,45 @@
+name: Migrate and Deploy Connected Accounts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0013_connected_accounts.sql"
+      - "scripts/migrate-connected-accounts.mjs"
+      - ".github/workflows/migrate-connected-accounts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate, build, and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Verify configuration and apply only the reviewed identity safeguards
+        run: node scripts/migrate-connected-accounts.mjs --remote --apply --confirm-database-id=8e2bf197-e20f-4ea7-a86f-cab4e1a74699
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - run: npm run build
+      - name: Deploy production Worker
+        run: npx wrangler deploy --config dist/server/wrangler.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify production health
+        run: curl --fail --silent --show-error --location --retry 12 --retry-delay 5 --retry-all-errors --connect-timeout 15 --max-time 30 --output /dev/null https://taleswithoutend.com

@@ -19,7 +19,7 @@ test("landing page exposes the signed-out product story, entry actions, and camp
     "Your Characters.",
     "Without End.",
     "Worlds Without Number",
-    "Sign in with Google",
+    "Continue with Google",
     "Browse Public Characters",
     "Guided Creation",
     "FROM CREATION TO THE TABLE",

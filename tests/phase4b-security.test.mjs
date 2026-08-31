@@ -349,12 +349,12 @@ test("auth build configuration references runtime binding names without secret v
   assert.match(auth, /runtimeEnv\.GOOGLE_CLIENT_ID/u);
   assert.match(auth, /runtimeEnv\.GOOGLE_CLIENT_SECRET/u);
   assert.doesNotMatch(client, /SECRET|CLIENT_ID/u);
-  assert.equal(example, "BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:5173\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\n");
+  assert.equal(example, "BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:5173\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nDISCORD_CLIENT_ID=\nDISCORD_CLIENT_SECRET=\n");
   assert.match(
     wrangler,
     /"vars":\s*\{\s*"BETTER_AUTH_URL":\s*"https:\/\/taleswithoutend\.com"\s*\}/u,
   );
-  assert.doesNotMatch(wrangler, /BETTER_AUTH_SECRET|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET/u);
+  assert.doesNotMatch(wrangler, /BETTER_AUTH_SECRET|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|DISCORD_CLIENT_SECRET/u);
   assert.match(auth, /additionalFields:[\s\S]*role:[\s\S]*input: false/u);
   assert.match(auth, /defaultValue: "user"/u);
   assert.match(client, /inferAdditionalFields<Auth>/u);
@@ -376,7 +376,7 @@ test("request JSON parsing is bounded and rejects malformed input", async () => 
   );
 });
 
-test("canonical auth configuration has one production origin and Google-only scopes", async () => {
+test("canonical auth configuration preserves Google scopes and adds only Discord identity scopes", async () => {
   const auth = await source("lib/auth.ts");
   const constants = await source("lib/auth-constants.ts");
   const fallbackRoute = await source("app/api/auth/[...all]/route.ts");
@@ -385,7 +385,9 @@ test("canonical auth configuration has one production origin and Google-only sco
   assert.match(auth, /disableDefaultScope: true[\s\S]*scope: \["openid", "email", "profile"\]/u);
   assert.match(auth, /emailAndPassword:\s*\{\s*enabled: false/u);
   assert.match(fallbackRoute, /Response\.redirect[\s\S]*CANONICAL_ORIGIN/u);
-  assert.doesNotMatch(auth, /github|discord|password:\s*true/u);
+  assert.match(auth, /scope: \["identify", "email"\]/u);
+  assert.match(auth, /disableImplicitLinking: true/u);
+  assert.doesNotMatch(auth, /github|password:\s*true|scope:.*(?:bot|guilds)/u);
 });
 
 test("public URL format is stable, opaque, and independent of names", async () => {

@@ -65,3 +65,17 @@ test("all new Google calls use the shared Better Auth social sign-in", async () 
   assert.match(button, /provider: "google"/u);
   assert.match(button, /callbackURL: "\/"/u);
 });
+
+test("homepage provider controls use local official marks without changing auth presentation", async () => {
+  const google = await source("components/google-sign-in-button.tsx");
+  const discord = await source("components/discord-sign-in-button.tsx");
+  const css = await source("app/landing-density.css");
+  assert.match(google, /provider-google-button/u);
+  assert.match(google, /\/assets\/google-g-mark\.png/u);
+  assert.match(discord, /provider-discord-button/u);
+  assert.match(discord, /\/assets\/discord-symbol\.svg/u);
+  assert.match(css, /#747775/u);
+  assert.match(css, /#5865f2/u);
+  assert.match(google, /authClient\.signIn\.social/u);
+  assert.match(discord, /authClient\.signIn\.social/u);
+});

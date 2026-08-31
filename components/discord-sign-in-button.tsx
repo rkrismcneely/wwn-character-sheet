@@ -29,8 +29,11 @@ export function DiscordSignInButton({ className }: { className?: string }) {
     } catch { setMessage(authErrorMessage()); setBusy(false); }
   }
   if (!available) return null;
-  return <span className="google-signin-control">
-    <button type="button" className={className} disabled={busy} onClick={() => void signIn()}>Continue with Discord</button>
+  return <span className="discord-signin-control provider-signin-control">
+    <button type="button" className={`${className ?? ""} provider-signin-button provider-discord-button`} disabled={busy} onClick={() => void signIn()}>
+      <img className="provider-signin-icon provider-discord-icon" src="/assets/discord-symbol.svg" alt="" aria-hidden="true" />
+      <span>Continue with Discord</span>
+    </button>
     {message && <span className="signin-status" role="alert">{message}</span>}
   </span>;
 }

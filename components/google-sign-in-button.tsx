@@ -54,10 +54,10 @@ export function GoogleSignInButton({
   }
 
   return (
-    <span className="google-signin-control">
-      <button type="button" className={className} onClick={() => void signIn()}>
-        <span aria-hidden="true" className="google-mark">G</span>
-        {children}
+    <span className="google-signin-control provider-signin-control">
+      <button type="button" className={`${className ?? ""} provider-signin-button provider-google-button`} onClick={() => void signIn()}>
+        <img className="provider-signin-icon provider-google-icon" src="/assets/google-g-mark.png" alt="" aria-hidden="true" />
+        <span>{children}</span>
       </button>
       {message && <span className="signin-status" role="status">{message}</span>}
     </span>

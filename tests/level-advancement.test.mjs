@@ -125,6 +125,8 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(wizard, /hpRollMaximum/u);
   assert.match(wizard, /HP dice total:/u);
   assert.match(wizard, /type="number"[\s\S]*aria-describedby="level-up-hp-range"/u);
+  assert.match(wizard, /className="level-up-hp-controls"[\s\S]*className="level-up-hp-manual-input"/u);
+  assert.doesNotMatch(wizard, /level-up-hp-entry[\s\S]*creation-roll-entry/u);
   assert.match(wizard, /Enter physical dice total/u);
   assert.match(wizard, /Legal raw total: \{hpRollMinimum\}–\{hpRollMaximum\}/u);
   assert.match(wizard, /disabled=\{hpRollComplete\}/u);
@@ -149,6 +151,9 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?level-up-skills-grid[\s\S]*?repeat\(2/u);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?level-up-skills-grid[\s\S]*?grid-template-columns: 1fr/u);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?level-up-attributes-grid[\s\S]*?grid-template-columns: 1fr/u);
-  assert.match(css, /\.level-up-hp-manual input\s*\{[\s\S]*?border:\s*1px/u);
+  assert.match(css, /\.level-up-hp-controls\s*\{[\s\S]*?grid-template-columns:\s*auto minmax\(8rem, 12rem\)/u);
+  assert.match(css, /\.level-up-hp-manual-input\s*\{[\s\S]*?border:\s*1px/u);
+  assert.match(css, /\.level-up-hp-controls > \.primary-button\s*\{[\s\S]*?grid-row:\s*2/u);
+  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.level-up-hp-controls\s*\{[\s\S]*?grid-template-columns:\s*1fr/u);
   assert.match(css, /\.level-up-hp-result\s*\{[\s\S]*?display:\s*grid/u);
 });

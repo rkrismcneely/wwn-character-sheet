@@ -231,15 +231,16 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
         Roll {plan.to}d6. The result is compared to your current maximum; the character always gains at least 1 maximum HP.
       </StepTitle>
       <div className="level-up-hp-entry">
-        <div className="creation-roll-entry">
+        <div className="level-up-hp-controls">
         <button type="button" className="primary-button" disabled={hpRollComplete} onClick={() => {
           const result = rollDice(plan.to, 6);
           setState((current) => ({ ...current, hpRoll: result.total }));
           setNotice("");
         }}>Roll {plan.to}d6 for HP</button>
-        <label className="level-up-hp-manual">
-          <span>Enter physical dice total</span>
+        <label className="level-up-hp-manual-label" htmlFor="level-up-hp-total">Enter physical dice total</label>
           <input
+            id="level-up-hp-total"
+            className="level-up-hp-manual-input"
             type="number"
             aria-describedby="level-up-hp-range"
             aria-invalid={Boolean(notice && !hpRollComplete)}
@@ -262,8 +263,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
               }
             }}
           />
-          <small id="level-up-hp-range">Legal raw total: {hpRollMinimum}–{hpRollMaximum} ({plan.to}d6).</small>
-        </label>
+        <small className="level-up-hp-range" id="level-up-hp-range">Legal raw total: {hpRollMinimum}–{hpRollMaximum} ({plan.to}d6).</small>
         </div>
         {hpRollComplete && <div className="level-up-hp-result creation-success" role="status">
           <strong>HP dice total: {state.hpRoll}</strong>

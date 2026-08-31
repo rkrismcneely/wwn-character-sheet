@@ -8,7 +8,7 @@ test("the display theme is a root-level persistent preference", async () => {
   const layout = await source("app/layout.tsx");
   const provider = await source("app/theme-provider.tsx");
 
-  assert.match(layout, /<ThemeProvider>\{children\}<SiteFooter \/><\/ThemeProvider>/u);
+  assert.match(layout, /<ThemeProvider>[\s\S]*<div className="site-shell">[\s\S]*\{children\}[\s\S]*<SiteFooter \/>[\s\S]*<\/div>[\s\S]*<\/ThemeProvider>/u);
   assert.match(layout, /dangerouslySetInnerHTML/u);
   assert.match(layout, /localStorage\.getItem\("wwn-display-theme"\)/u);
   assert.match(provider, /DISPLAY_THEME_STORAGE_KEY = "wwn-display-theme"/u);

@@ -11,6 +11,7 @@ import {
   replaceCampaignCharacter,
   unlinkCharacterFromCampaign,
 } from "../lib/campaigns/characters.ts";
+import { listGmPartyCharacters } from "../lib/campaigns/gm-party.ts";
 import { generatePublicCharacterId } from "../lib/characters/identifiers.ts";
 import { canReadCharacter } from "../lib/characters/authorization.ts";
 import {
@@ -501,6 +502,26 @@ test("campaign character payloads omit account IDs, emails, and unrelated privat
     "secretNote",
   ]) assert.equal(payload.includes(forbidden), false, forbidden);
   assert.equal(payload.includes("systemStrain"), false);
+});
+
+test("owner-only GM party status is derived from the current linked character snapshot", async () => {
+  const { sqlite, db, campaign, ids } = await fixture();
+  await linkCharacterToCampaign(db, player, campaign.id, ids.player, now);
+  sqlite.prepare("UPDATE characters SET data = ? WHERE public_id = ?").run(JSON.stringify({
+    name: "Player Hero", classOne: "High Mage", classMode: "full", level: 3,
+    attrs: { STR: 10, DEX: 12, CON: 14, INT: 16, WIS: 9, CHA: 11 }, armor: "No Armor", shield: "",
+    hpCurrent: 9, hpMax: 12, strainCurrent: 2, strainMax: 14,
+    spellPicks: [{ name: "Velocitous Imbuement", prepared: true, cast: true }], artEffort: [true],
+  }), ids.player);
+  const [status] = await listGmPartyCharacters(db, owner, campaign.id);
+  assert.equal(status.name, "Player Hero");
+  assert.equal(status.player, "Player Hero Player");
+  assert.deepEqual(status.systemStrain, { current: 2, max: 14 });
+  assert.deepEqual(status.saves, { physical: 11, evasion: 10, mental: 13, luck: 13 });
+  assert.deepEqual(status.spellUsage, { label: "Cast today", used: 1, max: 2 });
+  assert.equal(status.effortCommitted, 1);
+  await expectServiceError(listGmPartyCharacters(db, gm, campaign.id), 403);
+  assert.equal(JSON.stringify(await listCampaignCharacters(db, gm, campaign.id)).includes("systemStrain"), false);
 });
 
 

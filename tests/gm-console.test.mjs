@@ -20,7 +20,11 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(page, /notFound\(\)/u);
   assert.match(consoleUi, /useCampaignLiveSession/u);
   assert.match(consoleUi, /EncounterTracker/u);
-  assert.match(consoleUi, /PartyMember/u);
+  assert.match(consoleUi, /GmPartyStatus/u);
+  assert.match(consoleUi, /\/api\/campaigns\/\$\{campaignId\}\/gm\/party/u);
+  assert.match(consoleUi, /System Strain/u);
+  assert.match(consoleUi, /Physical/u);
+  assert.doesNotMatch(consoleUi, /Start a session to view party presence/u);
   assert.match(consoleUi, /RollResultTray/u);
   assert.match(consoleUi, /RollHistoryPanel/u);
   assert.match(consoleUi, /RulesAssistant/u);
@@ -97,6 +101,19 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(migration, /ON DELETE CASCADE/u);
   assert.match(threatMigration, /ADD COLUMN hit_dice/u);
   assert.match(threatMigration, /ADD COLUMN attacks_per_main_action/u);
+});
+
+test("GM party route is owner-scoped and returns only a derived projection", async () => {
+  const [route, service] = await Promise.all([
+    readFile(new URL("../app/api/campaigns/[id]/gm/party/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/gm-party.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /getSessionActor\(request\)/u);
+  assert.match(route, /listGmPartyCharacters/u);
+  assert.match(route, /cache-control.*no-store/u);
+  assert.match(service, /campaign\.ownerUserId !== actor\.userId/u);
+  assert.match(service, /campaignGmPartyStatus/u);
+  assert.doesNotMatch(service, /character:\s*data/u);
 });
 
 test("Bestiary renders a 512-entry synthetic test catalog as compact browse rows", () => {

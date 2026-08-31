@@ -296,7 +296,7 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(Object.isFrozen(apex.sourceStats), true);
   assert.ok(searchBuiltInBestiaryCreatures("apex").some(creature => creature.id === "apex-predator"));
   const catalog = searchBuiltInBestiaryCreatures("");
-  assert.equal(catalog.length, 35);
+  assert.equal(catalog.length, 76);
   assert.deepEqual(catalog.map(creature => creature.name), [...catalog.map(creature => creature.name)].sort((left, right) => left.localeCompare(right)));
   assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("amorphous").map(creature => creature.id), ["slime-or-ooze"]);
@@ -353,15 +353,17 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   }
   assert.notEqual(getBuiltInBestiaryCreature("barbarian-fighter")?.sourceStats.instinct, getBuiltInBestiaryCreature("veteran-soldier")?.sourceStats.instinct);
   assert.equal(canonicalSrdEntries.length, 35);
-  assert.ok(catalog.every(creature => creature.attacks.length > 0 && creature.attacks.every(attack => attack.name !== "Attack" && !attack.damage.startsWith("Weapon"))));
-  assert.ok(catalog.every(creature => creature.sourceAttacks.length > 0 && creature.sourceAttacks.every(attack => attack.name === "Attack")));
+  const srdCatalog = catalog.filter(creature => creature.source.license === "CC0");
+  assert.equal(srdCatalog.length, 35);
+  assert.ok(srdCatalog.every(creature => creature.attacks.length > 0 && creature.attacks.every(attack => attack.name !== "Attack" && !attack.damage.startsWith("Weapon"))));
+  assert.ok(srdCatalog.every(creature => creature.sourceAttacks.length > 0 && creature.sourceAttacks.every(attack => attack.name === "Attack")));
   assert.deepEqual(getBuiltInBestiaryCreature("automaton-military")?.attacks[0], { name: "Halberd", attackBonus: 5, damage: "1d10+2", shock: "4/AC 15", description: "Traits 2H, L" });
   assert.deepEqual(getBuiltInBestiaryCreature("veteran-soldier")?.attacks[0], { name: "Sword, Long", attackBonus: 2, damage: "1d8+1", shock: "3/AC 13", description: "" });
   assert.deepEqual(getBuiltInBestiaryCreature("barbarian-warlord")?.attacks[0], { name: "Axe, War", attackBonus: 10, damage: "1d10+4", shock: "7/-", description: "Traits 2H" });
   assert.deepEqual(getBuiltInBestiaryCreature("great-warrior-king")?.attacks[0], { name: "Hammer, Great", attackBonus: 14, damage: "1d10+5", shock: "7/-", description: "Traits 2H" });
   assert.equal(getBuiltInBestiaryCreature("automaton-warbot")?.attacks[0]?.name, "Warbot Crusher");
   assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.attacks[0]?.name, "Hellfire Claws");
-  for (const creature of catalog.filter(candidate => candidate.sourceAttacks[0]?.damage.startsWith("Weapon"))) {
+  for (const creature of srdCatalog.filter(candidate => candidate.sourceAttacks[0]?.damage.startsWith("Weapon"))) {
     const sourceAttack = creature.sourceAttacks[0];
     const attack = creature.attacks[0];
     const weapon = weapons.find(candidate => candidate.name === attack.name);
@@ -374,7 +376,7 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(getBuiltInBestiaryCreature("predator-hellbeast")?.sourceStats.attacksPerMainAction, 4);
   assert.equal(getBuiltInBestiaryCreature("elites-or-special-guards")?.armorAnnotation, "a");
   assert.equal(getBuiltInBestiaryCreature("automaton-military")?.armorAnnotation, undefined);
-  assert.deepEqual(catalog.filter(creature => creature.notes).map(creature => creature.id), ["famous-arch-mage", "master-wizard", "petty-mage", "skilled-sorcerer", "tribal-shaman"]);
+  assert.deepEqual(srdCatalog.filter(creature => creature.notes).map(creature => creature.id), ["famous-arch-mage", "master-wizard", "petty-mage", "skilled-sorcerer", "tribal-shaman"]);
   for (const [id, level, effort] of [["petty-mage", 2, 3], ["tribal-shaman", 4, 3], ["skilled-sorcerer", 5, 4], ["master-wizard", 8, 4], ["famous-arch-mage", 10, 5]]) {
     const creature = getBuiltInBestiaryCreature(id);
     assert.equal(creature?.spellcasting?.level, level);
@@ -455,6 +457,11 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.deepEqual(template.attacks[0], getBuiltInBestiaryCreature("petty-mage")?.attacks[0]);
   assert.match(template.notes, /The Coruscating Coffin/u);
   assert.match(template.notes, /Sense Magic/u);
+  const koboldTemplate = await createCampaignNpcTemplateFromBestiary(db, owner, campaign.id, "totw-kobold", now);
+  const stirgeTemplate = await createCampaignNpcTemplateFromBestiary(db, owner, campaign.id, "totw-stirge", now);
+  assert.deepEqual({ hitDice: koboldTemplate.hitDice, hpMax: koboldTemplate.hpMax }, { hitDice: 0.5, hpMax: 3 });
+  assert.deepEqual({ hitDice: stirgeTemplate.hitDice, hpMax: stirgeTemplate.hpMax }, { hitDice: 0, hpMax: 1 });
+  assert.match(koboldTemplate.notes, /Horde/u);
   const edited = await updateCampaignNpcTemplate(db, owner, campaign.id, template.id, { ...template, hpMax: 7, notes: "Campaign-owned copy" }, now);
   assert.equal(edited.hpMax, 7);
   assert.equal(getBuiltInBestiaryCreature("petty-mage")?.hpMax, 9);

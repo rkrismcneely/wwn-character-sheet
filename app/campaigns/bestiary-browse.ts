@@ -18,7 +18,7 @@ export function BestiaryBrowseItem({ creature, selected, onSelect }: { creature:
       createElement(
         "span",
         { className: "gm-bestiary-row-stats" },
-        createElement("span", null, `${creature.sourceStats.hitDice} HD · AC ${creature.armorClass}`),
+        createElement("span", null, `${creature.sourceStats.hitDiceDisplay ?? creature.sourceStats.hitDice} HD · AC ${creature.armorClass}`),
         createElement("span", null, `HP ${creature.hpMax}`),
         primaryAttack ? createElement("span", null, primaryAttack.damage) : null,
       ),

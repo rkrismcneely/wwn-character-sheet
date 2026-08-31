@@ -11,7 +11,7 @@ export type WwnThreatBand = typeof wwnThreatBands[number];
 /** Shared presentation copy for every UI that uses this already-approved estimate. */
 export const wwnThreatEstimateMethod = "Based on encounter-comparison guidance in Worlds Without Number.";
 export const wwnThreatEstimateCaveat = "It compares linked character levels with creature Hit Dice and attacks per Main Action. It is only a rough guide: special abilities, spells, unusually strong damage or defenses, terrain, tactics, surprise, positioning, party composition, low-level fragility, and other circumstances can change actual danger substantially.";
-export const wwnThreatEstimateProvenance = "The estimate is a derived mechanic informed by the Worlds Without Number Free Edition. Creature stat lines remain attributed to the CC0 SRD.";
+export const wwnThreatEstimateProvenance = "The estimate is a derived mechanic informed by the Worlds Without Number Free Edition. Creature stat lines remain attributed to their listed sources.";
 
 export const wwnThreatBandDetails: Readonly<Record<WwnThreatBand, { label: string; summary: string }>> = Object.freeze({
   trivial: { label: "Trivial", summary: "Strongly in the party's favor." },
@@ -51,6 +51,11 @@ function isPositiveWholeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+/** Creature HD can legitimately be 0 or 1/2 in a published stat block. */
+function isNonNegativeHitDice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1000;
+}
+
 /**
  * Party Score = the sum of linked PC levels multiplied by the number of linked
  * PCs. A malformed level makes the whole estimate unavailable rather than
@@ -74,7 +79,7 @@ export function calculateWwnEnemyScore(enemies: readonly WwnEnemyThreatInput[]):
   let totalAttacks = 0;
   for (const enemy of enemies) {
     const quantity = enemy.quantity ?? 1;
-    if (!isPositiveWholeNumber(enemy.hitDice) || !isPositiveWholeNumber(enemy.attacksPerMainAction) || !isPositiveWholeNumber(quantity)) return null;
+    if (!isNonNegativeHitDice(enemy.hitDice) || !isPositiveWholeNumber(enemy.attacksPerMainAction) || !isPositiveWholeNumber(quantity)) return null;
     totalHitDice += enemy.hitDice * quantity;
     totalAttacks += enemy.attacksPerMainAction * quantity;
   }

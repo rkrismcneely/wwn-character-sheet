@@ -17,8 +17,10 @@ import {
   advancementPlan,
   advancementSkillCreditBySkill,
   legalAdvancementFocuses,
+  levelUpHitPointRollBounds,
   levelUpHitPointTotal,
   skillRankCostAtLevel,
+  validLevelUpHitPointRoll,
   type AdvancementCharacter,
 } from "./level-advancement";
 import { deriveSkillProfile, storedRankForDisplayedSkillRank } from "./phase2-rules";
@@ -139,8 +141,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     total + Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))), 0);
   const skillBudget = plan.skillPoints + Math.max(0, Number(sheet.levelUpUnspentSkillPoints) || 0);
   const pointsRemaining = skillBudget - pointsSpent;
-  const hpRollMinimum = plan.to;
-  const hpRollMaximum = plan.to * 6;
+  const { minimum: hpRollMinimum, maximum: hpRollMaximum } = levelUpHitPointRollBounds(plan.to);
   const hpRollComplete = Number.isInteger(state.hpRoll)
     && Number(state.hpRoll) >= hpRollMinimum
     && Number(state.hpRoll) <= hpRollMaximum;
@@ -229,16 +230,19 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       <StepTitle eyebrow="HIT POINTS" title="Roll your new total">
         Roll {plan.to}d6. The result is compared to your current maximum; the character always gains at least 1 maximum HP.
       </StepTitle>
-      {!hpRollComplete ? <div className="creation-roll-entry">
-        <button type="button" className="primary-button" onClick={() => {
+      <div className="level-up-hp-entry">
+        <div className="creation-roll-entry">
+        <button type="button" className="primary-button" disabled={hpRollComplete} onClick={() => {
           const result = rollDice(plan.to, 6);
           setState((current) => ({ ...current, hpRoll: result.total }));
           setNotice("");
         }}>Roll {plan.to}d6 for HP</button>
-        <label>
-          <span>Enter your {plan.to}d6 total</span>
+        <label className="level-up-hp-manual">
+          <span>Enter physical dice total</span>
           <input
             type="number"
+            aria-describedby="level-up-hp-range"
+            aria-invalid={Boolean(notice && !hpRollComplete)}
             min={hpRollMinimum}
             max={hpRollMaximum}
             step={1}
@@ -249,7 +253,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
               if (!raw) {
                 setState((current) => ({ ...current, hpRoll: undefined }));
                 setNotice("");
-              } else if (!Number.isInteger(value) || value < hpRollMinimum || value > hpRollMaximum) {
+              } else if (!validLevelUpHitPointRoll(value, plan.to)) {
                 setState((current) => ({ ...current, hpRoll: undefined }));
                 setNotice(`Enter an HP dice total from ${hpRollMinimum} to ${hpRollMaximum}.`);
               } else {
@@ -258,8 +262,19 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
               }
             }}
           />
+          <small id="level-up-hp-range">Legal raw total: {hpRollMinimum}–{hpRollMaximum} ({plan.to}d6).</small>
         </label>
-      </div> : <div className="creation-success"><strong>HP dice total: {state.hpRoll}</strong><span> · new maximum HP: {hpMaximum}</span><p>Current HP rises by the same amount as maximum HP, preserving the character’s current damage state.</p></div>}
+        </div>
+        {hpRollComplete && <div className="level-up-hp-result creation-success" role="status">
+          <strong>HP dice total: {state.hpRoll}</strong>
+          <span> · new maximum HP: {hpMaximum}</span>
+          <p>Current HP rises by the same amount as maximum HP, preserving the character’s current damage state.</p>
+          <button type="button" className="secondary-button" aria-label="Clear HP dice total" onClick={() => {
+            setState((current) => ({ ...current, hpRoll: undefined }));
+            setNotice("");
+          }}>Clear HP total</button>
+        </div>}
+      </div>
     </>;
     if (state.step === 2) return <>
       <StepTitle eyebrow="SKILLS & ATTRIBUTES" title="Spend advancement points">

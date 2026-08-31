@@ -6,9 +6,11 @@ import {
   advancementPlan,
   advancementSkillCreditBySkill,
   attributeBoostLimitAtLevel,
+  levelUpHitPointRollBounds,
   levelUpHitPointTotal,
   legalAdvancementFocuses,
   skillRankCapAtLevel,
+  validLevelUpHitPointRoll,
 } from "../app/level-advancement.ts";
 import { deriveSkillProfile } from "../app/phase2-rules.ts";
 import { fullClasses, partialClasses } from "../app/class-data.ts";
@@ -84,6 +86,15 @@ test("HP reroll keeps the better total and otherwise grants one", () => {
   assert.equal(advancementClassPerDieBonus(base({ classOne: "High Mage" })), -1);
 });
 
+test("Level-Up HP raw totals share bounded validation and canonical calculation", () => {
+  assert.deepEqual(levelUpHitPointRollBounds(6), { minimum: 6, maximum: 36 });
+  assert.equal(validLevelUpHitPointRoll(6, 6), true);
+  assert.equal(validLevelUpHitPointRoll(36, 6), true);
+  assert.equal(validLevelUpHitPointRoll(5, 6), false);
+  assert.equal(validLevelUpHitPointRoll(37, 6), false);
+  assert.equal(levelUpHitPointTotal(18, 24, 6, 1, 2, false), 42);
+});
+
 test("advancement Focus bonus skill credit is separate from paid skill ranks", () => {
   const character = base({ focusPicks: [{ name: "Armsmaster", level: 1, advancement: true }] });
   assert.deepEqual(advancementSkillCreditBySkill(character), { Stab: 3 });
@@ -109,10 +120,17 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(wizard, /onFinish\(final, sourceLevel\)/u);
   assert.match(wizard, /Canceling or closing it leaves the saved character unchanged/u);
   assert.match(wizard, /Roll \{plan\.to\}d6 for HP/u);
-  assert.match(wizard, /Enter your \{plan\.to\}d6 total/u);
+  assert.match(wizard, /Enter physical dice total/u);
   assert.match(wizard, /hpRollMinimum/u);
   assert.match(wizard, /hpRollMaximum/u);
   assert.match(wizard, /HP dice total:/u);
+  assert.match(wizard, /type="number"[\s\S]*aria-describedby="level-up-hp-range"/u);
+  assert.match(wizard, /Enter physical dice total/u);
+  assert.match(wizard, /Legal raw total: \{hpRollMinimum\}–\{hpRollMaximum\}/u);
+  assert.match(wizard, /disabled=\{hpRollComplete\}/u);
+  assert.match(wizard, /Clear HP total/u);
+  assert.match(wizard, /aria-label="Clear HP dice total"/u);
+  assert.match(wizard, /hpRoll: undefined/u);
   assert.match(wizard, /Traditional Education/u);
   assert.match(wizard, /Deep Apprehension/u);
   assert.match(sheet, /levelUpModeFromUrl/u);
@@ -131,4 +149,6 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?level-up-skills-grid[\s\S]*?repeat\(2/u);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?level-up-skills-grid[\s\S]*?grid-template-columns: 1fr/u);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?level-up-attributes-grid[\s\S]*?grid-template-columns: 1fr/u);
+  assert.match(css, /\.level-up-hp-manual input\s*\{[\s\S]*?border:\s*1px/u);
+  assert.match(css, /\.level-up-hp-result\s*\{[\s\S]*?display:\s*grid/u);
 });

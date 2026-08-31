@@ -22,3 +22,11 @@
 .landing-codex .landing-header{height:auto;min-height:78px;padding-block:12px;flex-wrap:wrap}
 .landing-codex .landing-header nav{flex-wrap:wrap;justify-content:flex-end;gap:12px 20px}
 @media(max-width:680px){.landing-codex .landing-header{justify-content:center;gap:12px}.landing-codex .landing-header nav{justify-content:center;gap:8px}}
+
+/* Official provider treatments: local assets keep sign-in presentation reliable and avoid hotlinking. */
+.landing-codex .provider-signin-button{min-width:0;min-height:44px;padding:10px 12px;border-radius:4px;font:500 14px/20px Arial,sans-serif;letter-spacing:0;white-space:nowrap}
+.landing-codex .provider-google-button{color:#1f1f1f;background:#fff;border:1px solid #747775}
+.landing-codex .provider-discord-button{color:#fff;background:#5865f2;border:1px solid #5865f2;font-weight:600}
+.landing-codex .provider-google-button:hover,.landing-codex .provider-discord-button:hover{transform:translateY(-1px)}
+.landing-codex .landing-header .provider-signin-button{min-height:40px;padding:8px 12px}
+@media(max-width:680px){.landing-codex .landing-actions>.provider-signin-control{width:100%}.landing-codex .landing-actions>.provider-signin-control .provider-signin-button{width:100%}.landing-codex .landing-header .provider-signin-button{padding-inline:10px}}

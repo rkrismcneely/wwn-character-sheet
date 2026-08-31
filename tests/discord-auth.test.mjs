@@ -312,6 +312,8 @@ test("Connected Accounts uses confirmation, accessible controls, server-projecte
   const signIn=readFileSync(new URL("../components/discord-sign-in-button.tsx",import.meta.url),"utf8");
   assert.match(signIn,/if \(!available\) return null/u);
   assert.match(signIn,/Continue with Discord/u);
+  assert.match(signIn,/provider-discord-button/u);
+  assert.match(signIn,/discord-symbol\.svg/u);
   assert.match(signIn,/callbackURL: "\/"/u);
   const css=readFileSync(new URL("../app/account/account.css",import.meta.url),"utf8");
   assert.match(css,/account-connection[^}]*flex-wrap: wrap/u);

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { formatDiceExpression, formatSigned, type RollResult } from "./rolls.ts";
+import { useDismissibleSurface } from "./dismissible-surface";
 
 export function formatRollBreakdown(result: RollResult) {
   const dice = result.dice.results.join(" + ");
@@ -48,6 +49,9 @@ export function RollHistoryPanel({
   description?: string;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+
+  useDismissibleSurface({ open, surface: panel, onDismiss: onClose });
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +70,7 @@ export function RollHistoryPanel({
   }, [open, onClose]);
 
   if (!open) return null;
-  return <section className="roll-history" role="dialog" aria-modal="false" aria-labelledby="roll-history-title">
+  return <section ref={panel} className="roll-history" role="dialog" aria-modal="false" aria-labelledby="roll-history-title">
     <header>
       <div><strong id="roll-history-title">Roll History</strong><span>{description}</span></div>
       <div>{onClear && <button type="button" onClick={onClear} disabled={!history.length}>Clear history</button>}<button ref={closeButton} type="button" onClick={onClose}>Close</button></div>

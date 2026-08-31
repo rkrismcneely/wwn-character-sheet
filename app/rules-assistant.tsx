@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { preloadRulesSearch, searchRules, type RuleEntry } from "./rules-search";
+import { useDismissibleSurface } from "./dismissible-surface";
 
 function formattedRuleText(text: string): ReactNode[] {
   const blocks = text.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
@@ -61,18 +62,14 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
     setSearched(true);
   }
 
+  useDismissibleSurface({ open: !compact || open || searched, surface: assistant, onDismiss: close });
+
   useEffect(() => {
-    if (!searched && !open) return;
-    const dismiss = (event: PointerEvent) => {
-      if (!assistant.current?.contains(event.target as Node)) close();
-    };
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); close(); }
     };
-    document.addEventListener("pointerdown", dismiss);
     document.addEventListener("keydown", escape);
     return () => {
-      document.removeEventListener("pointerdown", dismiss);
       document.removeEventListener("keydown", escape);
     };
   }, [close, open, searched]);

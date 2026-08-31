@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useDismissibleSurface } from "../dismissible-surface";
 
 const focusableSelector = [
   "a[href]",
@@ -25,6 +26,8 @@ export function CampaignDialog({
   const dialog = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
+
+  useDismissibleSurface({ open: true, surface: dialog, onDismiss: onClose });
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -84,9 +87,7 @@ export function CampaignDialog({
   }, []);
 
   return (
-    <div className="campaign-dialog-backdrop" onMouseDown={event => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
+    <div className="campaign-dialog-backdrop">
       <section
         ref={dialog}
         className="campaign-dialog"

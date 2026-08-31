@@ -15,7 +15,7 @@ test("Rules Assistant is one shared search, result, dismissal, and GM header imp
   assert.doesNotMatch(gmConsole, /<RulesAssistant compact/u);
   assert.match(assistant, /searchRules\(trimmedQuestion\)/u);
   assert.match(assistant, /preloadRulesSearch/u);
-  assert.match(assistant, /document\.addEventListener\("pointerdown", dismiss\)/u);
+  assert.match(assistant, /useDismissibleSurface/u);
   assert.match(assistant, /event\.key === "Escape"/u);
   assert.match(assistant, /aria-expanded=\{open\}/u);
   assert.match(assistant, /role="dialog"/u);

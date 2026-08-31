@@ -220,6 +220,7 @@ test("Roll History is an out-of-flow accessible popout", () => {
   assert.match(presentationSource, /role="dialog"/);
   assert.match(presentationSource, /event\.key === "Escape"/);
   assert.match(presentationSource, /Stored only in this browser session/);
+  assert.match(presentationSource, /useDismissibleSurface/);
 });
 
 test("latest-roll presentation has a stable empty state and structured result state", () => {

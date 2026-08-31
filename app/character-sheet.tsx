@@ -27,6 +27,7 @@ import {
   type BackgroundLearningPick,
 } from "./background-development";
 import { RulesAssistant } from "./rules-assistant";
+import { useDismissibleSurface } from "./dismissible-surface";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
 import { isSharedRollCategory, parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
@@ -1014,6 +1015,7 @@ export default function Home({
   const portraitInput = useRef<HTMLInputElement>(null);
   const characterNameInput = useRef<HTMLTextAreaElement>(null);
   const editableSurface = useRef<HTMLDivElement>(null);
+  const libraryPanel = useRef<HTMLElement>(null);
   const virtualDiceOverlay = useRef<VirtualDiceOverlayHandle>(null);
   const virtualDiceBusyRef = useRef(false);
   const authIntentHandled = useRef(false);
@@ -1022,6 +1024,19 @@ export default function Home({
   );
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
   const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
+
+  useDismissibleSurface({ open: libraryOpen, surface: libraryPanel, onDismiss: () => setLibraryOpen(false) });
+
+  useEffect(() => {
+    if (!libraryOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setLibraryOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [libraryOpen]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -2726,7 +2741,7 @@ export default function Home({
       )}
 
       {libraryOpen && <div className="library-backdrop" role="presentation">
-        <section className="library-panel" role="dialog" aria-modal="true" aria-labelledby="library-title">
+        <section ref={libraryPanel} className="library-panel" role="dialog" aria-modal="true" aria-labelledby="library-title">
           <header className="library-header">
             <div><p className="eyebrow">THE COMPANY ARCHIVE</p><h1 id="library-title">Character Library</h1><p>Your private roster and publicly discoverable adventurers remain separate.</p></div>
             <img className="library-emblem" src="/assets/wwn-ledger-emblem.png" alt="" aria-hidden="true" />

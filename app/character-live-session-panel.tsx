@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CampaignEncounterCombatant, CampaignLiveSessionState, CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useCampaignLiveSession } from "./campaigns/use-live-session";
+import { useDismissibleSurface } from "./dismissible-surface";
 
 type CampaignLink = { id: string; name: string };
 type ActiveCampaign = CampaignLink;
@@ -38,6 +39,21 @@ export function CharacterLiveSessionPanel({
   const [activeCampaigns, setActiveCampaigns] = useState<ActiveCampaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [discoveryError, setDiscoveryError] = useState("");
+  const panel = useRef<HTMLElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  useDismissibleSurface({ open, surface: panel, onDismiss: close });
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      close();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [close, open]);
 
   const discover = useCallback(async () => {
     const response = await fetch(`/api/characters/${characterId}/live-sessions`, { cache: "no-store" });
@@ -79,8 +95,8 @@ export function CharacterLiveSessionPanel({
     <button type="button" className="live-session-toggle" aria-expanded={open} aria-controls="character-live-session-panel" aria-haspopup="dialog" onClick={() => setOpen(value => !value)}>
       {status}
     </button>
-    {open && <section className="character-live-session-panel" id="character-live-session-panel" aria-label="Live Session">
-      <div className="character-live-session-heading"><div><span>LIVE SESSION</span><strong>{selectedCampaign?.name || "Campaign session"}</strong></div><button type="button" className="character-live-session-close" aria-label="Close Live Session" onClick={() => setOpen(false)}>×</button></div>
+    {open && <section ref={panel} className="character-live-session-panel" id="character-live-session-panel" aria-label="Live Session" role="dialog" aria-modal="false">
+      <div className="character-live-session-heading"><div><span>LIVE SESSION</span><strong>{selectedCampaign?.name || "Campaign session"}</strong></div><button type="button" className="character-live-session-close" aria-label="Close Live Session" onClick={close}>×</button></div>
       {discoveryError && <p className="character-live-session-error" role="status">{discoveryError}</p>}
       {activeCampaigns.length > 1 && <label className="character-live-session-select"><span>Active campaign</span><select value={selectedCampaignId || ""} onChange={event => setSelectedCampaignId(event.target.value || null)}><option value="">Choose a live session</option>{activeCampaigns.map(campaign => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>}
       {!activeCampaigns.length && <p className="character-live-session-empty">No linked campaign has an active session.</p>}

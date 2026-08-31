@@ -51,7 +51,12 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <ThemeProvider>{children}<SiteFooter /></ThemeProvider>
+        <ThemeProvider>
+          <div className="site-shell">
+            <div className="site-main">{children}</div>
+            <SiteFooter />
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

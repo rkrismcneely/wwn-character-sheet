@@ -670,27 +670,43 @@
 .level-up-hp-entry {
   margin-top: 18px;
 }
-.level-up-hp-manual {
+.level-up-hp-controls {
   display: grid;
-  gap: 5px;
-  min-width: 0;
+  grid-template-columns: auto minmax(8rem, 12rem);
+  grid-template-rows: auto auto auto;
+  column-gap: 12px;
+  row-gap: 5px;
+  align-items: center;
+  max-width: 560px;
 }
-.level-up-hp-manual > span {
+.level-up-hp-controls > .primary-button {
+  grid-column: 1;
+  grid-row: 2;
+  white-space: nowrap;
+}
+.level-up-hp-manual-label {
+  grid-column: 2;
+  grid-row: 1;
   color: #766852;
   font: 700 10px var(--font-ui);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.level-up-hp-manual input {
+.level-up-hp-manual-input {
+  grid-column: 2;
+  grid-row: 2;
   width: 100%;
   min-width: 0;
+  min-height: 40px;
   border: 1px solid #9d7b49;
   background: #fffdf7;
   padding: 9px 10px;
   color: #392718;
   font: 700 17px var(--font-numeric);
 }
-.level-up-hp-manual small {
+.level-up-hp-range {
+  grid-column: 2;
+  grid-row: 3;
   color: #77664e;
   font: 11px/1.3 var(--font-ui);
 }
@@ -1025,6 +1041,21 @@
     grid-template-columns: 1fr;
   }
   .creation-equipment-budget button {
+    width: 100%;
+  }
+  .level-up-hp-controls {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    max-width: none;
+  }
+  .level-up-hp-controls > .primary-button,
+  .level-up-hp-manual-label,
+  .level-up-hp-manual-input,
+  .level-up-hp-range {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .level-up-hp-controls > .primary-button {
     width: 100%;
   }
   .creation-roll-entry {

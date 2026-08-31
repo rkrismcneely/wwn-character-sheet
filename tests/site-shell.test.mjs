@@ -31,6 +31,9 @@ test("the root layout supplies one shared footer and old generic page disclaimer
   const sheet = await source("app/character-sheet.tsx");
   const landing = await source("app/landing-page.tsx");
   const publicPage = await source("app/public-characters/page.tsx");
+  const accountCss = await source("app/account/account.css");
+  const dashboardCss = await source("app/dashboard.css");
+  const campaignCss = await source("app/campaigns/campaign-ui.css");
   assert.match(layout, /<SiteFooter \/>/u);
   const css = await source("app/globals.css");
   assert.match(layout, /className="site-shell"/u);
@@ -39,6 +42,10 @@ test("the root layout supplies one shared footer and old generic page disclaimer
   assert.match(css, /\.site-main\{[\s\S]*?flex:1 1 auto;[\s\S]*?display:flex/u);
   assert.match(css, /@media print\{\.site-shell,\.site-main\{display:block;min-height:0\}\}/u);
   assert.doesNotMatch(css, /\.site-footer\{[^}]*position\s*:/u);
+  for (const routeCss of [accountCss, dashboardCss, campaignCss]) assert.match(routeCss, /min-height:100%/u);
+  assert.doesNotMatch(campaignCss, /\.campaign-shell\{[\s\S]*?min-height:100vh/u);
+  assert.doesNotMatch(accountCss, /min-height:100vh/u);
+  assert.doesNotMatch(dashboardCss, /min-height:100vh/u);
   assert.match(footer, /packageJson\.version/u);
   assert.match(footer, /Worlds Without Number SRD 1\.0 rules content used under CC0/u);
   for (const page of [sheet, landing, publicPage]) assert.doesNotMatch(page, /Unofficial fan-made character tool|Rules authority:/u);

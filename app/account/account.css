@@ -1,5 +1,5 @@
 .account-shell{
-  min-height:100vh;
+  min-height:100%;
   padding-bottom:38px;
   color:#2e2418;
   background:linear-gradient(rgba(36,30,23,.35),rgba(36,30,23,.62)),url("/assets/wwn-ledger-background-v2.png") center top/cover fixed;

@@ -24,6 +24,10 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /\/api\/campaigns\/\$\{campaignId\}\/gm\/party/u);
   assert.match(consoleUi, /System Strain/u);
   assert.match(consoleUi, /Physical/u);
+  assert.match(consoleUi, /gm-party-status-core/u);
+  assert.match(consoleUi, /gm-party-status-resources/u);
+  assert.match(consoleUi, /const hasResources = character\.spellUsage !== null \|\| character\.effortCommitted !== null/u);
+  assert.doesNotMatch(consoleUi, /<span>AC \{character\.armorClass\}<\/span>/u);
   assert.doesNotMatch(consoleUi, /Start a session to view party presence/u);
   assert.match(consoleUi, /RollResultTray/u);
   assert.match(consoleUi, /RollHistoryPanel/u);
@@ -71,6 +75,7 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(styles, /\.gm-bestiary-browser\[data-mobile-view="detail"\] \.gm-bestiary-browse/u);
   assert.match(styles, /\.gm-bestiary-filters\{display:grid/u);
   assert.match(styles, /\.gm-bestiary-threat-grid/u);
+  assert.match(styles, /\.gm-party-status-core,\.gm-party-status-resources\{display:flex;flex-wrap:wrap/u);
   assert.match(consoleUi, /End Session/u);
   assert.match(consoleUi, /action\(session \? "end" : "start"\)/u);
   assert.doesNotMatch(consoleUi, /Session Active/u);

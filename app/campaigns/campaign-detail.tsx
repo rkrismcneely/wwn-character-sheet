@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
 import { SignedInHeader } from "../app-header";
-import { CampaignLiveSession } from "./campaign-live-session";
 import { campaignInviteLink } from "@/lib/campaigns/invite-link";
 import {
   campaignRoleLabel,
@@ -507,8 +506,6 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
             </div>
             {campaign.description ? <p className="campaign-description">{campaign.description}</p> : <p className="campaign-empty-copy">{campaign.permissions.canManageContent ? "Add a short briefing so members know what this campaign is about." : "The campaign owner has not added a description yet."}</p>}
             </section>
-
-            <CampaignLiveSession campaignId={campaign.id} />
 
             <section className="campaign-panel campaign-resources-panel" aria-labelledby="campaign-resources-title">
               <div className="campaign-section-heading">

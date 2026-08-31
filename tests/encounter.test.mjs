@@ -96,6 +96,8 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /campaign-encounter-initiative/u);
   assert.match(sessionUi, /campaign-encounter-pc/u);
   assert.match(sessionUi, /campaign-encounter-npc-row/u);
+  assert.match(sessionUi, /campaign-encounter-pc-context/u);
+  assert.match(sessionUi, /\$\{name\} initiative/u);
   assert.match(sessionUi, /NpcRollButtons/u);
   assert.match(sessionUi, /Physical Save/u);
   assert.match(sessionUi, /Edit encounter combat/u);
@@ -109,11 +111,12 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /canRollDamage/u);
   assert.match(sessionUi, /canManage && onNpcRoll/u);
   assert.match(sessionCss, /campaign-encounter-initiative\{grid-column:3;grid-row:1\}/u);
-  assert.match(sessionCss, /campaign-encounter-order li\.campaign-encounter-pc\{grid-template-columns:18px minmax\(128px,220px\) 52px/u);
-  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-initiative\{grid-column:4;grid-row:1\}/u);
-  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-hp\{grid-column:5;grid-row:1\}/u);
-  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-ac\{grid-column:6;grid-row:1\}/u);
-  assert.match(sessionCss, /@media\(max-width:640px\)\{\.campaign-encounter-order li\.campaign-encounter-pc\{grid-template-columns:16px minmax\(80px,1fr\) 48px 72px 32px 28px\}\}/u);
+  assert.match(sessionCss, /campaign-encounter-pc-context\{display:grid/u);
+  assert.match(sessionCss, /campaign-encounter-pc>\.campaign-encounter-initiative\{grid-column:4;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-initiative,.campaign-encounter-pc>\.campaign-encounter-initiative\{grid-column:4;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-hp,.campaign-encounter-pc>\.campaign-encounter-hp\{grid-column:5;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-ac,.campaign-encounter-pc>\.campaign-encounter-ac\{grid-column:6;grid-row:1\}/u);
+  assert.match(sessionCss, /campaign-encounter-pc>\.campaign-encounter-pc-context\{grid-column:1\/-1;grid-row:2\}/u);
   assert.match(sessionCss, /campaign-encounter-hp\{grid-column:4;grid-row:1\}/u);
   assert.match(sessionCss, /campaign-encounter-ac\{grid-column:5;grid-row:1\}/u);
   assert.match(sessionCss, /campaign-encounter-remove\{grid-column:6;grid-row:1\}/u);

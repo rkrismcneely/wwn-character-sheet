@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { SignedInHeader } from "../app-header";
-import { EncounterTracker, PartyMember } from "./campaign-live-session";
+import { EncounterTracker } from "./campaign-live-session";
 import { BestiaryBrowseItem } from "./bestiary-browse";
 import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
@@ -36,6 +36,14 @@ const blankAttack = (): CampaignNpcAttack => ({ name: "", attackBonus: 0, damage
 const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks.map(attack => ({ ...attack })), hitDice: npc.hitDice, attacksPerMainAction: npc.attacksPerMainAction, notes: npc.notes });
 
 type CampaignThreatCharacter = { threatLevel: unknown };
+type GmPartyCharacter = {
+  id: string; name: string; player: string; level: number; classLabel: string;
+  hpCurrent: number; hpMax: number; armorClass: number;
+  systemStrain: { current: number; max: number };
+  saves: { physical: number; evasion: number; mental: number; luck: number };
+  spellUsage: { label: string; used: number; max: number } | null;
+  effortCommitted: number | null;
+};
 
 function wholeNumberOrNull(value: string): number | null {
   const parsed = Number(value);
@@ -43,6 +51,14 @@ function wholeNumberOrNull(value: string): number | null {
 }
 
 function signed(value: number): string { return value >= 0 ? `+${value}` : `${value}`; }
+
+function GmPartyStatus({ campaignId, character }: { campaignId: string; character: GmPartyCharacter }) {
+  return <article className="gm-party-status-card">
+    <div className="gm-party-status-heading"><div><Link href={`/campaigns/${campaignId}/characters/${character.id}`}>{character.name}</Link><p>{character.player || "Player unknown"} · Level {character.level} {character.classLabel}</p></div><span>AC {character.armorClass}</span></div>
+    <dl className="gm-party-status-vitals"><div><dt>HP</dt><dd>{character.hpCurrent} / {character.hpMax}</dd></div><div><dt>System Strain</dt><dd>{character.systemStrain.current} / {character.systemStrain.max}</dd></div>{character.spellUsage && <div><dt>{character.spellUsage.label}</dt><dd>{character.spellUsage.used} / {character.spellUsage.max}</dd></div>}{character.effortCommitted !== null && <div><dt>Effort</dt><dd>{character.effortCommitted} committed</dd></div>}</dl>
+    <dl className="gm-party-status-saves"><div><dt>Physical</dt><dd>{character.saves.physical}</dd></div><div><dt>Evasion</dt><dd>{character.saves.evasion}</dd></div><div><dt>Mental</dt><dd>{character.saves.mental}</dd></div><div><dt>Luck</dt><dd>{character.saves.luck}</dd></div></dl>
+  </article>;
+}
 
 function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) {
   const selectedShock = creature.attacks[0]?.shock;
@@ -126,6 +142,7 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
       .finally(() => { if (!cancelled) setPartyLoaded(true); });
     return () => { cancelled = true; };
   }, [campaignId]);
+
   const partyScore = useMemo(() => calculateWwnPartyScore(partyLevels), [partyLevels]);
   const creatures = useMemo(() => builtInBestiaryCreatures, []);
   const filteredCreatures = useMemo(() => filterBestiaryCreatures(
@@ -260,6 +277,9 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
   const { state, setState, error, setError, busy, setBusy, action } = useCampaignLiveSession(campaignId);
   const [partyLevels, setPartyLevels] = useState<readonly unknown[]>([]);
   const [partyLoaded, setPartyLoaded] = useState(false);
+  const [partyStatus, setPartyStatus] = useState<GmPartyCharacter[]>([]);
+  const [partyStatusLoading, setPartyStatusLoading] = useState(false);
+  const [partyStatusError, setPartyStatusError] = useState("");
   const session = state.session;
   const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
   const { style: diceStyle } = useDiceStylePreference();
@@ -291,6 +311,20 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       .finally(() => { if (!cancelled) setPartyLoaded(true); });
     return () => { cancelled = true; };
   }, [campaignId]);
+
+  useEffect(() => {
+    if (tab !== "party") return;
+    let cancelled = false;
+    void fetch(`/api/campaigns/${campaignId}/gm/party`, { cache: "no-store" })
+      .then(async response => {
+        const body = await response.json() as { characters?: GmPartyCharacter[]; error?: string };
+        if (!response.ok || !Array.isArray(body.characters)) throw new Error(body.error || "Party status is unavailable.");
+        if (!cancelled) setPartyStatus(body.characters);
+      })
+      .catch(loadError => { if (!cancelled) { setPartyStatus([]); setPartyStatusError(loadError instanceof Error ? loadError.message : "Party status is unavailable."); } })
+      .finally(() => { if (!cancelled) setPartyStatusLoading(false); });
+    return () => { cancelled = true; };
+  }, [campaignId, tab]);
 
   async function rollNpc(combatantId: string, npcAction: Record<string, unknown>) {
     if (!state.permissions.canManageEncounter || npcRollBusyRef.current) return;
@@ -359,14 +393,14 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       </div>
     </section>}
     {(error || rollError) && <div className="campaign-error" role="status">{error || rollError}</div>}
-    <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => { if (item === "party" && tab !== "party") { setPartyStatusLoading(true); setPartyStatusError(""); } setTab(item); }}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
     <section className="campaign-panel gm-console-panel">
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
       {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} partyLevels={partyLevels} partyLoaded={partyLoaded} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
       {tab === "bestiary" && <BuiltInBestiary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
-      {tab === "party" && (session && state.permissions.joined ? <section className="campaign-live-party gm-console-section"><h2>Party</h2><ul className="campaign-session-participants">{session.participants.map(participant => <PartyMember key={participant.participantKey} campaignId={campaignId} participant={participant} />)}</ul></section> : <p className="campaign-empty-copy">Start a session to view party presence.</p>)}
+      {tab === "party" && <section className="gm-console-section gm-party-status" aria-labelledby="gm-party-status-title"><div className="campaign-section-heading"><div><p className="campaign-kicker">CURRENT CHARACTER STATUS</p><h2 id="gm-party-status-title">Party</h2></div></div>{partyStatusLoading && <p className="campaign-empty-copy">Loading linked party…</p>}{partyStatusError && <p className="campaign-error" role="status">{partyStatusError}</p>}{!partyStatusLoading && !partyStatusError && !partyStatus.length && <p className="campaign-empty-copy">No characters are linked to this campaign.</p>}{partyStatus.length > 0 && <div className="gm-party-status-grid">{partyStatus.map(character => <GmPartyStatus key={character.id} campaignId={campaignId} character={character} />)}</div>}</section>}
     </section>
     <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />
   </main>;

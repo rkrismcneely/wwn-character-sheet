@@ -107,6 +107,14 @@ test("campaign overview and resources stay member-readable with owner/GM control
   assert.doesNotMatch(detail, /ownerUserId|owner_user_id|email|tokenHash|token_hash/u);
 });
 
+test("campaign landing page leaves live table controls to the GM Console", async () => {
+  const detail = await source("app/campaigns/campaign-detail.tsx");
+  const liveSession = await source("app/campaigns/campaign-live-session.tsx");
+  assert.doesNotMatch(detail, /CampaignLiveSession|TABLE SESSION|Live Session/u);
+  assert.match(liveSession, /CampaignLiveSession/u);
+  assert.match(liveSession, /EncounterTracker/u);
+});
+
 test("invite UI offers a canonical direct link while preserving code copy and revocation", async () => {
   const detail = await source("app/campaigns/campaign-detail.tsx");
   const link = await source("lib/campaigns/invite-link.ts");

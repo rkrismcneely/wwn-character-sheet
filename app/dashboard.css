@@ -1,5 +1,5 @@
 .dashboard-shell{
-  min-height:100vh;
+  min-height:100%;
   color:#2e2418;
   background:linear-gradient(rgba(36,30,23,.36),rgba(36,30,23,.58)),url("/assets/wwn-ledger-background-v2.png") center top/cover fixed;
   padding-bottom:34px;

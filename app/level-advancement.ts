@@ -133,6 +133,16 @@ export function levelUpHitPointTotal(
   return Math.max(previousMaximum + 1, raw);
 }
 
+export function levelUpHitPointRollBounds(level: number) {
+  const dice = Math.max(1, Math.min(10, Number(level) || 1));
+  return { minimum: dice, maximum: dice * 6 };
+}
+
+export function validLevelUpHitPointRoll(value: number, level: number) {
+  const { minimum, maximum } = levelUpHitPointRollBounds(level);
+  return Number.isInteger(value) && value >= minimum && value <= maximum;
+}
+
 export function advancementClassPerDieBonus(character: AdvancementCharacter) {
   const classes = selectedClasses(character);
   return classes.includes("Warrior") && !classes.includes("Duelist") ? 2

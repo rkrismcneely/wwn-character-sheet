@@ -29,6 +29,11 @@ jobs:
         id: migration_guard
         shell: bash
         run: |
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0013_connected_accounts\.sql$|^scripts/migrate-connected-accounts\.mjs$|^\.github/workflows/migrate-connected-accounts\.yml$"; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "The connected-accounts migration workflow owns this release."
+            exit 0
+          fi
           if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0008_campaign_resources|0009_character_campaign_lifecycle|0010_campaign_live_sessions|0012_campaign_npc_threat_stats)\\.sql$|^scripts/migrate-phase(5a1-live-sessions|5c7-structured-npc-combat)\\.mjs$|^\\.github/workflows/migrate-phase(5a1-live-sessions|5c7-structured-npc-combat)\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The feature migration workflow owns this release; ordinary deployment is skipped."

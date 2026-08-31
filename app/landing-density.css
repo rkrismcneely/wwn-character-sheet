@@ -17,3 +17,8 @@
 /* The original three-line hero headline is intentionally retained on the redesigned page. */
 .landing-codex .landing-hero h1{margin:0;font:600 clamp(48px,5.3vw,82px)/.94 "Cormorant Garamond",Georgia,serif;letter-spacing:-.025em}.landing-codex .landing-hero h1 em{color:#9a611f;font-weight:600}.landing-campaign-tools span{color:#49351d;font:600 13px/1.2 var(--font-ui);white-space:nowrap}.landing-campaign-tools b{display:inline;font-size:inherit}
 @media(max-width:680px){.landing-codex .landing-hero h1{font-size:48px}}@media(max-width:390px){.landing-campaign-tools span{font-size:11px}}
+
+/* A second sign-in provider may wrap without crowding the shared brand. */
+.landing-codex .landing-header{height:auto;min-height:78px;padding-block:12px;flex-wrap:wrap}
+.landing-codex .landing-header nav{flex-wrap:wrap;justify-content:flex-end;gap:12px 20px}
+@media(max-width:680px){.landing-codex .landing-header{justify-content:center;gap:12px}.landing-codex .landing-header nav{justify-content:center;gap:8px}}

@@ -12,13 +12,13 @@ test("Account is authenticated and renders a server-loaded profile without an au
   assert.match(page, /<AccountPageClient initialProfile=\{profile\}/u);
 });
 
-test("Account supports a custom username, Google fallback, and prominent signed-in destinations", async () => {
+test("Account supports a custom username, original-profile fallback, and prominent signed-in destinations", async () => {
   const account = await source("app/account/account-page.tsx");
   for (const copy of [
     "Username",
     "Save Username",
-    "Use Google Name",
-    "Google profile name",
+    "Use Original Name",
+    "Original profile name",
     "My Characters",
     "My Campaigns",
     "Public Characters",

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createAuth, missingAuthBindings } from "@/lib/auth";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
+import { safeAuthResponse } from "@/lib/auth-response";
 
 function unavailable(): Response {
   return Response.json(
@@ -22,16 +23,11 @@ function logMissingAuthBindings(request: Request, missingBindings: string[]): vo
 
 function logAuthException(request: Request, error: unknown): void {
   const errorType = error instanceof Error ? error.name : "UnknownThrownValue";
-  const message = error instanceof Error
-    ? error.message
-    : "A non-Error value was thrown by the authentication handler.";
-  const stack = error instanceof Error ? error.stack : undefined;
 
   console.error(JSON.stringify({
     event: "auth_handler_exception",
     errorType,
-    message,
-    stack,
+    message: "Authentication handler failed; provider details suppressed.",
     method: request.method,
     path: new URL(request.url).pathname,
   }));
@@ -54,10 +50,10 @@ async function handleAuthRequest(request: Request): Promise<Response> {
   }
 
   try {
-    return await createAuth(env).handler(request);
+    return await safeAuthResponse(await createAuth(env).handler(request), request);
   } catch (error) {
     logAuthException(request, error);
-    return unavailable();
+    return await safeAuthResponse(unavailable(), request);
   }
 }
 

@@ -1,6 +1,9 @@
-import "./better-auth-cloudflare";
+import "./better-auth-cloudflare.ts";
 import { betterAuth } from "better-auth";
-import { CANONICAL_ORIGIN } from "./auth-constants";
+import { APIError, isAPIError } from "better-auth/api";
+import { CANONICAL_ORIGIN } from "./auth-constants.ts";
+import { accountSecurityHooks, discordProfileEmail, validateProviderCallback } from "./auth-linking.ts";
+import { configuredProviders, type ProviderConfiguration } from "./auth-providers.ts";
 
 export const LOCAL_AUTH_ORIGINS = [
   "http://localhost:5173",
@@ -15,7 +18,7 @@ const requiredAuthBindingNames = [
 ] as const;
 
 export type AuthBindingName = (typeof requiredAuthBindingNames)[number];
-export type AuthRuntimeEnv = Pick<CloudflareEnv, AuthBindingName | "DB">;
+export type AuthRuntimeEnv = Pick<CloudflareEnv, AuthBindingName | "DB"> & ProviderConfiguration;
 
 export function missingAuthBindings(
   runtimeEnv: Pick<CloudflareEnv, AuthBindingName>,
@@ -37,6 +40,16 @@ export function createAuth(runtimeEnv: AuthRuntimeEnv) {
     secret: runtimeEnv.BETTER_AUTH_SECRET,
     baseURL: runtimeEnv.BETTER_AUTH_URL,
     basePath: "/api/auth",
+    hooks: accountSecurityHooks(runtimeEnv.DB, runtimeEnv, runtimeEnv.BETTER_AUTH_URL),
+    onAPIError: {
+      errorURL: "/auth/error",
+      onError: error => {
+        // better-call otherwise logs raw unexpected exceptions even with logger disabled.
+        if (!isAPIError(error)) throw new APIError("INTERNAL_SERVER_ERROR", {
+          code: "AUTHENTICATION_FAILED", message: "Authentication could not be completed.",
+        });
+      },
+    },
     trustedOrigins: [CANONICAL_ORIGIN, ...LOCAL_AUTH_ORIGINS],
     emailAndPassword: {
       enabled: false,
@@ -47,7 +60,21 @@ export function createAuth(runtimeEnv: AuthRuntimeEnv) {
         clientSecret: runtimeEnv.GOOGLE_CLIENT_SECRET,
         disableDefaultScope: true,
         scope: ["openid", "email", "profile"],
+        mapProfileToUser: async () => { await validateProviderCallback("google", runtimeEnv.DB); return {}; },
       },
+      ...(configuredProviders(runtimeEnv).includes("discord") ? {
+        discord: {
+          clientId: runtimeEnv.DISCORD_CLIENT_ID!,
+          clientSecret: runtimeEnv.DISCORD_CLIENT_SECRET!,
+          disableDefaultScope: true,
+          scope: ["identify", "email"],
+          prompt: "consent" as const,
+          mapProfileToUser: async (profile: { id: string; email?: string | null; verified?: boolean }) => {
+            await validateProviderCallback("discord", runtimeEnv.DB);
+            return discordProfileEmail(runtimeEnv.DB, profile);
+          },
+        },
+      } : {}),
     },
     user: {
       fields: {
@@ -77,6 +104,16 @@ export function createAuth(runtimeEnv: AuthRuntimeEnv) {
     },
     account: {
       encryptOAuthTokens: true,
+      accountLinking: {
+        enabled: true,
+        disableImplicitLinking: true,
+        // Explicit OAuth proves provider control even for phone-only Discord users.
+        // This never permits email-based linking: disableImplicitLinking stays true.
+        trustedProviders: ["discord"],
+        allowDifferentEmails: true,
+        updateUserInfoOnLink: false,
+        allowUnlinkingAll: false,
+      },
       fields: {
         accountId: "account_id",
         providerId: "provider_id",
@@ -120,7 +157,8 @@ export function createAuth(runtimeEnv: AuthRuntimeEnv) {
       },
     },
     logger: {
-      level: "error",
+      // OAuth errors can contain provider payloads; the route logs a fixed event only.
+      disabled: true,
     },
   });
 }

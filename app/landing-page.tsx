@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { DiscordSignInButton } from "@/components/discord-sign-in-button";
 import { TalesBrandLink } from "./app-header";
 import "./landing-density.css";
 
@@ -51,7 +52,8 @@ export function LandingPage() {
       <nav aria-label="Signed-out navigation">
         <a href="#character-folio">Character folio</a>
         <a href="#campaign-tools">Campaign tools</a>
-        <GoogleSignInButton className="landing-button landing-button-small">Sign in with Google</GoogleSignInButton>
+        <GoogleSignInButton className="landing-button landing-button-small">Continue with Google</GoogleSignInButton>
+        <DiscordSignInButton className="landing-button landing-button-small" />
       </nav>
     </header>
 
@@ -61,7 +63,8 @@ export function LandingPage() {
         <h1 id="landing-title">Your Adventures.<br />Your Characters.<br /><em>Without End.</em></h1>
         <p className="landing-hero-deck">Tales Without End is an online character sheet and character builder for Worlds Without Number. Build a character, use it at the table, then save it to return to whenever you play.</p>
         <div className="landing-actions">
-          <GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton>
+          <GoogleSignInButton className="landing-button landing-button-primary">Continue with Google</GoogleSignInButton>
+          <DiscordSignInButton className="landing-button landing-button-secondary" />
           <Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link>
         </div>
         <ul className="landing-trust" aria-label="Tales Without End highlights"><li>Guided character creation</li><li>Interactive WWN sheets</li><li>Campaign tools for GMs</li></ul>
@@ -96,7 +99,7 @@ export function LandingPage() {
       <p className="landing-kicker">BUILD A CHARACTER YOU CAN KEEP</p>
       <h2 id="landing-final-title">Create a WWN character, then bring it to the table.</h2>
       <p>Sign in to begin a character and save it in your library, or browse public character sheets for inspiration.</p>
-      <div className="landing-actions"><GoogleSignInButton className="landing-button landing-button-primary">Sign in with Google</GoogleSignInButton><Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link></div>
+      <div className="landing-actions"><GoogleSignInButton className="landing-button landing-button-primary">Continue with Google</GoogleSignInButton><DiscordSignInButton className="landing-button landing-button-secondary" /><Link href="/public-characters" className="landing-button landing-button-secondary">Browse Public Characters</Link></div>
     </section>
   </main>;
 }

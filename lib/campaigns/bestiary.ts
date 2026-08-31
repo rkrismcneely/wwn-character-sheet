@@ -2,6 +2,7 @@ import type { CampaignNpcAttack, CampaignNpcDraft } from "./npcs.ts";
 import type { CampaignEncounterNpc, CampaignNpcCombatStats } from "./live-session.ts";
 import { npcWeaponStarters } from "./npc-weapons.ts";
 import { calculateWwnThreatEstimate, type WwnThreatBand } from "./wwn-threat.ts";
+import { thoseOutsideTheWallsPreviewCreatures } from "./bestiary-those-outside-the-walls.ts";
 
 /**
  * Immutable creature definitions derived exclusively from the CC0 Worlds
@@ -22,27 +23,43 @@ export interface BuiltInBestiaryCreature {
   readonly mentalSave: number;
   /** The playable, TWE-curated physical attacks copied into templates and encounters. */
   readonly attacks: readonly Readonly<CampaignNpcAttack>[];
-  /** The exact generic attack notation from the original SRD stat line. */
+  /** Source-facing attack entries retained alongside the playable attack list. */
   readonly sourceAttacks: readonly Readonly<CampaignNpcAttack>[];
   readonly notes: string;
-  readonly armorAnnotation?: "a";
+  /** Source notation such as a (armor), s (shield), or gp (grand plate). */
+  readonly armorAnnotation?: string;
   readonly spellcasting?: BuiltInBestiarySpellcasting;
+  /** Rules-facing source abilities that do not fit the ordinary attack fields. */
+  readonly abilities?: readonly Readonly<BuiltInBestiaryAbility>[];
   readonly description: string;
   readonly sourceStats: BuiltInBestiarySourceStats;
   readonly source: BuiltInBestiarySource;
 }
 
-export interface BuiltInBestiarySource { readonly name: string; readonly license: string }
+export interface BuiltInBestiarySource { readonly name: string; readonly license: string; readonly creator?: string; readonly url?: string }
 export interface BuiltInBestiaryMagicReference { readonly name: string; readonly level?: number; readonly summary: string }
+export interface BuiltInBestiaryAbility { readonly name: string; readonly summary: string }
 export interface BuiltInBestiarySpellcasting {
   readonly level: number;
   readonly effort: number;
-  /** A TWE-curated High Magic loadout, using only the imported CC0 SRD corpus. */
-  readonly tradition: "High Magic";
+  /** A TWE-curated or source-statblock loadout. */
+  readonly tradition: string;
+  readonly sourceLoadout?: boolean;
+  readonly spellsPerDay?: number;
   readonly spells: readonly Readonly<BuiltInBestiaryMagicReference>[];
   readonly arts: readonly Readonly<BuiltInBestiaryMagicReference>[];
 }
-export interface BuiltInBestiarySourceStats { readonly hitDice: number; readonly attacksPerMainAction: number; readonly shock: string; readonly move: string; readonly morale: number; readonly instinct: number; readonly skill: number }
+export interface BuiltInBestiarySourceStats {
+  readonly hitDice: number;
+  readonly hitDiceDisplay?: string;
+  readonly attacksPerMainAction: number;
+  readonly attacksPerMainActionDisplay?: string;
+  readonly shock: string;
+  readonly move: string;
+  readonly morale: number;
+  readonly instinct: number;
+  readonly skill: number;
+}
 export const worldsWithoutNumberSrdSource: BuiltInBestiarySource = Object.freeze({
   name: "Worlds Without Number SRD",
   license: "CC0",
@@ -354,6 +371,7 @@ export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Obje
   defineCreature({ id: "famous-arch-mage", name: "Famous Arch-Mage", hpMax: 45, armorClass: 13, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(2, "Weapon")], spellcasting: { level: 10, effort: 5 }, notes: "" }),
   defineCreature({ id: "automaton-warbot", name: "Automaton, Warbot", hpMax: 45, armorClass: 20, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d12+5")], notes: "" }),
   defineCreature({ id: "predator-hellbeast", name: "Predator, Hellbeast", hpMax: 45, armorClass: 18, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d10+5")], notes: "" }),
+  ...thoseOutsideTheWallsPreviewCreatures,
 ]);
 
 const alphabeticalBuiltInBestiaryCreatures = Object.freeze(

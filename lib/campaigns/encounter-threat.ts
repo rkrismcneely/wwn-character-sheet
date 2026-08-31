@@ -29,6 +29,10 @@ export interface EncounterThreatSummary {
   readonly estimate: WwnThreatEstimate | null;
 }
 
+function nonNegativeHitDice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 function positiveWholeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
@@ -49,7 +53,7 @@ function currentThreatStats(stats: CampaignNpcCombatStats | undefined): StoredTh
 export function encounterNpcThreatInput(npc: CampaignEncounterNpc): EncounterThreatEligibleNpc | EncounterThreatExcludedNpc {
   const stats = currentThreatStats(npc.combatStats);
   const missing: EncounterThreatMissingField[] = [];
-  if (!positiveWholeNumber(stats?.hitDice)) missing.push("HD");
+  if (!nonNegativeHitDice(stats?.hitDice)) missing.push("HD");
   if (!positiveWholeNumber(stats?.attacksPerMainAction)) missing.push("attacks/Main Action");
   return missing.length
     ? Object.freeze({ id: npc.id, name: npc.name, missing: Object.freeze(missing) })

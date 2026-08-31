@@ -68,9 +68,9 @@ function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) 
       <h4>Combat profile</h4>
       <dl className="gm-bestiary-stat-grid">
         <div><dt>HP</dt><dd>{creature.hpMax}</dd></div>
-        <div><dt>AC</dt><dd>{creature.armorClass}{creature.armorAnnotation ? <abbr title="Usual armor in the SRD">{creature.armorAnnotation}</abbr> : null}</dd></div>
-        <div><dt>HD</dt><dd>{creature.sourceStats.hitDice}</dd></div>
-        <div><dt>Attacks / Action</dt><dd>{creature.sourceStats.attacksPerMainAction}</dd></div>
+        <div><dt>AC</dt><dd>{creature.armorClass}{creature.armorAnnotation ? <abbr title="Armor notation from the source statblock">{creature.armorAnnotation}</abbr> : null}</dd></div>
+        <div><dt>HD</dt><dd>{creature.sourceStats.hitDiceDisplay ?? creature.sourceStats.hitDice}</dd></div>
+        <div><dt>Attacks / Action</dt><dd>{creature.sourceStats.attacksPerMainActionDisplay ?? creature.sourceStats.attacksPerMainAction}</dd></div>
         <div><dt>Shock</dt><dd>{creature.sourceStats.shock.startsWith("Weapon") ? selectedShock ?? "None" : creature.sourceStats.shock}</dd></div>
         <div><dt>Move</dt><dd>{creature.sourceStats.move}</dd></div>
         <div><dt>Morale</dt><dd>{creature.sourceStats.morale}</dd></div>
@@ -86,7 +86,8 @@ function BestiaryStatBlock({ creature }: { creature: BuiltInBestiaryCreature }) 
       <h4>Attacks</h4>
       <ul>{creature.attacks.map((attack, index) => <li key={`${creature.id}-${index}`}><strong>{attack.name}</strong> {signed(attack.attackBonus)} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>
     </section>
-    {creature.spellcasting && <section><h4>Spellcasting</h4><p>{creature.spellcasting.tradition} · Mage level {creature.spellcasting.level} · Effort {creature.spellcasting.effort}. TWE-curated representative loadout; use the imported SRD text for full rules.</p><p><strong>Spells</strong></p><ul>{creature.spellcasting.spells.map(spell => <li key={spell.name}><strong>{spell.name}</strong> · Level {spell.level} — {spell.summary}</li>)}</ul><p><strong>Arts</strong></p><ul>{creature.spellcasting.arts.map(art => <li key={art.name}><strong>{art.name}</strong> — {art.summary}</li>)}</ul></section>}
+    {creature.spellcasting && <section><h4>Spellcasting</h4><p>{creature.spellcasting.tradition} · Mage level {creature.spellcasting.level} · Effort {creature.spellcasting.effort}{creature.spellcasting.spellsPerDay ? ` · ${creature.spellcasting.spellsPerDay} spells/day` : ""}. {creature.spellcasting.sourceLoadout ? "Source-statblock spell list; use the source text for full rules." : "TWE-curated representative loadout; use the imported SRD text for full rules."}</p><p><strong>Spells</strong></p><ul>{creature.spellcasting.spells.map(spell => <li key={spell.name}><strong>{spell.name}</strong>{spell.level ? ` · Level ${spell.level}` : ""} — {spell.summary}</li>)}</ul><p><strong>Arts</strong></p><ul>{creature.spellcasting.arts.map(art => <li key={art.name}><strong>{art.name}</strong> — {art.summary}</li>)}</ul></section>}
+    {creature.abilities?.length ? <section><h4>Traits &amp; abilities</h4><ul>{creature.abilities.map(ability => <li key={ability.name}><strong>{ability.name}</strong> — {ability.summary}</li>)}</ul></section> : null}
   </div>;
 }
 
@@ -115,7 +116,7 @@ function BestiaryDetail({ creature, partyLevels, quantity, activeEncounter, busy
     <p className="gm-bestiary-description">{creature.description}</p>
     <BestiaryStatBlock creature={creature} />
     <BestiaryThreatEstimate creature={creature} partyLevels={partyLevels} quantity={quantity} />
-    <section className="gm-bestiary-source"><h4>Source & license</h4><p>{creature.source.name} · {creature.source.license}</p></section>
+    <section className="gm-bestiary-source"><h4>Source & license</h4><p>{creature.source.name}{creature.source.creator ? ` · ${creature.source.creator}` : ""} · {creature.source.license}{creature.source.url ? <> · <a href={creature.source.url} target="_blank" rel="noreferrer">Source preview</a></> : null}</p></section>
     <div className="gm-bestiary-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(creature.id)}>Add to Encounter</button>}<button type="button" className="campaign-secondary" disabled={busy} onClick={() => void onSaveAsNpc(creature.id)}>Copy to NPC Library</button></div>
   </section>;
 }
@@ -165,7 +166,7 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
   function selectCreature(id: string) { setSelectedId(id); setMobileView("detail"); }
 
   return <section className="gm-console-section" aria-labelledby="gm-bestiary-title">
-    <div className="campaign-section-heading"><div><p className="campaign-kicker">CC0 SRD LIBRARY</p><h2 id="gm-bestiary-title">Built-In Bestiary</h2><p className="campaign-empty-copy">Reference creatures from the Worlds Without Number SRD. Adding or saving one creates an independent campaign copy.</p><p className="gm-bestiary-default-hp">Default HP is a table-ready value derived from Hit Dice, not a fixed SRD HP score.</p></div></div>
+    <div className="campaign-section-heading"><div><p className="campaign-kicker">BUILT-IN CREATURE LIBRARY</p><h2 id="gm-bestiary-title">Built-In Bestiary</h2><p className="campaign-empty-copy">Reference creatures from the Worlds Without Number SRD and attributed public previews. Adding or saving one creates an independent campaign copy.</p><p className="gm-bestiary-default-hp">Default HP is a table-ready value derived from Hit Dice, not a fixed source HP score.</p></div></div>
     {error && <p className="campaign-error" role="status">{error}</p>}
     <div className="gm-bestiary-browser" data-mobile-view={mobileView}>
       <section className="gm-bestiary-browse" aria-label="Browse built-in creatures">

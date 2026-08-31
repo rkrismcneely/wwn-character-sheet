@@ -32,6 +32,12 @@ function nullableInteger(value: unknown, label: string, minimum: number, maximum
   return integer(value, label, minimum, maximum);
 }
 
+function nullableHitDice(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1000) throw new CampaignServiceError("Hit Dice is invalid.", 422);
+  return value;
+}
+
 /**
  * Read existing JSON defensively. This intentionally does not try to interpret
  * historic prose damage values: legacy rows remain viewable and editable.
@@ -87,7 +93,7 @@ export function normalizeNpcThreatStats(value: unknown): CampaignNpcThreatStats 
     throw new CampaignServiceError("Threat data is invalid.", 422);
   }
   const candidate = value as Record<string, unknown>;
-  const hitDice = nullableInteger(candidate.hitDice, "Hit Dice", 1, 1000);
+  const hitDice = nullableHitDice(candidate.hitDice);
   const attacksPerMainAction = nullableInteger(candidate.attacksPerMainAction, "Attacks per Main Action", 1, 100);
   if (hitDice === null && attacksPerMainAction === null) return null;
   if (hitDice === null || attacksPerMainAction === null) throw new CampaignServiceError("Hit Dice and attacks per Main Action must be provided together.", 422);

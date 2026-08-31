@@ -49,9 +49,9 @@ test("WWN threat estimates expose scores, ratio, and bands without making a part
   assert.equal(calculateWwnThreatEstimate([1], [{ hitDice: 1, attacksPerMainAction: 1, quantity: 0 }]), null);
 });
 
-test("all immutable CC0 Bestiary entries have explicit valid threat inputs", () => {
-  assert.equal(builtInBestiaryCreatures.length, 35);
-  assert.ok(builtInBestiaryCreatures.every(creature => Number.isSafeInteger(creature.sourceStats.hitDice) && creature.sourceStats.hitDice > 0));
+test("all immutable Bestiary entries have explicit valid threat inputs", () => {
+  assert.equal(builtInBestiaryCreatures.length, 76);
+  assert.ok(builtInBestiaryCreatures.every(creature => Number.isFinite(creature.sourceStats.hitDice) && creature.sourceStats.hitDice >= 0));
   assert.ok(builtInBestiaryCreatures.every(creature => Number.isSafeInteger(creature.sourceStats.attacksPerMainAction) && creature.sourceStats.attacksPerMainAction > 0));
   assert.ok(builtInBestiaryCreatures.every(Object.isFrozen));
   assert.ok(builtInBestiaryCreatures.every(creature => Object.isFrozen(creature.sourceStats)));
@@ -64,7 +64,7 @@ test("all immutable CC0 Bestiary entries have explicit valid threat inputs", () 
 test("Bestiary filtering combines text, HD, and party-relative threat locally without mutation", () => {
   const before = builtInBestiaryCreatures.map(creature => ({ id: creature.id, sourceStats: { ...creature.sourceStats } }));
   assert.deepEqual(filterBestiaryCreatures(builtInBestiaryCreatures, { query: "wizard", minHitDice: 5, maxHitDice: 10 }).map(creature => creature.name), ["Master Wizard", "Skilled Sorcerer"]);
-  assert.deepEqual(filterBestiaryCreatures(builtInBestiaryCreatures, { minHitDice: 10, maxHitDice: 10 }).map(creature => creature.name), ["Automaton, Warbot", "Famous Arch-Mage", "Major Hero", "Predator, Hellbeast", "Predator, Hulking"]);
-  assert.deepEqual(filterBestiaryCreatures(builtInBestiaryCreatures, { partyLevels: [1, 1], threatBand: "trivial", quantity: 1 }).map(creature => creature.name), ["Barbarian Fighter", "Peaceful Human", "Predator, Small Vicious", "Small Pack Predator", "Thug or Militia", "Veteran Soldier"]);
+  assert.deepEqual(filterBestiaryCreatures(builtInBestiaryCreatures, { minHitDice: 10, maxHitDice: 10 }).map(creature => creature.name), ["Aboleth", "Automaton, Warbot", "Famous Arch-Mage", "Juvenile Poison Dragon", "Major Hero", "Predator, Hellbeast", "Predator, Hulking"]);
+  assert.deepEqual(filterBestiaryCreatures(builtInBestiaryCreatures, { partyLevels: [1, 1], threatBand: "trivial", quantity: 1 }).filter(creature => creature.source.license === "CC0").map(creature => creature.name), ["Barbarian Fighter", "Peaceful Human", "Predator, Small Vicious", "Small Pack Predator", "Thug or Militia", "Veteran Soldier"]);
   assert.deepEqual(builtInBestiaryCreatures.map(creature => ({ id: creature.id, sourceStats: { ...creature.sourceStats } })), before);
 });

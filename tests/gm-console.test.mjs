@@ -91,7 +91,7 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /Attacks per Main Action/u);
   assert.match(consoleUi, /Attacks \/ Action/u);
   assert.match(consoleUi, /Default HP is a table-ready value derived from Hit Dice/u);
-  assert.match(consoleUi, /Usual armor in the SRD/u);
+  assert.match(consoleUi, /Armor notation from the source statblock/u);
   assert.match(consoleUi, /Mage level \{creature\.spellcasting\.level\}/u);
   assert.match(consoleUi, /TWE-curated representative loadout/u);
   assert.match(consoleUi, /creature\.spellcasting\.spells\.map/u);

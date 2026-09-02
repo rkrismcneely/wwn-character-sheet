@@ -9,6 +9,8 @@ import type { MapBackgroundContentType, MapImageDimensions } from "./map-images.
 interface CampaignMapRow {
   id: string;
   campaignId: string;
+  name: string;
+  isActive: number;
   backgroundKey: string | null;
   backgroundContentType: MapBackgroundContentType | null;
   backgroundWidth: number | null;
@@ -25,6 +27,7 @@ interface CampaignMapRow {
 interface CampaignMapTokenRow {
   id: string;
   campaignId: string;
+  mapId: string;
   kind: "pc" | "npc";
   sourceId: string;
   name: string;
@@ -51,7 +54,18 @@ export interface CampaignMapCharacterOption {
   name: string;
 }
 
+export interface CampaignMapSummary {
+  id: string;
+  name: string;
+  isActive: boolean;
+  hasBackground: boolean;
+  updatedAt: string;
+}
+
 export interface CampaignMapPayload {
+  id: string;
+  name: string;
+  isActive: boolean;
   backgroundUrl: string | null;
   backgroundWidth: number | null;
   backgroundHeight: number | null;
@@ -68,6 +82,7 @@ export interface CampaignMapPayload {
 
 export interface CampaignMapResponse {
   map: CampaignMapPayload | null;
+  maps: CampaignMapSummary[];
   permissions: { canManage: boolean };
   characters: CampaignMapCharacterOption[];
   encounterAvailable?: boolean;
@@ -78,11 +93,53 @@ export interface CampaignMapAccess {
   campaignPublicId: string;
   archived: boolean;
   canManage: boolean;
-  row: CampaignMapRow | null;
 }
 
 function backgroundUrl(publicId: string, row: CampaignMapRow): string | null {
-  return row.backgroundKey ? `/api/campaigns/${publicId}/map/background?v=${row.version}` : null;
+  if (!row.backgroundKey) return null;
+  const params = new URLSearchParams({ mapId: row.id, v: String(row.version) });
+  return `/api/campaigns/${publicId}/map/background?${params.toString()}`;
+}
+
+function mapSummary(row: CampaignMapRow): CampaignMapSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    isActive: Boolean(row.isActive),
+    hasBackground: Boolean(row.backgroundKey),
+    updatedAt: row.updatedAt,
+  };
+}
+
+function mapSelectSql(where: string): string {
+  return `SELECT id, campaign_id AS campaignId, name, is_active AS isActive,
+      background_key AS backgroundKey, background_content_type AS backgroundContentType,
+      background_width AS backgroundWidth, background_height AS backgroundHeight,
+      grid_enabled AS gridEnabled, grid_size AS gridSize,
+      grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY,
+      version, created_at AS createdAt, updated_at AS updatedAt
+    FROM campaign_maps ${where}`;
+}
+
+async function findCampaignMapById(db: D1Database, campaignId: string, mapId: string): Promise<CampaignMapRow | null> {
+  return db.prepare(`${mapSelectSql("WHERE campaign_id = ? AND id = ?")} LIMIT 1`)
+    .bind(campaignId, mapId).first<CampaignMapRow>();
+}
+
+async function findActiveCampaignMap(db: D1Database, campaignId: string): Promise<CampaignMapRow | null> {
+  return db.prepare(`${mapSelectSql("WHERE campaign_id = ? AND is_active = 1")} LIMIT 1`)
+    .bind(campaignId).first<CampaignMapRow>();
+}
+
+async function firstCampaignMap(db: D1Database, campaignId: string): Promise<CampaignMapRow | null> {
+  return db.prepare(`${mapSelectSql("WHERE campaign_id = ?")} ORDER BY created_at ASC, id ASC LIMIT 1`)
+    .bind(campaignId).first<CampaignMapRow>();
+}
+
+async function allCampaignMaps(db: D1Database, campaignId: string): Promise<CampaignMapRow[]> {
+  const result = await db.prepare(`${mapSelectSql("WHERE campaign_id = ?")} ORDER BY is_active DESC, lower(name), created_at ASC, id ASC`)
+    .bind(campaignId).all<CampaignMapRow>();
+  return result.results;
 }
 
 async function ownCampaignCharacterIds(db: D1Database, actor: CampaignActor, campaignId: string): Promise<Set<string>> {
@@ -106,11 +163,12 @@ async function campaignMapTokens(
   db: D1Database,
   actor: CampaignActor,
   access: CampaignMapAccess,
+  row: CampaignMapRow,
 ): Promise<CampaignMapToken[]> {
-  const result = await db.prepare(`SELECT id, campaign_id AS campaignId, kind, source_id AS sourceId,
-      name, x, y, version, created_at AS createdAt, updated_at AS updatedAt
-    FROM campaign_map_tokens WHERE campaign_id = ? ORDER BY created_at ASC, id ASC`)
-    .bind(access.campaignInternalId).all<CampaignMapTokenRow>();
+  const result = await db.prepare(`SELECT id, campaign_id AS campaignId, map_id AS mapId, kind,
+      source_id AS sourceId, name, x, y, version, created_at AS createdAt, updated_at AS updatedAt
+    FROM campaign_map_tokens WHERE map_id = ? ORDER BY created_at ASC, id ASC`)
+    .bind(row.id).all<CampaignMapTokenRow>();
   const ownedCharacterIds = access.canManage ? new Set<string>() : await ownCampaignCharacterIds(db, actor, access.campaignInternalId);
   return result.results.map(token => ({
     id: token.id,
@@ -131,6 +189,9 @@ async function mapPayload(
   row: CampaignMapRow,
 ): Promise<CampaignMapPayload> {
   return {
+    id: row.id,
+    name: row.name,
+    isActive: Boolean(row.isActive),
     backgroundUrl: backgroundUrl(access.campaignPublicId, row),
     backgroundWidth: row.backgroundWidth,
     backgroundHeight: row.backgroundHeight,
@@ -140,22 +201,10 @@ async function mapPayload(
       offsetX: row.gridOffsetX,
       offsetY: row.gridOffsetY,
     },
-    tokens: await campaignMapTokens(db, actor, access),
+    tokens: await campaignMapTokens(db, actor, access, row),
     version: row.version,
     updatedAt: row.updatedAt,
   };
-}
-
-async function findCampaignMap(db: D1Database, campaignId: string): Promise<CampaignMapRow | null> {
-  return db.prepare(
-    `SELECT id, campaign_id AS campaignId, background_key AS backgroundKey,
-            background_content_type AS backgroundContentType,
-            background_width AS backgroundWidth, background_height AS backgroundHeight,
-            grid_enabled AS gridEnabled, grid_size AS gridSize,
-            grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY,
-            version, created_at AS createdAt, updated_at AS updatedAt
-     FROM campaign_maps WHERE campaign_id = ?`,
-  ).bind(campaignId).first<CampaignMapRow>();
 }
 
 export async function loadCampaignMapAccess(
@@ -164,25 +213,46 @@ export async function loadCampaignMapAccess(
   publicId: string,
 ): Promise<CampaignMapAccess> {
   const { campaign, membership } = await loadCampaignAccess(db, actor, publicId);
-  const row = await findCampaignMap(db, campaign.id);
   const canManage = !campaign.archivedAt && canManageCampaignContent(actor, campaign, membership);
   return {
     campaignInternalId: campaign.id,
     campaignPublicId: campaign.publicId,
     archived: Boolean(campaign.archivedAt),
     canManage,
-    row,
   };
+}
+
+async function selectedCampaignMap(
+  db: D1Database,
+  access: CampaignMapAccess,
+  requestedMapId?: string | null,
+): Promise<CampaignMapRow | null> {
+  const active = await findActiveCampaignMap(db, access.campaignInternalId);
+  if (!access.canManage) {
+    if (requestedMapId && active?.id !== requestedMapId) {
+      throw new CampaignServiceError("Campaign map not found.", 404);
+    }
+    return active;
+  }
+  if (requestedMapId) {
+    const requested = await findCampaignMapById(db, access.campaignInternalId, requestedMapId);
+    if (!requested) throw new CampaignServiceError("Campaign map not found.", 404);
+    return requested;
+  }
+  return active ?? firstCampaignMap(db, access.campaignInternalId);
 }
 
 export async function readCampaignMap(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,
+  requestedMapId?: string | null,
 ): Promise<CampaignMapResponse> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
+  const row = await selectedCampaignMap(db, access, requestedMapId);
   return {
-    map: access.row ? await mapPayload(db, actor, access, access.row) : null,
+    map: row ? await mapPayload(db, actor, access, row) : null,
+    maps: access.canManage ? (await allCampaignMaps(db, access.campaignInternalId)).map(mapSummary) : [],
     permissions: { canManage: access.canManage },
     characters: access.canManage ? await linkedCampaignCharacters(db, access.campaignInternalId) : [],
   };
@@ -198,11 +268,23 @@ function requireMapManagement(access: CampaignMapAccess): void {
   if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
 }
 
-function requireMapBackground(access: CampaignMapAccess): CampaignMapRow {
-  if (!access.row?.backgroundKey || !access.row.backgroundWidth || !access.row.backgroundHeight) {
+async function requireCampaignMap(
+  db: D1Database,
+  access: CampaignMapAccess,
+  mapIdValue: unknown,
+): Promise<CampaignMapRow> {
+  const mapId = identifier(mapIdValue, "Map");
+  const row = await findCampaignMapById(db, access.campaignInternalId, mapId);
+  if (!row) throw new CampaignServiceError("Campaign map not found.", 404);
+  if (!access.canManage && !row.isActive) throw new CampaignServiceError("Campaign map not found.", 404);
+  return row;
+}
+
+function requireMapBackground(row: CampaignMapRow): CampaignMapRow {
+  if (!row.backgroundKey || !row.backgroundWidth || !row.backgroundHeight) {
     throw new CampaignServiceError("Upload a campaign map image before placing tokens.", 409);
   }
-  return access.row;
+  return row;
 }
 
 function expectedVersion(value: unknown, label = "map"): number {
@@ -231,6 +313,15 @@ function identifier(value: unknown, label: string): string {
   return text;
 }
 
+function mapName(value: unknown): string {
+  if (typeof value !== "string") throw new CampaignServiceError("Map name is required.", 422);
+  const text = value.trim().replace(/\s+/gu, " ");
+  if (!text || text.length > 80 || /[\u0000-\u001f\u007f]/u.test(text)) {
+    throw new CampaignServiceError("Map name must be between 1 and 80 readable characters.", 422);
+  }
+  return text;
+}
+
 function conflict(label = "campaign map"): CampaignServiceError {
   return new CampaignServiceError(`The ${label} was updated elsewhere. Reload it and try again.`, 409);
 }
@@ -238,17 +329,133 @@ function conflict(label = "campaign map"): CampaignServiceError {
 function defaultTokenPosition(row: CampaignMapRow, index: number): { x: number; y: number } {
   const width = row.backgroundWidth as number;
   const height = row.backgroundHeight as number;
-  const step = Math.max(24, Math.min(row.gridSize || 64, 256));
+  const desiredStep = Math.max(24, Math.min(row.gridSize || 64, 256));
+  const step = Math.min(desiredStep, width, height);
   const columns = Math.max(1, Math.floor(Math.max(step, width - step) / step));
   const x = Math.min(width - step / 2, step / 2 + (index % columns) * step);
   const y = Math.min(height - step / 2, step / 2 + Math.floor(index / columns) * step);
   return { x: Math.max(step / 2, x), y: Math.max(step / 2, y) };
 }
 
-async function tokenCount(db: D1Database, campaignId: string): Promise<number> {
-  const row = await db.prepare("SELECT COUNT(*) AS count FROM campaign_map_tokens WHERE campaign_id = ?")
-    .bind(campaignId).first<{ count: number }>();
+async function tokenCount(db: D1Database, mapId: string): Promise<number> {
+  const row = await db.prepare("SELECT COUNT(*) AS count FROM campaign_map_tokens WHERE map_id = ?")
+    .bind(mapId).first<{ count: number }>();
   return Number(row?.count ?? 0);
+}
+
+export async function createCampaignMapWithBackground(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  input: {
+    name: string;
+    key: string;
+    contentType: MapBackgroundContentType;
+    dimensions: MapImageDimensions;
+  },
+  now = new Date().toISOString(),
+): Promise<CampaignMapPayload> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  requireMapManagement(access);
+  const id = `map_${crypto.randomUUID()}`;
+  const active = await findActiveCampaignMap(db, access.campaignInternalId);
+  await db.prepare(`INSERT INTO campaign_maps
+      (id, campaign_id, name, is_active, background_key, background_content_type,
+       background_width, background_height, version, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+    .bind(
+      id,
+      access.campaignInternalId,
+      mapName(input.name),
+      active ? 0 : 1,
+      input.key,
+      input.contentType,
+      input.dimensions.width,
+      input.dimensions.height,
+      now,
+      now,
+    ).run();
+  const row = await findCampaignMapById(db, access.campaignInternalId, id);
+  if (!row) throw new Error("Campaign map creation did not persist.");
+  return mapPayload(db, actor, access, row);
+}
+
+export async function renameCampaignMap(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  input: Record<string, unknown>,
+  now = new Date().toISOString(),
+): Promise<CampaignMapPayload> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  requireMapManagement(access);
+  const row = await requireCampaignMap(db, access, input.mapId);
+  const version = expectedVersion(input.version);
+  if (row.version !== version) throw conflict();
+  const result = await db.prepare(`UPDATE campaign_maps
+      SET name = ?, version = version + 1, updated_at = ?
+      WHERE campaign_id = ? AND id = ? AND version = ?`)
+    .bind(mapName(input.name), now, access.campaignInternalId, row.id, version).run();
+  if (result.meta.changes !== 1) throw conflict();
+  const updated = await findCampaignMapById(db, access.campaignInternalId, row.id);
+  if (!updated) throw new Error("Campaign map disappeared after rename.");
+  return mapPayload(db, actor, access, updated);
+}
+
+export async function activateCampaignMap(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+  now = new Date().toISOString(),
+): Promise<CampaignMapPayload> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  requireMapManagement(access);
+  const target = await requireCampaignMap(db, access, mapIdValue);
+  if (target.isActive) return mapPayload(db, actor, access, target);
+  const active = await findActiveCampaignMap(db, access.campaignInternalId);
+  const statements = [];
+  if (active) {
+    statements.push(db.prepare(`UPDATE campaign_maps
+        SET is_active = 0, version = version + 1, updated_at = ?
+        WHERE campaign_id = ? AND id = ? AND is_active = 1`)
+      .bind(now, access.campaignInternalId, active.id));
+  }
+  statements.push(db.prepare(`UPDATE campaign_maps
+      SET is_active = 1, version = version + 1, updated_at = ?
+      WHERE campaign_id = ? AND id = ?`)
+    .bind(now, access.campaignInternalId, target.id));
+  await db.batch(statements);
+  const updated = await findCampaignMapById(db, access.campaignInternalId, target.id);
+  if (!updated) throw new Error("Active campaign map did not persist.");
+  return mapPayload(db, actor, access, updated);
+}
+
+export async function deleteCampaignMap(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+  now = new Date().toISOString(),
+): Promise<{ selectedMapId: string | null; deletedKey: string | null; activeChanged: boolean }> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  requireMapManagement(access);
+  const row = await requireCampaignMap(db, access, mapIdValue);
+  const remaining = (await allCampaignMaps(db, access.campaignInternalId)).filter(candidate => candidate.id !== row.id);
+  const replacement = row.isActive ? (remaining[0] ?? null) : null;
+  const statements = [db.prepare("DELETE FROM campaign_maps WHERE campaign_id = ? AND id = ?").bind(access.campaignInternalId, row.id)];
+  if (replacement) {
+    statements.push(db.prepare(`UPDATE campaign_maps
+        SET is_active = 1, version = version + 1, updated_at = ?
+        WHERE campaign_id = ? AND id = ?`)
+      .bind(now, access.campaignInternalId, replacement.id));
+  }
+  await db.batch(statements);
+  return {
+    selectedMapId: replacement?.id ?? remaining[0]?.id ?? null,
+    deletedKey: row.backgroundKey,
+    activeChanged: Boolean(row.isActive),
+  };
 }
 
 export async function updateCampaignMapSettings(
@@ -260,37 +467,22 @@ export async function updateCampaignMapSettings(
 ): Promise<CampaignMapPayload> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   requireMapManagement(access);
+  const row = await requireCampaignMap(db, access, input.mapId);
   const version = expectedVersion(input.version);
   const gridEnabled = booleanValue(input.gridEnabled, "Grid visibility");
   const gridSize = finiteNumber(input.gridSize, "Grid size", 8, 512);
   const gridOffsetX = finiteNumber(input.gridOffsetX, "Horizontal grid offset", -100000, 100000);
   const gridOffsetY = finiteNumber(input.gridOffsetY, "Vertical grid offset", -100000, 100000);
-
-  if (!access.row) {
-    if (version !== 0) throw conflict();
-    const id = `map_${crypto.randomUUID()}`;
-    await db.prepare(
-      `INSERT INTO campaign_maps
-       (id, campaign_id, grid_enabled, grid_size, grid_offset_x, grid_offset_y,
-        version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).bind(id, access.campaignInternalId, gridEnabled ? 1 : 0, gridSize, gridOffsetX, gridOffsetY, now, now).run();
-    const row = await findCampaignMap(db, access.campaignInternalId);
-    if (!row) throw new Error("Campaign map creation did not persist.");
-    return mapPayload(db, actor, { ...access, row }, row);
-  }
-
-  if (version !== access.row.version) throw conflict();
-  const result = await db.prepare(
-    `UPDATE campaign_maps
-     SET grid_enabled = ?, grid_size = ?, grid_offset_x = ?, grid_offset_y = ?,
-         version = version + 1, updated_at = ?
-     WHERE campaign_id = ? AND version = ?`,
-  ).bind(gridEnabled ? 1 : 0, gridSize, gridOffsetX, gridOffsetY, now, access.campaignInternalId, version).run();
+  if (version !== row.version) throw conflict();
+  const result = await db.prepare(`UPDATE campaign_maps
+      SET grid_enabled = ?, grid_size = ?, grid_offset_x = ?, grid_offset_y = ?,
+          version = version + 1, updated_at = ?
+      WHERE campaign_id = ? AND id = ? AND version = ?`)
+    .bind(gridEnabled ? 1 : 0, gridSize, gridOffsetX, gridOffsetY, now, access.campaignInternalId, row.id, version).run();
   if (result.meta.changes !== 1) throw conflict();
-  const row = await findCampaignMap(db, access.campaignInternalId);
-  if (!row) throw new Error("Campaign map disappeared after update.");
-  return mapPayload(db, actor, { ...access, row }, row);
+  const updated = await findCampaignMapById(db, access.campaignInternalId, row.id);
+  if (!updated) throw new Error("Campaign map disappeared after update.");
+  return mapPayload(db, actor, access, updated);
 }
 
 export async function replaceCampaignMapBackground(
@@ -298,6 +490,7 @@ export async function replaceCampaignMapBackground(
   actor: CampaignActor,
   publicId: string,
   input: {
+    mapId: string;
     version: number;
     key: string;
     contentType: MapBackgroundContentType;
@@ -307,82 +500,81 @@ export async function replaceCampaignMapBackground(
 ): Promise<{ map: CampaignMapPayload; previousKey: string | null }> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   requireMapManagement(access);
+  const row = await requireCampaignMap(db, access, input.mapId);
   const version = expectedVersion(input.version);
-  const previousKey = access.row?.backgroundKey ?? null;
-
-  if (!access.row) {
-    if (version !== 0) throw conflict();
-    const id = `map_${crypto.randomUUID()}`;
-    await db.prepare(
-      `INSERT INTO campaign_maps
-       (id, campaign_id, background_key, background_content_type, background_width,
-        background_height, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).bind(id, access.campaignInternalId, input.key, input.contentType, input.dimensions.width, input.dimensions.height, now, now).run();
-  } else {
-    if (version !== access.row.version) throw conflict();
-    const result = await db.prepare(
-      `UPDATE campaign_maps
-       SET background_key = ?, background_content_type = ?, background_width = ?,
-           background_height = ?, version = version + 1, updated_at = ?
-       WHERE campaign_id = ? AND version = ?`,
-    ).bind(input.key, input.contentType, input.dimensions.width, input.dimensions.height, now, access.campaignInternalId, version).run();
-    if (result.meta.changes !== 1) throw conflict();
-  }
-
-  const row = await findCampaignMap(db, access.campaignInternalId);
-  if (!row) throw new Error("Campaign map background did not persist.");
-  return { map: await mapPayload(db, actor, { ...access, row }, row), previousKey };
+  if (version !== row.version) throw conflict();
+  const result = await db.prepare(`UPDATE campaign_maps
+      SET background_key = ?, background_content_type = ?, background_width = ?,
+          background_height = ?, version = version + 1, updated_at = ?
+      WHERE campaign_id = ? AND id = ? AND version = ?`)
+    .bind(input.key, input.contentType, input.dimensions.width, input.dimensions.height, now, access.campaignInternalId, row.id, version).run();
+  if (result.meta.changes !== 1) throw conflict();
+  const updated = await findCampaignMapById(db, access.campaignInternalId, row.id);
+  if (!updated) throw new Error("Campaign map background did not persist.");
+  return { map: await mapPayload(db, actor, access, updated), previousKey: row.backgroundKey };
 }
 
 export async function removeCampaignMapBackground(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,
+  mapIdValue: unknown,
   versionValue: unknown,
   now = new Date().toISOString(),
-): Promise<{ map: CampaignMapPayload | null; previousKey: string | null }> {
+): Promise<{ map: CampaignMapPayload; previousKey: string | null }> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   requireMapManagement(access);
-  if (!access.row) return { map: null, previousKey: null };
+  const row = await requireCampaignMap(db, access, mapIdValue);
   const version = expectedVersion(versionValue);
-  if (version !== access.row.version) throw conflict();
-  const result = await db.prepare(
-    `UPDATE campaign_maps
-     SET background_key = NULL, background_content_type = NULL,
-         background_width = NULL, background_height = NULL,
-         version = version + 1, updated_at = ?
-     WHERE campaign_id = ? AND version = ?`,
-  ).bind(now, access.campaignInternalId, version).run();
+  if (version !== row.version) throw conflict();
+  const result = await db.prepare(`UPDATE campaign_maps
+      SET background_key = NULL, background_content_type = NULL,
+          background_width = NULL, background_height = NULL,
+          version = version + 1, updated_at = ?
+      WHERE campaign_id = ? AND id = ? AND version = ?`)
+    .bind(now, access.campaignInternalId, row.id, version).run();
   if (result.meta.changes !== 1) throw conflict();
-  const row = await findCampaignMap(db, access.campaignInternalId);
+  const updated = await findCampaignMapById(db, access.campaignInternalId, row.id);
+  if (!updated) throw new Error("Campaign map disappeared after background removal.");
   return {
-    map: row ? await mapPayload(db, actor, { ...access, row }, row) : null,
-    previousKey: access.row.backgroundKey,
+    map: await mapPayload(db, actor, access, updated),
+    previousKey: row.backgroundKey,
   };
+}
+
+export async function campaignMapBackgroundKey(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  requestedMapId?: string | null,
+): Promise<string | null> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  const row = await selectedCampaignMap(db, access, requestedMapId);
+  return row?.backgroundKey ?? null;
 }
 
 export async function placeCampaignMapCharacterToken(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,
+  mapIdValue: unknown,
   characterIdValue: unknown,
   now = new Date().toISOString(),
 ): Promise<CampaignMapPayload> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   requireMapManagement(access);
-  const row = requireMapBackground(access);
+  const row = requireMapBackground(await requireCampaignMap(db, access, mapIdValue));
   const characterId = identifier(characterIdValue, "Character");
   const character = await db.prepare(`SELECT ch.public_id AS id, ch.name
     FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
     WHERE cc.campaign_id = ? AND ch.public_id = ?`)
     .bind(access.campaignInternalId, characterId).first<CampaignMapCharacterOption>();
   if (!character) throw new CampaignServiceError("The linked campaign character was not found.", 404);
-  const position = defaultTokenPosition(row, await tokenCount(db, access.campaignInternalId));
+  const position = defaultTokenPosition(row, await tokenCount(db, row.id));
   await db.prepare(`INSERT OR IGNORE INTO campaign_map_tokens
-    (id, campaign_id, kind, source_id, name, x, y, version, created_at, updated_at)
-    VALUES (?, ?, 'pc', ?, ?, ?, ?, 1, ?, ?)`)
-    .bind(`mpt_${crypto.randomUUID()}`, access.campaignInternalId, character.id, character.name, position.x, position.y, now, now).run();
+    (id, campaign_id, map_id, kind, source_id, name, x, y, version, created_at, updated_at)
+    VALUES (?, ?, ?, 'pc', ?, ?, ?, ?, 1, ?, ?)`)
+    .bind(`mpt_${crypto.randomUUID()}`, access.campaignInternalId, row.id, character.id, character.name, position.x, position.y, now, now).run();
   return mapPayload(db, actor, access, row);
 }
 
@@ -396,22 +588,24 @@ export async function placeCampaignMapEncounterTokens(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,
+  mapIdValue: unknown,
   seeds: CampaignMapEncounterTokenSeed[],
   now = new Date().toISOString(),
 ): Promise<CampaignMapPayload> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   requireMapManagement(access);
-  const row = requireMapBackground(access);
+  const row = requireMapBackground(await requireCampaignMap(db, access, mapIdValue));
   if (!seeds.length) throw new CampaignServiceError("The active encounter has no combatants to place.", 409);
-  const count = await tokenCount(db, access.campaignInternalId);
+  const count = await tokenCount(db, row.id);
   const statements = seeds.slice(0, 100).map((seed, index) => {
     const position = defaultTokenPosition(row, count + index);
     return db.prepare(`INSERT OR IGNORE INTO campaign_map_tokens
-      (id, campaign_id, kind, source_id, name, x, y, version, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+      (id, campaign_id, map_id, kind, source_id, name, x, y, version, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
       .bind(
         `mpt_${crypto.randomUUID()}`,
         access.campaignInternalId,
+        row.id,
         seed.kind,
         identifier(seed.sourceId, "Combatant"),
         identifier(seed.name, "Combatant name"),
@@ -434,13 +628,13 @@ export async function moveCampaignMapToken(
 ): Promise<CampaignMapPayload> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   if (access.archived) throw new CampaignServiceError("This campaign is archived. Restore it before making changes.", 409);
-  const row = requireMapBackground(access);
+  const row = requireMapBackground(await requireCampaignMap(db, access, input.mapId));
   const tokenId = identifier(input.tokenId, "Map token");
   const version = expectedVersion(input.version, "token");
-  const token = await db.prepare(`SELECT id, campaign_id AS campaignId, kind, source_id AS sourceId,
-      name, x, y, version, created_at AS createdAt, updated_at AS updatedAt
-    FROM campaign_map_tokens WHERE campaign_id = ? AND id = ?`)
-    .bind(access.campaignInternalId, tokenId).first<CampaignMapTokenRow>();
+  const token = await db.prepare(`SELECT id, campaign_id AS campaignId, map_id AS mapId, kind,
+      source_id AS sourceId, name, x, y, version, created_at AS createdAt, updated_at AS updatedAt
+    FROM campaign_map_tokens WHERE map_id = ? AND id = ?`)
+    .bind(row.id, tokenId).first<CampaignMapTokenRow>();
   if (!token) throw new CampaignServiceError("Map token not found.", 404);
   let canMove = access.canManage;
   if (!canMove && token.kind === "pc") {
@@ -455,8 +649,8 @@ export async function moveCampaignMapToken(
   const y = finiteNumber(input.y, "Token Y position", 0, row.backgroundHeight as number);
   const result = await db.prepare(`UPDATE campaign_map_tokens
       SET x = ?, y = ?, version = version + 1, updated_at = ?
-      WHERE campaign_id = ? AND id = ? AND version = ?`)
-    .bind(x, y, now, access.campaignInternalId, tokenId, version).run();
+      WHERE map_id = ? AND id = ? AND version = ?`)
+    .bind(x, y, now, row.id, tokenId, version).run();
   if (result.meta.changes !== 1) throw conflict("map token");
   return mapPayload(db, actor, access, row);
 }
@@ -465,13 +659,14 @@ export async function removeCampaignMapToken(
   db: D1Database,
   actor: CampaignActor,
   publicId: string,
+  mapIdValue: unknown,
   tokenIdValue: unknown,
 ): Promise<CampaignMapPayload> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   requireMapManagement(access);
-  const row = requireMapBackground(access);
+  const row = requireMapBackground(await requireCampaignMap(db, access, mapIdValue));
   const tokenId = identifier(tokenIdValue, "Map token");
-  await db.prepare("DELETE FROM campaign_map_tokens WHERE campaign_id = ? AND id = ?")
-    .bind(access.campaignInternalId, tokenId).run();
+  await db.prepare("DELETE FROM campaign_map_tokens WHERE map_id = ? AND id = ?")
+    .bind(row.id, tokenId).run();
   return mapPayload(db, actor, access, row);
 }

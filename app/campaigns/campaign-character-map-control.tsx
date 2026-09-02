@@ -8,6 +8,8 @@ export function CampaignCharacterMapControl({ campaignId }: { campaignId: string
   const [host, setHost] = useState<Element | null>(null);
 
   useEffect(() => {
+    // This client-only portal target exists only after the character sheet has hydrated.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHost(document.querySelector(".campaign-character-context"));
   }, []);
 

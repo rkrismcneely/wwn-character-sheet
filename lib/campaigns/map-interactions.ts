@@ -122,10 +122,10 @@ export async function resizeCampaignMapToken(
   const { access, map } = await interactionMap(db, actor, publicId, mapIdValue);
   requireManagement(access);
   const tokenId = identifier(tokenIdValue, "Map token");
-  if (!Number.isSafeInteger(sizeCellsValue) || Number(sizeCellsValue) < 1 || Number(sizeCellsValue) > 12) {
+  if (typeof sizeCellsValue !== "number" || !Number.isSafeInteger(sizeCellsValue) || sizeCellsValue < 1 || sizeCellsValue > 12) {
     throw new CampaignServiceError("Token size must be between 1 and 12 grid cells.", 422);
   }
-  const sizeCells = clampTokenSizeCells(Number(sizeCellsValue));
+  const sizeCells = clampTokenSizeCells(sizeCellsValue);
   const token = await db.prepare("SELECT id, x, y, version FROM campaign_map_tokens WHERE map_id = ? AND id = ?")
     .bind(map.id, tokenId).first<InteractionTokenRow>();
   if (!token) throw new CampaignServiceError("Map token not found.", 404);

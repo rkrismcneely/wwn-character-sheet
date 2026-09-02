@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -9,7 +10,8 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
-import type { CampaignMapPayload } from "@/lib/campaigns/map";
+import type { CampaignMapCharacterOption, CampaignMapPayload, CampaignMapToken } from "@/lib/campaigns/map";
+import { campaignMapChangedEvent } from "./use-live-session";
 
 type ViewBox = { x: number; y: number; width: number; height: number };
 type GridDraft = { enabled: boolean; size: number; offsetX: number; offsetY: number };
@@ -17,6 +19,8 @@ type GridDraft = { enabled: boolean; size: number; offsetX: number; offsetY: num
 type MapResponse = {
   map?: CampaignMapPayload | null;
   permissions?: { canManage?: boolean };
+  characters?: CampaignMapCharacterOption[];
+  encounterAvailable?: boolean;
   error?: string;
 };
 
@@ -37,6 +41,16 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function tokenInitials(name: string): string {
+  const parts = name.trim().split(/\s+/u).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0]?.slice(0, 2) || "?").toUpperCase();
+}
+
+function snapToken(value: number, offset: number, size: number, maximum: number): number {
+  const snapped = offset + (Math.round((value - offset) / size - 0.5) + 0.5) * size;
+  return clamp(snapped, 0, maximum);
+}
+
 export function CampaignMapLauncher({
   campaignId,
   campaignName,
@@ -54,12 +68,24 @@ export function CampaignMapLauncher({
     clientY: number;
     view: ViewBox;
   } | null>(null);
+  const tokenDragRef = useRef<{
+    pointerId: number;
+    tokenId: string;
+    version: number;
+    clientX: number;
+    clientY: number;
+    x: number;
+    y: number;
+    view: ViewBox;
+  } | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [map, setMap] = useState<CampaignMapPayload | null>(null);
   const [canManage, setCanManage] = useState(initialCanManage);
+  const [characters, setCharacters] = useState<CampaignMapCharacterOption[]>([]);
+  const [encounterAvailable, setEncounterAvailable] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [grid, setGrid] = useState<GridDraft>(defaultGrid());
   const [view, setView] = useState<ViewBox | null>(null);
@@ -78,7 +104,7 @@ export function CampaignMapLauncher({
     };
   }, [open]);
 
-  async function loadMap() {
+  const loadMap = useCallback(async (preserveView = false) => {
     setLoading(true);
     setError("");
     try {
@@ -88,19 +114,31 @@ export function CampaignMapLauncher({
       const nextMap = body.map ?? null;
       setMap(nextMap);
       setCanManage(Boolean(body.permissions?.canManage));
+      setCharacters(body.characters ?? []);
+      setEncounterAvailable(Boolean(body.encounterAvailable));
       setGrid(gridFor(nextMap));
-      setView(fullView(nextMap));
+      setView(current => preserveView && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : fullView(nextMap));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [campaignId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMapChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ campaignId?: string }>).detail;
+      if (detail?.campaignId === campaignId) void loadMap(true);
+    };
+    window.addEventListener(campaignMapChangedEvent, onMapChanged);
+    return () => window.removeEventListener(campaignMapChangedEvent, onMapChanged);
+  }, [campaignId, loadMap, open]);
 
   function showMap() {
     setOpen(true);
     setSettingsOpen(false);
-    void loadMap();
+    void loadMap(false);
   }
 
   function resetView() {
@@ -122,7 +160,7 @@ export function CampaignMapLauncher({
   }
 
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
-    if (!view || event.button !== 0) return;
+    if (!view || event.button !== 0 || tokenDragRef.current) return;
     dragRef.current = {
       pointerId: event.pointerId,
       clientX: event.clientX,
@@ -145,6 +183,89 @@ export function CampaignMapLauncher({
   function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function handleTokenPointerDown(event: ReactPointerEvent<SVGGElement>, token: CampaignMapToken) {
+    if (!token.canMove || !view || event.button !== 0) return;
+    event.stopPropagation();
+    tokenDragRef.current = {
+      pointerId: event.pointerId,
+      tokenId: token.id,
+      version: token.version,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      x: token.x,
+      y: token.y,
+      view,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleTokenPointerMove(event: ReactPointerEvent<SVGGElement>) {
+    const drag = tokenDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !map?.backgroundWidth || !map.backgroundHeight || !svgRef.current) return;
+    event.stopPropagation();
+    const rect = svgRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    let x = clamp(drag.x + (event.clientX - drag.clientX) * (drag.view.width / rect.width), 0, map.backgroundWidth);
+    let y = clamp(drag.y + (event.clientY - drag.clientY) * (drag.view.height / rect.height), 0, map.backgroundHeight);
+    if (map.grid.enabled) {
+      x = snapToken(x, map.grid.offsetX, map.grid.size, map.backgroundWidth);
+      y = snapToken(y, map.grid.offsetY, map.grid.size, map.backgroundHeight);
+    }
+    setMap(current => current ? { ...current, tokens: current.tokens.map(token => token.id === drag.tokenId ? { ...token, x, y } : token) } : current);
+  }
+
+  async function persistTokenMove(drag: NonNullable<typeof tokenDragRef.current>) {
+    const token = map?.tokens.find(candidate => candidate.id === drag.tokenId);
+    if (!token) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "move", tokenId: drag.tokenId, version: drag.version, x: token.x, y: token.y }),
+      });
+      const body = await response.json() as MapResponse;
+      if (!response.ok || !body.map) throw new Error(body.error || "The token could not be moved.");
+      setMap(body.map);
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : "The token could not be moved.");
+      void loadMap(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleTokenPointerEnd(event: ReactPointerEvent<SVGGElement>) {
+    const drag = tokenDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    tokenDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    void persistTokenMove(drag);
+  }
+
+  async function tokenAction(body: Record<string, unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json() as MapResponse;
+      if (!response.ok || !result.map) throw new Error(result.error || "The map token could not be updated.");
+      setMap(result.map);
+      return result.map;
+    } catch (tokenError) {
+      setError(tokenError instanceof Error ? tokenError.message : "The map token could not be updated.");
+      throw tokenError;
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveGrid() {
@@ -201,7 +322,7 @@ export function CampaignMapLauncher({
   }
 
   async function removeBackground() {
-    if (!map?.backgroundUrl || !window.confirm("Remove the current campaign map image? Grid settings will be kept.")) return;
+    if (!map?.backgroundUrl || !window.confirm("Remove the current campaign map image? Grid settings and token placements will be kept.")) return;
     setBusy(true);
     setError("");
     try {
@@ -221,6 +342,9 @@ export function CampaignMapLauncher({
       setBusy(false);
     }
   }
+
+  const placedCharacterIds = new Set(map?.tokens.filter(token => token.kind === "pc").map(token => token.sourceId) ?? []);
+  const tokenRadius = clamp((map?.grid.size ?? 64) * 0.4, 18, 80);
 
   return <>
     <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>
@@ -259,7 +383,7 @@ export function CampaignMapLauncher({
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
               onPointerCancel={handlePointerEnd}
-              aria-label="Campaign map. Drag to pan and use the mouse wheel or toolbar buttons to zoom."
+              aria-label="Campaign map. Drag to pan; drag an allowed token to move it; use the mouse wheel or toolbar buttons to zoom."
             >
               <defs>
                 <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}>
@@ -268,6 +392,24 @@ export function CampaignMapLauncher({
               </defs>
               <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />
               {map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
+              <g className="campaign-map-token-layer">
+                {map.tokens.map(token => <g
+                  key={token.id}
+                  className={`campaign-map-token campaign-map-token-${token.kind}${token.canMove ? " is-movable" : ""}`}
+                  transform={`translate(${token.x} ${token.y})`}
+                  onPointerDown={event => handleTokenPointerDown(event, token)}
+                  onPointerMove={handleTokenPointerMove}
+                  onPointerUp={handleTokenPointerEnd}
+                  onPointerCancel={handleTokenPointerEnd}
+                  role="img"
+                  aria-label={`${token.name} ${token.kind === "pc" ? "player character" : "NPC"} token${token.canMove ? ", draggable" : ""}`}
+                >
+                  <title>{token.name}</title>
+                  <circle r={tokenRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
+                  <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenRadius * 0.72}>{tokenInitials(token.name)}</text>
+                  <text className="campaign-map-token-name" textAnchor="middle" y={tokenRadius + Math.max(12, tokenRadius * 0.48)} fontSize={Math.max(11, tokenRadius * 0.42)}>{token.name}</text>
+                </g>)}
+              </g>
             </svg>}
           </div>
 
@@ -293,7 +435,20 @@ export function CampaignMapLauncher({
               <label><span>Vertical offset</span><input type="number" step="1" value={grid.offsetY} onChange={event => setGrid(current => ({ ...current, offsetY: Number(event.target.value) }))} /></label>
               <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Grid</button>
             </section>
-            <p className="campaign-map-foundation-note">Tokens, encounter placement, measuring, drawing, and live movement are the next map layer.</p>
+            <section className="campaign-map-token-settings">
+              <h4>Tokens</h4>
+              <p>GMs can move any token. Players can drag their own linked character token. Grid-enabled maps snap token centers to cells.</p>
+              <button type="button" className="campaign-primary" disabled={busy || !map?.backgroundUrl || !encounterAvailable} onClick={() => void tokenAction({ action: "place_encounter" })}>Place Active Encounter</button>
+              {!encounterAvailable && <small>Start a live encounter to place all of its current combatants at once.</small>}
+              {characters.length > 0 && <div className="campaign-map-character-tokens">
+                {characters.map(character => <div key={character.id}><span>{character.name}</span>{placedCharacterIds.has(character.id) ? <small>On map</small> : <button type="button" className="campaign-secondary" disabled={busy || !map?.backgroundUrl} onClick={() => void tokenAction({ action: "place_pc", characterId: character.id })}>Place</button>}</div>)}
+              </div>}
+              {map?.tokens.length ? <div className="campaign-map-placed-tokens">
+                <strong>On the map</strong>
+                {map.tokens.map(token => <div key={token.id}><span><b>{token.name}</b><small>{token.kind === "pc" ? "PC" : "NPC"}</small></span><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void tokenAction({ action: "remove", tokenId: token.id })}>Remove</button></div>)}
+              </div> : <p>No tokens placed yet.</p>}
+            </section>
+            <p className="campaign-map-foundation-note">Persistent tokens and live movement are active. Measuring, drawing, fog, lighting, and multiple map layers remain later map phases.</p>
           </aside>}
         </div>
       </section>

@@ -18,3 +18,22 @@ CREATE TABLE `campaign_maps` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `campaign_maps_campaign_unique` ON `campaign_maps` (`campaign_id`);
+--> statement-breakpoint
+CREATE TABLE `campaign_map_tokens` (
+  `id` text PRIMARY KEY NOT NULL,
+  `campaign_id` text NOT NULL,
+  `kind` text NOT NULL,
+  `source_id` text NOT NULL,
+  `name` text NOT NULL,
+  `x` real NOT NULL,
+  `y` real NOT NULL,
+  `version` integer NOT NULL DEFAULT 1,
+  `created_at` text NOT NULL,
+  `updated_at` text NOT NULL,
+  FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON UPDATE no action ON DELETE cascade,
+  CONSTRAINT `campaign_map_tokens_kind_check` CHECK (`kind` in ('pc', 'npc'))
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `campaign_map_tokens_source_unique` ON `campaign_map_tokens` (`campaign_id`, `kind`, `source_id`);
+--> statement-breakpoint
+CREATE INDEX `campaign_map_tokens_campaign_idx` ON `campaign_map_tokens` (`campaign_id`, `created_at`);

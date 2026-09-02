@@ -344,6 +344,7 @@
   gap: .55rem;
 }
 
+.campaign-map-grid-settings > small,
 .campaign-map-token-settings > small {
   color: var(--text-muted, #b9ad9b);
 }
@@ -384,6 +385,18 @@
 
 .campaign-map-placed-tokens span {
   display: grid;
+}
+
+.campaign-map-token-row-actions {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex: 0 0 auto;
+}
+
+.campaign-map-token-row-actions .campaign-quiet {
+  min-width: 2rem;
+  padding-inline: .5rem;
 }
 
 .campaign-map-foundation-note {

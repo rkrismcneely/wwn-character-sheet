@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
+import { snapCampaignMapTokenMove } from "@/lib/campaigns/map-interactions";
 import {
   loadCampaignMapAccess,
   moveCampaignMapToken,
@@ -67,7 +68,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
       map = await placeCampaignMapEncounterTokens(db, actor, id, body.mapId, await encounterSeeds(db, access.campaignInternalId));
     } else if (body.action === "move") {
-      map = await moveCampaignMapToken(db, actor, id, body);
+      map = await moveCampaignMapToken(db, actor, id, await snapCampaignMapTokenMove(db, actor, id, body));
     } else if (body.action === "remove") {
       map = await removeCampaignMapToken(db, actor, id, body.mapId, body.tokenId);
     } else {

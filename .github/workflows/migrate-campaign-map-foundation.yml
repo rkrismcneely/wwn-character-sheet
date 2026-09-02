@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "drizzle/0014_campaign_map_foundation.sql"
+      - "drizzle/0015_campaign_map_interactions.sql"
       - "scripts/migrate-campaign-map-foundation.mjs"
       - ".github/workflows/migrate-campaign-map-foundation.yml"
   workflow_dispatch:

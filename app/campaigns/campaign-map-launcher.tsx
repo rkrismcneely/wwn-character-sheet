@@ -16,10 +16,16 @@ import type {
   CampaignMapSummary,
   CampaignMapToken,
 } from "@/lib/campaigns/map";
+import {
+  clampTokenSizeCells,
+  snapTokenCenter,
+  tokenRadius as gridTokenRadius,
+} from "@/lib/campaigns/map-grid";
 import { campaignMapChangedEvent } from "./use-live-session";
 
 type ViewBox = { x: number; y: number; width: number; height: number };
 type GridDraft = { enabled: boolean; size: number; offsetX: number; offsetY: number };
+type MapInteractions = { snapEnabled: boolean; tokenSizes: Record<string, number> };
 
 type MapResponse = {
   map?: CampaignMapPayload | null;
@@ -27,6 +33,12 @@ type MapResponse = {
   permissions?: { canManage?: boolean };
   characters?: CampaignMapCharacterOption[];
   encounterAvailable?: boolean;
+  error?: string;
+};
+
+type InteractionResponse = {
+  interactions?: MapInteractions;
+  token?: { id: string; x: number; y: number; version: number };
   error?: string;
 };
 
@@ -50,11 +62,6 @@ function clamp(value: number, min: number, max: number): number {
 function tokenInitials(name: string): string {
   const parts = name.trim().split(/\s+/u).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0]?.slice(0, 2) || "?").toUpperCase();
-}
-
-function snapToken(value: number, offset: number, size: number, maximum: number): number {
-  const snapped = offset + (Math.round((value - offset) / size - 0.5) + 0.5) * size;
-  return clamp(snapped, 0, maximum);
 }
 
 function filenameMapName(filename: string): string {
@@ -104,6 +111,8 @@ export function CampaignMapLauncher({
   const [encounterAvailable, setEncounterAvailable] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [grid, setGrid] = useState<GridDraft>(defaultGrid());
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [tokenSizes, setTokenSizes] = useState<Record<string, number>>({});
   const [mapNameDraft, setMapNameDraft] = useState("");
   const [view, setView] = useState<ViewBox | null>(null);
 
@@ -139,6 +148,15 @@ export function CampaignMapLauncher({
     setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : fullView(nextMap));
   }, []);
 
+  const loadInteractions = useCallback(async (mapId: string) => {
+    const params = new URLSearchParams({ mapId });
+    const response = await fetch(`/api/campaigns/${campaignId}/map/interactions?${params.toString()}`, { cache: "no-store" });
+    const body = await response.json() as InteractionResponse;
+    if (!response.ok || !body.interactions) throw new Error(body.error || "The map interaction settings could not be loaded.");
+    setSnapToGrid(body.interactions.snapEnabled);
+    setTokenSizes(body.interactions.tokenSizes);
+  }, [campaignId]);
+
   const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null) => {
     setLoading(true);
     setError("");
@@ -148,12 +166,18 @@ export function CampaignMapLauncher({
       const body = await response.json() as MapResponse;
       if (!response.ok) throw new Error(body.error || "The campaign map could not be loaded.");
       applyResponse(body, preserveView);
+      if (body.map) {
+        await loadInteractions(body.map.id);
+      } else {
+        setSnapToGrid(false);
+        setTokenSizes({});
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded.");
     } finally {
       setLoading(false);
     }
-  }, [applyResponse, campaignId]);
+  }, [applyResponse, campaignId, loadInteractions]);
 
   useEffect(() => {
     if (!open) return;
@@ -243,9 +267,10 @@ export function CampaignMapLauncher({
     if (!rect.width || !rect.height) return;
     let x = clamp(drag.x + (event.clientX - drag.clientX) * (drag.view.width / rect.width), 0, map.backgroundWidth);
     let y = clamp(drag.y + (event.clientY - drag.clientY) * (drag.view.height / rect.height), 0, map.backgroundHeight);
-    if (map.grid.enabled) {
-      x = snapToken(x, map.grid.offsetX, map.grid.size, map.backgroundWidth);
-      y = snapToken(y, map.grid.offsetY, map.grid.size, map.backgroundHeight);
+    if (snapToGrid) {
+      const sizeCells = tokenSizes[drag.tokenId] ?? 1;
+      x = snapTokenCenter(x, map.grid.offsetX, map.grid.size, sizeCells, map.backgroundWidth);
+      y = snapTokenCenter(y, map.grid.offsetY, map.grid.size, sizeCells, map.backgroundHeight);
     }
     drag.latestX = x;
     drag.latestY = y;
@@ -295,10 +320,41 @@ export function CampaignMapLauncher({
       const result = await response.json() as MapResponse;
       if (!response.ok || !result.map) throw new Error(result.error || "The map token could not be updated.");
       setMap(result.map);
+      setTokenSizes(current => Object.fromEntries(Object.entries(current).filter(([tokenId]) => result.map?.tokens.some(token => token.id === tokenId))));
       return result.map;
     } catch (tokenError) {
       setError(tokenError instanceof Error ? tokenError.message : "The map token could not be updated.");
       return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resizeToken(token: CampaignMapToken, nextSize: number) {
+    if (!map) return;
+    const sizeCells = clampTokenSizeCells(nextSize);
+    if (sizeCells === (tokenSizes[token.id] ?? 1)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "resize", mapId: map.id, tokenId: token.id, sizeCells }),
+      });
+      const body = await response.json() as InteractionResponse;
+      if (!response.ok || !body.interactions || !body.token) throw new Error(body.error || "The token could not be resized.");
+      setSnapToGrid(body.interactions.snapEnabled);
+      setTokenSizes(body.interactions.tokenSizes);
+      setMap(current => current ? {
+        ...current,
+        tokens: current.tokens.map(candidate => candidate.id === body.token?.id
+          ? { ...candidate, x: body.token.x, y: body.token.y, version: body.token.version }
+          : candidate),
+      } : current);
+    } catch (resizeError) {
+      setError(resizeError instanceof Error ? resizeError.message : "The token could not be resized.");
+      void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null);
     } finally {
       setBusy(false);
     }
@@ -316,6 +372,12 @@ export function CampaignMapLauncher({
       const result = await response.json() as MapResponse;
       if (!response.ok) throw new Error(result.error || "The campaign map could not be updated.");
       applyResponse(result, preserveView);
+      if (result.map) {
+        await loadInteractions(result.map.id);
+      } else {
+        setSnapToGrid(false);
+        setTokenSizes({});
+      }
       return result;
     } catch (mapError) {
       setError(mapError instanceof Error ? mapError.message : "The campaign map could not be updated.");
@@ -345,6 +407,18 @@ export function CampaignMapLauncher({
       const body = await response.json() as MapResponse;
       if (!response.ok || !body.map) throw new Error(body.error || "The grid settings could not be saved.");
       applyResponse(body, true);
+
+      const interactionResponse = await fetch(`/api/campaigns/${campaignId}/map/interactions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "set_snap", mapId: body.map.id, enabled: snapToGrid }),
+      });
+      const interactionBody = await interactionResponse.json() as InteractionResponse;
+      if (!interactionResponse.ok || !interactionBody.interactions) {
+        throw new Error(interactionBody.error || "The grid snapping setting could not be saved.");
+      }
+      setSnapToGrid(interactionBody.interactions.snapEnabled);
+      setTokenSizes(interactionBody.interactions.tokenSizes);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "The grid settings could not be saved.");
     } finally {
@@ -368,6 +442,7 @@ export function CampaignMapLauncher({
       const body = await response.json() as MapResponse;
       if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded.");
       applyResponse(body, false);
+      await loadInteractions(body.map.id);
       setSettingsOpen(true);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded.");
@@ -443,7 +518,6 @@ export function CampaignMapLauncher({
   }
 
   const placedCharacterIds = new Set(map?.tokens.filter(token => token.kind === "pc").map(token => token.sourceId) ?? []);
-  const tokenRadius = clamp((map?.grid.size ?? 64) * 0.4, 18, 80);
 
   return <>
     <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>
@@ -493,22 +567,26 @@ export function CampaignMapLauncher({
               <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />
               {map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
               <g className="campaign-map-token-layer">
-                {map.tokens.map(token => <g
-                  key={token.id}
-                  className={`campaign-map-token campaign-map-token-${token.kind}${token.canMove ? " is-movable" : ""}`}
-                  transform={`translate(${token.x} ${token.y})`}
-                  onPointerDown={event => handleTokenPointerDown(event, token)}
-                  onPointerMove={handleTokenPointerMove}
-                  onPointerUp={handleTokenPointerEnd}
-                  onPointerCancel={handleTokenPointerEnd}
-                  role="img"
-                  aria-label={`${token.name} ${token.kind === "pc" ? "player character" : "NPC"} token${token.canMove ? ", draggable" : ""}`}
-                >
-                  <title>{token.name}</title>
-                  <circle r={tokenRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
-                  <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenRadius * 0.72}>{tokenInitials(token.name)}</text>
-                  <text className="campaign-map-token-name" textAnchor="middle" y={tokenRadius + Math.max(12, tokenRadius * 0.48)} fontSize={Math.max(11, tokenRadius * 0.42)}>{token.name}</text>
-                </g>)}
+                {map.tokens.map(token => {
+                  const sizeCells = tokenSizes[token.id] ?? 1;
+                  const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells);
+                  return <g
+                    key={token.id}
+                    className={`campaign-map-token campaign-map-token-${token.kind}${token.canMove ? " is-movable" : ""}`}
+                    transform={`translate(${token.x} ${token.y})`}
+                    onPointerDown={event => handleTokenPointerDown(event, token)}
+                    onPointerMove={handleTokenPointerMove}
+                    onPointerUp={handleTokenPointerEnd}
+                    onPointerCancel={handleTokenPointerEnd}
+                    role="img"
+                    aria-label={`${token.name} ${token.kind === "pc" ? "player character" : "NPC"} token, ${sizeCells} by ${sizeCells} grid cells${token.canMove ? ", draggable" : ""}`}
+                  >
+                    <title>{token.name}</title>
+                    <circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
+                    <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text>
+                    <text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text>
+                  </g>;
+                })}
               </g>
             </svg>}
           </div>
@@ -561,6 +639,8 @@ export function CampaignMapLauncher({
               <section className="campaign-map-grid-settings">
                 <h4>Square Grid</h4>
                 <label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label>
+                <label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label>
+                <small>Snapping works whether or not the grid lines are visible.</small>
                 <label><span>Cell size</span><input type="number" min="8" max="512" step="1" value={grid.size} onChange={event => setGrid(current => ({ ...current, size: Number(event.target.value) }))} /></label>
                 <label><span>Horizontal offset</span><input type="number" step="1" value={grid.offsetX} onChange={event => setGrid(current => ({ ...current, offsetX: Number(event.target.value) }))} /></label>
                 <label><span>Vertical offset</span><input type="number" step="1" value={grid.offsetY} onChange={event => setGrid(current => ({ ...current, offsetY: Number(event.target.value) }))} /></label>
@@ -568,7 +648,7 @@ export function CampaignMapLauncher({
               </section>
               <section className="campaign-map-token-settings">
                 <h4>Tokens</h4>
-                <p>Token placements belong to this map. GMs can move any token; players can drag their own linked character token when this map is visible to them.</p>
+                <p>Token placements belong to this map. Sizes are measured in whole grid cells, so larger tokens stay aligned with the square grid.</p>
                 <button type="button" className="campaign-primary" disabled={busy || !map.backgroundUrl || !encounterAvailable} onClick={() => void tokenAction({ action: "place_encounter" })}>Place Active Encounter</button>
                 {!encounterAvailable && <small>Start a live encounter to place all of its current combatants at once.</small>}
                 {characters.length > 0 && <div className="campaign-map-character-tokens">
@@ -576,11 +656,21 @@ export function CampaignMapLauncher({
                 </div>}
                 {map.tokens.length ? <div className="campaign-map-placed-tokens">
                   <strong>On this map</strong>
-                  {map.tokens.map(token => <div key={token.id}><span><b>{token.name}</b><small>{token.kind === "pc" ? "PC" : "NPC"}</small></span><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void tokenAction({ action: "remove", tokenId: token.id })}>Remove</button></div>)}
+                  {map.tokens.map(token => {
+                    const sizeCells = tokenSizes[token.id] ?? 1;
+                    return <div key={token.id}>
+                      <span><b>{token.name}</b><small>{token.kind === "pc" ? "PC" : "NPC"} · {sizeCells}×{sizeCells}</small></span>
+                      <div className="campaign-map-token-row-actions">
+                        <button type="button" className="campaign-quiet" disabled={busy || sizeCells <= 1} aria-label={`Make ${token.name} smaller`} onClick={() => void resizeToken(token, sizeCells - 1)}>−</button>
+                        <button type="button" className="campaign-quiet" disabled={busy || sizeCells >= 12} aria-label={`Make ${token.name} larger`} onClick={() => void resizeToken(token, sizeCells + 1)}>+</button>
+                        <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void tokenAction({ action: "remove", tokenId: token.id })}>Remove</button>
+                      </div>
+                    </div>;
+                  })}
                 </div> : <p>No tokens placed on this map yet.</p>}
               </section>
             </>}
-            <p className="campaign-map-foundation-note">Multiple maps, persistent tokens, and live movement are active. Measuring, drawing, fog, lighting, and map layers remain later phases.</p>
+            <p className="campaign-map-foundation-note">Multiple maps, persistent token sizes, hidden-grid snapping, and live movement are active. Measuring, drawing, fog, lighting, and map layers remain later phases.</p>
           </aside>}
         </div>
       </section>

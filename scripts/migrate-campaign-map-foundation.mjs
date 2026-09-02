@@ -3,7 +3,10 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { DATABASE_ID, DATABASE_NAME } from "./d1-admin.mjs";
 
-const migrationName = "0014_campaign_map_foundation.sql";
+const migrationNames = [
+  "0014_campaign_map_foundation.sql",
+  "0015_campaign_map_interactions.sql",
+];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
   ...process.env,
@@ -30,8 +33,8 @@ function query(sql) {
   return output.flatMap(result => result.results ?? []);
 }
 
-function applyOnlyReviewedMigration() {
-  const root = mkdtempSync(join(process.cwd(), ".campaign-map-foundation-"));
+function applyOnlyReviewedMigration(migrationName) {
+  const root = mkdtempSync(join(process.cwd(), ".campaign-map-migration-"));
   try {
     const migrations = join(root, "migrations");
     mkdirSync(migrations, { recursive: true });
@@ -78,15 +81,27 @@ for (const baseline of [
   }
 }
 
-if (!applied.has(migrationName)) applyOnlyReviewedMigration();
+for (const migrationName of migrationNames) {
+  if (!applied.has(migrationName)) {
+    applyOnlyReviewedMigration(migrationName);
+    applied.add(migrationName);
+  }
+}
 
 const finalApplied = new Set(query("SELECT name FROM d1_migrations").map(row => row.name));
-if (!finalApplied.has(migrationName)) {
-  throw new Error("Campaign-map migration is not recorded in production D1 migration history.");
+for (const migrationName of migrationNames) {
+  if (!finalApplied.has(migrationName)) {
+    throw new Error(`Campaign-map migration ${migrationName} is not recorded in production D1 migration history.`);
+  }
 }
 
 const tables = new Set(query("SELECT name FROM sqlite_master WHERE type = 'table'").map(row => row.name));
-for (const table of ["campaign_maps", "campaign_map_tokens"]) {
+for (const table of [
+  "campaign_maps",
+  "campaign_map_tokens",
+  "campaign_map_preferences",
+  "campaign_map_token_sizes",
+]) {
   if (!tables.has(table)) throw new Error(`Production is missing table ${table}.`);
 }
 
@@ -111,14 +126,26 @@ for (const column of ["id", "campaign_id", "map_id", "kind", "source_id", "x", "
   if (!tokenColumns.has(column)) throw new Error(`campaign_map_tokens is missing ${column}.`);
 }
 
+const preferenceColumns = new Set(query("PRAGMA table_info(campaign_map_preferences)").map(row => row.name));
+for (const column of ["map_id", "campaign_id", "snap_enabled", "updated_at"]) {
+  if (!preferenceColumns.has(column)) throw new Error(`campaign_map_preferences is missing ${column}.`);
+}
+
+const sizeColumns = new Set(query("PRAGMA table_info(campaign_map_token_sizes)").map(row => row.name));
+for (const column of ["token_id", "map_id", "campaign_id", "size_cells", "updated_at"]) {
+  if (!sizeColumns.has(column)) throw new Error(`campaign_map_token_sizes is missing ${column}.`);
+}
+
 const indexes = new Set(query("SELECT name FROM sqlite_master WHERE type = 'index'").map(row => row.name));
 for (const index of [
   "campaign_maps_campaign_idx",
   "campaign_maps_one_active",
   "campaign_map_tokens_source_unique",
   "campaign_map_tokens_map_idx",
+  "campaign_map_preferences_campaign_idx",
+  "campaign_map_token_sizes_map_idx",
 ]) {
   if (!indexes.has(index)) throw new Error(`Production is missing index ${index}.`);
 }
 
-console.log("Campaign map foundation migration verified against the production database.");
+console.log("Campaign map migrations verified against the production database.");

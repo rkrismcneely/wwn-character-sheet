@@ -12,7 +12,7 @@ import {
   removeCampaignMapBackground,
   replaceCampaignMapBackground,
 } from "@/lib/campaigns/map";
-import { getCampaignD1 } from "@/lib/campaigns/service";
+import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -42,7 +42,10 @@ export async function GET(request: Request, context: Context): Promise<Response>
     headers.set("cache-control", "private, no-store");
     headers.set("x-content-type-options", "nosniff");
     return new Response(object.body, { headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof CampaignServiceError) {
+      return new Response("Map background not found.", { status: 404 });
+    }
     return new Response("Map background unavailable.", { status: 503 });
   }
 }
@@ -57,6 +60,9 @@ export async function POST(request: Request, context: Context): Promise<Response
     const { id } = await context.params;
     const db = await getCampaignD1();
     const access = await loadCampaignMapAccess(db, actor, id);
+    if (access.archived) {
+      return Response.json({ error: "This campaign is archived. Restore it before making changes." }, { status: 409 });
+    }
     if (!access.canManage) return Response.json({ error: "Not permitted." }, { status: 403 });
 
     const contentType = request.headers.get("content-type")?.split(";")[0].trim() ?? "";

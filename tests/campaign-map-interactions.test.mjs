@@ -12,7 +12,7 @@ test("token sizes use bounded whole grid-cell increments", () => {
   assert.equal(clampTokenSizeCells(1.4), 1);
   assert.equal(clampTokenSizeCells(2.6), 3);
   assert.equal(clampTokenSizeCells(99), 12);
-  assert.equal(tokenRadius(64, 2), 55.04);
+  assert.equal(tokenRadius(64, 2), 64);
 });
 
 test("token center snapping accounts for odd and even token footprints", () => {
@@ -23,10 +23,11 @@ test("token center snapping accounts for odd and even token footprints", () => {
 });
 
 test("campaign maps persist hidden-grid snapping and per-token sizes", async () => {
-  const [migration, service, route, launcher, workflow, deploy] = await Promise.all([
+  const [migration, service, route, tokenRoute, launcher, workflow, deploy] = await Promise.all([
     readFile(new URL("../drizzle/0015_campaign_map_interactions.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map-interactions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/map/interactions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/campaigns/[id]/map/tokens/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/migrate-campaign-map-foundation.yml", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/deploy-production.yml", import.meta.url), "utf8"),
@@ -34,13 +35,16 @@ test("campaign maps persist hidden-grid snapping and per-token sizes", async () 
 
   assert.match(migration, /CREATE TABLE `campaign_map_preferences`/u);
   assert.match(migration, /`snap_enabled` integer NOT NULL DEFAULT 0/u);
+  assert.match(migration, /SELECT `id`, `campaign_id`, `grid_enabled`, `updated_at` FROM `campaign_maps`/u);
   assert.match(migration, /CREATE TABLE `campaign_map_token_sizes`/u);
   assert.match(migration, /`size_cells` integer NOT NULL DEFAULT 1/u);
   assert.match(service, /setCampaignMapSnapPreference/u);
   assert.match(service, /resizeCampaignMapToken/u);
+  assert.match(service, /snapCampaignMapTokenMove/u);
   assert.match(service, /snapTokenCenter/u);
   assert.match(route, /body\.action === "set_snap"/u);
   assert.match(route, /body\.action === "resize"/u);
+  assert.match(tokenRoute, /snapCampaignMapTokenMove/u);
   assert.match(launcher, /Snap tokens to grid/u);
   assert.match(launcher, /Snapping works whether or not the grid lines are visible/u);
   assert.match(launcher, /if \(snapToGrid\)/u);

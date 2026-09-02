@@ -648,7 +648,7 @@ export function CampaignMapLauncher({
               </section>
               <section className="campaign-map-token-settings">
                 <h4>Tokens</h4>
-                <p>Token placements and sizes belong to this map. Sizes are measured in whole grid cells, so larger tokens stay aligned with the square grid.</p>
+                <p>Token placements belong to this map. Sizes are measured in whole grid cells, so larger tokens stay aligned with the square grid.</p>
                 <button type="button" className="campaign-primary" disabled={busy || !map.backgroundUrl || !encounterAvailable} onClick={() => void tokenAction({ action: "place_encounter" })}>Place Active Encounter</button>
                 {!encounterAvailable && <small>Start a live encounter to place all of its current combatants at once.</small>}
                 {characters.length > 0 && <div className="campaign-map-character-tokens">

@@ -76,6 +76,8 @@ export function CampaignMapLauncher({
     clientY: number;
     x: number;
     y: number;
+    latestX: number;
+    latestY: number;
     view: ViewBox;
   } | null>(null);
   const [open, setOpen] = useState(false);
@@ -196,6 +198,8 @@ export function CampaignMapLauncher({
       clientY: event.clientY,
       x: token.x,
       y: token.y,
+      latestX: token.x,
+      latestY: token.y,
       view,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -213,19 +217,19 @@ export function CampaignMapLauncher({
       x = snapToken(x, map.grid.offsetX, map.grid.size, map.backgroundWidth);
       y = snapToken(y, map.grid.offsetY, map.grid.size, map.backgroundHeight);
     }
+    drag.latestX = x;
+    drag.latestY = y;
     setMap(current => current ? { ...current, tokens: current.tokens.map(token => token.id === drag.tokenId ? { ...token, x, y } : token) } : current);
   }
 
   async function persistTokenMove(drag: NonNullable<typeof tokenDragRef.current>) {
-    const token = map?.tokens.find(candidate => candidate.id === drag.tokenId);
-    if (!token) return;
     setBusy(true);
     setError("");
     try {
       const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "move", tokenId: drag.tokenId, version: drag.version, x: token.x, y: token.y }),
+        body: JSON.stringify({ action: "move", tokenId: drag.tokenId, version: drag.version, x: drag.latestX, y: drag.latestY }),
       });
       const body = await response.json() as MapResponse;
       if (!response.ok || !body.map) throw new Error(body.error || "The token could not be moved.");

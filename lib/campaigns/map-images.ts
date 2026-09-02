@@ -4,6 +4,7 @@ const mapContentTypes = {
 } as const;
 
 export const MAX_MAP_BACKGROUND_BYTES = 15 * 1024 * 1024;
+export const MIN_MAP_BACKGROUND_EDGE = 256;
 export const MAX_MAP_BACKGROUND_EDGE = 12000;
 export const MAX_MAP_BACKGROUND_PIXELS = 80_000_000;
 
@@ -57,7 +58,8 @@ export function mapImageDimensions(bytes: ArrayBuffer, contentType: MapBackgroun
   const dimensions = contentType === "image/png" ? pngDimensions(data) : jpegDimensions(data);
   if (!dimensions) return null;
   if (
-    dimensions.width < 1 || dimensions.height < 1
+    dimensions.width < MIN_MAP_BACKGROUND_EDGE
+    || dimensions.height < MIN_MAP_BACKGROUND_EDGE
     || dimensions.width > MAX_MAP_BACKGROUND_EDGE
     || dimensions.height > MAX_MAP_BACKGROUND_EDGE
     || dimensions.width * dimensions.height > MAX_MAP_BACKGROUND_PIXELS

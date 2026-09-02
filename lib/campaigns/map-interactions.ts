@@ -1,0 +1,162 @@
+import { CampaignServiceError } from "./service.ts";
+import { loadCampaignMapAccess } from "./map.ts";
+import { clampTokenSizeCells, snapTokenCenter } from "./map-grid.ts";
+import type { CampaignActor } from "./types.ts";
+
+interface InteractionMapRow {
+  id: string;
+  isActive: number;
+  backgroundWidth: number | null;
+  backgroundHeight: number | null;
+  gridSize: number;
+  gridOffsetX: number;
+  gridOffsetY: number;
+}
+
+interface InteractionTokenRow {
+  id: string;
+  x: number;
+  y: number;
+  version: number;
+}
+
+export interface CampaignMapInteractions {
+  snapEnabled: boolean;
+  tokenSizes: Record<string, number>;
+}
+
+export interface ResizedCampaignMapToken {
+  id: string;
+  x: number;
+  y: number;
+  version: number;
+}
+
+function identifier(value: unknown, label: string): string {
+  if (typeof value !== "string") throw new CampaignServiceError(`${label} is required.`, 422);
+  const text = value.trim();
+  if (!text || text.length > 120 || /[\u0000-\u001f\u007f]/u.test(text)) {
+    throw new CampaignServiceError(`${label} is invalid.`, 422);
+  }
+  return text;
+}
+
+function booleanValue(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") throw new CampaignServiceError(`${label} must be true or false.`, 422);
+  return value;
+}
+
+async function interactionMap(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+): Promise<{ access: Awaited<ReturnType<typeof loadCampaignMapAccess>>; map: InteractionMapRow }> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  const mapId = identifier(mapIdValue, "Map");
+  const map = await db.prepare(`SELECT id, is_active AS isActive,
+      background_width AS backgroundWidth, background_height AS backgroundHeight,
+      grid_size AS gridSize, grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY
+    FROM campaign_maps WHERE campaign_id = ? AND id = ?`)
+    .bind(access.campaignInternalId, mapId).first<InteractionMapRow>();
+  if (!map || (!access.canManage && !map.isActive)) throw new CampaignServiceError("Campaign map not found.", 404);
+  return { access, map };
+}
+
+function requireManagement(access: Awaited<ReturnType<typeof loadCampaignMapAccess>>): void {
+  if (access.archived) throw new CampaignServiceError("This campaign is archived. Restore it before making changes.", 409);
+  if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
+}
+
+async function snapEnabled(db: D1Database, mapId: string): Promise<boolean> {
+  const row = await db.prepare("SELECT snap_enabled AS snapEnabled FROM campaign_map_preferences WHERE map_id = ?")
+    .bind(mapId).first<{ snapEnabled: number }>();
+  return Boolean(row?.snapEnabled);
+}
+
+export async function readCampaignMapInteractions(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+): Promise<CampaignMapInteractions> {
+  const { map } = await interactionMap(db, actor, publicId, mapIdValue);
+  const sizes = await db.prepare(`SELECT s.token_id AS tokenId, s.size_cells AS sizeCells
+    FROM campaign_map_token_sizes s
+    JOIN campaign_map_tokens t ON t.id = s.token_id
+    WHERE s.map_id = ? AND t.map_id = ?`)
+    .bind(map.id, map.id).all<{ tokenId: string; sizeCells: number }>();
+  return {
+    snapEnabled: await snapEnabled(db, map.id),
+    tokenSizes: Object.fromEntries(sizes.results.map(row => [row.tokenId, clampTokenSizeCells(row.sizeCells)])),
+  };
+}
+
+export async function setCampaignMapSnapPreference(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+  enabledValue: unknown,
+  now = new Date().toISOString(),
+): Promise<CampaignMapInteractions> {
+  const { access, map } = await interactionMap(db, actor, publicId, mapIdValue);
+  requireManagement(access);
+  const enabled = booleanValue(enabledValue, "Grid snapping");
+  await db.prepare(`INSERT INTO campaign_map_preferences (map_id, campaign_id, snap_enabled, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(map_id) DO UPDATE SET snap_enabled = excluded.snap_enabled, updated_at = excluded.updated_at`)
+    .bind(map.id, access.campaignInternalId, enabled ? 1 : 0, now).run();
+  return readCampaignMapInteractions(db, actor, publicId, map.id);
+}
+
+export async function resizeCampaignMapToken(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+  tokenIdValue: unknown,
+  sizeCellsValue: unknown,
+  now = new Date().toISOString(),
+): Promise<{ interactions: CampaignMapInteractions; token: ResizedCampaignMapToken }> {
+  const { access, map } = await interactionMap(db, actor, publicId, mapIdValue);
+  requireManagement(access);
+  const tokenId = identifier(tokenIdValue, "Map token");
+  if (!Number.isSafeInteger(sizeCellsValue) || Number(sizeCellsValue) < 1 || Number(sizeCellsValue) > 12) {
+    throw new CampaignServiceError("Token size must be between 1 and 12 grid cells.", 422);
+  }
+  const sizeCells = clampTokenSizeCells(Number(sizeCellsValue));
+  const token = await db.prepare("SELECT id, x, y, version FROM campaign_map_tokens WHERE map_id = ? AND id = ?")
+    .bind(map.id, tokenId).first<InteractionTokenRow>();
+  if (!token) throw new CampaignServiceError("Map token not found.", 404);
+
+  let x = token.x;
+  let y = token.y;
+  if (await snapEnabled(db, map.id)) {
+    if (map.backgroundWidth && map.backgroundHeight) {
+      x = snapTokenCenter(x, map.gridOffsetX, map.gridSize, sizeCells, map.backgroundWidth);
+      y = snapTokenCenter(y, map.gridOffsetY, map.gridSize, sizeCells, map.backgroundHeight);
+    }
+  }
+
+  const statements = [
+    db.prepare(`INSERT INTO campaign_map_token_sizes (token_id, map_id, campaign_id, size_cells, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(token_id) DO UPDATE SET size_cells = excluded.size_cells, updated_at = excluded.updated_at`)
+      .bind(token.id, map.id, access.campaignInternalId, sizeCells, now),
+  ];
+  let version = token.version;
+  if (x !== token.x || y !== token.y) {
+    statements.push(db.prepare(`UPDATE campaign_map_tokens
+        SET x = ?, y = ?, version = version + 1, updated_at = ?
+        WHERE map_id = ? AND id = ?`)
+      .bind(x, y, now, map.id, token.id));
+    version += 1;
+  }
+  await db.batch(statements);
+
+  return {
+    interactions: await readCampaignMapInteractions(db, actor, publicId, map.id),
+    token: { id: token.id, x, y, version },
+  };
+}

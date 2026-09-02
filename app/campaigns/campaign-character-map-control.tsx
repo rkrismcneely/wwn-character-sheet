@@ -10,7 +10,7 @@ export function CampaignCharacterMapControl({ campaignId }: { campaignId: string
   useEffect(() => {
     // This client-only portal target exists only after the character sheet has hydrated.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHost(document.querySelector(".campaign-character-context"));
+    setHost(document.querySelector(".topbar .status"));
   }, []);
 
   if (!host) return null;
@@ -18,14 +18,13 @@ export function CampaignCharacterMapControl({ campaignId }: { campaignId: string
   return createPortal(
     <button
       type="button"
-      className="campaign-secondary"
       data-readonly-interactive="true"
-      style={{ marginLeft: "auto", whiteSpace: "nowrap" }}
+      aria-label="Open campaign map"
       onClick={() => window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {
         detail: { campaignId },
       }))}
     >
-      Open Map
+      Map
     </button>,
     host,
   );

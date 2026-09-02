@@ -10,6 +10,9 @@ CREATE TABLE `campaign_map_preferences` (
 --> statement-breakpoint
 CREATE INDEX `campaign_map_preferences_campaign_idx` ON `campaign_map_preferences` (`campaign_id`, `map_id`);
 --> statement-breakpoint
+INSERT INTO `campaign_map_preferences` (`map_id`, `campaign_id`, `snap_enabled`, `updated_at`)
+SELECT `id`, `campaign_id`, `grid_enabled`, `updated_at` FROM `campaign_maps`;
+--> statement-breakpoint
 CREATE TABLE `campaign_map_token_sizes` (
   `token_id` text PRIMARY KEY NOT NULL,
   `map_id` text NOT NULL,

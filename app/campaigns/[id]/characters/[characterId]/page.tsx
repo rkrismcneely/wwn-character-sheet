@@ -4,10 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import CharacterSheet, {
   type InitialCharacterPayload,
 } from "@/app/character-sheet";
+import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
 import { getSessionActor } from "@/lib/auth-session";
 import { readCampaignLinkedCharacter } from "@/lib/campaigns/characters";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import "../../../campaign-ui.css";
+import "../../../campaign-map.css";
 
 type RouteContext = {
   params: Promise<{ id: string; characterId: string }>;
@@ -41,10 +43,11 @@ export default async function CampaignCharacterPage(context: RouteContext) {
   if (!actor) redirect("/");
   const { id, characterId } = await context.params;
   const payload = await loadCampaignCharacter(actor, id, characterId);
-  return (
+  return <>
     <CharacterSheet
       initialCharacter={payload as InitialCharacterPayload}
       campaignContext={payload.campaignContext}
     />
-  );
+    <CampaignMapLauncher campaignId={id} campaignName={payload.campaignContext.name} canManage={false} />
+  </>;
 }

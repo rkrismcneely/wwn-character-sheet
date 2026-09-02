@@ -120,14 +120,16 @@ export async function POST(request: Request, context: Context): Promise<Response
       });
     }
 
-    if (previousKey && previousKey !== uploadedKey) {
+    const committedKey = uploadedKey;
+    uploadedKey = null;
+    if (previousKey && previousKey !== committedKey) {
       try { await env.BUCKET.delete(previousKey); } catch { /* old key is no longer reachable */ }
     }
     if (map.isActive) await announceMapChanged(db, access.campaignInternalId);
     return Response.json(await readCampaignMap(db, actor, id, map.id), { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (uploadedKey) {
-      try { await env.BUCKET.delete(uploadedKey); } catch { /* best-effort rollback */ }
+      try { await env.BUCKET.delete(uploadedKey); } catch { /* best-effort rollback before D1 commit */ }
     }
     return campaignErrorResponse(error, "The campaign map image could not be uploaded.");
   }

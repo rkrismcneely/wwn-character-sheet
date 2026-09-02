@@ -73,6 +73,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
   }
 
   async announceParticipantsChanged(sessionId: string): Promise<void> { this.broadcast({ type: "session.participants-changed", sessionId }); }
+  async announceMapChanged(sessionId: string): Promise<void> { this.broadcast({ type: "session.map-changed", sessionId }); }
 
   async announceCharacterStatus(sessionId: string, participantKey: string, character: CampaignLiveSessionCharacter): Promise<void> {
     this.broadcast({ type: "session.character-status", sessionId, participantKey, character });

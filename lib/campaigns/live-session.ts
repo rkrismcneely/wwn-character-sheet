@@ -97,4 +97,5 @@ export type CampaignLiveSessionEvent =
   | { type: "session.character-status"; sessionId: string; participantKey: string; character: CampaignLiveSessionCharacter }
   | { type: "session.roll"; sessionId: string; roll: CampaignSharedRoll }
   | { type: "session.encounter"; sessionId: string }
+  | { type: "session.map-changed"; sessionId: string }
   | { type: "session.ended"; sessionId: string };

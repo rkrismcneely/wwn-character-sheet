@@ -21,6 +21,7 @@ import {
   snapTokenCenter,
   tokenRadius as gridTokenRadius,
 } from "@/lib/campaigns/map-grid";
+import { campaignMapOpenEvent, type CampaignMapOpenDetail } from "./campaign-map-events";
 import { campaignMapChangedEvent } from "./use-live-session";
 
 type ViewBox = { x: number; y: number; width: number; height: number };
@@ -157,8 +158,8 @@ export function CampaignMapLauncher({
     setTokenSizes(body.interactions.tokenSizes);
   }, [campaignId]);
 
-  const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null) => {
-    setLoading(true);
+  const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null, showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError("");
     try {
       const params = requestedMapId ? `?${new URLSearchParams({ mapId: requestedMapId }).toString()}` : "";
@@ -175,9 +176,21 @@ export function CampaignMapLauncher({
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded.");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [applyResponse, campaignId, loadInteractions]);
+
+  useEffect(() => {
+    const onOpenMap = (event: Event) => {
+      const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail;
+      if (detail?.campaignId !== campaignId) return;
+      setOpen(true);
+      setSettingsOpen(false);
+      void loadMap(false);
+    };
+    window.addEventListener(campaignMapOpenEvent, onOpenMap);
+    return () => window.removeEventListener(campaignMapOpenEvent, onOpenMap);
+  }, [campaignId, loadMap]);
 
   useEffect(() => {
     if (!open) return;
@@ -185,7 +198,7 @@ export function CampaignMapLauncher({
       const detail = (event as CustomEvent<{ campaignId?: string }>).detail;
       if (detail?.campaignId !== campaignId) return;
       const requestedMapId = canManageRef.current ? selectedMapIdRef.current : null;
-      void loadMap(true, requestedMapId);
+      void loadMap(true, requestedMapId, false);
     };
     window.addEventListener(campaignMapChangedEvent, onMapChanged);
     return () => window.removeEventListener(campaignMapChangedEvent, onMapChanged);
@@ -292,7 +305,7 @@ export function CampaignMapLauncher({
       setMap(body.map);
     } catch (moveError) {
       setError(moveError instanceof Error ? moveError.message : "The token could not be moved.");
-      void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null);
+      void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false);
     } finally {
       setBusy(false);
     }
@@ -354,7 +367,7 @@ export function CampaignMapLauncher({
       } : current);
     } catch (resizeError) {
       setError(resizeError instanceof Error ? resizeError.message : "The token could not be resized.");
-      void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null);
+      void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false);
     } finally {
       setBusy(false);
     }

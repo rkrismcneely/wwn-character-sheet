@@ -2,7 +2,6 @@ import { canManageCampaignContent } from "./authorization.ts";
 import {
   CampaignServiceError,
   loadCampaignAccess,
-  requireActiveCampaign,
 } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 import type { MapBackgroundContentType, MapImageDimensions } from "./map-images.ts";
@@ -112,7 +111,10 @@ export async function readCampaignMap(
 
 function requireMapManagement(access: CampaignMapAccess): void {
   if (access.archived) {
-    requireActiveCampaign({ id: access.campaignInternalId, ownerUserId: "", archivedAt: "archived" });
+    throw new CampaignServiceError(
+      "This campaign is archived. Restore it before making changes.",
+      409,
+    );
   }
   if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
 }

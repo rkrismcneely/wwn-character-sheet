@@ -74,6 +74,12 @@ async function snapEnabled(db: D1Database, mapId: string): Promise<boolean> {
   return Boolean(row?.snapEnabled);
 }
 
+async function tokenSizeCells(db: D1Database, mapId: string, tokenId: string): Promise<number> {
+  const row = await db.prepare("SELECT size_cells AS sizeCells FROM campaign_map_token_sizes WHERE map_id = ? AND token_id = ?")
+    .bind(mapId, tokenId).first<{ sizeCells: number }>();
+  return clampTokenSizeCells(row?.sizeCells ?? 1);
+}
+
 export async function readCampaignMapInteractions(
   db: D1Database,
   actor: CampaignActor,
@@ -89,6 +95,26 @@ export async function readCampaignMapInteractions(
   return {
     snapEnabled: await snapEnabled(db, map.id),
     tokenSizes: Object.fromEntries(sizes.results.map(row => [row.tokenId, clampTokenSizeCells(row.sizeCells)])),
+  };
+}
+
+export async function snapCampaignMapTokenMove(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const { map } = await interactionMap(db, actor, publicId, input.mapId);
+  if (!await snapEnabled(db, map.id) || !map.backgroundWidth || !map.backgroundHeight) return input;
+  if (typeof input.x !== "number" || !Number.isFinite(input.x) || typeof input.y !== "number" || !Number.isFinite(input.y)) {
+    return input;
+  }
+  const tokenId = identifier(input.tokenId, "Map token");
+  const sizeCells = await tokenSizeCells(db, map.id, tokenId);
+  return {
+    ...input,
+    x: snapTokenCenter(input.x, map.gridOffsetX, map.gridSize, sizeCells, map.backgroundWidth),
+    y: snapTokenCenter(input.y, map.gridOffsetY, map.gridSize, sizeCells, map.backgroundHeight),
   };
 }
 

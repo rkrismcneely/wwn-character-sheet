@@ -39,11 +39,16 @@ async function encounterSeeds(db: D1Database, campaignId: string): Promise<Campa
     FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
     WHERE cc.campaign_id = ?`).bind(campaignId).all<{ id: string; name: string }>();
   const characterNames = new Map(characters.results.map(character => [character.id, character.name]));
-  return encounter.combatants.flatMap(combatant => {
-    if (combatant.kind === "npc") return [{ kind: "npc" as const, sourceId: combatant.id, name: combatant.name }];
+  const seeds: CampaignMapEncounterTokenSeed[] = [];
+  for (const combatant of encounter.combatants) {
+    if (combatant.kind === "npc") {
+      seeds.push({ kind: "npc", sourceId: combatant.id, name: combatant.name });
+      continue;
+    }
     const name = characterNames.get(combatant.characterId);
-    return name ? [{ kind: "pc" as const, sourceId: combatant.characterId, name }] : [];
-  });
+    if (name) seeds.push({ kind: "pc", sourceId: combatant.characterId, name });
+  }
+  return seeds;
 }
 
 export async function POST(request: Request, context: Context): Promise<Response> {

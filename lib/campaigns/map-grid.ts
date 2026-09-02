@@ -8,7 +8,7 @@ export function clampTokenSizeCells(value: number): number {
 
 export function tokenRadius(gridSize: number, sizeCells: number): number {
   const cells = clampTokenSizeCells(sizeCells);
-  return Math.max(4, gridSize * cells * 0.43);
+  return Math.max(4, gridSize * cells / 2);
 }
 
 export function snapTokenCenter(

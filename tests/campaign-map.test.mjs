@@ -44,7 +44,7 @@ test("campaign map object keys remain opaque and scoped", () => {
   assert.equal(validMapBackgroundObjectKey("campaign-maps/../secret.png"), false);
 });
 
-test("campaign map foundation persists one map per campaign and keeps backgrounds private", async () => {
+test("campaign map foundation supports a private GM map library with one player-visible map", async () => {
   const [migration, service, route, backgroundRoute, launcher, campaignPage, gmPage, characterPage, css] = await Promise.all([
     readFile(new URL("../drizzle/0014_campaign_map_foundation.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map.ts", import.meta.url), "utf8"),
@@ -58,27 +58,37 @@ test("campaign map foundation persists one map per campaign and keeps background
   ]);
 
   assert.match(migration, /CREATE TABLE `campaign_maps`/u);
-  assert.match(migration, /CREATE UNIQUE INDEX `campaign_maps_campaign_unique`/u);
-  assert.match(service, /canManageCampaignContent/u);
-  assert.match(service, /version = version \+ 1/u);
-  assert.match(route, /readCampaignMap/u);
-  assert.match(route, /updateCampaignMapSettings/u);
-  assert.match(backgroundRoute, /env\.BUCKET\.put/u);
+  assert.match(migration, /`name` text NOT NULL/u);
+  assert.match(migration, /`is_active` integer NOT NULL DEFAULT 0/u);
+  assert.match(migration, /CREATE UNIQUE INDEX `campaign_maps_one_active`[\s\S]*WHERE `is_active` = 1/u);
+  assert.match(service, /createCampaignMapWithBackground/u);
+  assert.match(service, /activateCampaignMap/u);
+  assert.match(service, /selectedCampaignMap/u);
+  assert.match(service, /!access\.canManage && !row\.isActive/u);
+  assert.match(route, /body\.action === "activate"/u);
+  assert.match(route, /body\.action === "delete"/u);
+  assert.match(backgroundRoute, /campaignMapBackgroundKey/u);
+  assert.match(backgroundRoute, /createCampaignMapWithBackground/u);
   assert.match(backgroundRoute, /cache-control", "private, no-store"/u);
   assert.match(backgroundRoute, /x-content-type-options/u);
+  assert.match(launcher, /Upload New Map/u);
+  assert.match(launcher, /Visible to Players/u);
+  assert.match(launcher, /Show to Players/u);
+  assert.match(launcher, /GM preview/u);
+  assert.match(launcher, /Save Name/u);
+  assert.match(launcher, /Delete Map/u);
   assert.match(launcher, /<svg/u);
   assert.match(launcher, /patternUnits="userSpaceOnUse"/u);
-  assert.match(launcher, /onPointerMove/u);
-  assert.match(launcher, /Replace Map Image/u);
   assert.match(launcher, /Save Grid/u);
   assert.match(campaignPage, /CampaignMapLauncher/u);
   assert.match(gmPage, /CampaignMapLauncher/u);
   assert.match(characterPage, /CampaignMapLauncher/u);
-  assert.match(css, /campaign-map-dialog/u);
+  assert.match(css, /campaign-map-library-list/u);
+  assert.match(css, /campaign-map-visible-status/u);
   assert.match(css, /100dvh/u);
 });
 
-test("campaign map tokens are durable, permissioned, encounter-placeable, and realtime-invalidated", async () => {
+test("campaign map tokens are durable per map, permissioned, encounter-placeable, and realtime-invalidated", async () => {
   const [migration, service, tokenRoute, launcher, liveTypes, liveHook, durable, css] = await Promise.all([
     readFile(new URL("../drizzle/0014_campaign_map_foundation.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map.ts", import.meta.url), "utf8"),
@@ -91,15 +101,20 @@ test("campaign map tokens are durable, permissioned, encounter-placeable, and re
   ]);
 
   assert.match(migration, /CREATE TABLE `campaign_map_tokens`/u);
-  assert.match(migration, /campaign_map_tokens_source_unique/u);
+  assert.match(migration, /`map_id` text NOT NULL/u);
+  assert.match(migration, /campaign_map_tokens_source_unique` ON `campaign_map_tokens` \(`map_id`, `kind`, `source_id`\)/u);
+  assert.match(service, /FROM campaign_map_tokens WHERE map_id = \?/u);
   assert.match(service, /You can move only your own campaign character token/u);
-  assert.match(service, /WHERE campaign_id = \? AND id = \? AND version = \?/u);
+  assert.match(service, /WHERE map_id = \? AND id = \? AND version = \?/u);
   assert.match(service, /placeCampaignMapEncounterTokens/u);
+  assert.match(tokenRoute, /body\.mapId/u);
   assert.match(tokenRoute, /action === "place_encounter"/u);
+  assert.match(tokenRoute, /map\.isActive/u);
   assert.match(tokenRoute, /announceMapChanged/u);
   assert.match(launcher, /Place Active Encounter/u);
   assert.match(launcher, /handleTokenPointerMove/u);
-  assert.match(launcher, /action: "move"/u);
+  assert.match(launcher, /action: "move", mapId: map\.id/u);
+  assert.match(launcher, /Token placements belong to this map/u);
   assert.match(launcher, /token\.canMove/u);
   assert.match(liveTypes, /session\.map-changed/u);
   assert.match(liveHook, /campaignMapChangedEvent/u);

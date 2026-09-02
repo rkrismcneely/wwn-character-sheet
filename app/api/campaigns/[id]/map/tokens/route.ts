@@ -62,19 +62,19 @@ export async function POST(request: Request, context: Context): Promise<Response
     let map;
 
     if (body.action === "place_pc") {
-      map = await placeCampaignMapCharacterToken(db, actor, id, body.characterId);
+      map = await placeCampaignMapCharacterToken(db, actor, id, body.mapId, body.characterId);
     } else if (body.action === "place_encounter") {
       if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
-      map = await placeCampaignMapEncounterTokens(db, actor, id, await encounterSeeds(db, access.campaignInternalId));
+      map = await placeCampaignMapEncounterTokens(db, actor, id, body.mapId, await encounterSeeds(db, access.campaignInternalId));
     } else if (body.action === "move") {
       map = await moveCampaignMapToken(db, actor, id, body);
     } else if (body.action === "remove") {
-      map = await removeCampaignMapToken(db, actor, id, body.tokenId);
+      map = await removeCampaignMapToken(db, actor, id, body.mapId, body.tokenId);
     } else {
       throw new CampaignServiceError("A valid map-token action is required.", 422);
     }
 
-    await announceMapChanged(db, access.campaignInternalId);
+    if (map.isActive) await announceMapChanged(db, access.campaignInternalId);
     return Response.json({ map }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });

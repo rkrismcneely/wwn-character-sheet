@@ -34,8 +34,8 @@
 .campaign-map-dialog {
   width: min(98vw, 1800px);
   height: min(96vh, 1200px);
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border, #725f47) 80%, #000 20%);
   border-radius: 14px;
@@ -44,6 +44,7 @@
 }
 
 .campaign-map-toolbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,10 +75,12 @@
 }
 
 .campaign-map-error {
+  flex: 0 0 auto;
   margin: .65rem 1rem 0;
 }
 
 .campaign-map-workspace {
+  flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);

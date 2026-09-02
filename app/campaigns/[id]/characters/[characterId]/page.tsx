@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import CharacterSheet, {
   type InitialCharacterPayload,
 } from "@/app/character-sheet";
+import { CampaignCharacterMapControl } from "@/app/campaigns/campaign-character-map-control";
 import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
 import { getSessionActor } from "@/lib/auth-session";
 import { readCampaignLinkedCharacter } from "@/lib/campaigns/characters";
@@ -48,6 +49,7 @@ export default async function CampaignCharacterPage(context: RouteContext) {
       initialCharacter={payload as InitialCharacterPayload}
       campaignContext={payload.campaignContext}
     />
+    <CampaignCharacterMapControl campaignId={id} />
     <CampaignMapLauncher campaignId={id} campaignName={payload.campaignContext.name} canManage={false} />
   </>;
 }

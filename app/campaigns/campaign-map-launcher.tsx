@@ -122,6 +122,7 @@ export function CampaignMapLauncher({
   }, [open]);
 
   const applyResponse = useCallback((body: MapResponse, preserveView: boolean) => {
+    const previousMapId = selectedMapIdRef.current;
     const nextMap = body.map ?? null;
     setMap(nextMap);
     selectedMapIdRef.current = nextMap?.id ?? null;
@@ -135,7 +136,7 @@ export function CampaignMapLauncher({
     if (typeof body.encounterAvailable === "boolean") setEncounterAvailable(body.encounterAvailable);
     setGrid(gridFor(nextMap));
     setMapNameDraft(nextMap?.name ?? "");
-    setView(current => preserveView && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : fullView(nextMap));
+    setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : fullView(nextMap));
   }, []);
 
   const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null) => {

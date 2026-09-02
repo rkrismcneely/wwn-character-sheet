@@ -44,7 +44,7 @@ test("campaign map object keys remain opaque and scoped", () => {
 });
 
 test("campaign map foundation persists one map per campaign and keeps backgrounds private", async () => {
-  const [migration, service, route, backgroundRoute, launcher, campaignPage, gmPage, css] = await Promise.all([
+  const [migration, service, route, backgroundRoute, launcher, campaignPage, gmPage, characterPage, css] = await Promise.all([
     readFile(new URL("../drizzle/0014_campaign_map_foundation.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/map/route.ts", import.meta.url), "utf8"),
@@ -52,6 +52,7 @@ test("campaign map foundation persists one map per campaign and keeps background
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/[id]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/[id]/gm/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/[id]/characters/[characterId]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
   ]);
 
@@ -71,6 +72,37 @@ test("campaign map foundation persists one map per campaign and keeps background
   assert.match(launcher, /Save Grid/u);
   assert.match(campaignPage, /CampaignMapLauncher/u);
   assert.match(gmPage, /CampaignMapLauncher/u);
+  assert.match(characterPage, /CampaignMapLauncher/u);
   assert.match(css, /campaign-map-dialog/u);
   assert.match(css, /100dvh/u);
+});
+
+test("campaign map tokens are durable, permissioned, encounter-placeable, and realtime-invalidated", async () => {
+  const [migration, service, tokenRoute, launcher, liveTypes, liveHook, durable, css] = await Promise.all([
+    readFile(new URL("../drizzle/0014_campaign_map_foundation.sql", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/map.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/campaigns/[id]/map/tokens/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/use-live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(migration, /CREATE TABLE `campaign_map_tokens`/u);
+  assert.match(migration, /campaign_map_tokens_source_unique/u);
+  assert.match(service, /You can move only your own campaign character token/u);
+  assert.match(service, /WHERE campaign_id = \? AND id = \? AND version = \?/u);
+  assert.match(service, /placeCampaignMapEncounterTokens/u);
+  assert.match(tokenRoute, /action === "place_encounter"/u);
+  assert.match(tokenRoute, /announceMapChanged/u);
+  assert.match(launcher, /Place Active Encounter/u);
+  assert.match(launcher, /handleTokenPointerMove/u);
+  assert.match(launcher, /action: "move"/u);
+  assert.match(launcher, /token\.canMove/u);
+  assert.match(liveTypes, /session\.map-changed/u);
+  assert.match(liveHook, /campaignMapChangedEvent/u);
+  assert.match(durable, /announceMapChanged/u);
+  assert.match(css, /campaign-map-token-disc/u);
+  assert.match(css, /campaign-map-token-npc/u);
 });

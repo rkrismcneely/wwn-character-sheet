@@ -33,6 +33,7 @@ test("campaign map backgrounds accept only validated JPG and PNG dimensions", ()
   assert.equal(isMapBackgroundContentType("image/svg+xml"), false);
   assert.deepEqual(mapImageDimensions(png(2048, 1024), "image/png"), { width: 2048, height: 1024 });
   assert.deepEqual(mapImageDimensions(jpeg(1600, 900), "image/jpeg"), { width: 1600, height: 900 });
+  assert.equal(mapImageDimensions(png(200, 200), "image/png"), null);
   assert.equal(mapImageDimensions(png(20000, 1000), "image/png"), null);
   assert.equal(mapImageDimensions(new Uint8Array([1, 2, 3]).buffer, "image/png"), null);
 });

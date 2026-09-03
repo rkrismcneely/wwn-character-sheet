@@ -130,6 +130,10 @@
   user-select: none;
 }
 
+.campaign-map-svg pattern path {
+  stroke: rgba(128, 128, 128, .5);
+}
+
 .campaign-map-svg:active {
   cursor: grabbing;
 }

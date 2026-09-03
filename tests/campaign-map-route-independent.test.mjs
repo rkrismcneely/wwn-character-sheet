@@ -25,5 +25,6 @@ test("token dragging converts browser pointer coordinates through the SVG transf
   assert.match(launcher, /matrixTransform\(matrix\.inverse\(\)\)/u);
   assert.match(launcher, /pointerMapX/u);
   assert.match(launcher, /pointerMapY/u);
-  assert.doesNotMatch(launcher, /\(event\.clientX - drag\.clientX\) \* \(drag\.view\.width \/ rect\.width\)/u);
+  assert.match(launcher, /drag\.x \+ \(pointer\.x - drag\.pointerMapX\)/u);
+  assert.match(launcher, /drag\.y \+ \(pointer\.y - drag\.pointerMapY\)/u);
 });

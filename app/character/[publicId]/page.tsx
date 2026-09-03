@@ -15,6 +15,7 @@ import {
 } from "@/app/api/characters/db";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 import { listAuthorizedCharacterCampaigns } from "@/lib/campaigns/characters";
+import "../../campaigns/campaign-ui.css";
 import "../../campaigns/campaign-map.css";
 
 type RouteContext = { params: Promise<{ publicId: string }> };

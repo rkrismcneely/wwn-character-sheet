@@ -11,7 +11,7 @@ test("campaign character sheets expose the shared map modal", async () => {
   ]);
 
   assert.match(page, /CampaignCharacterMapControl campaigns=/u);
-  assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
+  assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities, \.topbar \.status"\)/u);
   assert.match(control, />\s*Map\s*</u);
   assert.match(control, /campaignMapOpenEvent/u);
   assert.match(events, /twe:campaign-map-open/u);

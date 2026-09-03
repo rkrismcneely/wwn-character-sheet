@@ -14,9 +14,10 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id ?? "");
 
   useEffect(() => {
-    // This client-only portal target exists only after the character sheet has hydrated.
+    // Signed-in character sheets use the shared app header. The legacy topbar
+    // remains only as a fallback for non-shared header variants.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHost(document.querySelector(".topbar .status"));
+    setHost(document.querySelector(".app-header .app-header-utilities, .topbar .status"));
   }, []);
 
   if (!host || campaigns.length === 0) return null;

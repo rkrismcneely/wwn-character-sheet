@@ -29,6 +29,7 @@ type ViewBox = { x: number; y: number; width: number; height: number };
 type GridDraft = { enabled: boolean; size: number; offsetX: number; offsetY: number };
 type MapInteractions = { snapEnabled: boolean; tokenSizes: Record<string, number> };
 type TokenDragMeasurement = { tokenId: string; distanceFeet: number };
+type TokenDragOrigin = { tokenId: string; x: number; y: number };
 
 type MapResponse = {
   map?: CampaignMapPayload | null;
@@ -129,6 +130,7 @@ export function CampaignMapLauncher({
   const [mapNameDraft, setMapNameDraft] = useState("");
   const [view, setView] = useState<ViewBox | null>(null);
   const [tokenDragMeasurement, setTokenDragMeasurement] = useState<TokenDragMeasurement | null>(null);
+  const [tokenDragOrigin, setTokenDragOrigin] = useState<TokenDragOrigin | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -284,6 +286,7 @@ export function CampaignMapLauncher({
       latestY: token.y,
     };
     setTokenDragMeasurement({ tokenId: token.id, distanceFeet: 0 });
+    setTokenDragOrigin({ tokenId: token.id, x: token.x, y: token.y });
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -336,6 +339,7 @@ export function CampaignMapLauncher({
     event.stopPropagation();
     tokenDragRef.current = null;
     setTokenDragMeasurement(null);
+    setTokenDragOrigin(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     void persistTokenMove(drag);
   }
@@ -600,6 +604,23 @@ export function CampaignMapLauncher({
               <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />
               {map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
               <g className="campaign-map-token-layer">
+                {tokenDragOrigin && (() => {
+                  const token = map.tokens.find(candidate => candidate.id === tokenDragOrigin.tokenId);
+                  if (!token || (Math.abs(token.x - tokenDragOrigin.x) < 0.01 && Math.abs(token.y - tokenDragOrigin.y) < 0.01)) return null;
+                  const sizeCells = tokenSizes[token.id] ?? 1;
+                  const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells);
+                  return <g
+                    className={`campaign-map-token campaign-map-token-${token.kind} campaign-map-token-drag-origin`}
+                    transform={`translate(${tokenDragOrigin.x} ${tokenDragOrigin.y})`}
+                    opacity={0.5}
+                    pointerEvents="none"
+                    aria-hidden="true"
+                  >
+                    <circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
+                    <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text>
+                    <text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text>
+                  </g>;
+                })()}
                 {map.tokens.map(token => {
                   const sizeCells = tokenSizes[token.id] ?? 1;
                   const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells);

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import CharacterSheet, { type InitialCharacterPayload } from "../../character-sheet";
+import { CampaignCharacterMapControl } from "@/app/campaigns/campaign-character-map-control";
+import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
 import { getSessionActor } from "@/lib/auth-session";
 import { isPlausiblePublicCharacterId } from "@/lib/characters/identifiers";
 import {
@@ -13,6 +15,7 @@ import {
 } from "@/app/api/characters/db";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 import { listAuthorizedCharacterCampaigns } from "@/lib/campaigns/characters";
+import "../../campaigns/campaign-map.css";
 
 type RouteContext = { params: Promise<{ publicId: string }> };
 
@@ -62,5 +65,18 @@ export default async function CharacterPage(context: RouteContext) {
   const { publicId } = await context.params;
   const payload = await loadCharacter(publicId);
   if (!payload) notFound();
-  return <CharacterSheet initialCharacter={payload} />;
+  const campaigns = payload.campaigns ?? [];
+  return <>
+    <CharacterSheet initialCharacter={payload} />
+    {campaigns.length > 0 && <>
+      <CampaignCharacterMapControl campaigns={campaigns} />
+      {campaigns.map(campaign => <CampaignMapLauncher
+        key={campaign.id}
+        campaignId={campaign.id}
+        campaignName={campaign.name}
+        canManage={false}
+        showFloatingButton={false}
+      />)}
+    </>}
+  </>;
 }

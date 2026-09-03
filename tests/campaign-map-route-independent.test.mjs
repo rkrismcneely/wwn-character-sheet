@@ -31,3 +31,8 @@ test("token dragging converts browser pointer coordinates through the SVG transf
   assert.match(launcher, /drag\.x \+ \(pointer\.x - drag\.pointerMapX\)/u);
   assert.match(launcher, /drag\.y \+ \(pointer\.y - drag\.pointerMapY\)/u);
 });
+
+test("visible campaign map grid is neutral grey at fifty percent opacity", async () => {
+  const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
+  assert.match(css, /\.campaign-map-svg pattern path\s*\{[^}]*stroke:\s*rgba\(128, 128, 128, \.5\)/su);
+});

@@ -49,7 +49,7 @@ export default async function CampaignCharacterPage(context: RouteContext) {
       initialCharacter={payload as InitialCharacterPayload}
       campaignContext={payload.campaignContext}
     />
-    <CampaignCharacterMapControl campaignId={id} />
+    <CampaignCharacterMapControl campaigns={[{ id, name: payload.campaignContext.name }]} />
     <CampaignMapLauncher campaignId={id} campaignName={payload.campaignContext.name} canManage={false} />
   </>;
 }

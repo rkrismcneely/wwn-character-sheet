@@ -1,5 +1,6 @@
 export const MIN_TOKEN_SIZE_CELLS = 1;
 export const MAX_TOKEN_SIZE_CELLS = 12;
+export const GRID_CELL_FEET = 5;
 
 export function clampTokenSizeCells(value: number): number {
   if (!Number.isFinite(value)) return MIN_TOKEN_SIZE_CELLS;
@@ -9,6 +10,27 @@ export function clampTokenSizeCells(value: number): number {
 export function tokenRadius(gridSize: number, sizeCells: number): number {
   const cells = clampTokenSizeCells(sizeCells);
   return Math.max(4, gridSize * cells / 2);
+}
+
+export function gridMovementDistanceFeet(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  gridSize: number,
+): number {
+  if (![startX, startY, endX, endY, gridSize].every(Number.isFinite) || gridSize <= 0) return 0;
+
+  const horizontalCells = Math.round(Math.abs(endX - startX) / gridSize);
+  const verticalCells = Math.round(Math.abs(endY - startY) / gridSize);
+  const diagonalCells = Math.min(horizontalCells, verticalCells);
+  const straightCells = Math.max(horizontalCells, verticalCells) - diagonalCells;
+
+  // WWN measures movement in feet rather than prescribing a square-grid rule.
+  // TWE uses the traditional alternating 5/10-foot diagonal convention so
+  // repeated diagonals approximate real distance without granting extra range.
+  const diagonalFeet = GRID_CELL_FEET * (diagonalCells + Math.floor(diagonalCells / 2));
+  return straightCells * GRID_CELL_FEET + diagonalFeet;
 }
 
 export function snapTokenCenter(

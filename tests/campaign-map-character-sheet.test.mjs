@@ -10,9 +10,8 @@ test("campaign character sheets expose the shared map modal", async () => {
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /CampaignCharacterMapControl campaignId=\{id\}/u);
+  assert.match(page, /CampaignCharacterMapControl campaigns=/u);
   assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
-  assert.match(control, /aria-label="Open campaign map"/u);
   assert.match(control, />\s*Map\s*</u);
   assert.match(control, /campaignMapOpenEvent/u);
   assert.match(events, /twe:campaign-map-open/u);

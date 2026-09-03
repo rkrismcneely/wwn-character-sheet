@@ -81,3 +81,15 @@ test("token dragging shows a live white distance label until release", async () 
   assert.match(css, /\.campaign-map-token-distance/u);
   assert.match(css, /fill:\s*#fff/u);
 });
+
+test("token dragging leaves a fifty-percent origin ghost until release", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+
+  assert.match(launcher, /type TokenDragOrigin = \{ tokenId: string; x: number; y: number \}/u);
+  assert.match(launcher, /setTokenDragOrigin\(\{ tokenId: token\.id, x: token\.x, y: token\.y \}\)/u);
+  assert.match(launcher, /campaign-map-token-drag-origin/u);
+  assert.match(launcher, /translate\(\$\{tokenDragOrigin\.x\} \$\{tokenDragOrigin\.y\}\)/u);
+  assert.match(launcher, /opacity=\{0\.5\}/u);
+  assert.match(launcher, /pointerEvents="none"/u);
+  assert.match(launcher, /setTokenDragOrigin\(null\)/u);
+});

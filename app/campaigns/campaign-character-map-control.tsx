@@ -14,10 +14,10 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id ?? "");
 
   useEffect(() => {
-    // Signed-in character sheets use the shared app header. The legacy topbar
-    // remains only as a fallback for non-shared header variants.
+    // Signed-in sheets use the shared app header. The legacy topbar selector remains
+    // a fallback for older/read-only sheet layouts that still render it.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHost(document.querySelector(".app-header .app-header-utilities, .topbar .status"));
+    setHost(document.querySelector(".app-header .app-header-utilities") ?? document.querySelector(".topbar .status"));
   }, []);
 
   if (!host || campaigns.length === 0) return null;

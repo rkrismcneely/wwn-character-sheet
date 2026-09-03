@@ -14,7 +14,10 @@ test("standalone character pages expose authorized campaign maps in the signed-i
   assert.match(page, /payload\.campaigns/u);
   assert.match(page, /showFloatingButton=\{false\}/u);
   assert.match(control, /campaigns: CharacterMapCampaign\[\]/u);
-  assert.match(control, /\.app-header \.app-header-utilities/u);
+  assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities"\)/u);
+  assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
+  assert.match(control, /new MutationObserver/u);
+  assert.match(control, /if \(refreshHost\(\)\) observer\.disconnect\(\)/u);
   assert.match(header, /className="app-header-utilities"/u);
   assert.match(control, /<select/u);
   assert.match(control, />\s*Map\s*</u);

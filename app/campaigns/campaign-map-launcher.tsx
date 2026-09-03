@@ -18,6 +18,7 @@ import type {
 } from "@/lib/campaigns/map";
 import {
   clampTokenSizeCells,
+  gridMovementDistanceFeet,
   snapTokenCenter,
   tokenRadius as gridTokenRadius,
 } from "@/lib/campaigns/map-grid";
@@ -27,6 +28,7 @@ import { campaignMapChangedEvent } from "./use-live-session";
 type ViewBox = { x: number; y: number; width: number; height: number };
 type GridDraft = { enabled: boolean; size: number; offsetX: number; offsetY: number };
 type MapInteractions = { snapEnabled: boolean; tokenSizes: Record<string, number> };
+type TokenDragMeasurement = { tokenId: string; distanceFeet: number };
 
 type MapResponse = {
   map?: CampaignMapPayload | null;
@@ -126,6 +128,7 @@ export function CampaignMapLauncher({
   const [tokenSizes, setTokenSizes] = useState<Record<string, number>>({});
   const [mapNameDraft, setMapNameDraft] = useState("");
   const [view, setView] = useState<ViewBox | null>(null);
+  const [tokenDragMeasurement, setTokenDragMeasurement] = useState<TokenDragMeasurement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -280,6 +283,7 @@ export function CampaignMapLauncher({
       latestX: token.x,
       latestY: token.y,
     };
+    setTokenDragMeasurement({ tokenId: token.id, distanceFeet: 0 });
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -298,6 +302,10 @@ export function CampaignMapLauncher({
     }
     drag.latestX = x;
     drag.latestY = y;
+    setTokenDragMeasurement({
+      tokenId: drag.tokenId,
+      distanceFeet: gridMovementDistanceFeet(drag.x, drag.y, x, y, map.grid.size),
+    });
     setMap(current => current ? { ...current, tokens: current.tokens.map(token => token.id === drag.tokenId ? { ...token, x, y } : token) } : current);
   }
 
@@ -327,6 +335,7 @@ export function CampaignMapLauncher({
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.stopPropagation();
     tokenDragRef.current = null;
+    setTokenDragMeasurement(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     void persistTokenMove(drag);
   }
@@ -608,6 +617,12 @@ export function CampaignMapLauncher({
                     <title>{token.name}</title>
                     <circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
                     <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text>
+                    {tokenDragMeasurement?.tokenId === token.id && <text
+                      className="campaign-map-token-distance"
+                      textAnchor="middle"
+                      y={-(tokenVisualRadius + Math.max(14, tokenVisualRadius * 0.5))}
+                      fontSize={Math.max(12, tokenVisualRadius * 0.44)}
+                    >{tokenDragMeasurement.distanceFeet}</text>}
                     <text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text>
                   </g>;
                 })}
@@ -694,7 +709,7 @@ export function CampaignMapLauncher({
                 </div> : <p>No tokens placed on this map yet.</p>}
               </section>
             </>}
-            <p className="campaign-map-foundation-note">Multiple maps, persistent token sizes, hidden-grid snapping, and live movement are active. Measuring, drawing, fog, lighting, and map layers remain later phases.</p>
+            <p className="campaign-map-foundation-note">Multiple maps, persistent token sizes, hidden-grid snapping, live movement, and drag-distance measuring are active. Drawing, fog, lighting, and map layers remain later phases.</p>
           </aside>}
         </div>
       </section>

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   clampTokenSizeCells,
+  gridMovementDistanceFeet,
   snapTokenCenter,
   tokenRadius,
 } from "../lib/campaigns/map-grid.ts";
@@ -20,6 +21,17 @@ test("token center snapping accounts for odd and even token footprints", () => {
   assert.equal(snapTokenCenter(130, 0, 64, 2, 512), 128);
   assert.equal(snapTokenCenter(500, 0, 64, 2, 512), 448);
   assert.equal(snapTokenCenter(130, 16, 64, 2, 512), 144);
+});
+
+test("grid movement uses alternating five and ten foot diagonals", () => {
+  const cell = 64;
+  assert.equal(gridMovementDistanceFeet(0, 0, cell, 0, cell), 5);
+  assert.equal(gridMovementDistanceFeet(0, 0, cell, cell, cell), 5);
+  assert.equal(gridMovementDistanceFeet(0, 0, cell * 2, cell * 2, cell), 15);
+  assert.equal(gridMovementDistanceFeet(0, 0, cell * 3, cell * 3, cell), 20);
+  assert.equal(gridMovementDistanceFeet(0, 0, cell * 4, cell * 4, cell), 30);
+  assert.equal(gridMovementDistanceFeet(0, 0, cell * 3, cell, cell), 15);
+  assert.equal(gridMovementDistanceFeet(0, 0, cell * 6, 0, cell), 30);
 });
 
 test("campaign maps persist hidden-grid snapping and per-token sizes", async () => {
@@ -53,4 +65,19 @@ test("campaign maps persist hidden-grid snapping and per-token sizes", async () 
   assert.match(launcher, /resizeToken\(token, sizeCells \+ 1\)/u);
   assert.match(workflow, /0015_campaign_map_interactions\.sql/u);
   assert.match(deploy, /5_campaign_map_interactions/u);
+});
+
+test("token dragging shows a live white distance label until release", async () => {
+  const [launcher, css] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(launcher, /gridMovementDistanceFeet/u);
+  assert.match(launcher, /setTokenDragMeasurement/u);
+  assert.match(launcher, /campaign-map-token-distance/u);
+  assert.match(launcher, /tokenDragMeasurement\?\.tokenId === token\.id/u);
+  assert.match(launcher, /setTokenDragMeasurement\(null\)/u);
+  assert.match(css, /\.campaign-map-token-distance/u);
+  assert.match(css, /fill:\s*#fff/u);
 });

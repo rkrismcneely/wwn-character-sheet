@@ -70,14 +70,25 @@ function filenameMapName(filename: string): string {
   return withoutExtension.slice(0, 80) || "Map";
 }
 
+function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
+  const matrix = svg.getScreenCTM();
+  if (!matrix) return null;
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  return point.matrixTransform(matrix.inverse());
+}
+
 export function CampaignMapLauncher({
   campaignId,
   campaignName,
   canManage: initialCanManage,
+  showFloatingButton = true,
 }: {
   campaignId: string;
   campaignName: string;
   canManage: boolean;
+  showFloatingButton?: boolean;
 }) {
   const patternId = useId().replaceAll(":", "");
   const svgRef = useRef<SVGSVGElement>(null);
@@ -93,13 +104,12 @@ export function CampaignMapLauncher({
     pointerId: number;
     tokenId: string;
     version: number;
-    clientX: number;
-    clientY: number;
+    pointerMapX: number;
+    pointerMapY: number;
     x: number;
     y: number;
     latestX: number;
     latestY: number;
-    view: ViewBox;
   } | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -255,19 +265,20 @@ export function CampaignMapLauncher({
   }
 
   function handleTokenPointerDown(event: ReactPointerEvent<SVGGElement>, token: CampaignMapToken) {
-    if (!token.canMove || !view || event.button !== 0) return;
+    if (!token.canMove || !view || event.button !== 0 || !svgRef.current) return;
     event.stopPropagation();
+    const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
+    if (!pointer) return;
     tokenDragRef.current = {
       pointerId: event.pointerId,
       tokenId: token.id,
       version: token.version,
-      clientX: event.clientX,
-      clientY: event.clientY,
+      pointerMapX: pointer.x,
+      pointerMapY: pointer.y,
       x: token.x,
       y: token.y,
       latestX: token.x,
       latestY: token.y,
-      view,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -276,10 +287,10 @@ export function CampaignMapLauncher({
     const drag = tokenDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId || !map?.backgroundWidth || !map.backgroundHeight || !svgRef.current) return;
     event.stopPropagation();
-    const rect = svgRef.current.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    let x = clamp(drag.x + (event.clientX - drag.clientX) * (drag.view.width / rect.width), 0, map.backgroundWidth);
-    let y = clamp(drag.y + (event.clientY - drag.clientY) * (drag.view.height / rect.height), 0, map.backgroundHeight);
+    const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
+    if (!pointer) return;
+    let x = clamp(drag.x + (pointer.x - drag.pointerMapX), 0, map.backgroundWidth);
+    let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) {
       const sizeCells = tokenSizes[drag.tokenId] ?? 1;
       x = snapTokenCenter(x, map.grid.offsetX, map.grid.size, sizeCells, map.backgroundWidth);
@@ -533,7 +544,7 @@ export function CampaignMapLauncher({
   const placedCharacterIds = new Set(map?.tokens.filter(token => token.kind === "pc").map(token => token.sourceId) ?? []);
 
   return <>
-    <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>
+    {showFloatingButton && <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>}
     {open && <div className="campaign-map-backdrop" role="presentation">
       <section className="campaign-map-dialog" role="dialog" aria-modal="true" aria-labelledby="campaign-map-title">
         <header className="campaign-map-toolbar">

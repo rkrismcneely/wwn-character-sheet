@@ -14,10 +14,27 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id ?? "");
 
   useEffect(() => {
-    // Signed-in character sheets use the shared app header. The legacy topbar
-    // remains only as a fallback for non-shared header variants.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHost(document.querySelector(".app-header .app-header-utilities, .topbar .status"));
+    const refreshHost = () => {
+      // CharacterSheet starts on the legacy topbar while Better Auth hydrates,
+      // then replaces it with the shared signed-in header. Prefer that durable
+      // host whenever it exists, while retaining the legacy host as a fallback.
+      const nextHost = document.querySelector(".app-header .app-header-utilities")
+        ?? document.querySelector(".topbar .status");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHost(currentHost => currentHost === nextHost ? currentHost : nextHost);
+      return Boolean(document.querySelector(".app-header .app-header-utilities"));
+    };
+
+    if (refreshHost()) return;
+
+    // The signed-in header can appear after this control's first effect. Watch
+    // only until it does so the portal is moved off the temporary topbar instead
+    // of remaining attached to a DOM node that auth hydration removes.
+    const observer = new MutationObserver(() => {
+      if (refreshHost()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, []);
 
   if (!host || campaigns.length === 0) return null;

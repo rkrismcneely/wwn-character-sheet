@@ -1432,6 +1432,44 @@ export function GuidedCreationWizard({
               </select>
             </label>
           )}
+          {status.selectedClasses.includes("Beastmaster") && (
+            <section className="creation-magic-section creation-beastmaster-bond">
+              <h3>Companion bond</h3>
+              <label>
+                <span>Beastmaster companion</span>
+                <select
+                  value={sheet.beastmasterBond}
+                  onChange={(event) =>
+                    change({
+                      beastmasterBond: event.target.value as
+                        | "bind-companion"
+                        | "chosen-friend",
+                    })
+                  }
+                >
+                  <option value="bind-companion">
+                    Bind Companion · flexible bond
+                  </option>
+                  <option value="chosen-friend">
+                    Chosen Friend · lifelong bond
+                  </option>
+                </select>
+                <small>
+                  Both options use the required Bind Companion Art. Chosen
+                  Friend does not spend your additional Art pick; instead, that
+                  one permanent companion automatically gains the benefits of
+                  Shared Vitality and Mind Call.
+                </small>
+              </label>
+              {sheet.beastmasterBond === "chosen-friend" && (
+                <p className="creation-choice-note">
+                  A Chosen Friend is your only possible bound companion. If it
+                  reaches 0 HP it disappears and returns beside you at the next
+                  dawn with full hit points.
+                </p>
+              )}
+            </section>
+          )}
           {status.artAllowance > 0 && (
             <section className="creation-magic-section">
               <h3>
@@ -1915,6 +1953,14 @@ export function GuidedCreationWizard({
                   ? "Needs magic choices"
                   : "No magical choices")}
             </p>
+            {status.selectedClasses.includes("Beastmaster") && (
+              <p>
+                Companion bond:{" "}
+                {sheet.beastmasterBond === "chosen-friend"
+                  ? "Chosen Friend"
+                  : "Bind Companion"}
+              </p>
+            )}
             {sheet.artPicks.filter(Boolean).length > 0 && (
               <p>Arts: {sheet.artPicks.filter(Boolean).join(" · ")}</p>
             )}

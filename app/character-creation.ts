@@ -101,6 +101,10 @@ export type CreationSpellPick = {
   casts?: number;
 };
 
+export type BeastmasterBond = "bind-companion" | "chosen-friend";
+export const beastmasterBondOptions = ["bind-companion", "chosen-friend"] as const;
+export const chosenFriendBenefitArts = ["Mind Call", "Shared Vitality"] as const;
+
 /** Structural view of canonical character data; it is not a wizard schema. */
 export type LevelOneCreationCharacter = {
   name: string;
@@ -127,6 +131,7 @@ export type LevelOneCreationCharacter = {
   classTwo: string;
   vowedEffortSkill: string;
   wiseConceptSkill: string;
+  beastmasterBond: BeastmasterBond;
   focusPicks: CreationFocusPick[];
   artPicks: string[];
   spellPicks: CreationSpellPick[];
@@ -572,6 +577,8 @@ const classNames = (
 
 export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
   const selectedClasses = classNames(state);
+  const chosenFriend =
+    selectedClasses.includes("Beastmaster") && state.beastmasterBond === "chosen-friend";
   const backgroundGrowth = backgroundAttributeBonuses(
     state.background,
     state.backgroundDevelopmentMethod,
@@ -698,12 +705,21 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     (tradition === "High Mage"
       ? highMageArts
       : traditionInfo[tradition].arts
-    ).map((art) => ({
-      ...art,
-      minLevel: "minLevel" in art ? art.minLevel : undefined,
-      tradition,
-      value: artSelectionValue(tradition, art.name),
-    })),
+    )
+      .filter(
+        (art) =>
+          !(
+            chosenFriend &&
+            tradition === "Beastmaster" &&
+            (chosenFriendBenefitArts as readonly string[]).includes(art.name)
+          ),
+      )
+      .map((art) => ({
+        ...art,
+        minLevel: "minLevel" in art ? art.minLevel : undefined,
+        tradition,
+        value: artSelectionValue(tradition, art.name),
+      })),
   );
   const artAllowance =
     magicalTraditions.reduce(
@@ -973,6 +989,14 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     !hasNoncombatSkill(state.wiseConceptSkill)
   )
     issues.push({ step: "class", message: "Choose the Wise concept skill." });
+  if (
+    selectedClasses.includes("Beastmaster") &&
+    !beastmasterBondOptions.includes(state.beastmasterBond)
+  )
+    issues.push({
+      step: "magic",
+      message: "Choose whether this Beastmaster uses normal Bind Companion or a Chosen Friend bond.",
+    });
   if (focusPicksUsed !== allowedFocusPicks)
     issues.push({
       step: "foci",

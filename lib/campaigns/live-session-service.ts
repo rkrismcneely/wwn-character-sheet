@@ -25,9 +25,6 @@ function requireOwner(actor: CampaignActor, ownerUserId: string): void {
   if (!isOwner(actor, ownerUserId)) throw new CampaignServiceError("Only the campaign owner can manage live sessions.", 403);
 }
 function requireSessionParticipant(actor: CampaignActor, ownerUserId: string, membership: { userId: string } | null): void {
-  if (actor.role === "admin" && !isOwner(actor, ownerUserId)) {
-    throw new CampaignServiceError("Site administrators are read-only unless they own this campaign.", 403);
-  }
   if (!isParticipant(actor, ownerUserId, membership)) throw new CampaignServiceError("Only campaign members can join this live session.", 403);
 }
 
@@ -77,9 +74,7 @@ async function stateFor(db: D1Database, actor: CampaignActor, publicId: string):
   const session = await activeSession(db, campaign.id);
   const sessionPayload = session ? await payload(db, session) : null;
   const active = !campaign.archivedAt;
-  const participant = actor.role !== "admin" || isOwner(actor, campaign.ownerUserId)
-    ? isParticipant(actor, campaign.ownerUserId, membership)
-    : false;
+  const participant = isParticipant(actor, campaign.ownerUserId, membership);
   const actorParticipantKey = sessionPayload ? await participantKey(sessionPayload.id, actor.userId) : null;
   const joined = sessionPayload
     ? sessionPayload.participants.some(candidate => candidate.participantKey === actorParticipantKey)
@@ -90,7 +85,7 @@ async function stateFor(db: D1Database, actor: CampaignActor, publicId: string):
     canEnd: active && Boolean(session) && isOwner(actor, campaign.ownerUserId),
     canManageEncounter: active && Boolean(session) && joined && isOwner(actor, campaign.ownerUserId),
     joined,
-    adminReadOnly: actor.role === "admin" && !isOwner(actor, campaign.ownerUserId),
+    adminReadOnly: actor.role === "admin" && !participant,
   } } };
 }
 

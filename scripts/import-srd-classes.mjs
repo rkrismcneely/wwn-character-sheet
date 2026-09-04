@@ -18,19 +18,35 @@ const metadata = {
   Beastmaster: { kind: "mage", skill: "Survive", attribute: "WIS/CHA", armor: "Beastmaster arts may be used in or out of armor.", progression: [2,3,3,4,5,6,6,7,7,8] },
   "Blood Priest": { kind: "mage", skill: "Pray", attribute: "WIS/CHA", armor: "Blood Priest miracles are not hindered by armor and require no free hand.", progression: [2,3,3,4,5,6,6,7,7,8] },
   Duelist: { kind: "mage", skill: "Stab", attribute: "DEX/INT", armor: "Duelist arts do not function in medium or heavy armor or with a large shield.", progression: [2,3,3,4,5,6,6,7,7,8] },
-  Mageslayer: { kind: "warrior", skill: "Magic", attribute: "INT/CON", armor: "Mageslayer arts may be used in or out of armor.", progression: [2,3,3,4,5,6,6,7,7,8] },
+  Mageslayer: { kind: "warrior", skill: "Magic", attribute: "INT/CON", armor: "Mageslayer arts may be used in or out of armor.", progression: [2,4,5,6,7,8,9,10,11,12] },
   Skinshifter: { kind: "mage", skill: "Survive", attribute: "CON/CHA", armor: "Skinshifter arts may be used in or out of armor.", progression: [2,3,3,4,5,6,6,7,7,8] },
-  "Thought Noble": { kind: "mage", skill: "Notice", attribute: "INT/WIS", armor: "Thought Noble arts are invisible mental effects and may be used in armor.", progression: [2,3,3,4,5,6,6,7,7,8] },
-  Wise: { kind: "expert", skill: "", attribute: "", armor: "Wise arts do not use Effort and may be used in armor.", progression: [2,3,3,4,4,5,5,6,6,7] },
+  "Thought Noble": { kind: "mage", skill: "Notice", attribute: "INT/WIS", armor: "Thought Noble arts are invisible mental effects and may be used in armor.", progression: [2,3,4,5,6,7,8,9,10,11] },
+  // The generic Wise implementation follows the SRD's Esoteric example path.
+  Wise: { kind: "expert", skill: "", attribute: "", armor: "Wise arts do not use Effort and may be used in armor.", progression: [1,1,2,2,3,3,4,4,5,5] },
 };
 
 const forcedArts = {
-  Accursed: ["Accursed Blade", "Accursed Bolt"],
   Bard: ["A Thousand Tongues"],
   Beastmaster: ["Bind Companion"],
   Duelist: ["Favored Weapon"],
+  Mageslayer: ["Antimage", "Magebane"],
   Skinshifter: ["Change Form"],
   "Thought Noble": ["Open Mind"],
+};
+
+const mageslayerArtLevels = {
+  Antimage: 1,
+  Magebane: 1,
+  Witchfinder: 2,
+  Spellshield: 2,
+  "Disrupt Sorcery": 3,
+  "Know Your Prey": 4,
+  "Share the Pain": 5,
+  "Dispel Enchantment": 6,
+  "Ward Ally": 7,
+  "Immaculate Body": 8,
+  "Immaculate Mind": 9,
+  "Absolute Negation": 10,
 };
 
 const decode = text => text
@@ -54,7 +70,10 @@ for (const [name, number] of Object.entries(sources)) {
     .filter(text => /^[^:]{2,80}:\s+/.test(text))
     .map(text => {
       const colon = text.indexOf(":");
-      return { name: text.slice(0, colon).trim(), text: text.slice(colon + 1).trim() };
+      const art = { name: text.slice(0, colon).trim(), text: text.slice(colon + 1).trim() };
+      return name === "Mageslayer"
+        ? { ...art, minLevel: mageslayerArtLevels[art.name] || 1 }
+        : art;
     })
     .filter(art => !["CWN SRD ↗"].includes(art.name));
   result[name] = { ...metadata[name], forcedArts: forcedArts[name] || [], arts };

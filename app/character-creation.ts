@@ -14,6 +14,7 @@ import {
   invokerLimits,
   knownSpellSlots,
   partialClasses,
+  startingArtChoiceGroupsForTraditions,
   traditionInfo,
   traditionKinds,
   traditionSpells,
@@ -134,6 +135,7 @@ export type LevelOneCreationCharacter = {
   beastmasterBond: BeastmasterBond;
   focusPicks: CreationFocusPick[];
   artPicks: string[];
+  artChoices: Record<string, string[]>;
   spellPicks: CreationSpellPick[];
   skillPurchases: Record<string, number>;
   hpRolls: number[];
@@ -202,6 +204,95 @@ export const artSelectionName = (value: string) =>
     ? value.slice(value.indexOf(artSelectionSeparator) + artSelectionSeparator.length)
     : value;
 
+export type ArtChoiceDefinition = {
+  count: number;
+  label: string;
+  itemLabel: string;
+  help: string;
+};
+
+export const artChoiceKey = (selection: string) => artSelectionName(selection);
+
+export function artChoiceDefinition(selection: string): ArtChoiceDefinition | null {
+  switch (artSelectionName(selection)) {
+    case "Favored Weapon":
+      return {
+        count: 1,
+        label: "Favored weapon type",
+        itemLabel: "Weapon type",
+        help: "Choose one specific non-unarmed melee weapon type. Thrown weapons do not qualify.",
+      };
+    case "Style Weaponry":
+      return {
+        count: 3,
+        label: "Style Weaponry classes",
+        itemLabel: "Weapon class",
+        help: "Choose three distinct general weapon classes, such as swords, bows, axes, or daggers.",
+      };
+    default:
+      return null;
+  }
+}
+
+const cleanArtChoiceArray = (value: unknown, maximum = 8) =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim().slice(0, 80))
+        .slice(0, maximum)
+    : [];
+
+export function artChoiceValues(
+  selection: string,
+  choices: Record<string, string[]> | undefined,
+): string[] {
+  const definition = artChoiceDefinition(selection);
+  if (!definition) return [];
+  const existing = cleanArtChoiceArray(
+    choices?.[artChoiceKey(selection)],
+    definition.count,
+  );
+  return Array.from(
+    { length: definition.count },
+    (_, index) => existing[index] || "",
+  );
+}
+
+export function artChoiceIsComplete(
+  selection: string,
+  choices: Record<string, string[]> | undefined,
+) {
+  const definition = artChoiceDefinition(selection);
+  if (!definition) return true;
+  const values = artChoiceValues(selection, choices);
+  if (values.some((value) => !value)) return false;
+  return (
+    new Set(values.map((value) => value.toLocaleLowerCase())).size ===
+    definition.count
+  );
+}
+
+export function normalizeArtChoices(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const normalized: Record<string, string[]> = {};
+  for (const [rawKey, rawValues] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const key = artChoiceKey(rawKey.trim().slice(0, 80));
+    if (!key) continue;
+    const definition = artChoiceDefinition(key);
+    const values = cleanArtChoiceArray(rawValues, definition?.count || 8);
+    if (!values.some(Boolean)) continue;
+    normalized[key] = definition
+      ? Array.from(
+          { length: definition.count },
+          (_, index) => values[index] || "",
+        )
+      : values;
+  }
+  return normalized;
+}
+
 export function creationArtForSelection<Art extends { name: string; value: string }>(
   arts: readonly Art[],
   selection: string,
@@ -251,6 +342,51 @@ export function creationFocusBonusSkill(pick: CreationFocusPick) {
     : options.includes(pick.choice || "")
       ? pick.choice || ""
       : "";
+}
+
+const explicitlyCombatFoci = new Set([
+  "Alert",
+  "Armsmaster",
+  "Assassin",
+  "Close Combatant",
+  "Deadeye",
+  "Die Hard",
+  "Impervious Defense",
+  "Shocking Assault",
+  "Sniper’s Eye",
+  "Unarmed Combatant",
+  "Valiant Defender",
+  "Whirlwind Assault",
+]);
+
+const explicitlyNoncombatFoci = new Set([
+  "Artisan",
+  "Authority",
+  "Connected",
+  "Cultured",
+  "Dealmaker",
+  "Diplomatic Grace",
+  "Gifted Chirurgeon",
+  "Henchkeeper",
+  "Impostor",
+  "Polymath",
+  "Specialist",
+  "Well Met",
+]);
+
+/**
+ * WWN deliberately leaves ambiguous Focus categorization to the GM. We only
+ * classify the clear cases here; anything else can satisfy either class bonus.
+ */
+export function creationFocusClassCategory(
+  pick: CreationFocusPick,
+): "combat" | "noncombat" | "ambiguous" {
+  if (explicitlyCombatFoci.has(pick.name)) return "combat";
+  if (explicitlyNoncombatFoci.has(pick.name)) return "noncombat";
+  const skill = creationFocusBonusSkill(pick);
+  if ((creationCombatSkills as readonly string[]).includes(skill)) return "combat";
+  if ((creationNoncombatSkills as readonly string[]).includes(skill)) return "noncombat";
+  return "ambiguous";
 }
 
 export function creationFocusChoiceOptions(name: string) {
@@ -618,9 +754,10 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     (name) => traditionKinds[name] === "mage",
   );
   const rules = classRules(state.classMode, state.classOne, state.classTwo, 1);
+  const mageslayerGrantedFocus = selectedClasses.includes("Mageslayer") ? 1 : 0;
   const allowedFocusPicks =
     state.classOne && (state.classMode === "full" || state.classTwo)
-      ? rules.focusPicks
+      ? rules.focusPicks + mageslayerGrantedFocus
       : 0;
   const focusPicksUsed = focusPicks.reduce(
     (total, pick) => total + Math.max(1, Math.min(2, pick.level || 1)),
@@ -736,6 +873,12 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     forcedArtsForTraditions([tradition]).map((name) =>
       artSelectionValue(tradition, name),
     ),
+  );
+  const requiredArtChoiceGroups = artTraditions.flatMap((tradition) =>
+    startingArtChoiceGroupsForTraditions([tradition]).map((group) => ({
+      ...group,
+      options: group.options.map((name) => artSelectionValue(tradition, name)),
+    })),
   );
   const isInvoker = castingTraditions.includes("Invoker");
   const limits =
@@ -988,7 +1131,7 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     issues.push({ step: "class", message: "Choose the Vowed order skill." });
   if (
     selectedClasses.includes("Wise") &&
-    !hasNoncombatSkill(state.wiseConceptSkill)
+    !(creationSkills as readonly string[]).includes(state.wiseConceptSkill)
   )
     issues.push({ step: "class", message: "Choose the Wise concept skill." });
   if (
@@ -1005,6 +1148,47 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       step: "foci",
       message: `Choose ${allowedFocusPicks} starting Focus pick${allowedFocusPicks === 1 ? "" : "s"}.`,
     });
+
+  if (selectedClasses.includes("Mageslayer") && !focusPicks.some((pick) => pick.name === "Nullifier"))
+    issues.push({
+      step: "foci",
+      message: "Antimage grants one level of the Nullifier Focus at first level.",
+    });
+
+  const classFocusCandidates = focusPicks.filter(
+    (pick) => !(selectedClasses.includes("Mageslayer") && pick.name === "Nullifier"),
+  );
+  const needsWarriorFocus = selectedClasses.includes("Warrior");
+  const needsExpertFocus = selectedClasses.includes("Expert");
+  const canBeCombat = (pick: CreationFocusPick) =>
+    creationFocusClassCategory(pick) !== "noncombat";
+  const canBeNoncombat = (pick: CreationFocusPick) =>
+    creationFocusClassCategory(pick) !== "combat";
+  if (needsWarriorFocus && needsExpertFocus) {
+    const distinctClassFoci = classFocusCandidates.some((combatPick, combatIndex) =>
+      canBeCombat(combatPick) &&
+      classFocusCandidates.some(
+        (expertPick, expertIndex) => expertIndex !== combatIndex && canBeNoncombat(expertPick),
+      ),
+    );
+    if (!distinctClassFoci)
+      issues.push({
+        step: "foci",
+        message: "Partial Warrior / Partial Expert needs one combat-related Focus and one non-combat-related Focus, in addition to the free Focus.",
+      });
+  } else {
+    if (needsWarriorFocus && !classFocusCandidates.some(canBeCombat))
+      issues.push({
+        step: "foci",
+        message: "Warrior requires one combat-related starting Focus in addition to the free Focus.",
+      });
+    if (needsExpertFocus && !classFocusCandidates.some(canBeNoncombat))
+      issues.push({
+        step: "foci",
+        message: "Expert requires one non-combat-related starting Focus in addition to the free Focus.",
+      });
+  }
+
   state.focusPicks.forEach((pick, index) => {
     if (pick.name && pick.level !== 1)
       issues.push({
@@ -1044,11 +1228,29 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       step: "magic",
       message: `Choose ${artAllowance} level-1 Art${artAllowance === 1 ? "" : "s"}.`,
     });
+  selectedArts.forEach((selection) => {
+    const definition = artChoiceDefinition(selection);
+    if (definition && !artChoiceIsComplete(selection, state.artChoices))
+      issues.push({
+        step: "magic",
+        message: `Complete ${artSelectionName(selection)}: ${definition.help}`,
+      });
+  });
   forcedArts.forEach((name) => {
     if (!selectedArts.some((selection) => creationArtForSelection(availableArts, selection)?.value === name))
       issues.push({
         step: "magic",
         message: `${artSelectionName(name)} is a required starting Art for the selected tradition.`,
+      });
+  });
+  requiredArtChoiceGroups.forEach((group) => {
+    const selectedCount = selectedArts.filter((selection) =>
+      group.options.includes(creationArtForSelection(availableArts, selection)?.value || ""),
+    ).length;
+    if (selectedCount !== group.count)
+      issues.push({
+        step: "magic",
+        message: `Choose exactly one of ${group.options.map(artSelectionName).join(" or ")} as the required starting ${group.tradition} Art.`,
       });
   });
   selectedArts.forEach((name, index) => {
@@ -1164,6 +1366,7 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     availableArts,
     artAllowance,
     forcedArts,
+    requiredArtChoiceGroups,
     availableSpells,
     knownSpellAllowance,
     limits,

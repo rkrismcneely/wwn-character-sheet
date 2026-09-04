@@ -134,6 +134,10 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(wizard, /aria-label="Clear HP dice total"/u);
   assert.match(wizard, /hpRoll: undefined/u);
   assert.match(wizard, /Traditional Education/u);
+  assert.match(wizard, /forcedArtsForTraditions/u);
+  assert.match(wizard, /educationForcedArts/u);
+  assert.match(wizard, /Required Art · \$\{artSelectionName\(requiredArt\)\}/u);
+  assert.match(wizard, /Mandatory starting Arts are enforced automatically/u);
   assert.match(wizard, /Deep Apprehension/u);
   assert.match(sheet, /levelUpModeFromUrl/u);
   assert.match(sheet, /setLevelUpMode\(true\)/u);

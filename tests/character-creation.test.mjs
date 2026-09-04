@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  artChoiceDefinition,
+  artChoiceIsComplete,
+  artChoiceValues,
   creationBackgroundSkillChoiceOptions,
   creationBackgroundSkillChoiceValue,
   creationSkillGrantResolutions,
@@ -76,6 +79,7 @@ const baseCharacter = () => ({
     { name: "Alert", level: 1 },
   ],
   artPicks: [],
+  artChoices: {},
   spellPicks: [],
   skillPurchases: Object.fromEntries(skills.map((skill) => [skill, -1])),
   hpRolls: [4],
@@ -116,7 +120,7 @@ test("level-one guided creation validates ordinary martial and expert/warrior pa
     classMode: "adventurer",
     classOne: "Expert",
     classTwo: "Warrior",
-    focusPicks: ["Alert", "Armsmaster", "Die Hard"].map((name) => ({
+    focusPicks: ["Alert", "Cultured", "Die Hard"].map((name) => ({
       name,
       level: 1,
     })),
@@ -131,11 +135,35 @@ test("level-one guided creation validates ordinary martial and expert/warrior pa
     background: "Scholar",
     backgroundCombatSkill: "",
     classOne: "Expert",
-    focusPicks: ["Alert", "Armsmaster"].map((name) => ({ name, level: 1 })),
+    focusPicks: ["Alert", "Cultured"].map((name) => ({ name, level: 1 })),
   });
   const expertStatus = levelOneCreationStatus(expert);
   assert.equal(expertStatus.canFinish, true);
   assert.equal(expertStatus.hasMagicStep, false);
+});
+
+test("parameterized Arts require their SRD weapon choices", () => {
+  assert.equal(artChoiceDefinition("Favored Weapon")?.count, 1);
+  assert.equal(artChoiceDefinition("Style Weaponry")?.count, 3);
+  assert.deepEqual(artChoiceValues("Style Weaponry", {}), ["", "", ""]);
+  assert.equal(artChoiceIsComplete("Favored Weapon", {}), false);
+  assert.equal(
+    artChoiceIsComplete("Favored Weapon", { "Favored Weapon": ["Long sword"] }),
+    true,
+  );
+  assert.equal(
+    artChoiceIsComplete("Style Weaponry", {
+      "Style Weaponry": ["Swords", "Bows", "Axes"],
+    }),
+    true,
+  );
+  assert.equal(
+    artChoiceIsComplete("Style Weaponry", {
+      "Style Weaponry": ["Swords", "swords", "Axes"],
+    }),
+    false,
+    "the three Vowed weapon classes must be distinct",
+  );
 });
 
 test("level-one guided creation requires an explicit starting-equipment path", () => {
@@ -167,6 +195,8 @@ test("guided creation exposes physical parity controls for every setup die", asy
   assert.match(wizard, /Physical result/u);
   assert.match(sheet, /backgroundDevelopmentRollFromDie/u);
   assert.match(sheet, /Physical d\{dieSize\} result/u);
+  assert.match(wizard, /Wise concept skill[\s\S]*creationSkills\.map/u);
+  assert.match(sheet, /wiseConceptSkill: skills\.includes/u);
 });
 
 test("level-one guided creation validates full and partial Mage spell selections", () => {

@@ -58,6 +58,10 @@ import {
   creationBackgroundSkillChoiceValue,
   artSelectionName,
   artSelectionValue,
+  artChoiceDefinition,
+  artChoiceKey,
+  artChoiceValues,
+  normalizeArtChoices,
   creationArtForSelection,
   creationFocusBonusSkill,
   creationFocusChoiceOptions,
@@ -261,6 +265,7 @@ const initial = {
   armorBonus: 0,
   focusPicks: [{ name: "Henchkeeper", level: 2 }] as FocusPick[],
   artPicks: ["Arcane Lexicon", "Sense Magic", "Retain Sorcery", "Wizard’s Grandeur"] as string[],
+  artChoices: {} as Record<string, string[]>,
   artEffort: [false, false, false, false] as boolean[],
   spellPicks: [
     { name: "Velocitous Imbuement", prepared: true, cast: false },
@@ -351,6 +356,7 @@ const blankCharacter: Sheet = {
   armorBonus: 0,
   focusPicks: [],
   artPicks: [],
+  artChoices: {},
   artEffort: [],
   spellPicks: [],
   effortUsed: 0,
@@ -456,7 +462,7 @@ const normalizedBackgroundRules = (stored: Partial<Sheet>) => {
   return {
     ...normalizeBackgroundDevelopment(stored, typeof stored.background === "string" ? stored.background : ""),
     vowedEffortSkill: noncombatSkills.includes(stored.vowedEffortSkill || "") ? stored.vowedEffortSkill! : "Exert",
-    wiseConceptSkill: noncombatSkills.includes(stored.wiseConceptSkill || "") ? stored.wiseConceptSkill! : "",
+    wiseConceptSkill: skills.includes(stored.wiseConceptSkill || "") ? stored.wiseConceptSkill! : "",
   };
 };
 
@@ -602,6 +608,7 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
     ...incoming,
     ...migratedAttributeState(incoming),
     ...rulesState,
+    artChoices: normalizeArtChoices(incoming.artChoices),
     ...normalizeCreationEquipmentFields(incoming),
     profession: incoming.profession || incoming.employer || "",
     skills: { ...initial.skills, ...(incoming.skills || {}) },
@@ -3405,7 +3412,7 @@ export default function Home({
           </div>
           {castingBlocked && <p className="casting-restriction" role="status"><strong>Armor restriction active:</strong> {castingBlockedReason}</p>}
           {selectedClasses.includes("Vowed") && <Section title="Vowed Discipline"><div className="vowed-controls"><label className="field"><span>Order skill (Effort + bonus skill)</span><select value={sheet.vowedEffortSkill} onChange={e=>patch("vowedEffortSkill",e.target.value)}>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label><div><span>Punch hit</span><b>{signed(vowedProgression[effectiveLevel-1].hit)}</b></div><div><span>Punch damage</span><b>{vowedProgression[effectiveLevel-1].damage}</b></div><div><span>Punch Shock</span><b>{vowedProgression[effectiveLevel-1].shock.replace("/", "/AC ")}</b></div></div><p className="section-intro">The selected Order skill is the Vowed’s required noncombat bonus skill and is also used to calculate Vowed Effort.</p></Section>}
-          {selectedClasses.includes("Wise") && <Section title="Wise Concept"><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the noncombat skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
+          {selectedClasses.includes("Wise") && <Section title="Wise Concept"><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{skills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
           {hasBeastmaster && <Section title="Beastmaster Companion Bond"><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>patch("beastmasterBond", e.target.value as Sheet["beastmasterBond"])}><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p></Section>}
           {castingTraditions.length > 0 && <Section title="Spellbook" aside={<span className="caption">{knownSpellAllowance} known-spell selections at level {sheet.level} · spell levels 1–{limits.max} · prepare up to {limits.prepared}</span>}>
             <p className="section-intro">{isInvoker ? `Invoker spells spend points equal to spell level. You have ${limits.casts} spell points each day and may cast a prepared spell repeatedly.` : "Choose each known spell from the complete SRD list. Prepared spells are bright; unprepared spells remain in your spellbook but are muted."}</p>
@@ -3441,20 +3448,41 @@ export default function Home({
             </div>
           </Section>}
           <Section title="Arts" aside={<span className="caption">{artTraditions.join(" + ")} · {sheet.artPicks.filter(Boolean).length}/{artAllowance} available by level {sheet.level}</span>}>
-            <div className="arts-grid">{sheet.artPicks.map((name,i)=>{const art=creationArtForSelection(availableArts, name);const requiredArt = forcedArts[i];return <div className={`art-card ${dragging?.kind==="art"&&dragging.index===i ? "dragging":""}`} key={i} data-drag-kind="art" data-drag-index={i}
-              onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const from=Number(e.dataTransfer.getData("text/plain"));if(Number.isInteger(from))moveItem("art",from,i);setDragging(null)}}>
-              <button className="drag-handle" aria-label={`Reorder ${name || `art row ${i+1}`}`} title="Drag to reorder"
-                draggable onDragStart={e=>{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",String(i));setDragging({kind:"art",index:i})}} onDragEnd={()=>setDragging(null)}
-                onPointerDown={e=>beginPointerDrag("art",i,e)} onPointerMove={e=>continuePointerDrag("art",e)} onPointerUp={()=>setDragging(null)} onPointerCancel={()=>setDragging(null)}>⠿</button>
-              <select title={art?.text || "Choose an art"} value={name} onChange={e=>{
-                const next = e.target.value;
-                if (next && !artEligibility(next, i).eligible) { setTransferMessage(artEligibility(next, i).reason); return; }
-                patch("artPicks",sheet.artPicks.map((x,j)=>j===i?next:x));
-              }}><option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : "Choose an art…"}</option>{artTraditions.filter(t=>t!=="Invoker").map(t=><optgroup key={t} label={t}>{availableArts.filter(a=>(!requiredArt || a.value===requiredArt) && a.tradition===t).map(a=>{
-                const eligibility = artEligibility(a.value, i);
-                return <option value={a.value} disabled={!eligibility.eligible} key={`${t}-${a.name}`}>{a.name}{eligibility.eligible ? "" : ` — ${eligibility.reason}`}</option>;
-              })}</optgroup>)}</select>{requiredArt && <small>Required starting Art</small>}{art ? <Tip title="?"><RulesTooltip name={art.name} text={art.text} extra={art.minLevel ? `Minimum level ${art.minLevel}.` : undefined}/></Tip> :
-                <span className="slot-number" aria-label={`Art selection ${i + 1}`}>{i + 1}</span>}<label className="check"><input type="checkbox" checked={Boolean(sheet.artEffort[i])} disabled={!name || (Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked) || (!sheet.artEffort[i] && (effortPools.find(p=>p.tradition===art?.tradition)?.used ?? 0) >= (effortPools.find(p=>p.tradition===art?.tradition)?.max ?? 0))} onChange={e=>patch("artEffort",sheet.artPicks.map((_,j)=>j===i?e.target.checked:Boolean(sheet.artEffort[j])))}/><span>Effort</span></label></div>})}</div>
+            <div className="arts-grid">{sheet.artPicks.map((name, i) => {
+              const art = creationArtForSelection(availableArts, name);
+              const requiredArt = forcedArts[i];
+              const choiceDefinition = artChoiceDefinition(name);
+              const choiceKey = artChoiceKey(name);
+              const choiceValues = artChoiceValues(name, sheet.artChoices);
+              return <div className={`art-card ${dragging?.kind === "art" && dragging.index === i ? "dragging" : ""}`} key={i} data-drag-kind="art" data-drag-index={i}
+                onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const from = Number(e.dataTransfer.getData("text/plain")); if (Number.isInteger(from)) moveItem("art", from, i); setDragging(null); }}>
+                <button className="drag-handle" aria-label={`Reorder ${name || `art row ${i + 1}`}`} title="Drag to reorder"
+                  draggable onDragStart={e => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); setDragging({ kind: "art", index: i }); }} onDragEnd={() => setDragging(null)}
+                  onPointerDown={e => beginPointerDrag("art", i, e)} onPointerMove={e => continuePointerDrag("art", e)} onPointerUp={() => setDragging(null)} onPointerCancel={() => setDragging(null)}>⠿</button>
+                <select title={art?.text || "Choose an art"} value={name} onChange={e => {
+                  const next = e.target.value;
+                  if (next && !artEligibility(next, i).eligible) { setTransferMessage(artEligibility(next, i).reason); return; }
+                  patch("artPicks", sheet.artPicks.map((x, j) => j === i ? next : x));
+                }}><option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : "Choose an art…"}</option>{artTraditions.filter(t => t !== "Invoker").map(t => <optgroup key={t} label={t}>{availableArts.filter(a => (!requiredArt || a.value === requiredArt) && a.tradition === t).map(a => {
+                  const eligibility = artEligibility(a.value, i);
+                  return <option value={a.value} disabled={!eligibility.eligible} key={`${t}-${a.name}`}>{a.name}{eligibility.eligible ? "" : ` — ${eligibility.reason}`}</option>;
+                })}</optgroup>)}</select>
+                {choiceDefinition && <div className="art-choice-fields" aria-label={choiceDefinition.label}>
+                  {choiceValues.map((value, choiceIndex) => <label className="field" key={`${choiceKey}-${choiceIndex}`}>
+                    <span>{choiceDefinition.itemLabel}{choiceDefinition.count > 1 ? ` ${choiceIndex + 1}` : ""}</span>
+                    <input value={value} maxLength={80} onChange={e => patch("artChoices", {
+                      ...sheet.artChoices,
+                      [choiceKey]: choiceValues.map((current, index) => index === choiceIndex ? e.target.value : current),
+                    })} />
+                  </label>)}
+                  <small>{choiceDefinition.help}</small>
+                </div>}
+                {requiredArt && <small>Required starting Art</small>}
+                {art ? <Tip title="?"><RulesTooltip name={art.name} text={art.text} extra={art.minLevel ? `Minimum level ${art.minLevel}.` : undefined}/></Tip> :
+                  <span className="slot-number" aria-label={`Art selection ${i + 1}`}>{i + 1}</span>}
+                <label className="check"><input type="checkbox" checked={Boolean(sheet.artEffort[i])} disabled={!name || (Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked) || (!sheet.artEffort[i] && (effortPools.find(p => p.tradition === art?.tradition)?.used ?? 0) >= (effortPools.find(p => p.tradition === art?.tradition)?.max ?? 0))} onChange={e => patch("artEffort", sheet.artPicks.map((_, j) => j === i ? e.target.checked : Boolean(sheet.artEffort[j])))} /><span>Effort</span></label>
+              </div>;
+            })}</div>
             {!sheet.artPicks.length && <p className="empty-slots">This class has no Art selections at the current level.</p>}
           </Section>
         </div>}

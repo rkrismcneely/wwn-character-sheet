@@ -9,7 +9,9 @@ import {
 } from "../app/background-development.ts";
 import {
   creationBackgroundSkillChoiceOptions,
+  artSelectionName,
   artSelectionValue,
+  creationFocusClassCategory,
   creationFocusChoiceLabel,
   creationFocusChoiceOptions,
   creationPartialClassPairIsLegal,
@@ -19,7 +21,7 @@ import {
   levelOneCreationStatus,
   manualBackgroundLearningOptions,
 } from "../app/character-creation.ts";
-import { fullClasses, partialClasses } from "../app/class-data.ts";
+import { artSlots, fullClasses, partialClasses, traditionInfo } from "../app/class-data.ts";
 import { foci } from "../app/wwn-data.ts";
 
 const attributes = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
@@ -50,8 +52,10 @@ function blankState(overrides = {}) {
     classTwo: "",
     vowedEffortSkill: "Exert",
     wiseConceptSkill: "Know",
+    beastmasterBond: "bind-companion",
     focusPicks: [],
     artPicks: [],
+    artChoices: {},
     spellPicks: [],
     skillPurchases: Object.fromEntries(creationSkills.map((skill) => [skill, -1])),
     hpRolls: [4],
@@ -122,11 +126,31 @@ function resolveBackgroundChoices(initial) {
 
 function fillFoci(initial) {
   let state = initial;
-  const straightforward = ["Alert", "Armsmaster", "Artisan", "Authority"];
-  for (let attempt = 0; attempt < straightforward.length; attempt += 1) {
+  const fallback = ["Alert", "Artisan", "Armsmaster", "Authority", "Connected"];
+  for (let attempt = 0; attempt < 10; attempt += 1) {
     const status = levelOneCreationStatus(state);
-    if (status.focusPicksUsed === status.allowedFocusPicks) return state;
-    const name = straightforward.find((candidate) =>
+    if (status.focusPicksUsed >= status.allowedFocusPicks) return state;
+
+    const selectedClasses = status.selectedClasses;
+    const withoutMageslayerGrant = state.focusPicks.filter(
+      (pick) => !(selectedClasses.includes("Mageslayer") && pick.name === "Nullifier"),
+    );
+    let desired = "";
+    if (selectedClasses.includes("Mageslayer") && !state.focusPicks.some((pick) => pick.name === "Nullifier")) {
+      desired = "Nullifier";
+    } else if (
+      selectedClasses.includes("Warrior") &&
+      !withoutMageslayerGrant.some((pick) => creationFocusClassCategory(pick) !== "noncombat")
+    ) {
+      desired = "Alert";
+    } else if (
+      selectedClasses.includes("Expert") &&
+      !withoutMageslayerGrant.some((pick) => creationFocusClassCategory(pick) !== "combat")
+    ) {
+      desired = "Artisan";
+    }
+    const candidates = [desired, ...fallback].filter(Boolean);
+    const name = candidates.find((candidate) =>
       !state.focusPicks.some((pick) => pick.name === candidate) &&
       status.focusEligibility(candidate, state.focusPicks.length).eligible,
     );
@@ -142,20 +166,31 @@ function fillFoci(initial) {
 function fillMagic(initial) {
   const status = levelOneCreationStatus(initial);
   const arts = [...status.forcedArts];
+  for (const group of status.requiredArtChoiceGroups) {
+    if (!arts.some((selection) => group.options.includes(selection))) arts.push(group.options[0]);
+  }
   for (const art of status.availableArts) {
     if (arts.length === status.artAllowance) break;
-    if ((art.minLevel || 1) > 1 || (art.name === "Deep Apprehension" && !arts.includes("Surface Apprehension"))) continue;
+    if ((art.minLevel || 1) > 1 || (art.name === "Deep Apprehension" && !arts.some((selection) => selection.endsWith("Surface Apprehension")))) continue;
     if (art.name !== "Skilled" && arts.includes(art.value)) continue;
+    const completedGroup = status.requiredArtChoiceGroups.find((group) => group.options.includes(art.value));
+    if (completedGroup && arts.some((selection) => completedGroup.options.includes(selection))) continue;
     arts.push(art.value);
   }
   assert.equal(arts.length, status.artAllowance, "enough level-1 Arts exist for the active traditions");
+  const artChoices = { ...(initial.artChoices || {}) };
+  for (const selection of arts) {
+    const name = artSelectionName(selection);
+    if (name === "Favored Weapon") artChoices[name] = ["Long sword"];
+    if (name === "Style Weaponry") artChoices[name] = ["Swords", "Bows", "Axes"];
+  }
   const spells = status.availableSpells
     .filter((spell) => spell.level <= status.limits.max)
     .filter((spell, index, all) => all.findIndex((other) => other.name === spell.name) === index)
     .slice(0, status.knownSpellAllowance)
     .map((spell) => ({ name: spell.name, prepared: false, cast: false }));
   assert.equal(spells.length, status.knownSpellAllowance, "enough level-1 spells exist for the active traditions");
-  return { ...initial, artPicks: arts, spellPicks: spells };
+  return { ...initial, artPicks: arts, artChoices, spellPicks: spells };
 }
 
 function chooseFreeSkill(initial) {
@@ -328,6 +363,103 @@ test("magic availability follows selected casting traditions and partial-pair UI
   assert.match(wizard, /creationPartialClassPairIsLegal/u);
   assert.match(wizard, /creationSkillRankCanBeSelected/u);
   assert.match(wizard, /sheet\.level !== 1/u);
+});
+
+test("mandatory starting Arts match the SRD class rules", () => {
+  const expected = new Map([
+    ["Bard", ["A Thousand Tongues"]],
+    ["Beastmaster", ["Bind Companion"]],
+    ["Duelist", ["Favored Weapon"]],
+    ["Elementalist", ["Elemental Resilience", "Elemental Sparks"]],
+    ["Healer", ["Healing Touch"]],
+    ["Mageslayer", ["Antimage", "Magebane"]],
+    ["Skinshifter", ["Change Form"]],
+    ["Thought Noble", ["Open Mind"]],
+    ["Vowed", ["Martial Style", "Unarmed Might", "Unarmored Defense"]],
+  ]);
+  for (const [className, names] of expected) {
+    const classTwo = className === "Elementalist" ? "Expert" : "Warrior";
+    const status = levelOneCreationStatus(blankState({
+      classMode: "adventurer",
+      classOne: className,
+      classTwo,
+    }));
+    for (const name of names)
+      assert.ok(status.forcedArts.some((selection) => selection.endsWith(name)), `${className} requires ${name}`);
+    assert.ok(status.forcedArts.length <= status.artAllowance, `${className} has room for required Arts`);
+  }
+
+  const accursed = levelOneCreationStatus(blankState({
+    classMode: "adventurer",
+    classOne: "Accursed",
+    classTwo: "Expert",
+  }));
+  assert.deepEqual(
+    accursed.requiredArtChoiceGroups.map((group) => group.options),
+    [["Accursed Blade", "Accursed Bolt"]],
+  );
+});
+
+test("class Art progression handles Mageslayer, Thought Noble, and generic Esoteric Wise correctly", () => {
+  assert.deepEqual(Array.from({ length: 10 }, (_, index) => artSlots("Mageslayer", index + 1, true)), [2,4,5,6,7,8,9,10,11,12]);
+  assert.deepEqual(Array.from({ length: 10 }, (_, index) => artSlots("Thought Noble", index + 1, true)), [2,3,4,5,6,7,8,9,10,11]);
+  assert.deepEqual(Array.from({ length: 10 }, (_, index) => artSlots("Wise", index + 1, true)), [1,1,2,2,3,3,4,4,5,5]);
+  const mageslayer = traditionInfo.Mageslayer.arts;
+  assert.equal(mageslayer.find((art) => art.name === "Witchfinder")?.minLevel, 2);
+  assert.equal(mageslayer.find((art) => art.name === "Absolute Negation")?.minLevel, 10);
+});
+
+test("Warrior and Expert bonus Focus requirements are enforced without over-classifying ambiguous Foci", () => {
+  const badWarrior = levelOneCreationStatus(blankState({
+    classOne: "Warrior",
+    focusPicks: [{ name: "Artisan", level: 1 }, { name: "Connected", level: 1 }],
+  }));
+  assert.match(badWarrior.stepStatus.foci.issues.join(" "), /combat-related/i);
+
+  const goodWarrior = levelOneCreationStatus(blankState({
+    classOne: "Warrior",
+    focusPicks: [{ name: "Alert", level: 1 }, { name: "Connected", level: 1 }],
+  }));
+  assert.doesNotMatch(goodWarrior.stepStatus.foci.issues.join(" "), /requires one combat-related/i);
+
+  const badExpert = levelOneCreationStatus(blankState({
+    classOne: "Expert",
+    focusPicks: [{ name: "Armsmaster", level: 1 }, { name: "Deadeye", level: 1 }],
+  }));
+  assert.match(badExpert.stepStatus.foci.issues.join(" "), /non-combat-related/i);
+
+  const goodExpert = levelOneCreationStatus(blankState({
+    classOne: "Expert",
+    focusPicks: [{ name: "Artisan", level: 1 }, { name: "Alert", level: 1 }],
+  }));
+  assert.doesNotMatch(goodExpert.stepStatus.foci.issues.join(" "), /requires one non-combat-related/i);
+});
+
+test("Mageslayer Antimage grants Nullifier and Wise accepts any concept-appropriate skill", () => {
+  const mageslayer = levelOneCreationStatus(blankState({
+    classMode: "adventurer",
+    classOne: "Mageslayer",
+    classTwo: "Wise",
+    focusPicks: [{ name: "Alert", level: 1 }],
+  }));
+  assert.equal(mageslayer.allowedFocusPicks, 2);
+  assert.match(mageslayer.stepStatus.foci.issues.join(" "), /Nullifier/i);
+
+  const withNullifier = levelOneCreationStatus(blankState({
+    classMode: "adventurer",
+    classOne: "Mageslayer",
+    classTwo: "Wise",
+    focusPicks: [{ name: "Nullifier", level: 1 }, { name: "Alert", level: 1 }],
+  }));
+  assert.doesNotMatch(withNullifier.stepStatus.foci.issues.join(" "), /Antimage grants/i);
+
+  const wiseCombatSkill = levelOneCreationStatus(blankState({
+    classMode: "adventurer",
+    classOne: "Wise",
+    classTwo: "Warrior",
+    wiseConceptSkill: "Stab",
+  }));
+  assert.doesNotMatch(wiseCombatSkill.stepStatus.class.issues.join(" "), /Wise concept skill/i);
 });
 
 test("every declared mandatory Art is required and compatible with its level-1 allowance", () => {

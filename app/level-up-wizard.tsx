@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { artSlots, casterLimits, dualCasterLimits, invokerLimits, traditionInfo, traditionSpells, type TraditionName } from "./class-data";
+import { artSlots, casterLimits, dualCasterLimits, forcedArtsForTraditions, invokerLimits, traditionInfo, traditionSpells, type TraditionName } from "./class-data";
 import {
   artSelectionName,
   artSelectionValue,
+  artChoiceDefinition,
+  artChoiceIsComplete,
+  artChoiceKey,
+  artChoiceValues,
   creationFocusBonusSkill,
   creationFocusChoiceOptions,
   creationSkillSources,
@@ -155,7 +159,15 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   const education = traditionalEducationTradition(state.draft);
   const educationAdded = focusAdded && selectedFocus?.name === "Traditional Education" && Boolean(education);
   const requiredArtPicks = plan.artPicks + (educationAdded && education ? artSlots(education, 1, state.draft.classMode === "adventurer") : 0);
-  const artsComplete = newArts === requiredArtPicks;
+  const educationForcedArts = educationAdded && education
+    ? forcedArtsForTraditions([education]).map((name) => artSelectionValue(education, name))
+    : [];
+  const newArtSelections = state.draft.artPicks.slice(sheet.artPicks.length);
+  const artsComplete = newArts === requiredArtPicks && educationForcedArts.every((required) =>
+    newArtSelections.includes(required),
+  ) && newArtSelections.every((selection) =>
+    artChoiceIsComplete(selection, state.draft.artChoices),
+  );
   const spellsComplete = newSpells === plan.spellPicks;
   const ready = hpRollComplete && pointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
 
@@ -165,7 +177,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   }), [sheet.focusPicks, state.draft]);
   const chooseFocus = (name: string) => {
     if (!name) {
-      update((draft) => ({ ...draft, focusPicks: clone(sheet.focusPicks), artPicks: clone(sheet.artPicks), spellPicks: clone(sheet.spellPicks) }));
+      update((draft) => ({ ...draft, focusPicks: clone(sheet.focusPicks), artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) }));
       return;
     }
     const focus = focusOptions.find((item) => item.name === name);
@@ -174,9 +186,9 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       const baseline = clone(sheet.focusPicks);
       const sameIndex = baseline.findIndex((pick) => pick.name === name && pick.level === 1);
       if (sameIndex >= 0 && focus.level2) {
-        return { ...draft, focusPicks: baseline.map((pick, index) => index === sameIndex ? { ...pick, level: 2 } : pick), artPicks: clone(sheet.artPicks), spellPicks: clone(sheet.spellPicks) };
+        return { ...draft, focusPicks: baseline.map((pick, index) => index === sameIndex ? { ...pick, level: 2 } : pick), artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
       }
-      return { ...draft, focusPicks: [...baseline, { name, level: 1, choice: "", advancement: true }], artPicks: clone(sheet.artPicks), spellPicks: clone(sheet.spellPicks) };
+      return { ...draft, focusPicks: [...baseline, { name, level: 1, choice: "", advancement: true }], artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
     });
   };
   const chooseFocusOption = (choice: string) => update((draft) => ({
@@ -192,7 +204,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     if (state.step === 1 && !hpRollComplete) return setNotice("Roll the required hit-point total before continuing.");
     if (state.step === 2 && pointsRemaining < 0) return setNotice("Spend no more than the available skill points.");
     if (state.step === 3 && !focusComplete) return setNotice("Choose the required Focus and any required Focus option.");
-    if (state.step === 4 && (!artsComplete || !spellsComplete)) return setNotice("Choose every Art and spell granted at this level.");
+    if (state.step === 4 && (!artsComplete || !spellsComplete)) return setNotice("Choose every Art and spell granted at this level, including mandatory starting Arts from a newly learned tradition.");
     setNotice("");
     setState((current) => ({ ...current, step: Math.min(5, current.step + 1) }));
   };
@@ -322,17 +334,52 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       <StepTitle eyebrow="FOCI" title={plan.gainsFocus ? "Choose a Focus" : "No Focus this level"}>
         {plan.gainsFocus ? "A Focus may improve an existing Focus to level 2 or add a legal new Focus." : "The next Focus opportunity is at level 5."}
       </StepTitle>
-      {plan.gainsFocus && <div className="creation-fields"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{focus.name}</option>)}</select></label>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. This tradition grants no further Arts after those initial selections.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives a three-point credit. It is reflected in the skills step without spending this level’s normal points.</span></div>}</div>}
+      {plan.gainsFocus && <div className="creation-fields"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{focus.name}</option>)}</select></label>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives a three-point credit. It is reflected in the skills step without spending this level’s normal points.</span></div>}</div>}
     </>;
     if (state.step === 4) return <>
-      <StepTitle eyebrow="MAGIC" title={plan.artPicks || plan.spellPicks ? "Choose new magic" : "No new magic choices"}>
+      <StepTitle eyebrow="MAGIC" title={requiredArtPicks || plan.spellPicks ? "Choose new magic" : "No new magic choices"}>
         Spell limits, preparation, and Effort are derived by the normal character sheet after advancement.
       </StepTitle>
-      {requiredArtPicks > 0 && <div className="creation-magic-section"><h3>Arts ({newArts}/{requiredArtPicks})</h3>{Array.from({ length: requiredArtPicks }, (_, index) => <label key={index}><span>New Art {index + 1}</span><select value={state.draft.artPicks[sheet.artPicks.length + index] || ""} onChange={(event) => update((draft) => ({ ...draft, artPicks: [...draft.artPicks.slice(0, sheet.artPicks.length + index), event.target.value, ...draft.artPicks.slice(sheet.artPicks.length + index + 1)] }))}><option value="">Choose an Art…</option>{artOptions.filter((art) => {
-        const duplicate = art.name !== "Skilled" && state.draft.artPicks.some((selection, selectedIndex) => selectedIndex !== sheet.artPicks.length + index && selection === art.value);
-        const needsSurface = art.name === "Deep Apprehension" && !state.draft.artPicks.some((selection) => artSelectionName(selection) === "Surface Apprehension");
-        return !duplicate && !needsSurface;
-      }).map((art) => <option key={art.value} value={art.value}>{art.name} · {art.tradition}</option>)}</select></label>)}</div>}
+      {requiredArtPicks > 0 && <div className="creation-magic-section">
+        <h3>Arts ({newArts}/{requiredArtPicks})</h3>
+        {Array.from({ length: requiredArtPicks }, (_, index) => {
+          const requiredArt = educationForcedArts[index] || "";
+          const artIndex = sheet.artPicks.length + index;
+          const selection = state.draft.artPicks[artIndex] || "";
+          const choiceDefinition = artChoiceDefinition(selection);
+          const choiceValues = artChoiceValues(selection, state.draft.artChoices);
+          return <div className="creation-art-row" key={index}>
+            <label>
+              <span>{requiredArt ? `Required Art · ${artSelectionName(requiredArt)}` : `New Art ${index + 1}`}</span>
+              <select value={selection} onChange={(event) => update((draft) => ({
+                ...draft,
+                artPicks: [...draft.artPicks.slice(0, artIndex), event.target.value, ...draft.artPicks.slice(artIndex + 1)],
+              }))}>
+                <option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : "Choose an Art…"}</option>
+                {artOptions.filter((art) => {
+                  if (requiredArt && art.value !== requiredArt) return false;
+                  const duplicate = art.name !== "Skilled" && state.draft.artPicks.some((picked, selectedIndex) => selectedIndex !== artIndex && picked === art.value);
+                  const needsSurface = art.name === "Deep Apprehension" && !state.draft.artPicks.some((picked) => artSelectionName(picked) === "Surface Apprehension");
+                  return !duplicate && !needsSurface;
+                }).map((art) => <option key={art.value} value={art.value}>{art.name} · {art.tradition}</option>)}
+              </select>
+            </label>
+            {choiceDefinition && <div className="art-choice-fields" aria-label={choiceDefinition.label}>
+              {choiceValues.map((value, choiceIndex) => <label key={`${artChoiceKey(selection)}-${choiceIndex}`}>
+                <span>{choiceDefinition.itemLabel}{choiceDefinition.count > 1 ? ` ${choiceIndex + 1}` : ""}</span>
+                <input value={value} maxLength={80} onChange={(event) => update((draft) => ({
+                  ...draft,
+                  artChoices: {
+                    ...draft.artChoices,
+                    [artChoiceKey(selection)]: choiceValues.map((current, valueIndex) => valueIndex === choiceIndex ? event.target.value : current),
+                  },
+                }))}/>
+              </label>)}
+              <small>{choiceDefinition.help}</small>
+            </div>}
+          </div>;
+        })}
+      </div>}
       {plan.spellPicks > 0 && <div className="creation-magic-section"><h3>Spells ({newSpells}/{plan.spellPicks})</h3>{Array.from({ length: plan.spellPicks }, (_, index) => <label key={index}><span>New spell {index + 1}</span><select value={state.draft.spellPicks[sheet.spellPicks.length + index]?.name || ""} onChange={(event) => update((draft) => ({ ...draft, spellPicks: [...draft.spellPicks.slice(0, sheet.spellPicks.length + index), { name: event.target.value, prepared: false, cast: false }, ...draft.spellPicks.slice(sheet.spellPicks.length + index + 1)] }))}><option value="">Choose a spell…</option>{spellOptions.options.filter((spell) => !state.draft.spellPicks.some((pick, selectedIndex) => selectedIndex !== sheet.spellPicks.length + index && pick.name === spell.name)).map((spell) => <option key={spell.name} value={spell.name}>{spell.name} · level {spell.level}</option>)}</select></label>)}</div>}
     </>;
     return <>

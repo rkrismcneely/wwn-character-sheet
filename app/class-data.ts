@@ -49,6 +49,10 @@ const partialMage = [
   { max: 3, casts: 4, prepared: 9, arts: 5 },
 ] as const;
 
+const additionalArtProgressions = Object.fromEntries(
+  Object.entries(additionalClassData).map(([name, data]) => [name, data.progression]),
+);
+
 export const traditionArtProgression = {
   "High Mage": [2, 3, 3, 4, 4, 5, 5, 6, 6, 7],
   Elementalist: [3, 4, 4, 5, 5, 6, 6, 7, 7, 8],
@@ -56,7 +60,14 @@ export const traditionArtProgression = {
   Healer: [2, 3, 3, 4, 5, 6, 6, 7, 7, 8],
   Vowed: [4, 5, 5, 6, 7, 8, 8, 9, 9, 10],
   Invoker: [0,0,0,0,0,0,0,0,0,0],
-  ...Object.fromEntries(Object.entries(additionalClassData).map(([name, data]) => [name, data.progression])),
+  ...additionalArtProgressions,
+  // Mageslayers receive a fixed Art schedule rather than generic choices.
+  Mageslayer: [2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  // Thought Nobles gain one additional Art at every level after first.
+  "Thought Noble": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  // Generic Wise characters use the SRD's Esoteric progression. The other
+  // example Wise concepts are templates a GM may opt into separately.
+  Wise: [1, 1, 2, 2, 3, 3, 4, 4, 5, 5],
 } as unknown as Record<TraditionName, readonly number[]>;
 
 export const partialTraditionArtProgression = {
@@ -66,7 +77,10 @@ export const partialTraditionArtProgression = {
   Healer: traditionArtProgression.Healer,
   Vowed: traditionArtProgression.Vowed,
   Invoker: traditionArtProgression.Invoker,
-  ...Object.fromEntries(Object.entries(additionalClassData).map(([name, data]) => [name, data.progression])),
+  ...additionalArtProgressions,
+  Mageslayer: traditionArtProgression.Mageslayer,
+  "Thought Noble": traditionArtProgression["Thought Noble"],
+  Wise: traditionArtProgression.Wise,
 } as unknown as Record<TraditionName, readonly number[]>;
 
 export function artSlots(tradition: TraditionName, level: number, partial: boolean) {
@@ -74,16 +88,38 @@ export function artSlots(tradition: TraditionName, level: number, partial: boole
   return (partial ? partialTraditionArtProgression : traditionArtProgression)[tradition][index];
 }
 
-/** Arts a partial tradition grants automatically at first level. */
+const startingForcedArts: Partial<Record<TraditionName, readonly string[]>> = {
+  Bard: ["A Thousand Tongues"],
+  Beastmaster: ["Bind Companion"],
+  Duelist: ["Favored Weapon"],
+  Elementalist: ["Elemental Resilience", "Elemental Sparks"],
+  Healer: ["Healing Touch"],
+  Mageslayer: ["Antimage", "Magebane"],
+  Skinshifter: ["Change Form"],
+  "Thought Noble": ["Open Mind"],
+  Vowed: ["Martial Style", "Unarmed Might", "Unarmored Defense"],
+};
+
+export type StartingArtChoiceGroup = {
+  tradition: TraditionName;
+  options: readonly string[];
+  count: number;
+};
+
+/** Arts a tradition grants automatically at first level. */
 export function forcedArtsForTraditions(traditions: readonly TraditionName[]) {
   return [
-    ...new Set(
-      traditions.flatMap(
-        (tradition) =>
-          additionalClassData[tradition as AdditionalTraditionName]?.forcedArts || [],
-      ),
-    ),
+    ...new Set(traditions.flatMap((tradition) => startingForcedArts[tradition] || [])),
   ];
+}
+
+/** Mandatory one-of-N starting Art choices that are not automatic grants. */
+export function startingArtChoiceGroupsForTraditions(
+  traditions: readonly TraditionName[],
+): StartingArtChoiceGroup[] {
+  return traditions.includes("Accursed")
+    ? [{ tradition: "Accursed", options: ["Accursed Blade", "Accursed Bolt"], count: 1 }]
+    : [];
 }
 
 export function knownSpellSlots(traditions: readonly TraditionName[], level: number, partial: boolean) {
@@ -163,6 +199,21 @@ export function classRules(mode: "full" | "adventurer", first: string, second: s
   ].filter(Boolean).join(" ");
   return { attack, hitDice, focusPicks: picks + bonusFoci, summary: notes };
 }
+
+const mageslayerArtLevels: Record<string, number> = {
+  Antimage: 1,
+  Magebane: 1,
+  Witchfinder: 2,
+  Spellshield: 2,
+  "Disrupt Sorcery": 3,
+  "Know Your Prey": 4,
+  "Share the Pain": 5,
+  "Dispel Enchantment": 6,
+  "Ward Ally": 7,
+  "Immaculate Body": 8,
+  "Immaculate Mind": 9,
+  "Absolute Negation": 10,
+};
 
 export const traditionInfo = {
   "High Mage": {
@@ -263,7 +314,11 @@ export const traditionInfo = {
       effortAttributes: data.attribute ? data.attribute.split("/") : [],
       usesEffort: name !== "Wise",
       armor: data.armor,
-      arts: data.arts,
+      arts: data.arts.map((art) =>
+        name === "Mageslayer"
+          ? { ...art, minLevel: mageslayerArtLevels[art.name] || 1 }
+          : art,
+      ),
     },
   ])),
 } as unknown as Record<TraditionName, {

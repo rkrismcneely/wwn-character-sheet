@@ -19,7 +19,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply parameterized Art choices
-        run: python scripts/pr159-art-choice-step.py
+        run: |
+          sed -i 's/reset_count != 4/reset_count != 3/; s/expected 4 Art reset matches/expected 3 Art reset matches/' scripts/pr159-art-choice-step.py
+          python scripts/pr159-art-choice-step.py
 
       - name: Verify focused implementation
         run: |

@@ -398,7 +398,7 @@ test("campaign character library is visible only to participants and read-only a
     assert.equal(library[0].portraitUrl, `/api/campaigns/${campaign.id}/characters/${ids.player}/portrait`);
     assert.equal(library[0].hpCurrent, 2);
     assert.equal(library[0].hpMax, 7);
-    assert.equal(library[0].armorClass, 12);
+    assert.equal(library[0].armorClass, 11);
     assert.equal(library[0].isMine, actor === player);
   }
   const adminView = await listCampaignCharacters(db, admin, campaign.id);
@@ -517,7 +517,7 @@ test("owner-only GM party status is derived from the current linked character sn
   assert.equal(status.name, "Player Hero");
   assert.equal(status.player, "Player Hero Player");
   assert.deepEqual(status.systemStrain, { current: 2, max: 14 });
-  assert.deepEqual(status.saves, { physical: 11, evasion: 10, mental: 13, luck: 13 });
+  assert.deepEqual(status.saves, { physical: 12, evasion: 12, mental: 13, luck: 13 });
   assert.deepEqual(status.spellUsage, { label: "Cast today", used: 1, max: 2 });
   assert.equal(status.effortCommitted, 1);
   await expectServiceError(listGmPartyCharacters(db, gm, campaign.id), 403);

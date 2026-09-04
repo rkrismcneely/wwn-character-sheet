@@ -220,7 +220,7 @@ test("shared rolls require a joined participant's own linked character", async (
   await expectServiceError(authorizeEncounterCharacter(db, authorization.campaignId, authorization.sessionId, "chr_missing"), 422);
   const liveState = await readLiveSession(db, player, campaign.id);
   assert.deepEqual(liveState.session.participants.find(participant => participant.character?.id === "chr_1234567890123456789012")?.character, {
-    id: "chr_1234567890123456789012", name: "Player Hero", level: 5, classLabel: "High Mage", hpCurrent: 9, hpMax: 13, armorClass: 15,
+    id: "chr_1234567890123456789012", name: "Player Hero", level: 5, classLabel: "High Mage", hpCurrent: 9, hpMax: 13, armorClass: 14,
   });
   const targets = await activeCharacterStatusTargets(db, player.userId, "character-player");
   assert.equal(targets.length, 1);

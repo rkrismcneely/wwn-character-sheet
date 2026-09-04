@@ -456,7 +456,7 @@ const normalizedBackgroundRules = (stored: Partial<Sheet>) => {
   return {
     ...normalizeBackgroundDevelopment(stored, typeof stored.background === "string" ? stored.background : ""),
     vowedEffortSkill: noncombatSkills.includes(stored.vowedEffortSkill || "") ? stored.vowedEffortSkill! : "Exert",
-    wiseConceptSkill: noncombatSkills.includes(stored.wiseConceptSkill || "") ? stored.wiseConceptSkill! : "",
+    wiseConceptSkill: skills.includes(stored.wiseConceptSkill || "") ? stored.wiseConceptSkill! : "",
   };
 };
 

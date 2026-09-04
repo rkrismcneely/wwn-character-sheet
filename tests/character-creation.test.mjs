@@ -116,7 +116,7 @@ test("level-one guided creation validates ordinary martial and expert/warrior pa
     classMode: "adventurer",
     classOne: "Expert",
     classTwo: "Warrior",
-    focusPicks: ["Alert", "Armsmaster", "Die Hard"].map((name) => ({
+    focusPicks: ["Alert", "Cultured", "Die Hard"].map((name) => ({
       name,
       level: 1,
     })),
@@ -131,7 +131,7 @@ test("level-one guided creation validates ordinary martial and expert/warrior pa
     background: "Scholar",
     backgroundCombatSkill: "",
     classOne: "Expert",
-    focusPicks: ["Alert", "Armsmaster"].map((name) => ({ name, level: 1 })),
+    focusPicks: ["Alert", "Cultured"].map((name) => ({ name, level: 1 })),
   });
   const expertStatus = levelOneCreationStatus(expert);
   assert.equal(expertStatus.canFinish, true);
@@ -167,6 +167,8 @@ test("guided creation exposes physical parity controls for every setup die", asy
   assert.match(wizard, /Physical result/u);
   assert.match(sheet, /backgroundDevelopmentRollFromDie/u);
   assert.match(sheet, /Physical d\{dieSize\} result/u);
+  assert.match(wizard, /Wise concept skill[\s\S]*creationSkills\.map/u);
+  assert.match(sheet, /wiseConceptSkill: skills\.includes/u);
 });
 
 test("level-one guided creation validates full and partial Mage spell selections", () => {

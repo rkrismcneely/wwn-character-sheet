@@ -127,8 +127,7 @@ function fillFoci(initial) {
   const fallback = ["Alert", "Artisan", "Armsmaster", "Authority", "Connected"];
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const status = levelOneCreationStatus(state);
-    if (status.focusPicksUsed === status.allowedFocusPicks && status.stepStatus.foci.complete)
-      return state;
+    if (status.focusPicksUsed >= status.allowedFocusPicks) return state;
 
     const selectedClasses = status.selectedClasses;
     const withoutMageslayerGrant = state.focusPicks.filter(

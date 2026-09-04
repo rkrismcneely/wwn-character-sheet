@@ -839,7 +839,7 @@ export function GuidedCreationWizard({
                   }
                 >
                   <option value="">Choose…</option>
-                  {creationNoncombatSkills.map((name) => (
+                  {creationSkills.map((name) => (
                     <option key={name}>{name}</option>
                   ))}
                 </select>

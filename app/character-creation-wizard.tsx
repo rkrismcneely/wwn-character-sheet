@@ -35,6 +35,9 @@ import {
 import {
   choiceOptionsForBackgroundResult,
   artSelectionName,
+  artChoiceDefinition,
+  artChoiceKey,
+  artChoiceValues,
   creationBackgroundSkillChoiceOptions,
   creationBackgroundSkillChoiceValue,
   creationAttributes,
@@ -352,6 +355,19 @@ export function GuidedCreationWizard({
         (_, row) => (row === index ? name : sheet.artPicks[row] || ""),
       ),
     });
+  const setArtChoice = (selection: string, choiceIndex: number, value: string) => {
+    const key = artChoiceKey(selection);
+    const values = artChoiceValues(selection, sheet.artChoices);
+    if (!key || !values.length) return;
+    change({
+      artChoices: {
+        ...sheet.artChoices,
+        [key]: values.map((current, index) =>
+          index === choiceIndex ? value : current,
+        ),
+      },
+    });
+  };
   const setSpell = (index: number, name: string) =>
     change({
       spellPicks: Array.from(
@@ -1476,62 +1492,89 @@ export function GuidedCreationWizard({
                 Arts · {sheet.artPicks.filter(Boolean).length}/
                 {status.artAllowance}
               </h3>
-              {Array.from({ length: status.artAllowance }, (_, index) => (
-                <label key={index}>
-                  <span>
-                    {status.forcedArts[index]
-                      ? `Required Art · ${artSelectionName(status.forcedArts[index])}`
-                      : `Art ${index + 1}`}
-                  </span>
-                  <select
-                    value={sheet.artPicks[index] || ""}
-                    onChange={(event) => setArt(index, event.target.value)}
-                  >
-                    <option value="">
-                      {status.forcedArts[index]
-                        ? `Choose ${artSelectionName(status.forcedArts[index])}…`
-                        : "Choose an Art…"}
-                    </option>
-                    {status.availableArts
-                      .filter((art) => (art.minLevel || 1) <= 1)
-                      .filter(
-                        (art) =>
-                          !status.forcedArts[index] ||
-                          art.value === status.forcedArts[index],
-                      )
-                      .map((art) => {
-                        const prerequisiteMissing =
-                          art.name === "Deep Apprehension" &&
-                          !sheet.artPicks.some(
-                            (choice) =>
-                              artSelectionName(choice) ===
-                              "Surface Apprehension",
-                          );
-                        const duplicate =
-                          art.name !== "Skilled" &&
-                          sheet.artPicks.some(
-                            (choice, row) =>
-                              row !== index && choice === art.value,
-                          );
-                        const available = !prerequisiteMissing && !duplicate;
-                        return (
-                          <option
-                            key={`${art.tradition}-${art.name}`}
-                            value={art.value}
-                            disabled={!available}
-                          >
-                            {art.tradition} · {art.name}
-                            {prerequisiteMissing
-                              ? " — requires Surface Apprehension"
-                              : duplicate
-                                ? " — already selected"
-                                : ""}
-                          </option>
-                        );
-                      })}
-                  </select>
-                </label>
-              ))}
+              {Array.from({ length: status.artAllowance }, (_, index) => {
+                const selection = sheet.artPicks[index] || "";
+                const choiceDefinition = artChoiceDefinition(selection);
+                const choiceValues = artChoiceValues(selection, sheet.artChoices);
+                return (
+                  <div className="creation-art-row" key={index}>
+                    <label>
+                      <span>
+                        {status.forcedArts[index]
+                          ? `Required Art · ${artSelectionName(status.forcedArts[index])}`
+                          : `Art ${index + 1}`}
+                      </span>
+                      <select
+                        value={selection}
+                        onChange={(event) => setArt(index, event.target.value)}
+                      >
+                        <option value="">
+                          {status.forcedArts[index]
+                            ? `Choose ${artSelectionName(status.forcedArts[index])}…`
+                            : "Choose an Art…"}
+                        </option>
+                        {status.availableArts
+                          .filter((art) => (art.minLevel || 1) <= 1)
+                          .filter(
+                            (art) =>
+                              !status.forcedArts[index] ||
+                              art.value === status.forcedArts[index],
+                          )
+                          .map((art) => {
+                            const prerequisiteMissing =
+                              art.name === "Deep Apprehension" &&
+                              !sheet.artPicks.some(
+                                (choice) =>
+                                  artSelectionName(choice) ===
+                                  "Surface Apprehension",
+                              );
+                            const duplicate =
+                              art.name !== "Skilled" &&
+                              sheet.artPicks.some(
+                                (choice, row) =>
+                                  row !== index && choice === art.value,
+                              );
+                            const available = !prerequisiteMissing && !duplicate;
+                            return (
+                              <option
+                                key={`${art.tradition}-${art.name}`}
+                                value={art.value}
+                                disabled={!available}
+                              >
+                                {art.tradition} · {art.name}
+                                {prerequisiteMissing
+                                  ? " — requires Surface Apprehension"
+                                  : duplicate
+                                    ? " — already selected"
+                                    : ""}
+                              </option>
+                            );
+                          })}
+                      </select>
+                    </label>
+                    {choiceDefinition && (
+                      <div className="art-choice-fields" aria-label={choiceDefinition.label}>
+                        {choiceValues.map((value, choiceIndex) => (
+                          <label key={`${artChoiceKey(selection)}-${choiceIndex}`}>
+                            <span>
+                              {choiceDefinition.itemLabel}
+                              {choiceDefinition.count > 1 ? ` ${choiceIndex + 1}` : ""}
+                            </span>
+                            <input
+                              value={value}
+                              maxLength={80}
+                              onChange={(event) =>
+                                setArtChoice(selection, choiceIndex, event.target.value)
+                              }
+                            />
+                          </label>
+                        ))}
+                        <small>{choiceDefinition.help}</small>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </section>
           )}
           {status.knownSpellAllowance > 0 && (

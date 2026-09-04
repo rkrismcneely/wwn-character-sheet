@@ -147,6 +147,7 @@
 .creation-focus-row select,
 .skill-ledger select,
 .creation-magic-section select,
+.creation-magic-section input,
 .creation-equipment-columns select,
 .creation-equipment-start input,
 .creation-background-benefits select,
@@ -1209,5 +1210,22 @@
 @media (max-width: 760px) {
   .creation-entry-options {
     grid-template-columns: 1fr;
+  }
+}
+
+.creation-art-row {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.creation-art-row .art-choice-fields {
+  margin-top: 0;
+}
+@media (max-width: 760px) {
+  .art-choice-fields {
+    grid-template-columns: 1fr;
+  }
+  .art-choice-fields small {
+    grid-column: 1;
   }
 }

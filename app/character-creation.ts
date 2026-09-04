@@ -135,6 +135,7 @@ export type LevelOneCreationCharacter = {
   beastmasterBond: BeastmasterBond;
   focusPicks: CreationFocusPick[];
   artPicks: string[];
+  artChoices: Record<string, string[]>;
   spellPicks: CreationSpellPick[];
   skillPurchases: Record<string, number>;
   hpRolls: number[];
@@ -202,6 +203,95 @@ export const artSelectionName = (value: string) =>
   value.includes(artSelectionSeparator)
     ? value.slice(value.indexOf(artSelectionSeparator) + artSelectionSeparator.length)
     : value;
+
+export type ArtChoiceDefinition = {
+  count: number;
+  label: string;
+  itemLabel: string;
+  help: string;
+};
+
+export const artChoiceKey = (selection: string) => artSelectionName(selection);
+
+export function artChoiceDefinition(selection: string): ArtChoiceDefinition | null {
+  switch (artSelectionName(selection)) {
+    case "Favored Weapon":
+      return {
+        count: 1,
+        label: "Favored weapon type",
+        itemLabel: "Weapon type",
+        help: "Choose one specific non-unarmed melee weapon type. Thrown weapons do not qualify.",
+      };
+    case "Style Weaponry":
+      return {
+        count: 3,
+        label: "Style Weaponry classes",
+        itemLabel: "Weapon class",
+        help: "Choose three distinct general weapon classes, such as swords, bows, axes, or daggers.",
+      };
+    default:
+      return null;
+  }
+}
+
+const cleanArtChoiceArray = (value: unknown, maximum = 8) =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim().slice(0, 80))
+        .slice(0, maximum)
+    : [];
+
+export function artChoiceValues(
+  selection: string,
+  choices: Record<string, string[]> | undefined,
+): string[] {
+  const definition = artChoiceDefinition(selection);
+  if (!definition) return [];
+  const existing = cleanArtChoiceArray(
+    choices?.[artChoiceKey(selection)],
+    definition.count,
+  );
+  return Array.from(
+    { length: definition.count },
+    (_, index) => existing[index] || "",
+  );
+}
+
+export function artChoiceIsComplete(
+  selection: string,
+  choices: Record<string, string[]> | undefined,
+) {
+  const definition = artChoiceDefinition(selection);
+  if (!definition) return true;
+  const values = artChoiceValues(selection, choices);
+  if (values.some((value) => !value)) return false;
+  return (
+    new Set(values.map((value) => value.toLocaleLowerCase())).size ===
+    definition.count
+  );
+}
+
+export function normalizeArtChoices(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const normalized: Record<string, string[]> = {};
+  for (const [rawKey, rawValues] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const key = artChoiceKey(rawKey.trim().slice(0, 80));
+    if (!key) continue;
+    const definition = artChoiceDefinition(key);
+    const values = cleanArtChoiceArray(rawValues, definition?.count || 8);
+    if (!values.some(Boolean)) continue;
+    normalized[key] = definition
+      ? Array.from(
+          { length: definition.count },
+          (_, index) => values[index] || "",
+        )
+      : values;
+  }
+  return normalized;
+}
 
 export function creationArtForSelection<Art extends { name: string; value: string }>(
   arts: readonly Art[],
@@ -1138,6 +1228,14 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       step: "magic",
       message: `Choose ${artAllowance} level-1 Art${artAllowance === 1 ? "" : "s"}.`,
     });
+  selectedArts.forEach((selection) => {
+    const definition = artChoiceDefinition(selection);
+    if (definition && !artChoiceIsComplete(selection, state.artChoices))
+      issues.push({
+        step: "magic",
+        message: `Complete ${artSelectionName(selection)}: ${definition.help}`,
+      });
+  });
   forcedArts.forEach((name) => {
     if (!selectedArts.some((selection) => creationArtForSelection(availableArts, selection)?.value === name))
       issues.push({

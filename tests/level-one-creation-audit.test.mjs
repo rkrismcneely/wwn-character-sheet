@@ -9,6 +9,7 @@ import {
 } from "../app/background-development.ts";
 import {
   creationBackgroundSkillChoiceOptions,
+  artSelectionName,
   artSelectionValue,
   creationFocusClassCategory,
   creationFocusChoiceLabel,
@@ -54,6 +55,7 @@ function blankState(overrides = {}) {
     beastmasterBond: "bind-companion",
     focusPicks: [],
     artPicks: [],
+    artChoices: {},
     spellPicks: [],
     skillPurchases: Object.fromEntries(creationSkills.map((skill) => [skill, -1])),
     hpRolls: [4],
@@ -176,13 +178,19 @@ function fillMagic(initial) {
     arts.push(art.value);
   }
   assert.equal(arts.length, status.artAllowance, "enough level-1 Arts exist for the active traditions");
+  const artChoices = { ...(initial.artChoices || {}) };
+  for (const selection of arts) {
+    const name = artSelectionName(selection);
+    if (name === "Favored Weapon") artChoices[name] = ["Long sword"];
+    if (name === "Style Weaponry") artChoices[name] = ["Swords", "Bows", "Axes"];
+  }
   const spells = status.availableSpells
     .filter((spell) => spell.level <= status.limits.max)
     .filter((spell, index, all) => all.findIndex((other) => other.name === spell.name) === index)
     .slice(0, status.knownSpellAllowance)
     .map((spell) => ({ name: spell.name, prepared: false, cast: false }));
   assert.equal(spells.length, status.knownSpellAllowance, "enough level-1 spells exist for the active traditions");
-  return { ...initial, artPicks: arts, spellPicks: spells };
+  return { ...initial, artPicks: arts, artChoices, spellPicks: spells };
 }
 
 function chooseFreeSkill(initial) {

@@ -79,7 +79,7 @@ type AttributeName = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 type FocusPick = { name: string; level: number; choice?: string; advancement?: boolean };
 type WeaponPick = { name: string; skill: number };
 type SpellPick = { name: string; prepared: boolean; cast: boolean; casts?: number };
-type CompanionKind = "henchman" | "familiar";
+type CompanionKind = "henchman" | "familiar" | "beastmaster";
 type InventoryOwner = { kind: "pc" } | { kind: "companion"; id: string };
 type Companion = {
   id: string;
@@ -218,6 +218,7 @@ const initial = {
   classTwo: "Expert",
   vowedEffortSkill: "Exert",
   wiseConceptSkill: "",
+  beastmasterBond: "bind-companion" as "bind-companion" | "chosen-friend",
   autoClassRules: true,
   level: 4,
   xp: 12,
@@ -561,27 +562,28 @@ const decodeInventoryTransfer = (value: string): (InventoryOwner & { index: numb
 
 function newCompanion(kind: CompanionKind, index: number, level: number, focusSlot?: number): Companion {
   const familiar = kind === "familiar";
+  const beastmaster = kind === "beastmaster";
   return {
     id: `${kind}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
     kind,
     name: "",
-    archetype: familiar ? "" : "Student",
+    archetype: familiar || beastmaster ? "" : "Student",
     description: "",
-    hitDice: familiar ? `${Math.max(1, level)} HD` : "1 HD",
+    hitDice: familiar ? `${Math.max(1, level)} HD` : beastmaster ? "1 HD" : "1 HD",
     hpRolled: 0,
     hpCurrent: familiar ? Math.max(1, level) : 0,
     hpMax: familiar ? Math.max(1, level) : 0,
     ac: familiar ? 14 : 10,
-    move: familiar ? "30′" : "30′",
-    attackBonus: familiar ? "No effective attack" : "+0",
-    damage: familiar ? "—" : "By weapon",
+    move: "30′",
+    attackBonus: familiar ? "No effective attack" : beastmaster ? "+0" : "+0",
+    damage: familiar ? "—" : beastmaster ? "Natural weapon" : "By weapon",
     physicalSave: 15,
     evasionSave: 15,
     mentalSave: 15,
     luckSave: 15,
     morale: familiar ? "Unwavering" : "7",
     skillBonus: familiar ? "+0" : "+1",
-    strength: familiar ? 10 : 8,
+    strength: familiar || beastmaster ? 10 : 8,
     readied: [],
     stowed: [],
     familiarBenefits: [],
@@ -618,17 +620,25 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
           Boolean(incoming.artEffort?.[index]),
         )
       : (incoming.artPicks || initial.artPicks).map(() => false),
+    beastmasterBond:
+      incoming.beastmasterBond === "chosen-friend"
+        ? "chosen-friend"
+        : "bind-companion",
     languages: normalizeLanguages(incoming.languages),
     companions: Array.isArray(incoming.companions)
       ? incoming.companions.map((companion, index) => ({
           ...newCompanion(
-            companion.kind === "familiar" ? "familiar" : "henchman",
+            companion.kind === "familiar"
+              ? "familiar"
+              : companion.kind === "beastmaster"
+                ? "beastmaster"
+                : "henchman",
             index,
             incoming.level || 1,
           ),
           ...companion,
           archetype:
-            companion.kind === "familiar"
+            companion.kind === "familiar" || companion.kind === "beastmaster"
               ? ""
               : npcArchetypeNames.includes(
                     companion.archetype as (typeof npcArchetypeNames)[number],
@@ -642,13 +652,17 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
     archivedCompanions: Array.isArray(incoming.archivedCompanions)
       ? incoming.archivedCompanions.map((companion, index) => ({
           ...newCompanion(
-            companion.kind === "familiar" ? "familiar" : "henchman",
+            companion.kind === "familiar"
+              ? "familiar"
+              : companion.kind === "beastmaster"
+                ? "beastmaster"
+                : "henchman",
             index,
             incoming.level || 1,
           ),
           ...companion,
           archetype:
-            companion.kind === "familiar"
+            companion.kind === "familiar" || companion.kind === "beastmaster"
               ? ""
               : npcArchetypeNames.includes(
                     companion.archetype as (typeof npcArchetypeNames)[number],
@@ -2086,9 +2100,15 @@ export default function Home({
     .filter(({ pick }) => pick.name === "Spirit Familiar"), [sheet.focusPicks]);
   const hasHenchkeeper = Boolean(henchkeeper);
   const hasSpiritFamiliar = spiritFamiliars.length > 0;
+  const hasBeastmaster = selectedClasses.includes("Beastmaster");
+  const chosenFriend = hasBeastmaster && sheet.beastmasterBond === "chosen-friend";
   const henchmanCount = henchkeeper ? Math.ceil(Math.max(1, sheet.level) / 3) : 0;
   const companionTabs = sheet.companions.filter(companion =>
-    companion.kind === "henchman" ? Boolean(henchkeeper) : hasSpiritFamiliar
+    companion.kind === "henchman"
+      ? Boolean(henchkeeper)
+      : companion.kind === "familiar"
+        ? hasSpiritFamiliar
+        : hasBeastmaster
   );
   const armoredMagicLevel = selectedFocusPicks.find(pick => pick.name === "Armored Magic")?.level || 0;
   const focusPicksUsed = selectedFocusPicks.reduce((total, pick) => total + focusPickCost(pick), 0);
@@ -2224,7 +2244,9 @@ export default function Home({
   const calculatedHpMax = hpRollsComplete ? calculatedHp : sheet.hpMax;
   const availableArts = artTraditions.flatMap(t => {
     const arts = t === "High Mage" ? highMageArts : traditionInfo[t].arts;
-    return arts.map(a => ({...a, minLevel: "minLevel" in a ? a.minLevel : undefined, tradition:t, value: artSelectionValue(t, a.name)}));
+    return arts
+      .filter(a => !(chosenFriend && t === "Beastmaster" && ["Mind Call", "Shared Vitality"].includes(a.name)))
+      .map(a => ({...a, minLevel: "minLevel" in a ? a.minLevel : undefined, tradition:t, value: artSelectionValue(t, a.name)}));
   });
   const forcedArts = artTraditions.flatMap(t =>
     forcedArtsForTraditions([t]).map(name => artSelectionValue(t, name)),
@@ -2317,7 +2339,13 @@ export default function Home({
     patch("stowed", stowedSlots.map((item, itemIndex) => itemIndex === index ? value : item));
   };
   const companionInventoryLabel = (companion: Companion, index: number) =>
-    companion.name || (companion.kind === "familiar" ? "Familiar" : `Henchman ${index + 1}`);
+    companion.name || (
+      companion.kind === "familiar"
+        ? "Familiar"
+        : companion.kind === "beastmaster"
+          ? sheet.beastmasterBond === "chosen-friend" ? "Chosen Friend" : "Beastmaster Companion"
+          : `Henchman ${index + 1}`
+    );
   const swapStowedBetweenOwners = (
     targetOwner: InventoryOwner,
     targetIndex: number,
@@ -2469,7 +2497,7 @@ export default function Home({
   // Eligibility helpers intentionally derive from all selected classes, levels,
   // attributes, traditions, and peer selections represented in this signature.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, focusSlotCount, artAllowance, knownSpellAllowance, limits.prepared, limits.max, selectedClasses.join("|"), sheet.attrs.STR, sheet.attrs.DEX, sheet.attrs.CON, sheet.attrs.INT, sheet.attrs.WIS, sheet.attrs.CHA, sheet.backgroundDevelopmentMethod, JSON.stringify(sheet.backgroundDevelopmentRolls), JSON.stringify(sheet.backgroundLearningPicks)]);
+  }, [hydrated, focusSlotCount, artAllowance, knownSpellAllowance, limits.prepared, limits.max, selectedClasses.join("|"), sheet.beastmasterBond, sheet.attrs.STR, sheet.attrs.DEX, sheet.attrs.CON, sheet.attrs.INT, sheet.attrs.WIS, sheet.attrs.CHA, sheet.backgroundDevelopmentMethod, JSON.stringify(sheet.backgroundDevelopmentRolls), JSON.stringify(sheet.backgroundLearningPicks)]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -2478,9 +2506,12 @@ export default function Home({
     setSheet(current => {
       const existingHenchmen = current.companions.filter(companion => companion.kind === "henchman");
       const existingFamiliars = current.companions.filter(companion => companion.kind === "familiar");
+      const existingBeastmasters = current.companions.filter(companion => companion.kind === "beastmaster");
       const archivedHenchmen = current.archivedCompanions.filter(companion => companion.kind === "henchman");
       const archivedFamiliars = current.archivedCompanions.filter(companion => companion.kind === "familiar");
+      const archivedBeastmasters = current.archivedCompanions.filter(companion => companion.kind === "beastmaster");
       const availableHenchmen = [...existingHenchmen, ...archivedHenchmen];
+      const availableBeastmasters = [...existingBeastmasters, ...archivedBeastmasters];
       const nextHenchmen = hasHenchkeeper
         ? [
             ...availableHenchmen.slice(0, henchmanCount),
@@ -2495,7 +2526,10 @@ export default function Home({
         spiritFamiliars.map(({ index }) => index),
         (focusSlot, familiarIndex) => newCompanion("familiar", familiarIndex, sheet.level, focusSlot),
       );
-      const next = [...nextHenchmen, ...nextFamiliars];
+      const nextBeastmasters = hasBeastmaster
+        ? [availableBeastmasters[0] || newCompanion("beastmaster", 0, sheet.level)]
+        : [];
+      const next = [...nextHenchmen, ...nextFamiliars, ...nextBeastmasters];
       const activeIds = new Set(next.map(companion => companion.id));
       const nextArchive = [...current.archivedCompanions, ...current.companions]
         .filter((companion, index, all) => !activeIds.has(companion.id) && all.findIndex(item => item.id === companion.id) === index);
@@ -2504,7 +2538,7 @@ export default function Home({
         ? current
         : { ...current, companions: next, archivedCompanions: nextArchive };
     });
-  }, [hydrated, hasHenchkeeper, hasSpiritFamiliar, henchmanCount, sheet.level, spiritFamiliars]);
+  }, [hydrated, hasHenchkeeper, hasSpiritFamiliar, hasBeastmaster, henchmanCount, sheet.level, spiritFamiliars]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -2920,7 +2954,11 @@ export default function Home({
           )}
           {companionTabs.map((companion, index) => {
             const companionTab: Tab = `companion:${companion.id}`;
-            const fallback = companion.kind === "familiar" ? "Familiar" : `Henchman ${index + 1}`;
+            const fallback = companion.kind === "familiar"
+              ? "Familiar"
+              : companion.kind === "beastmaster"
+                ? chosenFriend ? "Chosen Friend" : "Beastmaster Companion"
+                : `Henchman ${index + 1}`;
             return <button key={companion.id} data-readonly-interactive="true" className={tab === companionTab ? "active" : ""} onClick={() => setTab(companionTab)}>{companion.name || fallback}</button>;
           })}
           {canEdit && <button
@@ -3368,6 +3406,7 @@ export default function Home({
           {castingBlocked && <p className="casting-restriction" role="status"><strong>Armor restriction active:</strong> {castingBlockedReason}</p>}
           {selectedClasses.includes("Vowed") && <Section title="Vowed Discipline"><div className="vowed-controls"><label className="field"><span>Order skill (Effort + bonus skill)</span><select value={sheet.vowedEffortSkill} onChange={e=>patch("vowedEffortSkill",e.target.value)}>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label><div><span>Punch hit</span><b>{signed(vowedProgression[effectiveLevel-1].hit)}</b></div><div><span>Punch damage</span><b>{vowedProgression[effectiveLevel-1].damage}</b></div><div><span>Punch Shock</span><b>{vowedProgression[effectiveLevel-1].shock.replace("/", "/AC ")}</b></div></div><p className="section-intro">The selected Order skill is the Vowed’s required noncombat bonus skill and is also used to calculate Vowed Effort.</p></Section>}
           {selectedClasses.includes("Wise") && <Section title="Wise Concept"><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the noncombat skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
+          {hasBeastmaster && <Section title="Beastmaster Companion Bond"><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>patch("beastmasterBond", e.target.value as Sheet["beastmasterBond"])}><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p></Section>}
           {castingTraditions.length > 0 && <Section title="Spellbook" aside={<span className="caption">{knownSpellAllowance} known-spell selections at level {sheet.level} · spell levels 1–{limits.max} · prepare up to {limits.prepared}</span>}>
             <p className="section-intro">{isInvoker ? `Invoker spells spend points equal to spell level. You have ${limits.casts} spell points each day and may cast a prepared spell repeatedly.` : "Choose each known spell from the complete SRD list. Prepared spells are bright; unprepared spells remain in your spellbook but are muted."}</p>
             <div className="spell-list">
@@ -3489,6 +3528,42 @@ export default function Home({
         {tab.startsWith("companion:") && (() => {
           const companion = sheet.companions.find(item => `companion:${item.id}` === tab);
           if (!companion) return null;
+          if (companion.kind === "beastmaster") {
+            const chosenFriendCompanion = sheet.beastmasterBond === "chosen-friend";
+            const effectiveHitDiceMinimum = chosenFriendCompanion ? effectiveLevel : 0;
+            return <div className="companion-grid">
+              <Section
+                title={chosenFriendCompanion ? "Chosen Friend" : "Beastmaster Companion"}
+                aside={<span className="caption">{chosenFriendCompanion ? "Lifelong bond · Shared Vitality + Mind Call" : "Bound animal companion"}</span>}
+              >
+                <div className="two-col">
+                  <Field label="Name" value={companion.name} onChange={value => patchCompanion(companion.id, "name", value)} />
+                  <Field label="Creature / Appearance" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
+                </div>
+                {chosenFriendCompanion
+                  ? <div className="archetype-summary">
+                      <div><strong>Shared Vitality</strong><p>Effective Hit Dice cannot be lower than your level ({effectiveHitDiceMinimum} HD), and its hit bonus cannot be lower than half its Hit Dice, rounded up.</p></div>
+                      <div><strong>Mind Call</strong><p>You automatically have the telepathic companion-bond benefit; it does not consume another Beastmaster Art pick.</p></div>
+                      <div><strong>Chosen Friend</strong><p>This is the only companion you can ever Bind. At 0 HP it disappears and returns beside you at the next dawn with full hit points.</p></div>
+                    </div>
+                  : <p className="section-intro">You can normally have one bound animal companion at a time. You may release it as a Main Action and later Bind another suitable creature.</p>}
+                <div className="companion-stats">
+                  <Field label="Hit Dice" value={companion.hitDice} onChange={value => patchCompanion(companion.id, "hitDice", value)} />
+                  <label className="field"><span>Hit Points</span><span className="companion-hp"><input type="number" min={0} value={companion.hpCurrent || ""} onChange={e => patchCompanion(companion.id, "hpCurrent", Math.max(0, Number(e.target.value) || 0))} aria-label="Current hit points" /><i>/</i><input type="number" min={0} value={companion.hpMax || ""} onChange={e => patchCompanion(companion.id, "hpMax", Math.max(0, Number(e.target.value) || 0))} aria-label="Maximum hit points" /></span></label>
+                  <label className="field"><span>Armor Class</span><input type="number" value={companion.ac || ""} onChange={e => patchCompanion(companion.id, "ac", Math.max(0, Number(e.target.value) || 0))} /></label>
+                  <Field label="Movement" value={companion.move} onChange={value => patchCompanion(companion.id, "move", value)} />
+                  <Field label="Attack Bonus" value={companion.attackBonus} onChange={value => patchCompanion(companion.id, "attackBonus", value)} />
+                  <Field label="Damage / Attack" value={companion.damage} onChange={value => patchCompanion(companion.id, "damage", value)} />
+                  <Field label="Skill Bonus" value={companion.skillBonus} onChange={value => patchCompanion(companion.id, "skillBonus", value)} />
+                  <Field label="Morale" value={companion.morale} onChange={value => patchCompanion(companion.id, "morale", value)} />
+                  <label className="field"><span>Save</span><input type="number" min={1} value={companion.physicalSave || ""} onChange={e => patchCompanion(companion.id, "physicalSave", Math.max(1, Number(e.target.value) || 1))} /></label>
+                  <label className="field"><span>Strength score</span><input type="number" min={0} max={30} value={companion.strength || ""} onChange={e => patchCompanion(companion.id, "strength", Math.max(0, Number(e.target.value) || 0))} /></label>
+                </div>
+                <p className="section-intro">Enter the creature’s own stat block here. Beastmaster changes such as Shared Vitality modify the creature after its ordinary statistics are known.</p>
+              </Section>
+              <Section title="Companion Notes" className="companion-notes"><textarea className="tall" value={companion.notes} onChange={e => patchCompanion(companion.id, "notes", e.target.value)} /></Section>
+            </div>;
+          }
           const familiar = companion.kind === "familiar";
           const familiarFocus = familiar ? spiritFamiliars.find(({ index }) => index === companion.focusSlot)?.pick : undefined;
           const focusLevel = familiar ? (familiarFocus?.level || 1) : (henchkeeper?.level || 1);

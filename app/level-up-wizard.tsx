@@ -29,6 +29,7 @@ import {
 } from "./level-advancement";
 import { deriveSkillProfile, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { highMageArts, highMagic } from "./wwn-data";
+import { beastmasterArtAvailableForBond } from "./beastmaster-companion";
 import "./character-creation-wizard.css";
 
 type WizardCharacter = LevelOneCreationCharacter & {
@@ -74,6 +75,7 @@ function magicTraditions(character: WizardCharacter) {
 
 function artChoices(character: WizardCharacter, targetLevel: number) {
   return magicTraditions(character).flatMap((tradition) => (tradition === "High Mage" ? highMageArts : traditionInfo[tradition].arts)
+    .filter((art) => tradition !== "Beastmaster" || beastmasterArtAvailableForBond(art.name, character.beastmasterBond))
     .map((art) => ({ ...art, tradition, value: artSelectionValue(tradition, art.name), minLevel: "minLevel" in art ? art.minLevel : undefined }))
     .filter((art) => (art.minLevel || 1) <= targetLevel));
 }

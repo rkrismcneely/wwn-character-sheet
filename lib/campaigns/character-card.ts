@@ -57,7 +57,12 @@ const ARMOR_AC: Record<string, number> = {
 
 function modifier(score: unknown): number {
   const value = Number(score);
-  return Number.isFinite(value) ? Math.floor((value - 10) / 2) : 0;
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 3) return -2;
+  if (value <= 7) return -1;
+  if (value <= 13) return 0;
+  if (value <= 17) return 1;
+  return 2;
 }
 
 function selectedClasses(data: CampaignCharacterCardData): string[] {

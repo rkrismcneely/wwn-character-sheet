@@ -1,0 +1,45 @@
+/* Keep the Review & Finish HP roll compact inside the Combat card. */
+.creation-review-grid section:has(> p + label) {
+  display: grid;
+  grid-template-columns: 72px max-content;
+  column-gap: 8px;
+  align-items: end;
+}
+
+.creation-review-grid section:has(> p + label) > header,
+.creation-review-grid section:has(> p + label) > p {
+  grid-column: 1 / -1;
+}
+
+.creation-review-grid section:has(> p + label) > p + label {
+  display: contents;
+}
+
+.creation-review-grid section:has(> p + label) > p + label > span {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+}
+
+.creation-review-grid section:has(> p + label) > p + label > input {
+  grid-column: 1;
+  width: 72px;
+  min-width: 72px;
+}
+
+.creation-review-grid section:has(> p + label) > p + label + button {
+  grid-column: 2;
+  align-self: end;
+  min-height: 35px;
+  border: 1px solid #ad8a52;
+  background: #fff7e6;
+  color: #52391f;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: 700 11px var(--font-ui);
+  white-space: nowrap;
+}
+
+.creation-review-grid section:has(> p + label) > p + label + button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

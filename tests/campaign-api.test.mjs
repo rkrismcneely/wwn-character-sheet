@@ -235,7 +235,7 @@ test("shared rolls require a joined participant's own linked character", async (
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
 });
 
-test("live-session state keeps administrators read-only and does not expose durable user ids", async () => {
+test("live-session state keeps non-member administrators read-only but lets admin members join as players", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Read only session" }, now);
   await addMember(sqlite, campaign.id, player);
@@ -248,8 +248,30 @@ test("live-session state keeps administrators read-only and does not expose dura
   assert.equal(adminState.permissions.adminReadOnly, true);
   assert.equal(adminState.permissions.canJoin, false);
   assert.equal(adminState.permissions.canStart, false);
+
   await addMember(sqlite, campaign.id, admin);
-  await expectServiceError(joinLiveSession(db, admin, campaign.id, now), 403);
+  sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name, class_label, level, data) VALUES (?, ?, ?, 'private', ?, ?, ?, ?)")
+    .run("character-admin", admin.userId, "chr_adminplayer000000000001", "Admin Player", "Expert", 2, JSON.stringify({
+      level: 2, classMode: "full", classOne: "Expert", attrs: { DEX: 10, CON: 10 },
+      armor: "No Armor", shield: "", armorBonus: 0, hpCurrent: 7, hpMax: 7,
+    }));
+  const campaignRow = internalCampaign(sqlite, campaign.id);
+  sqlite.prepare("INSERT INTO campaign_characters (campaign_id, character_id, added_at) VALUES (?, ?, ?)")
+    .run(campaignRow.id, "character-admin", now);
+
+  const adminMemberState = await readLiveSession(db, admin, campaign.id);
+  assert.equal(adminMemberState.permissions.adminReadOnly, false);
+  assert.equal(adminMemberState.permissions.canJoin, true);
+  assert.equal(adminMemberState.permissions.canStart, false);
+  const joinedAdmin = await joinLiveSession(db, admin, campaign.id, now);
+  assert.equal(joinedAdmin.state.permissions.joined, true);
+  assert.equal(joinedAdmin.state.permissions.adminReadOnly, false);
+  assert.equal(joinedAdmin.state.session.participants.find(participant => participant.character?.id === "chr_adminplayer000000000001")?.character?.name, "Admin Player");
+  const connection = await authorizeLiveSessionConnection(db, admin, campaign.id);
+  assert.equal(connection.sessionId, joinedAdmin.state.session.id);
+  const rollAuthorization = await authorizeLiveSessionRoll(db, admin, campaign.id, "chr_adminplayer000000000001");
+  assert.equal(rollAuthorization.character.name, "Admin Player");
+  await expectServiceError(authorizeEncounterManagement(db, admin, campaign.id), 403);
 });
 
 test("NPC templates are owner-only, campaign-scoped, and seed independent encounter instances", async () => {

@@ -164,7 +164,7 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(wizard, /Companion bond/u);
   assert.match(wizard, /Choose a companion bond…/u);
   assert.match(wizard, /Chosen Friend · lifelong bond/u);
-  assert.match(wizard, /does not spend your additional Art pick/u);
+  assert.match(wizard, /does not spend\s+your additional Art pick/u);
   assert.match(sheet, /type CompanionKind = "henchman" \| "familiar" \| "beastmaster"/u);
   assert.match(sheet, /newCompanion\("beastmaster", 0, sheet\.level\)/u);
   assert.match(sheet, /title=\{chosenFriendCompanion \? "Chosen Friend" : "Beastmaster Companion"\}/u);

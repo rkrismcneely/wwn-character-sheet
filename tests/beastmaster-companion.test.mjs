@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { levelOneCreationStatus } from "../app/character-creation.ts";
+import {
+  beastmasterCompanionRules,
+  parseBeastmasterHitDice,
+} from "../app/beastmaster-companion.ts";
 
 const skills = [
   "Administer", "Connect", "Convince", "Craft", "Exert", "Heal", "Know",
@@ -46,6 +50,7 @@ const beastmasterCharacter = (beastmasterBond) => {
       { name: "Die Hard", level: 1 },
     ],
     artPicks: ["Bind Companion", "Eyes of the Beast"],
+    artChoices: {},
     spellPicks: [],
     skillPurchases,
     hpRolls: [4],
@@ -66,6 +71,15 @@ const beastmasterCharacter = (beastmasterBond) => {
   };
 };
 
+test("Beastmaster creation requires an explicit Bind Companion or Chosen Friend bond", () => {
+  const undecided = levelOneCreationStatus(beastmasterCharacter(""));
+  assert.equal(undecided.stepStatus.magic.complete, false);
+  assert.match(
+    undecided.stepStatus.magic.issues.join(" "),
+    /Choose whether this Beastmaster uses normal Bind Companion or a Chosen Friend bond/u,
+  );
+});
+
 test("Beastmaster keeps Bind Companion required while Chosen Friend preserves the extra Art pick", () => {
   const normal = levelOneCreationStatus(beastmasterCharacter("bind-companion"));
   assert.equal(normal.artAllowance, 2);
@@ -82,18 +96,83 @@ test("Beastmaster keeps Bind Companion required while Chosen Friend preserves th
   assert.equal(chosen.stepStatus.magic.complete, true);
 });
 
-test("Beastmaster UI exposes the bond choice and a dedicated companion tab model", async () => {
+test("Chosen Friend and Shared Vitality derive the companion's effective HD and hit bonus", () => {
+  const chosen = beastmasterCompanionRules({
+    level: 7,
+    bond: "chosen-friend",
+    hasSharedVitalityArt: false,
+    hasMindCallArt: false,
+    hitDice: "2 HD",
+    attackBonus: "+1",
+  });
+  assert.equal(chosen.maximumBaseHitDice, 8);
+  assert.equal(chosen.eligibleHitDice, true);
+  assert.equal(chosen.sharedVitality, true);
+  assert.equal(chosen.mindCall, true);
+  assert.equal(chosen.effectiveHitDice, 7);
+  assert.equal(chosen.minimumHitBonus, 4);
+  assert.equal(chosen.effectiveHitBonus, 4);
+
+  const ordinaryWithArt = beastmasterCompanionRules({
+    level: 7,
+    bond: "bind-companion",
+    hasSharedVitalityArt: true,
+    hasMindCallArt: true,
+    hitDice: "2 HD",
+    attackBonus: "+5",
+  });
+  assert.equal(ordinaryWithArt.effectiveHitDice, 7);
+  assert.equal(ordinaryWithArt.effectiveHitBonus, 5);
+  assert.equal(ordinaryWithArt.mindCall, true);
+
+  const ordinary = beastmasterCompanionRules({
+    level: 7,
+    bond: "bind-companion",
+    hasSharedVitalityArt: false,
+    hasMindCallArt: false,
+    hitDice: "2 HD",
+    attackBonus: "+1",
+  });
+  assert.equal(ordinary.effectiveHitDice, 2);
+  assert.equal(ordinary.minimumHitBonus, null);
+  assert.equal(ordinary.effectiveHitBonus, 1);
+});
+
+test("Beastmaster companion eligibility understands fractional HD and the level-plus-one cap", () => {
+  assert.equal(parseBeastmasterHitDice("½ HD"), 0.5);
+  assert.equal(parseBeastmasterHitDice("1/2"), 0.5);
+  assert.equal(parseBeastmasterHitDice("0.5 HD"), 0.5);
+
+  const tooStrong = beastmasterCompanionRules({
+    level: 1,
+    bond: "bind-companion",
+    hasSharedVitalityArt: false,
+    hasMindCallArt: false,
+    hitDice: "3 HD",
+    attackBonus: "+1",
+  });
+  assert.equal(tooStrong.maximumBaseHitDice, 2);
+  assert.equal(tooStrong.eligibleHitDice, false);
+});
+
+test("Beastmaster UI exposes the bond choice and a rules-aware dedicated companion tab", async () => {
   const [wizard, sheet] = await Promise.all([
     readFile(new URL("../app/character-creation-wizard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(wizard, /Companion bond/u);
+  assert.match(wizard, /Choose a companion bond…/u);
   assert.match(wizard, /Chosen Friend · lifelong bond/u);
   assert.match(wizard, /does not spend your additional Art pick/u);
   assert.match(sheet, /type CompanionKind = "henchman" \| "familiar" \| "beastmaster"/u);
   assert.match(sheet, /newCompanion\("beastmaster", 0, sheet\.level\)/u);
   assert.match(sheet, /title=\{chosenFriendCompanion \? "Chosen Friend" : "Beastmaster Companion"\}/u);
+  assert.match(sheet, /Base Hit Dice/u);
+  assert.match(sheet, /Effective Hit Dice/u);
+  assert.match(sheet, /Effective Hit Bonus/u);
+  assert.match(sheet, /Instinct/u);
   assert.match(sheet, /Lifelong bond · Shared Vitality \+ Mind Call/u);
-  assert.match(sheet, /returns beside you at the next dawn with full hit points/u);
+  assert.match(sheet, /Restore at next dawn/u);
+  assert.match(sheet, /must have a name before Beastmaster arts can control it/u);
 });

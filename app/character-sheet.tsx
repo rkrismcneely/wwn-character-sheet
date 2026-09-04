@@ -72,6 +72,13 @@ import {
   levelOneCreationStatus,
 } from "./character-creation";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import {
+  beastmasterArtAvailableForBond,
+  beastmasterCompanionRules,
+  chosenFriendBenefitArts,
+  formatBeastmasterHitBonus,
+  formatBeastmasterHitDice,
+} from "./beastmaster-companion";
 import { authClient } from "@/lib/auth-client";
 import { SignedInHeader, TalesBrandLink } from "./app-header";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
@@ -104,6 +111,7 @@ type Companion = {
   mentalSave: number;
   luckSave: number;
   morale: string;
+  instinct: string;
   skillBonus: string;
   strength: number;
   readied: string[];
@@ -222,7 +230,7 @@ const initial = {
   classTwo: "Expert",
   vowedEffortSkill: "Exert",
   wiseConceptSkill: "",
-  beastmasterBond: "bind-companion" as "bind-companion" | "chosen-friend",
+  beastmasterBond: "bind-companion" as "" | "bind-companion" | "chosen-friend",
   autoClassRules: true,
   level: 4,
   xp: 12,
@@ -320,6 +328,7 @@ const blankCharacter: Sheet = {
   className: "",
   classOne: "",
   classTwo: "",
+  beastmasterBond: "",
   level: 0,
   xp: 0,
   homeland: "",
@@ -588,6 +597,7 @@ function newCompanion(kind: CompanionKind, index: number, level: number, focusSl
     mentalSave: 15,
     luckSave: 15,
     morale: familiar ? "Unwavering" : "7",
+    instinct: familiar ? "—" : "5",
     skillBonus: familiar ? "+0" : "+1",
     strength: familiar || beastmaster ? 10 : 8,
     readied: [],
@@ -1407,6 +1417,20 @@ export default function Home({
         ...current,
         companions: current.companions.map(companion => companion.id === id ? { ...companion, [key]: value } : companion),
       }));
+  const changeBeastmasterBond = (bond: Sheet["beastmasterBond"]) => {
+    if (!canEdit) return;
+    const redundant = chosenFriendBenefitArts as readonly string[];
+    setSheet(current => ({
+      ...current,
+      beastmasterBond: bond,
+      artPicks: bond === "chosen-friend"
+        ? current.artPicks.map(selection => redundant.includes(artSelectionName(selection)) ? "" : selection)
+        : current.artPicks,
+      artEffort: bond === "chosen-friend"
+        ? current.artEffort.map((committed, index) => redundant.includes(artSelectionName(current.artPicks[index] || "")) ? false : committed)
+        : current.artEffort,
+    }));
+  };
 
   function selectAttributeMethod(method: AttributeMethod) {
     setSheet(current => {
@@ -2252,7 +2276,7 @@ export default function Home({
   const availableArts = artTraditions.flatMap(t => {
     const arts = t === "High Mage" ? highMageArts : traditionInfo[t].arts;
     return arts
-      .filter(a => !(chosenFriend && t === "Beastmaster" && ["Mind Call", "Shared Vitality"].includes(a.name)))
+      .filter(a => t !== "Beastmaster" || beastmasterArtAvailableForBond(a.name, sheet.beastmasterBond))
       .map(a => ({...a, minLevel: "minLevel" in a ? a.minLevel : undefined, tradition:t, value: artSelectionValue(t, a.name)}));
   });
   const forcedArts = artTraditions.flatMap(t =>
@@ -3413,7 +3437,7 @@ export default function Home({
           {castingBlocked && <p className="casting-restriction" role="status"><strong>Armor restriction active:</strong> {castingBlockedReason}</p>}
           {selectedClasses.includes("Vowed") && <Section title="Vowed Discipline"><div className="vowed-controls"><label className="field"><span>Order skill (Effort + bonus skill)</span><select value={sheet.vowedEffortSkill} onChange={e=>patch("vowedEffortSkill",e.target.value)}>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label><div><span>Punch hit</span><b>{signed(vowedProgression[effectiveLevel-1].hit)}</b></div><div><span>Punch damage</span><b>{vowedProgression[effectiveLevel-1].damage}</b></div><div><span>Punch Shock</span><b>{vowedProgression[effectiveLevel-1].shock.replace("/", "/AC ")}</b></div></div><p className="section-intro">The selected Order skill is the Vowed’s required noncombat bonus skill and is also used to calculate Vowed Effort.</p></Section>}
           {selectedClasses.includes("Wise") && <Section title="Wise Concept"><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{skills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
-          {hasBeastmaster && <Section title="Beastmaster Companion Bond"><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>patch("beastmasterBond", e.target.value as Sheet["beastmasterBond"])}><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p></Section>}
+          {hasBeastmaster && <Section title="Beastmaster Companion Bond"><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>changeBeastmasterBond(e.target.value as Sheet["beastmasterBond"])}><option value="">Choose a companion bond…</option><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p>{!sheet.beastmasterBond && <p className="creation-choice-note">Choose the Beastmaster’s companion bond before finishing character creation.</p>}</Section>}
           {castingTraditions.length > 0 && <Section title="Spellbook" aside={<span className="caption">{knownSpellAllowance} known-spell selections at level {sheet.level} · spell levels 1–{limits.max} · prepare up to {limits.prepared}</span>}>
             <p className="section-intro">{isInvoker ? `Invoker spells spend points equal to spell level. You have ${limits.casts} spell points each day and may cast a prepared spell repeatedly.` : "Choose each known spell from the complete SRD list. Prepared spells are bright; unprepared spells remain in your spellbook but are muted."}</p>
             <div className="spell-list">
@@ -3558,7 +3582,16 @@ export default function Home({
           if (!companion) return null;
           if (companion.kind === "beastmaster") {
             const chosenFriendCompanion = sheet.beastmasterBond === "chosen-friend";
-            const effectiveHitDiceMinimum = chosenFriendCompanion ? effectiveLevel : 0;
+            const hasSharedVitalityArt = sheet.artPicks.some(selection => artSelectionName(selection) === "Shared Vitality");
+            const hasMindCallArt = sheet.artPicks.some(selection => artSelectionName(selection) === "Mind Call");
+            const companionRules = beastmasterCompanionRules({
+              level: effectiveLevel,
+              bond: sheet.beastmasterBond,
+              hasSharedVitalityArt,
+              hasMindCallArt,
+              hitDice: companion.hitDice,
+              attackBonus: companion.attackBonus,
+            });
             return <div className="companion-grid">
               <Section
                 title={chosenFriendCompanion ? "Chosen Friend" : "Beastmaster Companion"}
@@ -3568,26 +3601,31 @@ export default function Home({
                   <Field label="Name" value={companion.name} onChange={value => patchCompanion(companion.id, "name", value)} />
                   <Field label="Creature / Appearance" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
                 </div>
-                {chosenFriendCompanion
-                  ? <div className="archetype-summary">
-                      <div><strong>Shared Vitality</strong><p>Effective Hit Dice cannot be lower than your level ({effectiveHitDiceMinimum} HD), and its hit bonus cannot be lower than half its Hit Dice, rounded up.</p></div>
-                      <div><strong>Mind Call</strong><p>You automatically have the telepathic companion-bond benefit; it does not consume another Beastmaster Art pick.</p></div>
-                      <div><strong>Chosen Friend</strong><p>This is the only companion you can ever Bind. At 0 HP it disappears and returns beside you at the next dawn with full hit points.</p></div>
-                    </div>
-                  : <p className="section-intro">You can normally have one bound animal companion at a time. You may release it as a Main Action and later Bind another suitable creature.</p>}
+                {!companion.name.trim() && <p className="creation-choice-note">A Beastmaster companion must have a name before Beastmaster arts can control it.</p>}
+                <div className="archetype-summary">
+                  <div><strong>Companion limits</strong><p>Its base Hit Dice cannot exceed your level + 1 ({companionRules.maximumBaseHitDice} HD), it remains an independently acting allied creature, and it still checks Instinct and Morale normally.</p></div>
+                  {companionRules.sharedVitality && <div><strong>Shared Vitality</strong><p>Effective Hit Dice cannot be lower than your level ({companionRules.beastmasterLevel} HD), and effective hit bonus cannot be lower than half its effective Hit Dice, rounded up.</p></div>}
+                  {companionRules.mindCall && <div><strong>Mind Call</strong><p>{chosenFriendCompanion ? "The Chosen Friend automatically gains" : "This companion benefits from"} the telepathic companion bond.</p></div>}
+                  {chosenFriendCompanion && <div><strong>Chosen Friend</strong><p>This is the only companion you can ever Bind. At 0 HP it disappears and manifests beside you the following dawn with full hit points.</p></div>}
+                </div>
+                {!companionRules.eligibleHitDice && <p className="creation-choice-note">This creature’s base Hit Dice exceed the Beastmaster limit of {companionRules.maximumBaseHitDice} HD at level {companionRules.beastmasterLevel}.</p>}
                 <div className="companion-stats">
-                  <Field label="Hit Dice" value={companion.hitDice} onChange={value => patchCompanion(companion.id, "hitDice", value)} />
+                  <Field label="Base Hit Dice" value={companion.hitDice} onChange={value => patchCompanion(companion.id, "hitDice", value)} />
+                  <label className="field"><span>Effective Hit Dice</span><input readOnly value={formatBeastmasterHitDice(companionRules.effectiveHitDice)} /></label>
                   <label className="field"><span>Hit Points</span><span className="companion-hp"><input type="number" min={0} value={companion.hpCurrent || ""} onChange={e => patchCompanion(companion.id, "hpCurrent", Math.max(0, Number(e.target.value) || 0))} aria-label="Current hit points" /><i>/</i><input type="number" min={0} value={companion.hpMax || ""} onChange={e => patchCompanion(companion.id, "hpMax", Math.max(0, Number(e.target.value) || 0))} aria-label="Maximum hit points" /></span></label>
                   <label className="field"><span>Armor Class</span><input type="number" value={companion.ac || ""} onChange={e => patchCompanion(companion.id, "ac", Math.max(0, Number(e.target.value) || 0))} /></label>
                   <Field label="Movement" value={companion.move} onChange={value => patchCompanion(companion.id, "move", value)} />
-                  <Field label="Attack Bonus" value={companion.attackBonus} onChange={value => patchCompanion(companion.id, "attackBonus", value)} />
+                  <Field label="Base Attack Bonus" value={companion.attackBonus} onChange={value => patchCompanion(companion.id, "attackBonus", value)} />
+                  <label className="field"><span>Effective Hit Bonus</span><input readOnly value={formatBeastmasterHitBonus(companionRules.effectiveHitBonus)} /></label>
                   <Field label="Damage / Attack" value={companion.damage} onChange={value => patchCompanion(companion.id, "damage", value)} />
                   <Field label="Skill Bonus" value={companion.skillBonus} onChange={value => patchCompanion(companion.id, "skillBonus", value)} />
                   <Field label="Morale" value={companion.morale} onChange={value => patchCompanion(companion.id, "morale", value)} />
+                  <Field label="Instinct" value={companion.instinct} onChange={value => patchCompanion(companion.id, "instinct", value)} />
                   <label className="field"><span>Save</span><input type="number" min={1} value={companion.physicalSave || ""} onChange={e => patchCompanion(companion.id, "physicalSave", Math.max(1, Number(e.target.value) || 1))} /></label>
                   <label className="field"><span>Strength score</span><input type="number" min={0} max={30} value={companion.strength || ""} onChange={e => patchCompanion(companion.id, "strength", Math.max(0, Number(e.target.value) || 0))} /></label>
                 </div>
-                <p className="section-intro">Enter the creature’s own stat block here. Beastmaster changes such as Shared Vitality modify the creature after its ordinary statistics are known.</p>
+                <p className="section-intro">Enter the creature’s ordinary stat block as its base statistics. Shared Vitality changes effective HD and hit bonus after those normal statistics are known; adjust maximum HP to match the creature’s resulting effective HD.</p>
+                {chosenFriendCompanion && companion.hpCurrent <= 0 && companion.hpMax > 0 && <button type="button" className="text-button" onClick={() => patchCompanion(companion.id, "hpCurrent", companion.hpMax)}>Restore at next dawn</button>}
               </Section>
               <Section title="Companion Notes" className="companion-notes"><textarea className="tall" value={companion.notes} onChange={e => patchCompanion(companion.id, "notes", e.target.value)} /></Section>
             </div>;

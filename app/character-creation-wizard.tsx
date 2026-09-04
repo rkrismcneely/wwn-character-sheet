@@ -38,6 +38,7 @@ import {
   artChoiceDefinition,
   artChoiceKey,
   artChoiceValues,
+  chosenFriendBenefitArts,
   creationBackgroundSkillChoiceOptions,
   creationBackgroundSkillChoiceValue,
   creationAttributes,
@@ -366,6 +367,19 @@ export function GuidedCreationWizard({
           index === choiceIndex ? value : current,
         ),
       },
+    });
+  };
+  const setBeastmasterBond = (bond: LevelOneCreationCharacter["beastmasterBond"]) => {
+    const redundant = chosenFriendBenefitArts as readonly string[];
+    change({
+      beastmasterBond: bond,
+      ...(bond === "chosen-friend"
+        ? {
+            artPicks: sheet.artPicks.map((selection) =>
+              redundant.includes(artSelectionName(selection)) ? "" : selection,
+            ),
+          }
+        : {}),
     });
   };
   const setSpell = (index: number, name: string) =>
@@ -1456,13 +1470,12 @@ export function GuidedCreationWizard({
                 <select
                   value={sheet.beastmasterBond}
                   onChange={(event) =>
-                    change({
-                      beastmasterBond: event.target.value as
-                        | "bind-companion"
-                        | "chosen-friend",
-                    })
+                    setBeastmasterBond(
+                      event.target.value as LevelOneCreationCharacter["beastmasterBond"],
+                    )
                   }
                 >
+                  <option value="">Choose a companion bond…</option>
                   <option value="bind-companion">
                     Bind Companion · flexible bond
                   </option>
@@ -1471,10 +1484,10 @@ export function GuidedCreationWizard({
                   </option>
                 </select>
                 <small>
-                  Both options use the required Bind Companion Art. Chosen
-                  Friend does not spend your additional Art pick; instead, that
-                  one permanent companion automatically gains the benefits of
-                  Shared Vitality and Mind Call.
+                  Choose this bond once for the Beastmaster. Both options use
+                  the required Bind Companion Art. Chosen Friend does not spend
+                  your additional Art pick; instead, that one permanent companion
+                  automatically gains the benefits of Shared Vitality and Mind Call.
                 </small>
               </label>
               {sheet.beastmasterBond === "chosen-friend" && (
@@ -2001,7 +2014,9 @@ export function GuidedCreationWizard({
                 Companion bond:{" "}
                 {sheet.beastmasterBond === "chosen-friend"
                   ? "Chosen Friend"
-                  : "Bind Companion"}
+                  : sheet.beastmasterBond === "bind-companion"
+                    ? "Bind Companion"
+                    : "Not chosen"}
               </p>
             )}
             {sheet.artPicks.filter(Boolean).length > 0 && (

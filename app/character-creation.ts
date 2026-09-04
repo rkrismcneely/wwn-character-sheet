@@ -102,7 +102,7 @@ export type CreationSpellPick = {
   casts?: number;
 };
 
-export type BeastmasterBond = "bind-companion" | "chosen-friend";
+export type BeastmasterBond = "" | "bind-companion" | "chosen-friend";
 export const beastmasterBondOptions = ["bind-companion", "chosen-friend"] as const;
 export const chosenFriendBenefitArts = ["Mind Call", "Shared Vitality"] as const;
 
@@ -713,8 +713,7 @@ const classNames = (
 
 export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
   const selectedClasses = classNames(state);
-  const beastmasterBond: BeastmasterBond =
-    state.beastmasterBond === "chosen-friend" ? "chosen-friend" : "bind-companion";
+  const beastmasterBond = state.beastmasterBond;
   const chosenFriend =
     selectedClasses.includes("Beastmaster") && beastmasterBond === "chosen-friend";
   const backgroundGrowth = backgroundAttributeBonuses(
@@ -1136,8 +1135,7 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     issues.push({ step: "class", message: "Choose the Wise concept skill." });
   if (
     selectedClasses.includes("Beastmaster") &&
-    state.beastmasterBond &&
-    !beastmasterBondOptions.includes(state.beastmasterBond)
+    !(beastmasterBondOptions as readonly BeastmasterBond[]).includes(state.beastmasterBond)
   )
     issues.push({
       step: "magic",

@@ -46,11 +46,24 @@ function sanitizeValue(value: unknown, depth: number): unknown {
   return clean;
 }
 
+function normalizeLegacyFocusNames(character: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(character.focusPicks)) return character;
+  character.focusPicks = character.focusPicks.map((pick) => {
+    if (!pick || typeof pick !== "object" || Array.isArray(pick)) return pick;
+    const focus = pick as Record<string, unknown>;
+    return focus.name === "Cultured Through"
+      ? { ...focus, name: "Cultured" }
+      : focus;
+  });
+  return character;
+}
+
 export function parseCharacter(
   value: unknown,
 ): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return sanitizeValue(value, 0) as Record<string, unknown>;
+  const clean = sanitizeValue(value, 0) as Record<string, unknown>;
+  return normalizeLegacyFocusNames(clean);
 }
 
 export function characterForStorage(character: unknown): Record<string, unknown> | null {

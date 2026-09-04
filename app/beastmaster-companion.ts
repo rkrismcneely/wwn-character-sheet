@@ -3,6 +3,14 @@ export type BeastmasterBond = "" | "bind-companion" | "chosen-friend";
 export const beastmasterBondOptions = ["bind-companion", "chosen-friend"] as const;
 export const chosenFriendBenefitArts = ["Mind Call", "Shared Vitality"] as const;
 
+export function beastmasterArtAvailableForBond(
+  artName: string,
+  bond: BeastmasterBond | undefined,
+) {
+  return bond !== "chosen-friend" ||
+    !(chosenFriendBenefitArts as readonly string[]).includes(artName);
+}
+
 const vulgarFractions: Record<string, number> = {
   "½": 0.5,
   "¼": 0.25,

@@ -68,14 +68,17 @@ export function SelectionRuleHelp({
   label: string;
   fullText: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const open = hovered || focused || pinned;
   if (!label || !fullText.trim()) return null;
 
   return (
     <span
       className="creation-rule-help"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <button
         type="button"
@@ -83,12 +86,23 @@ export function SelectionRuleHelp({
         aria-label={`Show full rules for ${label}`}
         aria-expanded={open}
         title={`Full rules for ${label}`}
-        onClick={() => setOpen((value) => !value)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onClick={(event) => {
+          if (pinned) {
+            setPinned(false);
+            event.currentTarget.blur();
+          } else {
+            setPinned(true);
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          setPinned(false);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
-            setOpen(false);
+            setPinned(false);
+            setFocused(false);
             event.currentTarget.blur();
           }
         }}

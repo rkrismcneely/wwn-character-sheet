@@ -26,6 +26,8 @@ test("character management is consolidated into one owner-only bottom utility ba
     assert.match(sheet, new RegExp(`value="${value}"`, "u"));
   }
   assert.doesNotMatch(sheet, /character-sharing-footer/u);
+  assert.doesNotMatch(css, /legacy-claim/u);
+  assert.ok(css.includes('.library-search button,\n.library-signin button,\n.character-sharing button,\n.read-only-banner button{'));
   assert.match(css, /\.character-bottom-utilities\{/u);
   assert.match(css, /@media\(max-width:720px\)[\s\S]*\.character-bottom-utilities\{[^}]*flex-wrap:wrap/u);
 });

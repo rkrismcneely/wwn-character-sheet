@@ -1546,10 +1546,13 @@ main,
   letter-spacing:.04em;
   text-transform:capitalize;
 }
-.library-search,
-
-.library-search>label,
-.legacy-claim>label{
+.library-search{
+  margin:16px 28px 0;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  background:rgba(255,251,238,.58);
+}
+.library-search>label{
   display:block;
   margin-bottom:7px;
   color:var(--muted);
@@ -1557,14 +1560,19 @@ main,
   letter-spacing:.09em;
   text-transform:uppercase;
 }
-.library-search>div,
-.legacy-claim>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
-.library-search input,
-
+.library-search>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.library-search input{width:100%}
 .library-search button,
-
-
-
+.library-signin button,
+.character-sharing button,
+.read-only-banner button{
+  border:1px solid #8e6b35;
+  background:linear-gradient(#fff8e8,#ead7b2);
+  color:#5d3d15;
+  padding:8px 13px;
+  cursor:pointer;
+  font:700 11px/1.2 var(--font-ui);
+}
 .library-signin{
   margin:16px 28px 0;
   padding:14px;
@@ -1685,7 +1693,6 @@ main,
 
 html[data-theme="dark"] .library-scopes button.active,
 html[data-theme="dark"] .library-search,
-html[data-theme="dark"] .legacy-claim,
 html[data-theme="dark"] .read-only-banner{
   background:#242119;
   color:#f0dbb2;
@@ -1696,7 +1703,13 @@ html[data-theme="dark"] .character-campaign-links{background:rgba(207,155,68,.07
 html[data-theme="dark"] .campaign-character-context{background:#242119;color:#f0dbb2}
 html[data-theme="dark"] .campaign-character-context a{color:#e7bc74}
 html[data-theme="dark"] .library-search button,
-html[data-theme="dark"] 
+html[data-theme="dark"] .library-signin button,
+html[data-theme="dark"] .character-sharing button,
+html[data-theme="dark"] .read-only-banner button{
+  background:#28241c;
+  border-color:#755f3b;
+  color:#ecd8af;
+}
 
 @media(max-width:720px){
   .topbar{position:static;align-items:flex-start;gap:10px}
@@ -1705,7 +1718,6 @@ html[data-theme="dark"]
   .status .account-state{display:inline-flex!important}
    .library-scopes,
   .library-search,
-  .legacy-claim,
   .library-signin{margin-left:16px;margin-right:16px}
   .library-scopes{padding-left:0;padding-right:0}
   .library-scopes button{flex:1;padding:8px 6px}

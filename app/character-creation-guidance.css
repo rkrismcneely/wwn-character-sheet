@@ -1,0 +1,129 @@
+.creation-class-description {
+  display: block;
+  margin: 0.45rem 0 0;
+  color: var(--ink-muted, #6f675d);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.creation-selection-summary {
+  display: block;
+  margin: 0.3rem 0 0;
+  color: var(--ink-muted, #6f675d);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.creation-focus-choice-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0.45rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.creation-focus-choice-main > select {
+  min-width: 0;
+  width: 100%;
+}
+
+.creation-focus-choice-main > .creation-selection-summary {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.creation-magic-choice-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: start;
+  min-width: 0;
+  margin-top: 0.5rem;
+}
+
+.creation-magic-choice-main > label {
+  min-width: 0;
+}
+
+.creation-magic-choice-main > .creation-rule-help {
+  margin-top: 1.25rem;
+}
+
+.creation-rule-help {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  z-index: 12;
+}
+
+.creation-rule-help-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1;
+  cursor: help;
+}
+
+.creation-rule-help-button:hover {
+  background: rgb(128 91 46 / 10%);
+}
+
+.creation-rule-help-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.creation-rule-help-panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(24rem, 65vh);
+  overflow: auto;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line, #8d8376);
+  border-radius: 0.55rem;
+  background: var(--paper, #f5efe3);
+  color: var(--ink, #211d18);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 22%);
+  font-size: 0.84rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+}
+
+.creation-rule-help-panel strong {
+  font-size: 0.9rem;
+}
+
+.creation-rule-help-panel > span {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .creation-focus-row > .creation-focus-choice-main {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .creation-rule-help-panel {
+    position: fixed;
+    top: auto;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: auto;
+    max-height: 55vh;
+  }
+}

@@ -68,7 +68,7 @@ export function CampaignInventoryOptions({ items }: { items: readonly CampaignIn
   </optgroup>;
 }
 
-const officialInventorySet = new Set(officialInventoryItems);
+const officialInventorySet = new Set<string>(officialInventoryItems);
 
 export function StoredItemsSection({
   items,
@@ -134,8 +134,8 @@ export function StoredItemsSection({
               <CampaignInventoryOptions items={campaignItems} />
               <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
               <optgroup label="Armor & Shields">{inventoryArmors.map(armor => <option key={armor} value={armor}>{armor}</option>)}<option>Small Shield</option><option>Large Shield</option></optgroup>
-              <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
-              <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
+              <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear.name} value={gear.name}>{gear.name}</option>)}</optgroup>
+              <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle.name} value={bundle.name}>{bundle.name}</option>)}</optgroup>
             </select>
             {(isCustom || editingOther) && <input autoFocus={editingOther && !item} aria-label={`Other stored item ${index + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={event => setItem(index, event.target.value)} />}
             {campaignItem && <small className="campaign-item-description"><strong>{campaignItem.kind === "magical" ? "Magical" : "Mundane"}</strong>{campaignItem.description ? ` · ${campaignItem.description}` : ""}</small>}

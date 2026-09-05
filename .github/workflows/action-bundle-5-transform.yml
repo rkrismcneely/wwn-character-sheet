@@ -1,0 +1,42 @@
+name: Action Bundle 5 Transform
+
+on:
+  push:
+    branches:
+      - feat/action-bundle-5-edit-mode
+    paths:
+      - scripts/action-bundle-5-transform.mjs
+      - .github/workflows/action-bundle-5-transform.yml
+
+permissions:
+  contents: write
+
+jobs:
+  transform-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply bundle transformation
+        run: node scripts/action-bundle-5-transform.mjs
+      - name: Persist transformed branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement Action Bundle 5 character edit mode"
+          git push
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused bundle tests
+        run: node --experimental-strip-types --test tests/character-edit-mode.test.mjs tests/character-sharing-ui.test.mjs tests/character-actions.test.mjs
+      - name: Full test suite
+        run: npm test

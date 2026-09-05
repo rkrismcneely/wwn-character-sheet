@@ -48,6 +48,14 @@ test("all six WWN Free Edition starting packages are available", () => {
   );
 });
 
+test("starting-equipment choices expose their useful mechanics", () => {
+  assert.match(purchasableEquipmentById.get("weapon:Spear, Light")?.details || "", /damage.*Shock.*Range.*Enc/u);
+  assert.match(purchasableEquipmentById.get("armor:Buff Coat")?.details || "", /AC 12.*Enc 0/u);
+  assert.match(purchasableEquipmentById.get("shield:Large Shield")?.details || "", /AC 14.*\+1 AC/u);
+  assert.equal(purchasableEquipmentById.get("gear:Backpack")?.details, "Adventuring gear");
+  assert.equal(purchasableEquipmentById.get("bundle:Dungeoneering Kit")?.details, "A bundled set of adventuring gear");
+});
+
 test("a package writes canonical equipment into finished-sheet fields", () => {
   let state = baseState();
   state = { ...state, ...selectCreationEquipmentMethod(state, "package") };

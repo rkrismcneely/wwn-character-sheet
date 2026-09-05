@@ -58,13 +58,17 @@ test("every selectable class has a player-facing gameplay description", () => {
 });
 
 test("selected Foci, Arts, and Spells show a concise summary plus full rules help", () => {
-  assert.match(wizardSource, /ruleSummary\(selectedFocus\.intro\)/);
+  assert.match(wizardSource, /plainLanguageSummary\(selectedFocus\.name/);
   assert.match(wizardSource, /fullText=\{focusFullRules\(selectedFocus\)\}/);
-  assert.match(wizardSource, /ruleSummary\(selectedArt\.text\)/);
+  assert.match(wizardSource, /plainLanguageSummary\(selectedArt\.name/);
   assert.match(wizardSource, /fullText=\{selectedArt\.text\}/);
-  assert.match(wizardSource, /ruleSummary\(selectedSpell\.text\)/);
+  assert.match(wizardSource, /plainLanguageSummary\(selectedSpell\.name/);
   assert.match(wizardSource, /fullText=\{selectedSpell\.text\}/);
   assert.match(wizardSource, /className="creation-selection-summary"/);
+  assert.match(wizardSource, /onClick=\{onCancel\}/);
+  assert.match(wizardSource, /Cancel Character Creation/);
+  assert.match(wizardSource, /creation-magic-choice-main/);
+  assert.match(guidanceCss, /creation-magic-choice-main > \.creation-selection-summary/);
 });
 
 test("rules help is usable by hover, keyboard focus, click, touch, and Escape", () => {

@@ -11,7 +11,7 @@ test("saved characters lock foundational fields behind Edit Character", async ()
   for (const key of ["attrs", "skills", "background", "classOne", "classTwo", "focusPicks", "artPicks", "languages"]) {
     assert.ok(sheet.includes(`"${key}"`), `${key} should be classified as character-building data`);
   }
-  for (const title of ["Identity", "Base Attributes", "Foci", "Skills", "Languages", "Arts"]) {
+  for (const title of ["Identity", "Base Attributes", "Background & Class Benefits", "Foci", "Skills", "Languages", "Arts"]) {
     assert.match(sheet, new RegExp(`<Section title="${title}"[^>]*buildControlled`, "u"));
   }
   assert.ok(sheet.includes('data-character-build-control="true" rows={1} value={sheet.name}'));
@@ -45,7 +45,9 @@ test("blank creation remains editable until its explicit first save and edit can
 test("guided creation cannot bypass the saved-character edit boundary", async () => {
   const sheet = await source("app/character-sheet.tsx");
   assert.ok(sheet.includes('canEdit={canEdit && (creationEntry === "guided" || characterEditMode)}'));
-  assert.ok(sheet.includes('sheet.level === 1 && (creationEntry === "guided" || characterEditMode)'));
+  assert.match(sheet, /sheet\.level === 1 && !levelOneStatus\.canFinish/);
+  assert.match(sheet, /setCreationEntry\("guided"\); setGuidedCreationMode\(true\)/);
+  assert.match(sheet, /guidedCreationNewRecord\.current = false;[\s\S]*setCreationEntry\("none"\)/);
 });
 
 test("legacy character claiming is removed from active application code while historical DB schema remains represented", async () => {

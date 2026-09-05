@@ -49,6 +49,7 @@ function blankState(overrides = {}) {
     backgroundLearningPicks: Array.from({ length: 2 }, () => ({ result: "", choice: "", replacement: "" })),
     backgroundDevelopmentRolls: [],
     classMode: "full",
+    languages: ["Common", "Trade Cant"],
     classOne: "Warrior",
     classTwo: "",
     vowedEffortSkill: "Exert",

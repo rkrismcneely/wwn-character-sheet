@@ -138,4 +138,8 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionCss, /campaign-npc-roll-controls/u);
   assert.match(sessionCss, /campaign-encounter-threat/u);
   assert.match(sessionCss, /campaign-encounter-npc-combat \.campaign-npc-roll-controls\{display:none/u);
+  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-friendly-toggle\{grid-column:2;grid-row:2/u);
+  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-friendly-toggle\{grid-column:1\/-1;grid-row:3/u);
+  assert.match(sessionCss, /campaign-encounter-threat>summary::before\{content:"▸"/u);
+  assert.match(sessionCss, /campaign-encounter-threat\[open\]>summary::before\{content:"▾"\}/u);
 });

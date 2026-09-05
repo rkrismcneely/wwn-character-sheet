@@ -42,3 +42,4 @@ jobs:
           git add app lib worker drizzle tests
           git commit -m 'feat: complete action bundle 7 NPC usability'
           git push origin HEAD:feat/action-bundle-7-npc-usability
+# rerun after permanent migration verifier was added

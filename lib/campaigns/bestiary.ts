@@ -444,11 +444,14 @@ export function builtInBestiaryCreatureDraft(id: string): CampaignNpcDraft | nul
     evasionSave: creature.evasionSave,
     mentalSave: creature.mentalSave,
     attacks: creature.attacks.map(attack => ({ ...attack })),
+    spells: creature.spellcasting?.spells.map(spell => ({ ...spell })) ?? [],
+    arts: creature.spellcasting?.arts.map(art => ({ ...art })) ?? [],
+    friendly: false,
     notes: creature.notes,
   };
 }
 
-export function builtInBestiaryEncounterSeed(id: string): { name: string; initiative: number; hpCurrent: number; hpMax: number; armorClass: number; notes: string; combatStats: CampaignNpcCombatStats } | null {
+export function builtInBestiaryEncounterSeed(id: string): { name: string; initiative: number; hpCurrent: number; hpMax: number; armorClass: number; notes: string; friendly: boolean; combatStats: CampaignNpcCombatStats } | null {
   const creature = getBuiltInBestiaryCreature(id);
   if (!creature) return null;
   return {
@@ -458,7 +461,8 @@ export function builtInBestiaryEncounterSeed(id: string): { name: string; initia
     hpMax: creature.hpMax,
     armorClass: creature.armorClass,
     notes: creature.notes,
-    combatStats: { saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave }, attacks: creature.attacks.map(attack => ({ ...attack })), notes: creature.notes, sourceStats: { ...creature.sourceStats } },
+    friendly: false,
+    combatStats: { saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave }, attacks: creature.attacks.map(attack => ({ ...attack })), spells: creature.spellcasting?.spells.map(spell => ({ ...spell })) ?? [], arts: creature.spellcasting?.arts.map(art => ({ ...art })) ?? [], notes: creature.notes, sourceStats: { ...creature.sourceStats } },
   };
 }
 
@@ -482,6 +486,8 @@ export function repairLegacyBestiaryEncounterNpc(npc: CampaignEncounterNpc): Cam
       combatStats: {
         saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave },
         attacks: legacyGeneratedBestiaryAttacks(creature),
+        spells: creature.spellcasting?.spells.map(spell => ({ ...spell })) ?? [],
+        arts: creature.spellcasting?.arts.map(art => ({ ...art })) ?? [],
         notes: creature.notes,
         sourceStats: { ...creature.sourceStats },
       },

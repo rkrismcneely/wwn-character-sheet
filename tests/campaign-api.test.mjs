@@ -145,7 +145,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql", "0017_action_bundle_7_npc_usability.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);

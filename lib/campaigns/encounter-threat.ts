@@ -77,7 +77,7 @@ export function summarizeEncounterThreat(
   encounter: CampaignEncounter | null,
   partyLevels: readonly unknown[],
 ): EncounterThreatSummary {
-  const npcs = encounter?.combatants.filter((combatant): combatant is CampaignEncounterNpc => combatant.kind === "npc") ?? [];
+  const npcs = encounter?.combatants.filter((combatant): combatant is CampaignEncounterNpc => combatant.kind === "npc" && !combatant.friendly) ?? [];
   const inputs = npcs.map(encounterNpcThreatInput);
   const eligible = Object.freeze(inputs.filter(isEligible));
   const excluded = Object.freeze(inputs.filter(isExcluded));

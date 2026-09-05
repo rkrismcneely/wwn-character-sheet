@@ -3,7 +3,7 @@ import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
-import { normalizeNpcAttacks, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
+import { normalizeNpcAttacks, normalizeNpcMagicReferences, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
 import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
 import type { CampaignNpcCombatStats } from "@/lib/campaigns/live-session";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
@@ -40,6 +40,8 @@ function updatedNpcCombatStats(value: unknown, existing: CampaignNpcCombatStats)
   return {
     ...existing,
     attacks: normalizeNpcAttacks(candidate.attacks, existing.attacks),
+    spells: candidate.spells === undefined ? existing.spells : normalizeNpcMagicReferences(candidate.spells, "Spells"),
+    arts: candidate.arts === undefined ? existing.arts : normalizeNpcMagicReferences(candidate.arts, "Arts"),
     ...(threatStats ? { threatStats } : { threatStats: undefined }),
   };
 }
@@ -71,6 +73,7 @@ export async function POST(request: Request, context: Context): Promise<Response
           hpMax,
           armorClass: integer(body.armorClass, "Armor Class", 0, 1000),
           notes: optionalText(body.notes, "Notes", 240),
+          friendly: body.friendly === true,
         });
       } else if (body.action === "add_saved_npc") {
         const seed = await campaignNpcEncounterSeed(db, authorization.campaignId, boundedText(body.npcId, "NPC template", 100));
@@ -83,6 +86,8 @@ export async function POST(request: Request, context: Context): Promise<Response
         encounter = await durable.setInitiative(authorization.sessionId, combatantId(body.combatantId), integer(body.initiative, "Initiative", -1000, 1000));
       } else if (body.action === "npc_hp") {
         encounter = await durable.setNpcHp(authorization.sessionId, combatantId(body.combatantId), integer(body.hpCurrent, "Current HP", 0, 100000));
+      } else if (body.action === "npc_friendly") {
+        encounter = await durable.setNpcFriendly(authorization.sessionId, combatantId(body.combatantId), body.friendly === true);
       } else if (body.action === "npc_combat") {
         const existing = await durable.encounter(authorization.sessionId);
         const candidate = existing?.combatants.find(combatant => combatant.id === combatantId(body.combatantId));

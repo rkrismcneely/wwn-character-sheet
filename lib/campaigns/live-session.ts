@@ -41,12 +41,15 @@ export interface CampaignEncounterNpc {
   hpMax?: number;
   armorClass?: number;
   notes?: string;
+  friendly?: boolean;
   combatStats?: CampaignNpcCombatStats;
 }
 
 export interface CampaignNpcCombatStats {
   saves: { physical: number; evasion: number; mental: number };
   attacks: import("./npc-combat.ts").CampaignNpcAttack[];
+  spells: import("./npc-combat.ts").CampaignNpcMagicReference[];
+  arts: import("./npc-combat.ts").CampaignNpcMagicReference[];
   notes: string;
   threatStats?: import("./npc-combat.ts").CampaignNpcThreatStats;
   sourceStats?: { hitDice: number; hitDiceDisplay?: string; attacksPerMainAction?: number; attacksPerMainActionDisplay?: string; shock: string; move: string; morale: number; instinct: number; skill: number };
@@ -88,7 +91,7 @@ export interface CampaignLiveSessionState {
 
 export function memberEncounterProjection(encounter: CampaignEncounter | null): CampaignEncounter | null {
   if (!encounter) return null;
-  return { ...encounter, combatants: encounter.combatants.map(combatant => combatant.kind === "pc" ? combatant : { id: combatant.id, kind: combatant.kind, name: combatant.name, initiative: combatant.initiative, hpCurrent: combatant.hpCurrent }) };
+  return { ...encounter, combatants: encounter.combatants.map(combatant => combatant.kind === "pc" ? combatant : { id: combatant.id, kind: combatant.kind, name: combatant.name, initiative: combatant.initiative, hpCurrent: combatant.hpCurrent, friendly: combatant.friendly }) };
 }
 
 export type CampaignLiveSessionEvent =

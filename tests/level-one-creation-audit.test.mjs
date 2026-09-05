@@ -8,6 +8,7 @@ import {
   backgroundTableResult,
 } from "../app/background-development.ts";
 import {
+  creationArtForSelection,
   creationBackgroundSkillChoiceOptions,
   artSelectionName,
   artSelectionValue,
@@ -163,20 +164,34 @@ function fillFoci(initial) {
   return state;
 }
 
-function fillMagic(initial) {
-  const status = levelOneCreationStatus(initial);
-  const arts = [...status.forcedArts];
-  for (const group of status.requiredArtChoiceGroups) {
-    if (!arts.some((selection) => group.options.includes(selection))) arts.push(group.options[0]);
-  }
+function fillArtQuotas(status, initialArts = []) {
+  const arts = [...initialArts];
+  const countForTradition = (tradition) => arts.filter((selection) =>
+    creationArtForSelection(status.availableArts, selection)?.tradition === tradition,
+  ).length;
+
   for (const art of status.availableArts) {
     if (arts.length === status.artAllowance) break;
-    if ((art.minLevel || 1) > 1 || (art.name === "Deep Apprehension" && !arts.some((selection) => selection.endsWith("Surface Apprehension")))) continue;
-    if (art.name !== "Skilled" && arts.includes(art.value)) continue;
+    if ((art.minLevel || 1) > 1) continue;
+    if (art.name === "Skilled") continue;
+    if (art.name === "Deep Apprehension" && !arts.some((selection) => selection.endsWith("Surface Apprehension"))) continue;
+    if (arts.includes(art.value)) continue;
     const completedGroup = status.requiredArtChoiceGroups.find((group) => group.options.includes(art.value));
     if (completedGroup && arts.some((selection) => completedGroup.options.includes(selection))) continue;
+    const allowed = status.artAllowanceByTradition?.[art.tradition] ?? status.artAllowance;
+    if (countForTradition(art.tradition) >= allowed) continue;
     arts.push(art.value);
   }
+  return arts;
+}
+
+function fillMagic(initial) {
+  const status = levelOneCreationStatus(initial);
+  const startingArts = [...status.forcedArts];
+  for (const group of status.requiredArtChoiceGroups) {
+    if (!startingArts.some((selection) => group.options.includes(selection))) startingArts.push(group.options[0]);
+  }
+  const arts = fillArtQuotas(status, startingArts);
   assert.equal(arts.length, status.artAllowance, "enough level-1 Arts exist for the active traditions");
   const artChoices = { ...(initial.artChoices || {}) };
   for (const selection of arts) {
@@ -503,11 +518,7 @@ test("same-named Arts from different traditions retain distinct selection identi
   const status = levelOneCreationStatus(state);
   const bardTongues = artSelectionValue("Bard", "A Thousand Tongues");
   const priestTongues = artSelectionValue("Blood Priest", "A Thousand Tongues");
-  const arts = [bardTongues, priestTongues];
-  for (const art of status.availableArts) {
-    if (arts.length === status.artAllowance) break;
-    if (!arts.includes(art.value)) arts.push(art.value);
-  }
+  const arts = fillArtQuotas(status, [bardTongues, priestTongues]);
   const complete = { ...completedState(state), artPicks: arts };
   assert.equal(levelOneCreationStatus(complete).canFinish, true);
   assert.notEqual(bardTongues, priestTongues);

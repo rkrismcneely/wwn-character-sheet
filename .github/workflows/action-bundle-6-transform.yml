@@ -29,7 +29,9 @@ jobs:
           node scripts/fix-action-bundle-6-transform.mjs
           node scripts/action-bundle-6-transform.mjs
           rm -f scripts/fix-action-bundle-6-transform.mjs
-      - name: Persist integrated branch
+          git checkout HEAD -- .github/workflows/deploy-production.yml
+          git checkout HEAD -- .github/workflows/action-bundle-6-transform.yml
+      - name: Persist integrated code
         run: |
           if git diff --quiet; then
             echo "No integration changes to commit."

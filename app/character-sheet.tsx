@@ -3617,7 +3617,7 @@ export default function Home({
                   if (e.target.value !== "") swapReadiedWithStowed(i, Number(e.target.value));
                 }}>
                   <option value="">{item ? inventoryItemDisplayName(item) : "Choose a stowed item…"}</option>
-                  {stowedSlots.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{stowedItem}</option>)}
+                  {stowedSlots.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{inventoryItemDisplayName(stowedItem)}</option>)}
                 </select>
               </label>
               {item && <button type="button" className="drop-item" onClick={() => dropInventoryItem("readied", i, item)}>Drop</button>}
@@ -3983,7 +3983,7 @@ export default function Home({
               {companionReadied.map((item, index) => <div className={`inventory-item-row ${index >= readiedCapacity ? "inventory-overflow" : ""}`} key={`r-${index}`}>
                 <label className="field"><span>{index + 1}{index >= readiedCapacity ? " · Over capacity" : ""}</span><select value="" aria-label={`Companion readied item slot ${index + 1}`} onChange={e => { if (e.target.value !== "") swapCompanionItem(index, Number(e.target.value)); }}>
                   <option value="">{item ? inventoryItemDisplayName(item) : "Choose a stowed item…"}</option>
-                  {companionStowed.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{stowedItem}</option>)}
+                  {companionStowed.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{inventoryItemDisplayName(stowedItem)}</option>)}
                 </select></label>
                 {item && <button type="button" className="drop-item" onClick={() => dropCompanionItem("readied", index, item)}>Drop</button>}
               </div>)}

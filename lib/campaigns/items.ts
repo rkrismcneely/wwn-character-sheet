@@ -62,11 +62,20 @@ interface LinkedCharacterRow {
   ownerUserId: string;
 }
 
-function text(value: unknown, label: string, maximum: number, required = true): string {
+function text(
+  value: unknown,
+  label: string,
+  maximum: number,
+  required = true,
+  allowLineBreaks = false,
+): string {
   if ((value === undefined || value === null || value === "") && !required) return "";
   if (typeof value !== "string") throw new CampaignServiceError(`${label} is required.`, 422);
   const result = value.trim();
-  if ((!result && required) || result.length > maximum || /[\u0000-\u001f\u007f]/u.test(result)) {
+  const invalidControl = allowLineBreaks
+    ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u
+    : /[\u0000-\u001f\u007f]/u;
+  if ((!result && required) || result.length > maximum || invalidControl.test(result)) {
     throw new CampaignServiceError(`${label} is invalid.`, 422);
   }
   return result;
@@ -133,7 +142,7 @@ function normalizedDraft(draft: CampaignItemDraft) {
   return {
     name: text(draft.name, "Item name", 80),
     kind: kind(draft.kind ?? "mundane"),
-    description: text(draft.description, "Item description", 2000, false),
+    description: text(draft.description, "Item description", 2000, false, true),
     visibility: itemVisibility,
     characterIds: targetIds(draft.characterIds, itemVisibility),
   };
@@ -145,6 +154,8 @@ async function targetMap(db: D1Database, campaignId: string): Promise<Map<string
      FROM campaign_item_characters cic
      INNER JOIN campaign_items ci ON ci.id = cic.campaign_item_id
      INNER JOIN characters ch ON ch.id = cic.character_id
+     INNER JOIN campaign_characters cc
+       ON cc.campaign_id = ci.campaign_id AND cc.character_id = ch.id
      WHERE ci.campaign_id = ? AND ch.public_id IS NOT NULL
      ORDER BY lower(ch.name)`,
   ).bind(campaignId).all<{ itemId: string; publicId: string }>();

@@ -2973,7 +2973,7 @@ export default function Home({
           {!signedIn && <p className="creation-warning">Sign in to create and save a private character.</p>}
         </section> : wizardOpen ? <GuidedCreationWizard
           sheet={sheet}
-          canEdit={canEdit}
+          canEdit={canEdit && (creationEntry === "guided" || characterEditMode)}
           persistenceKey={cloudId || "new-character"}
           reviewStats={{ ac: calculatedAc, attack: baseAttack }}
           onChange={update => setSheet(current => ({ ...current, ...update }))}
@@ -2988,7 +2988,7 @@ export default function Home({
           onFinish={(next, sourceLevel) => commitLevelUp(next as Sheet, sourceLevel)}
         /> : <>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
-        {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
+        {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && (creationEntry === "guided" || characterEditMode) && <div className="character-sheet-guided-action" data-readonly-interactive="true">
           <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>
         </div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">

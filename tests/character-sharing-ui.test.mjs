@@ -15,15 +15,17 @@ test("character management is consolidated into one owner-only bottom utility ba
   assert.ok(utilityIndex > heroIndex, "character utilities should follow the character sheet content");
   assert.equal((sheet.match(/className="character-bottom-utilities"/g) || []).length, 1);
   assert.match(sheet, /cloudId && canEdit && <section className="character-bottom-utilities"/u);
-  assert.match(sheet, />Edit Character<\/button>/u);
-  assert.match(sheet, />Save Character<\/button>/u);
-  assert.match(sheet, />Cancel<\/button>/u);
-  assert.match(sheet, /Campaigns ({campaignLinks.length})/u);
-  assert.match(sheet, /value={cloudVisibility}/u);
+  assert.ok(sheet.includes('>Edit Character</button>'));
+  assert.ok(sheet.includes('>Save Character</button>'));
+  assert.ok(sheet.includes('>Cancel</button>'));
+  assert.ok(sheet.includes('Campaigns ({campaignLinks.length})'));
+  assert.match(sheet, /value=\{cloudVisibility\}/u);
   assert.match(sheet, /changeVisibility/u);
   assert.match(sheet, /copyShareLink/u);
-  for (const value of ["private", "unlisted", "public"]) assert.match(sheet, new RegExp(`value="${value}"`, "u"));
+  for (const value of ["private", "unlisted", "public"]) {
+    assert.match(sheet, new RegExp(`value="${value}"`, "u"));
+  }
   assert.doesNotMatch(sheet, /character-sharing-footer/u);
   assert.match(css, /\.character-bottom-utilities\{/u);
-  assert.match(css, /@media\(max-width:720px\).*\.character-bottom-utilities\{[^}]*flex-wrap:wrap/su);
+  assert.match(css, /@media\(max-width:720px\)[\s\S]*\.character-bottom-utilities\{[^}]*flex-wrap:wrap/u);
 });

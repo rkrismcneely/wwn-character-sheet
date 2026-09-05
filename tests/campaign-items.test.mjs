@@ -62,16 +62,17 @@ test("campaign item persistence and APIs keep visibility server-authoritative", 
 });
 
 test("character inventory supports unlimited Stored Items and campaign-item pickers without replacing legacy string arrays", async () => {
-  const [sheet, css] = await Promise.all([
+  const [sheet, storedItems, css] = await Promise.all([
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-stored-items.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(sheet, /stored:\s*\[\]/u);
-  assert.match(sheet, /Stored Items/u);
-  assert.match(sheet, /does not count against Strength/u);
+  assert.match(storedItems, /Stored Items/u);
+  assert.match(storedItems, /does not count against Strength/u);
   assert.match(sheet, /campaignInventoryValue/u);
   assert.match(sheet, /campaignInventorySnapshot/u);
-  assert.match(sheet, /\/items\?characterId=/u);
+  assert.match(storedItems, /\/items\?characterId=/u);
   assert.match(sheet, /moveStowedToStored/u);
   assert.match(sheet, /moveStoredToStowed/u);
   assert.match(sheet, /inventoryItemDisplayName/u);

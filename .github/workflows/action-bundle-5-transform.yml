@@ -1,22 +1,22 @@
 name: Action Bundle 5 Transform
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/action-bundle-5-edit-mode
-    paths:
-      - scripts/action-bundle-5-transform.mjs
-      - .github/workflows/action-bundle-5-transform.yml
+      - main
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   transform-and-validate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -31,7 +31,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Implement Action Bundle 5 character edit mode"
-          git push
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

@@ -95,6 +95,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(route, /npc_combat/u);
   assert.match(route, /normalizeNpcAttacks/u);
   assert.match(durable, /setNpcCombatStats/u);
+  assert.match(durable, /restoreBestiaryEncounterAbilities/u);
   assert.match(route, /moveTurn/u);
   assert.match(sessionRoute, /durable\.encounter\(result\.state\.session\.id\)/u);
   assert.match(sessionClient, /message\.type === "session\.encounter"/u);
@@ -112,7 +113,13 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionUi, /campaign-encounter-pc/u);
   assert.match(sessionUi, /campaign-encounter-npc-row/u);
   assert.match(sessionUi, /campaign-encounter-pc-context/u);
+  assert.match(sessionUi, /<span>Initiative<\/span>/u);
   assert.match(sessionUi, /\$\{name\} initiative/u);
+  assert.match(sessionUi, /campaign-encounter-friendly-actions/u);
+  assert.match(sessionUi, /campaign-friendly-badge/u);
+  assert.match(sessionUi, /stats\.abilities/u);
+  assert.match(sessionUi, /Traits &amp; abilities/u);
+  assert.ok(sessionUi.indexOf("Traits &amp; abilities") > sessionUi.indexOf("<h4>Attacks</h4>"), "source abilities render after attacks");
   assert.match(sessionUi, /NpcRollButtons/u);
   assert.match(sessionUi, /Physical Save/u);
   assert.match(sessionUi, /Edit encounter combat/u);
@@ -138,8 +145,11 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionCss, /campaign-npc-roll-controls/u);
   assert.match(sessionCss, /campaign-encounter-threat/u);
   assert.match(sessionCss, /campaign-encounter-npc-combat \.campaign-npc-roll-controls\{display:none/u);
-  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-friendly-toggle\{grid-column:2;grid-row:2/u);
-  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-friendly-toggle\{grid-column:1\/-1;grid-row:3/u);
+  assert.match(sessionCss, /campaign-encounter-npc-row>\.campaign-encounter-friendly-actions\{grid-column:2;grid-row:2/u);
+  assert.match(sessionCss, /campaign-encounter-friendly-actions\{grid-column:1\/-1;grid-row:3\}/u);
+  assert.match(sessionCss, /campaign-encounter-npc\{grid-template-columns:minmax\(180px,1fr\) repeat\(4,minmax\(68px,82px\)\) auto auto\}/u);
+  assert.match(sessionCss, /campaign-encounter-hp-control input\{width:52px;box-sizing:border-box\}/u);
+  assert.match(sessionCss, /campaign-encounter-friendly input\{width:34px;height:34px;margin:0;accent-color:#ad762b\}/u);
   assert.match(sessionCss, /campaign-encounter-threat>summary::before\{content:"▸"/u);
   assert.match(sessionCss, /campaign-encounter-threat\[open\]>summary::before\{content:"▾"\}/u);
 });

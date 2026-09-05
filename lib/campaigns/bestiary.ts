@@ -297,6 +297,17 @@ function exactLegacyCombatSnapshot(stats: CampaignNpcCombatStats, creature: Buil
     && exactLegacySourceStats(stats.sourceStats, creature);
 }
 
+function matchesBestiarySourceStats(value: unknown, creature: BuiltInBestiaryCreature): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.hitDice === creature.sourceStats.hitDice
+    && candidate.shock === creature.sourceStats.shock
+    && candidate.move === creature.sourceStats.move
+    && candidate.morale === creature.sourceStats.morale
+    && candidate.instinct === creature.sourceStats.instinct
+    && candidate.skill === creature.sourceStats.skill;
+}
+
 const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {
   "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
   "large-solitary-predator": { description: "A powerful lone hunter suited to dangerous wilderness territory.", sourceStats: { hitDice: 5, attacksPerMainAction: 1, shock: "2/13", move: "30'", morale: 8, instinct: 6, skill: 1 } },
@@ -454,6 +465,7 @@ export function builtInBestiaryCreatureDraft(id: string): CampaignNpcDraft | nul
 export function builtInBestiaryEncounterSeed(id: string): { name: string; initiative: number; hpCurrent: number; hpMax: number; armorClass: number; notes: string; friendly: boolean; combatStats: CampaignNpcCombatStats } | null {
   const creature = getBuiltInBestiaryCreature(id);
   if (!creature) return null;
+  const abilities = creature.abilities?.map(ability => ({ ...ability }));
   return {
     name: creature.name,
     initiative: 0,
@@ -462,7 +474,23 @@ export function builtInBestiaryEncounterSeed(id: string): { name: string; initia
     armorClass: creature.armorClass,
     notes: creature.notes,
     friendly: false,
-    combatStats: { saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave }, attacks: creature.attacks.map(attack => ({ ...attack })), spells: creature.spellcasting?.spells.map(spell => ({ ...spell })) ?? [], arts: creature.spellcasting?.arts.map(art => ({ ...art })) ?? [], notes: creature.notes, sourceStats: { ...creature.sourceStats } },
+    combatStats: { saves: { physical: creature.physicalSave, evasion: creature.evasionSave, mental: creature.mentalSave }, attacks: creature.attacks.map(attack => ({ ...attack })), spells: creature.spellcasting?.spells.map(spell => ({ ...spell })) ?? [], arts: creature.spellcasting?.arts.map(art => ({ ...art })) ?? [], ...(abilities?.length ? { abilities } : {}), notes: creature.notes, sourceStats: { ...creature.sourceStats } },
+  };
+}
+
+/**
+ * Backfill structured abilities for modern Bestiary encounter snapshots that
+ * were created before abilities were carried separately from copied notes.
+ * The exact source signature prevents custom NPCs with the same name from
+ * being changed, while encounter-local values remain untouched.
+ */
+export function restoreBestiaryEncounterAbilities(npc: CampaignEncounterNpc): CampaignEncounterNpc | null {
+  const creature = builtInBestiaryCreatures.find(candidate => candidate.name === npc.name);
+  const stats = npc.combatStats;
+  if (!creature?.abilities?.length || !stats || stats.abilities?.length || npc.notes !== creature.notes || stats.notes !== creature.notes || !matchesBestiarySourceStats(stats.sourceStats, creature)) return null;
+  return {
+    ...npc,
+    combatStats: { ...stats, abilities: creature.abilities.map(ability => ({ ...ability })) },
   };
 }
 

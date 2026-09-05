@@ -42,6 +42,7 @@ test("preview search and copies remain independent while retaining source abilit
   assert.ok(draft && first && second);
   assert.match(draft.notes, /Webbing/u);
   assert.match(first.combatStats.notes, /Webbing/u);
+  assert.ok(first.combatStats.abilities?.some(ability => ability.name === "Webbing"));
   first.hpCurrent = 1;
   first.combatStats.attacks[0].damage = "1";
   assert.equal(second.hpCurrent, 14);

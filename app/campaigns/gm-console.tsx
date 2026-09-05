@@ -10,9 +10,11 @@ import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcMagicReference, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
 import { npcAttackFromWeapon, npcWeaponStarters } from "@/lib/campaigns/npc-weapons";
 import {
+  bestiaryNpcMagicOptions,
   builtInBestiaryCreatures,
   filterBestiaryCreatures,
   selectBestiaryCreature,
+  type BestiaryNpcMagicOption,
   type BuiltInBestiaryCreature,
 } from "@/lib/campaigns/bestiary";
 import { calculateWwnPartyScore, calculateWwnThreatEstimate, wwnThreatBands, wwnThreatBandDetails, wwnThreatEstimateCaveat, wwnThreatEstimateMethod, wwnThreatEstimateProvenance, type WwnThreatBand } from "@/lib/campaigns/wwn-threat";
@@ -23,18 +25,66 @@ import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "@/app/virtual
 import { useDisplayTheme } from "@/app/theme-provider";
 import { RulesAssistant } from "@/app/rules-assistant";
 import { CampaignItemLibrary } from "./campaign-item-library";
+import type { CampaignItem, CampaignItemManagementPayload } from "@/lib/campaigns/items";
+import { campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
 
 type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "party";
 
 type NpcDraft = {
   name: string; hpMax: number; armorClass: number;
   physicalSave: number; evasionSave: number; mentalSave: number;
-  attacks: CampaignNpcAttack[]; spells: CampaignNpcMagicReference[]; arts: CampaignNpcMagicReference[]; friendly: boolean; hitDice: number | null; attacksPerMainAction: number | null; notes: string;
+  attacks: CampaignNpcAttack[]; spells: CampaignNpcMagicReference[]; arts: CampaignNpcMagicReference[]; inventory: string[]; friendly: boolean; hitDice: number | null; attacksPerMainAction: number | null; notes: string;
 };
 
-const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [], spells: [], arts: [], friendly: false, hitDice: null, attacksPerMainAction: null, notes: "" });
+const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [], spells: [], arts: [], inventory: [], friendly: false, hitDice: null, attacksPerMainAction: null, notes: "" });
 const blankAttack = (): CampaignNpcAttack => ({ name: "", attackBonus: 0, damage: "", shock: "", description: "" });
 const blankMagic = (): CampaignNpcMagicReference => ({ name: "", summary: "" });
+const OTHER_MAGIC_VALUE = "__other__";
+const spellOptions = bestiaryNpcMagicOptions("spells");
+const artOptions = bestiaryNpcMagicOptions("arts");
+
+function magicOptionFor(reference: CampaignNpcMagicReference, options: readonly BestiaryNpcMagicOption[]): string {
+  return options.find(option => option.name === reference.name && option.level === reference.level && option.summary === reference.summary)?.key ?? (reference.name ? OTHER_MAGIC_VALUE : "");
+}
+
+function NpcMagicRow({ kind, index, value, options, onChange, onRemove }: { kind: "Spell" | "Art"; index: number; value: CampaignNpcMagicReference; options: readonly BestiaryNpcMagicOption[]; onChange: (value: CampaignNpcMagicReference) => void; onRemove: () => void }) {
+  const choice = magicOptionFor(value, options);
+  const custom = choice === OTHER_MAGIC_VALUE;
+  const selectedOption = options.find(option => option.key === choice);
+  return <div className="gm-npc-magic-row">
+    <select required aria-label={`${kind} ${index + 1} catalog choice`} value={choice} onChange={event => {
+      const next = options.find(option => option.key === event.target.value);
+      onChange(next ? { name: next.name, ...(next.level === undefined ? {} : { level: next.level }), summary: next.summary } : event.target.value === OTHER_MAGIC_VALUE ? (selectedOption ? blankMagic() : value) : blankMagic());
+    }}>
+      <option value="">Choose a {kind.toLowerCase()}…</option>
+      {options.map(option => <option key={option.key} value={option.key}>{option.name}{option.level === undefined ? "" : ` · Level ${option.level}`}</option>)}
+      <option value={OTHER_MAGIC_VALUE}>Other…</option>
+    </select>
+    {selectedOption && <small className="gm-npc-magic-summary">{selectedOption.summary}</small>}
+    {custom && <div className="gm-npc-magic-custom">
+      <input aria-label={`${kind} ${index + 1} custom name`} required maxLength={100} placeholder={`${kind} name`} value={value.name} onChange={event => onChange({ ...value, name: event.target.value })} />
+      {kind === "Spell" && <input aria-label={`${kind} ${index + 1} level`} type="number" min={0} max={9} placeholder="Level" value={value.level ?? ""} onChange={event => onChange({ ...value, level: event.target.value === "" ? undefined : Number(event.target.value) })} />}
+      <input aria-label={`${kind} ${index + 1} summary`} maxLength={500} placeholder="Effect / rules note" value={value.summary} onChange={event => onChange({ ...value, summary: event.target.value })} />
+    </div>}
+    <button type="button" className="campaign-quiet" onClick={onRemove}>Remove</button>
+  </div>;
+}
+
+function NpcInventoryPicker({ items, values, onChange }: { items: readonly CampaignItem[]; values: readonly string[]; onChange: (values: string[]) => void }) {
+  const slots = [...values, ""];
+  function setItem(index: number, value: string) {
+    const next = [...values];
+    if (index >= next.length) { if (value) next.push(value); }
+    else if (value) next[index] = value;
+    else next.splice(index, 1);
+    onChange(next);
+  }
+  return <fieldset className="gm-npc-inventory"><legend>Inventory</legend><p>Campaign items are available to NPCs regardless of player visibility targeting. Saved entries keep their item snapshot if the library changes.</p>{slots.map((value, index) => {
+    const snapshot = campaignInventorySnapshot(value);
+    const stillAvailable = value && items.some(item => campaignInventoryValue(item) === value);
+    return <label key={`${index}-${value}`}><span>{index < values.length ? `Item ${index + 1}` : "Add item"}</span><select aria-label={`NPC inventory item ${index + 1}`} value={value} onChange={event => setItem(index, event.target.value)}><option value="">Choose a campaign item…</option>{snapshot && !stillAvailable && <option value={value}>{inventoryItemDisplayName(value)} · Saved snapshot</option>}{items.map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} · {item.kind === "magical" ? "Magical" : "Mundane"}</option>)}</select>{snapshot && <small>{snapshot.kind === "magical" ? "Magical" : "Mundane"}{snapshot.description ? ` · ${snapshot.description}` : ""}</small>}</label>;
+  })}</fieldset>;
+}
 function rollNpcHitPoints(hitDice: number): number {
   const whole = Math.floor(hitDice);
   const fraction = hitDice - whole;
@@ -46,7 +96,7 @@ function rollNpcHitPoints(hitDice: number): number {
   }
   return Math.max(1, hp);
 }
-const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks.map(attack => ({ ...attack })), spells: npc.spells.map(spell => ({ ...spell })), arts: npc.arts.map(art => ({ ...art })), friendly: npc.friendly, hitDice: npc.hitDice, attacksPerMainAction: npc.attacksPerMainAction, notes: npc.notes });
+const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks.map(attack => ({ ...attack })), spells: npc.spells.map(spell => ({ ...spell })), arts: npc.arts.map(art => ({ ...art })), inventory: [...npc.inventory], friendly: npc.friendly, hitDice: npc.hitDice, attacksPerMainAction: npc.attacksPerMainAction, notes: npc.notes });
 
 type CampaignThreatCharacter = { threatLevel: unknown };
 type GmPartyCharacter = {
@@ -201,6 +251,7 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
 
 function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaignId: string; activeEncounter: boolean; onAddToEncounter: (npcId: string) => Promise<void> }) {
   const [npcs, setNpcs] = useState<CampaignNpcTemplate[]>([]);
+  const [campaignItems, setCampaignItems] = useState<CampaignItem[]>([]);
   const [editing, setEditing] = useState<CampaignNpcTemplate | null>(null);
   const [draft, setDraft] = useState<NpcDraft>(blankNpc);
   const [formOpen, setFormOpen] = useState(false);
@@ -209,10 +260,16 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   async function load() {
-    const response = await fetch(`/api/campaigns/${campaignId}/npcs`, { cache: "no-store" });
-    const body = await response.json() as { npcs?: CampaignNpcTemplate[]; error?: string };
-    if (!response.ok || !body.npcs) throw new Error(body.error || "NPC templates could not be loaded.");
+    const [npcResponse, itemResponse] = await Promise.all([
+      fetch(`/api/campaigns/${campaignId}/npcs`, { cache: "no-store" }),
+      fetch(`/api/campaigns/${campaignId}/items`, { cache: "no-store" }),
+    ]);
+    const body = await npcResponse.json() as { npcs?: CampaignNpcTemplate[]; error?: string };
+    const itemBody = await itemResponse.json() as CampaignItemManagementPayload & { error?: string };
+    if (!npcResponse.ok || !body.npcs) throw new Error(body.error || "NPC templates could not be loaded.");
+    if (!itemResponse.ok || !Array.isArray(itemBody.items)) throw new Error(itemBody.error || "Campaign items could not be loaded.");
     setNpcs(body.npcs);
+    setCampaignItems(itemBody.items);
   }
 
   useEffect(() => {
@@ -225,6 +282,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
   function openCreate() { setEditing(null); setDraft(blankNpc()); setFormOpen(true); setError(""); }
   function openEdit(npc: CampaignNpcTemplate) { setEditing(npc); setDraft(draftFor(npc)); setFormOpen(true); setError(""); }
   function updateAttack(index: number, key: keyof CampaignNpcAttack, value: string | number) { setDraft(current => ({ ...current, attacks: current.attacks.map((attack, candidate) => candidate === index ? { ...attack, [key]: value } : attack) })); }
+  function updateMagic(kind: "spells" | "arts", index: number, value: CampaignNpcMagicReference) { setDraft(current => ({ ...current, [kind]: current[kind].map((entry, candidate) => candidate === index ? value : entry) })); }
   function moveAttack(index: number, direction: -1 | 1) { setDraft(current => {
     const target = index + direction;
     if (target < 0 || target >= current.attacks.length) return current;
@@ -281,12 +339,13 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
       <label className="gm-npc-friendly"><input type="checkbox" checked={draft.friendly} onChange={event => setDraft(current => ({ ...current, friendly: event.target.checked }))} /><span>Friendly / allied creature</span></label>
       <fieldset className="gm-npc-threat"><legend>Threat data <small>(optional)</small></legend><p>Set both values to make this custom NPC ready for a future encounter estimate. Multiple weapon options never imply multiple attacks.</p><div><label><span>Hit Dice</span><input aria-label="Hit Dice" type="number" min={1} max={1000} value={draft.hitDice ?? ""} onChange={event => setDraft(current => ({ ...current, hitDice: event.target.value === "" ? null : Number(event.target.value) }))} /></label><label><span>Attacks per Main Action</span><input aria-label="Attacks per Main Action" type="number" min={1} max={100} value={draft.attacksPerMainAction ?? ""} onChange={event => setDraft(current => ({ ...current, attacksPerMainAction: event.target.value === "" ? null : Number(event.target.value) }))} /></label></div></fieldset>
       <fieldset className="gm-npc-attacks"><legend>Attacks</legend><p>Each option is separate. Damage uses the app’s rollable dice syntax, such as 1d8+2.</p>{draft.attacks.map((attack, index) => <div className="gm-npc-attack-row" key={index}><input aria-label={`Attack ${index + 1} name`} required maxLength={80} placeholder="Axe" value={attack.name} onChange={event => updateAttack(index, "name", event.target.value)} /><input aria-label={`Attack ${index + 1} bonus`} required type="number" min={-1000} max={1000} value={attack.attackBonus} onChange={event => updateAttack(index, "attackBonus", Number(event.target.value))} /><input aria-label={`Attack ${index + 1} damage`} required maxLength={80} placeholder="1d8+2" value={attack.damage} onChange={event => updateAttack(index, "damage", event.target.value)} /><input aria-label={`Attack ${index + 1} Shock`} maxLength={80} placeholder="Shock 1/AC 15" value={attack.shock ?? ""} onChange={event => updateAttack(index, "shock", event.target.value)} /><input aria-label={`Attack ${index + 1} description`} maxLength={240} placeholder="Optional note or trait" value={attack.description} onChange={event => updateAttack(index, "description", event.target.value)} /><span className="gm-npc-attack-actions"><button type="button" className="campaign-quiet" disabled={index === 0} aria-label={`Move attack ${index + 1} up`} onClick={() => moveAttack(index, -1)}>↑</button><button type="button" className="campaign-quiet" disabled={index === draft.attacks.length - 1} aria-label={`Move attack ${index + 1} down`} onClick={() => moveAttack(index, 1)}>↓</button><button type="button" className="campaign-quiet" aria-label={`Remove attack ${index + 1}`} onClick={() => setDraft(current => ({ ...current, attacks: current.attacks.filter((_, candidate) => candidate !== index) }))}>Remove</button></span></div>)}<div className="gm-npc-attack-add"><button type="button" className="campaign-secondary" disabled={draft.attacks.length >= 8} onClick={() => setDraft(current => ({ ...current, attacks: [...current.attacks, blankAttack()] }))}>Add Attack</button><label><span>Weapon starter</span><select aria-label="Add attack from weapon starter" defaultValue="" disabled={draft.attacks.length >= 8} onChange={event => { addWeaponAttack(event.currentTarget.value); event.currentTarget.value = ""; }}><option value="">Copy existing weapon values…</option>{npcWeaponStarters.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name} · {weapon.damage}{weapon.shock ? ` · Shock ${weapon.shock}` : ""}</option>)}</select></label></div></fieldset>
-      <fieldset className="gm-npc-magic"><legend>Spells</legend>{draft.spells.map((spell, index) => <div className="gm-npc-magic-row" key={index}><input aria-label={`Spell ${index + 1} name`} required maxLength={100} placeholder="Spell name" value={spell.name} onChange={event => setDraft(current => ({ ...current, spells: current.spells.map((item, candidate) => candidate === index ? { ...item, name: event.target.value } : item) }))} /><input aria-label={`Spell ${index + 1} level`} type="number" min={0} max={9} placeholder="Lvl" value={spell.level ?? ""} onChange={event => setDraft(current => ({ ...current, spells: current.spells.map((item, candidate) => candidate === index ? { ...item, level: event.target.value === "" ? undefined : Number(event.target.value) } : item) }))} /><input aria-label={`Spell ${index + 1} summary`} maxLength={500} placeholder="Effect / rules note" value={spell.summary} onChange={event => setDraft(current => ({ ...current, spells: current.spells.map((item, candidate) => candidate === index ? { ...item, summary: event.target.value } : item) }))} /><button type="button" className="campaign-quiet" onClick={() => setDraft(current => ({ ...current, spells: current.spells.filter((_, candidate) => candidate !== index) }))}>Remove</button></div>)}<button type="button" className="campaign-secondary" disabled={draft.spells.length >= 24} onClick={() => setDraft(current => ({ ...current, spells: [...current.spells, blankMagic()] }))}>Add Spell</button></fieldset>
-      <fieldset className="gm-npc-magic"><legend>Arts</legend>{draft.arts.map((art, index) => <div className="gm-npc-magic-row" key={index}><input aria-label={`Art ${index + 1} name`} required maxLength={100} placeholder="Art name" value={art.name} onChange={event => setDraft(current => ({ ...current, arts: current.arts.map((item, candidate) => candidate === index ? { ...item, name: event.target.value } : item) }))} /><input aria-label={`Art ${index + 1} summary`} maxLength={500} placeholder="Effect / rules note" value={art.summary} onChange={event => setDraft(current => ({ ...current, arts: current.arts.map((item, candidate) => candidate === index ? { ...item, summary: event.target.value } : item) }))} /><button type="button" className="campaign-quiet" onClick={() => setDraft(current => ({ ...current, arts: current.arts.filter((_, candidate) => candidate !== index) }))}>Remove</button></div>)}<button type="button" className="campaign-secondary" disabled={draft.arts.length >= 24} onClick={() => setDraft(current => ({ ...current, arts: [...current.arts, blankMagic()] }))}>Add Art</button></fieldset>
+      <fieldset className="gm-npc-magic"><legend>Spells</legend><p>Choose an imported Bestiary spell or use Other for homebrew.</p>{draft.spells.map((spell, index) => <NpcMagicRow key={index} kind="Spell" index={index} value={spell} options={spellOptions} onChange={value => updateMagic("spells", index, value)} onRemove={() => setDraft(current => ({ ...current, spells: current.spells.filter((_, candidate) => candidate !== index) }))} />)}<button type="button" className="campaign-secondary" disabled={draft.spells.length >= 24} onClick={() => setDraft(current => ({ ...current, spells: [...current.spells, blankMagic()] }))}>Add Spell</button></fieldset>
+      <fieldset className="gm-npc-magic"><legend>Arts</legend><p>Choose an imported Bestiary Art or use Other for homebrew.</p>{draft.arts.map((art, index) => <NpcMagicRow key={index} kind="Art" index={index} value={art} options={artOptions} onChange={value => updateMagic("arts", index, value)} onRemove={() => setDraft(current => ({ ...current, arts: current.arts.filter((_, candidate) => candidate !== index) }))} />)}<button type="button" className="campaign-secondary" disabled={draft.arts.length >= 24} onClick={() => setDraft(current => ({ ...current, arts: [...current.arts, blankMagic()] }))}>Add Art</button></fieldset>
+      <NpcInventoryPicker items={campaignItems} values={draft.inventory} onChange={inventory => setDraft(current => ({ ...current, inventory }))} />
       <label className="gm-npc-notes"><span>Notes</span><textarea maxLength={2000} value={draft.notes} onChange={event => setDraft(current => ({ ...current, notes: event.target.value }))} /></label><button type="submit" className="campaign-primary" disabled={busy}>{editing ? "Save NPC" : "Create NPC"}</button>
     </form>}
     {!npcs.length && !formOpen && <p className="campaign-empty-copy">Create reusable enemy and NPC templates for this campaign.</p>}
-    <div className="gm-npc-list">{npcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(npc.id).catch(() => {})}>Add to Encounter</button>}<button type="button" className="campaign-quiet" onClick={() => openEdit(npc)}>Edit</button><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void duplicate(npc)}>Duplicate</button>{deleteId === npc.id ? <span className="gm-npc-delete-confirm"><button type="button" className="campaign-danger" disabled={busy} onClick={() => void remove(npc.id)}>Confirm Delete</button><button type="button" className="campaign-quiet" onClick={() => setDeleteId(null)}>Cancel</button></span> : <button type="button" className="campaign-danger" onClick={() => setDeleteId(npc.id)}>Delete</button>}</div></article>)}</div>
+    <div className="gm-npc-list">{npcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.inventory.length > 0 && <p><strong>Inventory:</strong> {npc.inventory.map(item => inventoryItemDisplayName(item)).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(npc.id).catch(() => {})}>Add to Encounter</button>}<button type="button" className="campaign-quiet" onClick={() => openEdit(npc)}>Edit</button><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void duplicate(npc)}>Duplicate</button>{deleteId === npc.id ? <span className="gm-npc-delete-confirm"><button type="button" className="campaign-danger" disabled={busy} onClick={() => void remove(npc.id)}>Confirm Delete</button><button type="button" className="campaign-quiet" onClick={() => setDeleteId(null)}>Cancel</button></span> : <button type="button" className="campaign-danger" onClick={() => setDeleteId(npc.id)}>Delete</button>}</div></article>)}</div>
   </section>;
 }
 

@@ -2937,11 +2937,13 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
 .gm-npc-friendly input, .campaign-encounter-friendly input { width:auto; }
 .gm-npc-friendly-badge, .campaign-friendly-badge { display:inline-flex; margin-left:.5rem; padding:.1rem .45rem; border:1px solid currentColor; border-radius:999px; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
 .gm-npc-magic { display:grid; gap:.6rem; }
-.gm-npc-magic-row { display:grid; grid-template-columns:minmax(10rem,1fr) 5rem minmax(14rem,2fr) auto; gap:.5rem; align-items:center; }
-.gm-npc-magic-row:has(input[aria-label^="Art "]) { grid-template-columns:minmax(10rem,1fr) minmax(14rem,2fr) auto; }
+.gm-npc-magic-row { display:grid; grid-template-columns:minmax(13rem,1fr) minmax(14rem,2fr) auto; gap:.5rem; align-items:center; }
+.gm-npc-magic-custom { display:grid; grid-template-columns:minmax(10rem,1fr) 5rem minmax(14rem,2fr); gap:.5rem; min-width:0; }
+.gm-npc-magic-custom:has(input[aria-label^="Art "]) { grid-template-columns:minmax(10rem,1fr) minmax(14rem,2fr); }
+.gm-npc-magic-summary { min-width:0; color:#756957; font:11px/1.35 var(--font-ui); overflow-wrap:anywhere; }
 .campaign-encounter-threat > summary { cursor:pointer; list-style:none; }
 .campaign-encounter-threat > summary::-webkit-details-marker { display:none; }
 .campaign-encounter-threat-body { padding-top:.75rem; }
 .campaign-encounter-friendly { display:flex; align-items:center; gap:.35rem; }
 .campaign-encounter-friendly-toggle { white-space:nowrap; }
-@media (max-width: 720px) { .gm-npc-magic-row, .gm-npc-magic-row:has(input[aria-label^="Art "]) { grid-template-columns:1fr; } }
+@media (max-width: 720px) { .gm-npc-magic-row, .gm-npc-magic-custom { grid-template-columns:1fr; } }

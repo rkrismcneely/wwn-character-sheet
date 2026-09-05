@@ -240,6 +240,37 @@ export const campaignResources = sqliteTable(
   ],
 );
 
+export const campaignItems = sqliteTable(
+  "campaign_items",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["mundane", "magical"] }).notNull().default("mundane"),
+    description: text("description").notNull().default(""),
+    visibilityMode: text("visibility_mode", { enum: ["all", "selected"] }).notNull().default("all"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("campaign_items_campaign_name_idx").on(table.campaignId, table.name, table.updatedAt),
+    check("campaign_items_kind_check", sql`${table.kind} in ('mundane', 'magical')`),
+    check("campaign_items_visibility_check", sql`${table.visibilityMode} in ('all', 'selected')`),
+  ],
+);
+
+export const campaignItemCharacters = sqliteTable(
+  "campaign_item_characters",
+  {
+    campaignItemId: text("campaign_item_id").notNull().references(() => campaignItems.id, { onDelete: "cascade" }),
+    characterId: text("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.campaignItemId, table.characterId] }),
+    index("campaign_item_characters_character_idx").on(table.characterId, table.campaignItemId),
+  ],
+);
+
 export const campaignSessions = sqliteTable(
   "campaign_sessions",
   {

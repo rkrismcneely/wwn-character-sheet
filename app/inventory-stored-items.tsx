@@ -26,15 +26,11 @@ export function useCampaignInventoryItems(
 ) {
   const [items, setItems] = useState<CampaignInventoryOption[]>([]);
   const [error, setError] = useState("");
+  const active = enabled && Boolean(characterId) && campaigns.length > 0;
 
   useEffect(() => {
     let cancelled = false;
-    if (!enabled || !characterId || campaigns.length === 0) {
-      setItems([]);
-      setError("");
-      return () => { cancelled = true; };
-    }
-    setError("");
+    if (!active || !characterId) return () => { cancelled = true; };
     void Promise.all(campaigns.map(async campaign => {
       const response = await fetch(
         `/api/campaigns/${encodeURIComponent(campaign.id)}/items?characterId=${encodeURIComponent(characterId)}`,
@@ -46,7 +42,10 @@ export function useCampaignInventoryItems(
       }
       return body.items.map(item => ({ ...item, campaignName: campaign.name }));
     })).then(groups => {
-      if (!cancelled) setItems(groups.flat());
+      if (!cancelled) {
+        setItems(groups.flat());
+        setError("");
+      }
     }).catch(loadError => {
       if (!cancelled) {
         setItems([]);
@@ -54,9 +53,9 @@ export function useCampaignInventoryItems(
       }
     });
     return () => { cancelled = true; };
-  }, [campaigns, characterId, enabled]);
+  }, [active, campaigns, characterId]);
 
-  return { items, error };
+  return active ? { items, error } : { items: [], error: "" };
 }
 
 export function CampaignInventoryOptions({ items }: { items: readonly CampaignInventoryOption[] }) {

@@ -23,7 +23,7 @@ import {
   legalAdvancementFocuses,
   levelUpHitPointRollBounds,
   levelUpHitPointTotal,
-  skillRankCostAtLevel,
+  skillAdvancementCost,
   validLevelUpHitPointRoll,
   type AdvancementCharacter,
 } from "./level-advancement";
@@ -119,7 +119,9 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   const [finishing, setFinishing] = useState(false);
   const plan = useMemo(() => advancementPlan(state.draft as AdvancementCharacter), [state.draft]);
   const sources = useMemo(() => creationSkillSources(state.draft), [state.draft]);
+  const baselineSources = useMemo(() => creationSkillSources(sheet), [sheet]);
   const credits = useMemo(() => advancementSkillCreditBySkill(state.draft), [state.draft]);
+  const baselineCredits = useMemo(() => advancementSkillCreditBySkill(sheet), [sheet]);
   const artOptions = useMemo(() => artChoices(state.draft, plan.to), [state.draft, plan.to]);
   const spellOptions = useMemo(() => spellChoices(state.draft, plan.to), [state.draft, plan.to]);
 
@@ -137,14 +139,36 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     pick.name !== sheet.focusPicks[index]?.name || pick.level !== sheet.focusPicks[index]?.level,
   );
   const focusComplete = !plan.gainsFocus || (focusChanged && (!focusAdded || !focusChoiceRequired(selectedFocus?.name || "") || Boolean(selectedFocus?.choice)));
-  const originalSkillCost = Object.values(sheet.skillPurchases).reduce((total, rank) => total + skillRankCostAtLevel(Number(rank)), 0);
-  const draftSkillCost = Object.values(state.draft.skillPurchases).reduce((total, rank) => total + skillRankCostAtLevel(Number(rank)), 0);
   const originalBoosts = Object.values(sheet.attributeBoosts).reduce((total, count) => total + Number(count), 0);
   const draftBoosts = Object.values(state.draft.attributeBoosts).reduce((total, count) => total + Number(count), 0);
   const boostCost = (count: number) => count * (count + 1) / 2;
-  const pointsSpent = Math.max(0, draftSkillCost - originalSkillCost) + Math.max(0, boostCost(draftBoosts) - boostCost(originalBoosts));
-  const combatSkillSpent = ["Punch", "Shoot", "Stab"].reduce((total, skill) =>
-    total + Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))), 0);
+  const attributePointsSpent = Math.max(0, boostCost(draftBoosts) - boostCost(originalBoosts));
+  const skillSpendForRank = (skill: string, targetRank: number) => {
+    const baselineProfile = deriveSkillProfile({
+      purchased: sheet.skillPurchases[skill],
+      sourceCount: baselineSources[skill].length,
+      credit: baselineCredits[skill] || 0,
+    });
+    const newCredit = Math.max(0, (credits[skill] || 0) - (baselineCredits[skill] || 0));
+    return skillAdvancementCost(baselineProfile.effective, targetRank, newCredit);
+  };
+  const skillPointsSpent = creationSkills.reduce((total, skill) => {
+    const profile = deriveSkillProfile({
+      purchased: state.draft.skillPurchases[skill],
+      sourceCount: sources[skill].length,
+      credit: credits[skill] || 0,
+    });
+    return total + skillSpendForRank(skill, profile.effective);
+  }, 0);
+  const pointsSpent = skillPointsSpent + attributePointsSpent;
+  const combatSkillSpent = ["Punch", "Shoot", "Stab"].reduce((total, skill) => {
+    const profile = deriveSkillProfile({
+      purchased: state.draft.skillPurchases[skill],
+      sourceCount: sources[skill].length,
+      credit: credits[skill] || 0,
+    });
+    return total + skillSpendForRank(skill, profile.effective);
+  }, 0);
   const skillBudget = plan.skillPoints + Math.max(0, Number(sheet.levelUpUnspentSkillPoints) || 0);
   const pointsRemaining = skillBudget - pointsSpent;
   const { minimum: hpRollMinimum, maximum: hpRollMaximum } = levelUpHitPointRollBounds(plan.to);
@@ -160,16 +184,36 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   const newSpells = Math.max(0, state.draft.spellPicks.length - sheet.spellPicks.length);
   const education = traditionalEducationTradition(state.draft);
   const educationAdded = focusAdded && selectedFocus?.name === "Traditional Education" && Boolean(education);
-  const requiredArtPicks = plan.artPicks + (educationAdded && education ? artSlots(education, 1, state.draft.classMode === "adventurer") : 0);
-  const educationForcedArts = educationAdded && education
-    ? forcedArtsForTraditions([education]).map((name) => artSelectionValue(education, name))
-    : [];
-  const newArtSelections = state.draft.artPicks.slice(sheet.artPicks.length);
-  const artsComplete = newArts === requiredArtPicks && educationForcedArts.every((required) =>
-    newArtSelections.includes(required),
-  ) && newArtSelections.every((selection) =>
-    artChoiceIsComplete(selection, state.draft.artChoices),
+  const educationArtCount = educationAdded && education
+    ? artSlots(education, 1, state.draft.classMode === "adventurer")
+    : 0;
+  const artGrants = [
+    ...plan.artGrants.map((grant) => ({
+      tradition: grant.tradition,
+      count: grant.count,
+      fixedSelections: grant.fixedArts.map((name) => artSelectionValue(grant.tradition, name)),
+    })),
+    ...(educationAdded && education ? [{
+      tradition: education,
+      count: educationArtCount,
+      fixedSelections: forcedArtsForTraditions([education]).map((name) => artSelectionValue(education, name)),
+    }] : []),
+  ];
+  const artRequirements = artGrants.flatMap((grant) =>
+    Array.from({ length: grant.count }, (_, index) => ({
+      tradition: grant.tradition,
+      requiredArt: grant.fixedSelections[index] || "",
+    })),
   );
+  const requiredArtPicks = artRequirements.length;
+  const newArtSelections = state.draft.artPicks.slice(sheet.artPicks.length);
+  const artsComplete = newArts === requiredArtPicks && artRequirements.every((requirement, index) => {
+    const selection = newArtSelections[index] || "";
+    if (!selection) return false;
+    if (requirement.requiredArt && selection !== requirement.requiredArt) return false;
+    return artOptions.some((art) => art.value === selection && art.tradition === requirement.tradition)
+      && artChoiceIsComplete(selection, state.draft.artChoices);
+  });
   const spellsComplete = newSpells === plan.spellPicks;
   const ready = hpRollComplete && pointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
 
@@ -201,12 +245,18 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     artPicks: clone(sheet.artPicks),
     spellPicks: clone(sheet.spellPicks),
   }));
+  const cancel = () => {
+    if (typeof window !== "undefined") window.sessionStorage.removeItem(storageKey(persistenceKey));
+    setState({ sourceLevel, step: 0, draft: clone(sheet) });
+    setNotice("");
+    onCancel();
+  };
 
   const next = () => {
     if (state.step === 1 && !hpRollComplete) return setNotice("Roll the required hit-point total before continuing.");
     if (state.step === 2 && pointsRemaining < 0) return setNotice("Spend no more than the available skill points.");
     if (state.step === 3 && !focusComplete) return setNotice("Choose the required Focus and any required Focus option.");
-    if (state.step === 4 && (!artsComplete || !spellsComplete)) return setNotice("Choose every Art and spell granted at this level, including mandatory starting Arts from a newly learned tradition.");
+    if (state.step === 4 && (!artsComplete || !spellsComplete)) return setNotice("Choose every Art and spell granted at this level from the class or tradition that grants it.");
     setNotice("");
     setState((current) => ({ ...current, step: Math.min(5, current.step + 1) }));
   };
@@ -294,17 +344,18 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       <StepTitle eyebrow="SKILLS & ATTRIBUTES" title="Spend advancement points">
         {skillBudget} point{skillBudget === 1 ? "" : "s"} available; {pointsRemaining} remaining. Reversing a selection refunds its cost immediately.
       </StepTitle>
-      <div className="creation-rule-callout"><strong>Legal ranks only</strong><span>Skills cap at {skillLabel(plan.skillCap)} at level {plan.to}; Focus bonus skill credits are separate from this level’s normal skill-point pool.</span></div>
+      <div className="creation-rule-callout"><strong>Increasing costs</strong><span>Skills cost 1 point for level 0, 2 for level 1, 3 for level 2, 4 for level 3, and 5 for level 4. Skills cap at {skillLabel(plan.skillCap)} at level {plan.to}; Focus bonus skill credits are separate from this level’s normal skill-point pool.</span></div>
       <section className="level-up-spend-section" aria-labelledby="level-up-attributes-title">
         <h3 id="level-up-attributes-title">Attributes</h3>
         <div className="level-up-attributes-grid">{attributes.map((attribute) => {
           const boosts = state.draft.attributeBoosts[attribute] || 0;
+          const baselineBoostsForAttribute = sheet.attributeBoosts[attribute] || 0;
           const canIncrease = draftBoosts < plan.attributeBoostLimit && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= draftBoosts + 1;
           return <article className="level-up-attribute-card" key={attribute}>
             <div className="level-up-attribute-heading"><strong>{attribute}</strong><b>{state.draft.attrs[attribute]}</b></div>
             <span>{boosts} purchased increase{boosts === 1 ? "" : "s"}</span>
             <div className="level-up-attribute-controls">
-              <button type="button" aria-label={`Decrease ${attribute}`} disabled={boosts <= 0} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts - 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] - 1 } }))}>−</button>
+              <button type="button" aria-label={`Decrease ${attribute}`} disabled={boosts <= baselineBoostsForAttribute} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts - 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] - 1 } }))}>−</button>
               <button type="button" aria-label={`Increase ${attribute}`} disabled={!canIncrease} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts + 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] + 1 } }))}>+</button>
             </div>
           </article>;
@@ -314,20 +365,25 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
         <h3 id="level-up-skills-title">Skills</h3>
         <div className="level-up-skills-grid">{creationSkills.map((skill) => {
           const profile = deriveSkillProfile({ purchased: state.draft.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
-          const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank <= plan.skillCap || rank === profile.effective);
+          const baselineProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: baselineSources[skill].length, credit: baselineCredits[skill] || 0 });
+          const automaticProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
+          const minimumRank = Math.max(baselineProfile.effective, automaticProfile.effective);
+          const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank >= minimumRank && (rank <= plan.skillCap || rank === minimumRank || rank === profile.effective));
+          const currentSkillSpend = skillSpendForRank(skill, profile.effective);
           return <label className="level-up-skill-field" key={skill}><span>{skill}{profile.credit ? ` · Focus credit ${profile.credit}` : ""}</span><select aria-label={`${skill} advancement rank`} value={profile.effective} onChange={(event) => {
             const selected = Number(event.target.value);
             const stored = storedRankForDisplayedSkillRank(selected, profile.sourceCount, profile.credit);
             update((draft) => ({ ...draft, skillPurchases: { ...draft.skillPurchases, [skill]: stored } }));
           }}>{options.map((rank) => {
-            const stored = storedRankForDisplayedSkillRank(rank, profile.sourceCount, profile.credit);
-            const candidateCost = pointsSpent - Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))) + Math.max(0, skillRankCostAtLevel(stored) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill])));
+            const candidateSkillSpend = skillSpendForRank(skill, rank);
+            const candidateCost = pointsSpent - currentSkillSpend + candidateSkillSpend;
             const isCombatSkill = ["Punch", "Shoot", "Stab"].includes(skill);
-            const candidateCombat = combatSkillSpent + (isCombatSkill
-              ? -Math.max(0, skillRankCostAtLevel(Number(state.draft.skillPurchases[skill])) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill]))) + Math.max(0, skillRankCostAtLevel(stored) - skillRankCostAtLevel(Number(sheet.skillPurchases[skill])))
-              : 0);
+            const candidateCombat = combatSkillSpent + (isCombatSkill ? candidateSkillSpend - currentSkillSpend : 0);
             const disabled = candidateCost > skillBudget || (plan.quickLearner && candidateCombat > 3 && candidateCost > 3);
-            return <option key={rank} value={rank} disabled={disabled}>{skillLabel(rank)}</option>;
+            const costText = rank === baselineProfile.effective
+              ? ""
+              : candidateSkillSpend === 0 ? " · Focus credit" : ` · ${candidateSkillSpend} pt${candidateSkillSpend === 1 ? "" : "s"}`;
+            return <option key={rank} value={rank} disabled={disabled}>{skillLabel(rank)}{costText}</option>;
           })}</select></label>;
         })}</div>
       </section>
@@ -344,21 +400,22 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       </StepTitle>
       {requiredArtPicks > 0 && <div className="creation-magic-section">
         <h3>Arts ({newArts}/{requiredArtPicks})</h3>
-        {Array.from({ length: requiredArtPicks }, (_, index) => {
-          const requiredArt = educationForcedArts[index] || "";
+        {artRequirements.map((requirement, index) => {
+          const requiredArt = requirement.requiredArt;
           const artIndex = sheet.artPicks.length + index;
           const selection = state.draft.artPicks[artIndex] || "";
           const choiceDefinition = artChoiceDefinition(selection);
           const choiceValues = artChoiceValues(selection, state.draft.artChoices);
-          return <div className="creation-art-row" key={index}>
+          return <div className="creation-art-row" key={`${requirement.tradition}-${index}`}>
             <label>
-              <span>{requiredArt ? `Required Art · ${artSelectionName(requiredArt)}` : `New Art ${index + 1}`}</span>
+              <span>{requiredArt ? `${requirement.tradition} · Required Art · ${artSelectionName(requiredArt)}` : `New ${requirement.tradition} Art`}</span>
               <select value={selection} onChange={(event) => update((draft) => ({
                 ...draft,
                 artPicks: [...draft.artPicks.slice(0, artIndex), event.target.value, ...draft.artPicks.slice(artIndex + 1)],
               }))}>
-                <option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : "Choose an Art…"}</option>
+                <option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : `Choose a ${requirement.tradition} Art…`}</option>
                 {artOptions.filter((art) => {
+                  if (art.tradition !== requirement.tradition) return false;
                   if (requiredArt && art.value !== requiredArt) return false;
                   const duplicate = art.name !== "Skilled" && state.draft.artPicks.some((picked, selectedIndex) => selectedIndex !== artIndex && picked === art.value);
                   const needsSurface = art.name === "Deep Apprehension" && !state.draft.artPicks.some((picked) => artSelectionName(picked) === "Surface Apprehension");
@@ -392,5 +449,5 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     </>;
   })();
 
-  return <section className="guided-creation" aria-label="Level-Up Wizard"><header className="guided-creation-header"><div><p>LEVEL-UP WIZARD · LEVEL {plan.from} → {plan.to}</p><h1>Advance your character</h1><span>This is a transactional draft. Canceling or closing it leaves the saved character unchanged.</span></div><button type="button" className="secondary-button" onClick={onCancel}>Cancel level-up</button></header><div className="guided-creation-layout"><nav className="creation-progress" aria-label="Level-up steps">{["Overview", "Hit Points", "Skills", "Focus", "Magic", "Review"].map((label, index) => <button type="button" key={label} className={state.step === index ? "active" : ""} onClick={() => setState((current) => ({ ...current, step: index }))}><span>{index + 1}</span><b>{label}</b></button>)}</nav><main className="creation-workspace">{notice && <div className="creation-notice" role="status">{notice}<button type="button" onClick={() => setNotice("")}>×</button></div>}{content}</main><aside className="creation-summary-rail"><h2>Advancement</h2><div className="creation-summary-content"><div><span>Current</span><b>Level {plan.from}</b></div><div><span>New</span><b>Level {plan.to}</b></div><div><span>Skill points</span><p>{pointsRemaining}/{skillBudget} remaining</p></div><div><span>HP</span><p>{hpRollComplete ? hpMaximum : "Awaiting roll"}</p></div></div></aside></div><footer className="creation-navigation"><button type="button" onClick={() => setState((current) => ({ ...current, step: Math.max(0, current.step - 1) }))} disabled={state.step === 0}>Back</button>{state.step === 5 ? <button type="button" className="primary-button" disabled={!ready || finishing || !canEdit} onClick={() => void finish()}>{finishing ? "Applying…" : "Confirm level-up"}</button> : <button type="button" className="primary-button" onClick={next}>Continue</button>}</footer></section>;
+  return <section className="guided-creation" aria-label="Level-Up Wizard"><header className="guided-creation-header"><div><p>LEVEL-UP WIZARD · LEVEL {plan.from} → {plan.to}</p><h1>Advance your character</h1><span>This is a transactional draft. Canceling discards the draft; nothing changes until you confirm the final summary.</span></div><button type="button" className="secondary-button" onClick={cancel}>Cancel level-up</button></header><div className="guided-creation-layout"><nav className="creation-progress" aria-label="Level-up steps">{["Overview", "Hit Points", "Skills", "Focus", "Magic", "Review"].map((label, index) => <button type="button" key={label} className={state.step === index ? "active" : ""} onClick={() => setState((current) => ({ ...current, step: index }))}><span>{index + 1}</span><b>{label}</b></button>)}</nav><main className="creation-workspace">{notice && <div className="creation-notice" role="status">{notice}<button type="button" onClick={() => setNotice("")}>×</button></div>}{content}</main><aside className="creation-summary-rail"><h2>Advancement</h2><div className="creation-summary-content"><div><span>Current</span><b>Level {plan.from}</b></div><div><span>New</span><b>Level {plan.to}</b></div><div><span>Skill points</span><p>{pointsRemaining}/{skillBudget} remaining</p></div><div><span>HP</span><p>{hpRollComplete ? hpMaximum : "Awaiting roll"}</p></div></div></aside></div><footer className="creation-navigation"><button type="button" onClick={() => setState((current) => ({ ...current, step: Math.max(0, current.step - 1) }))} disabled={state.step === 0}>Back</button>{state.step === 5 ? <button type="button" className="primary-button" disabled={!ready || finishing || !canEdit} onClick={() => void finish()}>{finishing ? "Applying…" : "Confirm level-up"}</button> : <button type="button" className="primary-button" onClick={next}>Continue</button>}</footer></section>;
 }

@@ -9,6 +9,7 @@ import {
   levelUpHitPointRollBounds,
   levelUpHitPointTotal,
   legalAdvancementFocuses,
+  skillAdvancementCost,
   skillRankCapAtLevel,
   validLevelUpHitPointRoll,
 } from "../app/level-advancement.ts";
@@ -55,6 +56,7 @@ test("every supported full and legal partial path has a complete 1–10 matrix",
       const plan = advancementPlan(base({ level, classOne }));
       assert.ok(plan.skillPoints >= 3, `${classOne} at level ${level}`);
       assert.ok(plan.artPicks >= 0 && plan.spellPicks >= 0, `${classOne} at level ${level}`);
+      assert.equal(plan.artPicks, plan.artGrants.reduce((total, grant) => total + grant.count, 0));
     }
   }
   for (const classOne of partialClasses) for (const classTwo of partialClasses) {
@@ -63,6 +65,7 @@ test("every supported full and legal partial path has a complete 1–10 matrix",
       const plan = advancementPlan(base({ level, classMode: "adventurer", classOne, classTwo }));
       assert.ok(plan.skillPoints >= 3, `${classOne}/${classTwo} at level ${level}`);
       assert.ok(plan.artPicks >= 0 && plan.spellPicks >= 0, `${classOne}/${classTwo} at level ${level}`);
+      assert.equal(plan.artPicks, plan.artGrants.reduce((total, grant) => total + grant.count, 0));
     }
   }
 });
@@ -76,6 +79,53 @@ test("skill and attribute caps follow the SRD level gates", () => {
   assert.equal(attributeBoostLimitAtLevel(3), 3);
   assert.equal(attributeBoostLimitAtLevel(6), 4);
   assert.equal(attributeBoostLimitAtLevel(9), 5);
+});
+
+test("skill advancement charges each new displayed rank at its increasing SRD cost", () => {
+  assert.equal(skillAdvancementCost(-1, 0), 1);
+  assert.equal(skillAdvancementCost(0, 1), 2);
+  assert.equal(skillAdvancementCost(1, 2), 3);
+  assert.equal(skillAdvancementCost(2, 3), 4);
+  assert.equal(skillAdvancementCost(3, 4), 5);
+  assert.equal(skillAdvancementCost(0, 2), 5, "multi-rank increases pay for each intermediate level");
+  assert.equal(skillAdvancementCost(0, 2, 3), 2, "a new Focus credit offsets literal skill points, not rank gates");
+});
+
+test("partial-class Art grants stay attached to the tradition that earned them", () => {
+  const dualMage = advancementPlan(base({
+    level: 2,
+    classMode: "adventurer",
+    classOne: "High Mage",
+    classTwo: "Necromancer",
+  }));
+  assert.deepEqual(
+    dualMage.artGrants.map(({ tradition, count }) => ({ tradition, count })),
+    [
+      { tradition: "High Mage", count: 1 },
+      { tradition: "Necromancer", count: 1 },
+    ],
+  );
+  assert.equal(dualMage.artPicks, 2);
+});
+
+test("Mageslayer advancement exposes the fixed Arts from its class table", () => {
+  const levelTwo = advancementPlan(base({
+    level: 1,
+    classMode: "adventurer",
+    classOne: "Mageslayer",
+    classTwo: "Warrior",
+  }));
+  assert.equal(levelTwo.artGrants.length, 1);
+  assert.equal(levelTwo.artGrants[0].tradition, "Mageslayer");
+  assert.equal(levelTwo.artGrants[0].count, 2);
+  assert.deepEqual([...levelTwo.artGrants[0].fixedArts].sort(), ["Spellshield", "Witchfinder"]);
+  const levelThree = advancementPlan(base({
+    level: 2,
+    classMode: "adventurer",
+    classOne: "Mageslayer",
+    classTwo: "Warrior",
+  }));
+  assert.deepEqual(levelThree.artGrants[0].fixedArts, ["Disrupt Sorcery"]);
 });
 
 test("HP reroll keeps the better total and otherwise grants one", () => {
@@ -117,8 +167,11 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
     readFile(new URL("../app/character-creation-wizard.css", import.meta.url), "utf8"),
   ]);
   assert.match(wizard, /window\.sessionStorage\.setItem\(storageKey\(persistenceKey\)/u);
+  assert.match(wizard, /window\.sessionStorage\.removeItem\(storageKey\(persistenceKey\)\)/u);
   assert.match(wizard, /onFinish\(final, sourceLevel\)/u);
-  assert.match(wizard, /Canceling or closing it leaves the saved character unchanged/u);
+  assert.match(wizard, /Canceling discards the draft/u);
+  assert.match(wizard, /onClick=\{cancel\}>Cancel level-up/u);
+  assert.match(wizard, /setState\(\{ sourceLevel, step: 0, draft: clone\(sheet\) \}\)/u);
   assert.match(wizard, /Roll \{plan\.to\}d6 for HP/u);
   assert.match(wizard, /Enter physical dice total/u);
   assert.match(wizard, /hpRollMinimum/u);
@@ -127,7 +180,6 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(wizard, /type="number"[\s\S]*aria-describedby="level-up-hp-range"/u);
   assert.match(wizard, /className="level-up-hp-controls"[\s\S]*className="level-up-hp-manual-input"/u);
   assert.doesNotMatch(wizard, /level-up-hp-entry[\s\S]*creation-roll-entry/u);
-  assert.match(wizard, /Enter physical dice total/u);
   assert.match(wizard, /Legal raw total: \{hpRollMinimum\}–\{hpRollMaximum\}/u);
   assert.match(wizard, /disabled=\{hpRollComplete\}/u);
   assert.match(wizard, /Clear HP total/u);
@@ -135,10 +187,14 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(wizard, /hpRoll: undefined/u);
   assert.match(wizard, /Traditional Education/u);
   assert.match(wizard, /forcedArtsForTraditions/u);
-  assert.match(wizard, /educationForcedArts/u);
+  assert.match(wizard, /plan\.artGrants/u);
+  assert.match(wizard, /art\.tradition !== requirement\.tradition/u);
   assert.match(wizard, /Required Art · \$\{artSelectionName\(requiredArt\)\}/u);
   assert.match(wizard, /Mandatory starting Arts are enforced automatically/u);
   assert.match(wizard, /Deep Apprehension/u);
+  assert.match(wizard, /skillAdvancementCost/u);
+  assert.match(wizard, /rank >= minimumRank/u);
+  assert.match(wizard, /boosts <= baselineBoostsForAttribute/u);
   assert.match(sheet, /levelUpModeFromUrl/u);
   assert.match(sheet, /setLevelUpMode\(true\)/u);
   assert.match(sheet, /Number\(currentPayload\.version\) !== cloudVersion/u);

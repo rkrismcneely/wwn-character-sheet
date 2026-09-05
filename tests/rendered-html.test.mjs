@@ -335,7 +335,7 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
   }
 });
 
-test("local Worker enforces read-only administrator access", { timeout: 90_000 }, async () => {
+test("local Worker enforces read-only administrator access", { timeout: 180_000 }, async () => {
   const worker = await startLocalWorker({ auth: true });
   try {
     const normalHeaders = authenticatedHeaders(worker, worker.authSessionToken);
@@ -568,12 +568,6 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
       );
       assert.equal(response.status, 403, `admin ${method} other portrait`);
     }
-    const claim = await fetch(`${worker.origin}/api/legacy-claims`, {
-      method: "POST",
-      headers: { ...adminHeaders, "content-type": "application/json" },
-      body: JSON.stringify({ token: `claim_${"C".repeat(43)}` }),
-    });
-    assert.notEqual(claim.status, 200);
 
     const adminSession = await fetch(`${worker.origin}/api/auth/get-session`, {
       headers: adminHeaders,

@@ -36,7 +36,8 @@
 .account-explanation{max-width:680px;margin:17px 0;color:#675b49;font:15px/1.5 var(--font-body)}
 .account-form{display:flex;flex-direction:column;gap:7px}
 .account-form label{font:700 10px var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#756957}
-.account-form input{width:100%;padding:11px;border:1px solid #bca478;background:#fffdf7;font:16px var(--font-ui)}
+.account-name-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;gap:8px}
+.account-form input{width:100%;min-width:0;padding:11px;border:1px solid #bca478;background:#fffdf7;font:16px var(--font-ui)}
 .account-form input:focus{outline:2px solid #c18a36;outline-offset:1px}
 .account-form small{color:#756957;font:11px/1.4 var(--font-ui)}
 .account-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
@@ -107,7 +108,13 @@
 .account-dice-preview .account-secondary{justify-self:start}
 .account-dice-preview-status{min-height:16px;margin:0;color:#756957;font:11px/1.4 var(--font-ui)}
 @media(max-width:640px){.account-dice-preview .account-secondary{width:100%}}
-.account-connection { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 0; flex-wrap: wrap; }
+.account-connections-panel{padding-block:18px 20px}
+.account-connections-panel .account-explanation{margin-block:10px;max-width:760px;font-size:13px;line-height:1.4}
+.account-connections-list{margin-top:4px;border-top:1px solid #cfbc94}
+.account-connection { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem 0; flex-wrap: wrap; }
+.account-connection + .account-connection{border-top:1px solid #cfbc94}
 .account-connection > div { display: flex; flex-direction: column; gap: .25rem; }
+.account-connection > div span{color:#756957;font:11px/1.3 var(--font-ui)}
 .account-disconnect-confirmation { padding: 1rem; border: 1px solid currentColor; border-radius: .5rem; }
 .account-disconnect-confirmation .account-actions { flex-wrap: wrap; }
+@media(max-width:640px){.account-name-entry{grid-template-columns:1fr}.account-name-entry .account-primary{width:100%}}

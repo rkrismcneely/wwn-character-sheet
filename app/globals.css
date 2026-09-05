@@ -2051,6 +2051,37 @@ html[data-theme="dark"] .campaign-member-remove{
   border-color:#755f3b;
   color:#ecd8af;
 }
+html[data-theme="dark"] .account-connections-list,
+html[data-theme="dark"] .account-connection + .account-connection{
+  border-color:#665431;
+}
+html[data-theme="dark"] .account-connection > div span{
+  color:#b9a98d;
+}
+html[data-theme="dark"] .account-disconnect-confirmation{
+  background:#211f19;
+  border-color:#755f3b;
+}
+html[data-theme="dark"] .dashboard-secondary-actions summary{
+  background:#29261f;
+  border-color:#755f3b;
+  color:#ecd8af;
+}
+html[data-theme="dark"] .dashboard-card-actions .dashboard-archive{
+  background:#3b3120;
+  border-color:#88682f;
+  color:#f1d59f;
+}
+html[data-theme="dark"] .dashboard-card-actions .dashboard-danger{
+  background:#5b2923;
+  border-color:#c17b62;
+  color:#fff2e8;
+}
+html[data-theme="dark"] .dashboard-card-actions .dashboard-danger:hover,
+html[data-theme="dark"] .dashboard-card-actions .dashboard-danger:focus-visible{
+  background:#71342b;
+  border-color:#e29a7b;
+}
 html[data-theme="dark"] .account-notice,
 html[data-theme="dark"] .dashboard-notice,
 html[data-theme="dark"] .campaign-notice{

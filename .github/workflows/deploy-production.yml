@@ -34,6 +34,11 @@ jobs:
             echo "The connected-accounts migration workflow owns this release."
             exit 0
           fi
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0016_campaign_items\.sql$|^scripts/migrate-campaign-items\.mjs$|^\.github/workflows/migrate-campaign-items\.yml$"; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "The campaign-item migration workflow owns this release."
+            exit 0
+          fi
           if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/001(4_campaign_map_foundation|5_campaign_map_interactions)\.sql$|^scripts/migrate-campaign-map-foundation\.mjs$|^\.github/workflows/migrate-campaign-map-foundation\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The campaign-map migration workflow owns this release."

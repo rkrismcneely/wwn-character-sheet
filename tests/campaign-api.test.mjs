@@ -39,7 +39,9 @@ import { createCampaignItem, updateCampaignItem } from "../lib/campaigns/items.t
 import { campaignInventorySnapshot, campaignInventoryValue } from "../lib/inventory/items.ts";
 import {
   builtInBestiaryCreatureDraft,
+  builtInBestiaryCreatures,
   builtInBestiaryEncounterSeed,
+  bestiaryNpcAttackOptions,
   bestiaryNpcMagicOptions,
   getBuiltInBestiaryCreature,
   searchBestiaryCreatures,
@@ -510,8 +512,19 @@ test("Bestiary-backed NPC magic options are deduplicated and keep structured rul
   assert.ok(arts.length > 0);
   assert.equal(new Set(spells.map(option => option.key)).size, spells.length);
   assert.equal(new Set(arts.map(option => option.key)).size, arts.length);
+  assert.equal(new Set(spells.map(option => option.name.toLocaleLowerCase().replace(/^the\s+/u, ""))).size, spells.length);
+  assert.equal(new Set(arts.map(option => option.name.toLocaleLowerCase())).size, arts.length);
+  assert.ok(spells.every(option => Number.isInteger(option.level) && option.level >= 1 && option.level <= 5));
+  assert.deepEqual(spells, [...spells].sort((left, right) => left.level - right.level || left.name.localeCompare(right.name) || left.summary.localeCompare(right.summary)));
   assert.ok(spells.some(option => option.name === "The Coruscating Coffin" && option.level === 1 && option.summary.includes("Physical save")));
-  assert.ok(arts.some(option => option.name === "Sense Magic" && option.summary.includes("active magic")));
+  assert.ok(spells.some(option => option.name === "The Torment of Tumefaction" && option.level === 3));
+  assert.ok(arts.some(option => option.name === "Sense Magic" && option.summary.includes("inspect magical effects")));
+  assert.equal(builtInBestiaryCreatures.find(creature => creature.id === "totw-petty-tyrant")?.spellcasting?.spells.filter(spell => spell.name === "The Howl of Light").length, 1);
+  assert.ok(builtInBestiaryCreatures.find(creature => creature.id === "totw-petty-tyrant")?.notes.includes("The Howl of Light (L3)"));
+  const monsterAttacks = bestiaryNpcAttackOptions();
+  assert.ok(monsterAttacks.length > 0);
+  assert.equal(new Set(monsterAttacks.map(option => option.key)).size, monsterAttacks.length);
+  assert.ok(monsterAttacks.some(option => option.name === "Ghostly Touch" && option.damage === "1d8+1"));
 });
 
 test("Bundle 13 keeps NPC magic selectors and campaign-item inventory GM-scoped", async () => {
@@ -523,6 +536,11 @@ test("Bundle 13 keeps NPC magic selectors and campaign-item inventory GM-scoped"
   assert.match(consoleSource, /bestiaryNpcMagicOptions\("spells"\)/u);
   assert.match(consoleSource, /bestiaryNpcMagicOptions\("arts"\)/u);
   assert.match(consoleSource, /<option value=\{OTHER_MAGIC_VALUE\}>Other…<\/option>/u);
+  assert.match(consoleSource, /NpcMagicAdd kind="Spell"/u);
+  assert.match(consoleSource, /NpcMagicAdd kind="Art"/u);
+  assert.match(consoleSource, /Add attack from weapon or monster catalog/u);
+  assert.match(consoleSource, /<optgroup label="Monster attacks">/u);
+  assert.match(consoleSource, /magicOptionFor\(value, options\)/u);
   assert.match(consoleSource, /fetch\(`\/api\/campaigns\/\$\{campaignId\}\/items`/u);
   assert.match(consoleSource, /campaignInventoryValue\(item\)/u);
   assert.match(liveSessionSource, /inventory=\{combatant\.inventory\}/u);

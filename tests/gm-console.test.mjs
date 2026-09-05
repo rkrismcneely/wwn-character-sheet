@@ -99,6 +99,11 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /attack\.shock/u);
   assert.match(consoleUi, /Weapon starter/u);
   assert.match(consoleUi, /npcWeaponStarters/u);
+  assert.match(consoleUi, /gm-npc-hp-roll/u);
+  assert.match(consoleUi, /Roll HP/u);
+  assert.match(consoleUi, /Add \{kind\}/u);
+  assert.match(consoleUi, /Add attack from weapon or monster catalog/u);
+  assert.match(consoleUi, /<optgroup label="Monster attacks">/u);
   assert.match(consoleUi, /Move attack/u);
   assert.match(consoleUi, /Shock/u);
   assert.match(encounterRoute, /add_saved_npc/u);

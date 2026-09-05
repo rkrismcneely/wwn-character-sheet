@@ -152,4 +152,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionCss, /campaign-encounter-friendly input\{width:34px;height:34px;margin:0;accent-color:#ad762b\}/u);
   assert.match(sessionCss, /campaign-encounter-threat>summary::before\{content:"▸"/u);
   assert.match(sessionCss, /campaign-encounter-threat\[open\]>summary::before\{content:"▾"\}/u);
+  assert.match(sessionCss, /html\[data-theme="dark"\] \.campaign-encounter-order li\{[^}]*color:#ead9b8/u);
+  assert.match(sessionCss, /html\[data-theme="dark"\] \.campaign-encounter-stat b\{color:#f0dfbd/u);
+  assert.match(sessionCss, /html\[data-theme="dark"\] \.campaign-encounter-stat small[^}]*color:#cdbd9f/u);
 });

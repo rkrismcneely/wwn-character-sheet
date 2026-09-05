@@ -38,9 +38,7 @@ function formatUpdatedAt(value: string) {
 export function DashboardPage() {
   const [characters, setCharacters] = useState<DashboardCharacter[]>([]);
   const [busy, setBusy] = useState(true);
-  const [claimBusy, setClaimBusy] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
-  const [claimToken, setClaimToken] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -86,35 +84,6 @@ export function DashboardPage() {
       active = false;
     };
   }, []);
-
-  async function claimLegacyCharacter(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const token = claimToken.trim();
-    if (!token) {
-      setError("Enter the one-time claim token you received.");
-      return;
-    }
-    setClaimBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const response = await fetch("/api/legacy-claims", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const payload = await response.json() as { claimed?: number; error?: string };
-      if (!response.ok) throw new Error(payload.error || "The character claim could not be completed.");
-      setClaimToken("");
-      await loadCharacters();
-      const count = Number(payload.claimed) || 0;
-      setNotice(`${count} legacy character${count === 1 ? "" : "s"} added to My Characters.`);
-    } catch (claimError) {
-      setError(claimError instanceof Error ? claimError.message : "The character claim could not be completed.");
-    } finally {
-      setClaimBusy(false);
-    }
-  }
 
 
   const activeCharacters = characters.filter(character => !character.archivedAt);
@@ -229,7 +198,7 @@ export function DashboardPage() {
             <div className="dashboard-state dashboard-empty">
               <span aria-hidden="true">✦</span>
               <h3>Your roster is waiting</h3>
-              <p>Create a new folio or use a legacy claim token to bring an adventurer here.</p>
+              <p>Create a new folio to begin your roster.</p>
               <Link className="dashboard-primary" href="/?new=1">Create your first character</Link>
             </div>
           )}
@@ -246,17 +215,7 @@ export function DashboardPage() {
           </section>}
         </section>
 
-        <aside className="dashboard-sidebar" aria-label="Character recovery tools">
-          <section className="dashboard-tool">
-            <p className="dashboard-kicker">RECOVER A RECORD</p>
-            <h2>Claim a legacy character</h2>
-            <p>Enter the private, one-time code supplied by the administrator. Claimed folios become part of your private roster.</p>
-            <form onSubmit={claimLegacyCharacter}>
-              <label htmlFor="dashboard-claim-token">One-time claim code</label>
-              <input id="dashboard-claim-token" value={claimToken} onChange={event => setClaimToken(event.target.value)} autoComplete="off" spellCheck={false} />
-              <button type="submit" className="dashboard-secondary" disabled={claimBusy}>{claimBusy ? "Claiming…" : "Claim character"}</button>
-            </form>
-          </section>
+        <aside className="dashboard-sidebar" aria-label="Character browsing tools">
           <section className="dashboard-tool dashboard-public-tool">
             <p className="dashboard-kicker">THE PUBLIC ARCHIVE</p>
             <h2>Find another adventurer</h2>

@@ -1,30 +1,52 @@
 .creation-class-description {
+  display: block;
   margin: 0.45rem 0 0;
   color: var(--ink-muted, #6f675d);
   font-size: 0.88rem;
   line-height: 1.45;
 }
 
-.creation-select-with-help {
+.creation-selection-summary {
+  display: block;
+  margin: 0.3rem 0 0;
+  color: var(--ink-muted, #6f675d);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.creation-focus-choice-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem 0.45rem;
+  gap: 0.35rem 0.45rem;
   align-items: start;
   min-width: 0;
 }
 
-.creation-select-with-help > select {
+.creation-focus-choice-main > select {
   min-width: 0;
   width: 100%;
 }
 
-.creation-selection-summary {
+.creation-focus-choice-main > .creation-selection-summary {
   grid-column: 1 / -1;
-  display: block;
-  margin: 0;
-  color: var(--ink-muted, #6f675d);
-  font-size: 0.82rem;
-  line-height: 1.4;
+  margin-top: 0;
+}
+
+.creation-magic-choice-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: start;
+  min-width: 0;
+  margin-top: 0.5rem;
+}
+
+.creation-magic-choice-main > label {
+  min-width: 0;
+}
+
+.creation-magic-choice-main > .creation-rule-help {
+  margin-top: 1.25rem;
 }
 
 .creation-rule-help {
@@ -47,6 +69,10 @@
   font-weight: 800;
   line-height: 1;
   cursor: help;
+}
+
+.creation-rule-help-button:hover {
+  background: rgb(128 91 46 / 10%);
 }
 
 .creation-rule-help-button:focus-visible {
@@ -84,9 +110,10 @@
   display: block;
 }
 
-.creation-focus-choice-main,
-.creation-magic-choice-main {
-  min-width: 0;
+@media (max-width: 900px) {
+  .creation-focus-row > .creation-focus-choice-main {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 700px) {

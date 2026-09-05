@@ -29,13 +29,35 @@ export type AdvancementCharacter = {
   skillPurchases: Record<string, number>;
 };
 
+export type AdvancementArtGrant = {
+  tradition: TraditionName;
+  count: number;
+  /** Fixed class-table Arts that must be granted at this level instead of chosen freely. */
+  fixedArts: string[];
+};
+
 export const advancementLevels = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 export const skillRankCapAtLevel = (level: number) =>
   level >= 9 ? 4 : level >= 6 ? 3 : level >= 3 ? 2 : 1;
 export const attributeBoostLimitAtLevel = (level: number) =>
   level >= 9 ? 5 : level >= 6 ? 4 : level >= 3 ? 3 : 2;
-export const skillRankCostAtLevel = (rank: number) =>
-  rank < 0 ? 0 : [1, 3, 6, 10, 15][Math.min(4, rank)];
+export const skillRankCostAtLevel = (rank: number) => {
+  const normalized = Math.max(-1, Math.min(4, Math.trunc(Number(rank))));
+  return normalized < 0 ? 0 : [1, 3, 6, 10, 15][normalized];
+};
+
+/**
+ * Skill advancement is priced from the character-facing rank, not the stored
+ * purchase counter. This matters when a Background, class, or creation Focus
+ * supplied the rank for free. A new advancement Focus can contribute literal
+ * skill-point credit toward the same increase.
+ */
+export function skillAdvancementCost(fromRank: number, toRank: number, newCredit = 0) {
+  const from = Math.max(-1, Math.min(4, Math.trunc(Number(fromRank))));
+  const to = Math.max(-1, Math.min(4, Math.trunc(Number(toRank))));
+  if (to <= from) return 0;
+  return Math.max(0, skillRankCostAtLevel(to) - skillRankCostAtLevel(from) - Math.max(0, Math.trunc(Number(newCredit) || 0)));
+}
 
 const selectedClasses = (character: AdvancementCharacter) =>
   (character.classMode === "adventurer"
@@ -45,6 +67,13 @@ const selectedClasses = (character: AdvancementCharacter) =>
 
 const traditionsFor = (character: AdvancementCharacter) =>
   selectedClasses(character).filter((name): name is TraditionName => name in traditionInfo);
+
+const fixedArtsAtLevel = (tradition: TraditionName, level: number) => {
+  if (tradition !== "Mageslayer") return [];
+  return traditionInfo.Mageslayer.arts
+    .filter((art) => ("minLevel" in art ? Number(art.minLevel) : 1) === level)
+    .map((art) => art.name);
+};
 
 export function advancementSkillCreditBySkill(character: Pick<AdvancementCharacter, "focusPicks">) {
   return character.focusPicks.reduce<Record<string, number>>((credits, pick) => {
@@ -60,15 +89,17 @@ export function advancementPlan(character: AdvancementCharacter) {
   const to = Math.min(10, from + 1);
   const classes = selectedClasses(character);
   const traditions = traditionsFor(character);
+  const partial = character.classMode === "adventurer";
   const castingTraditions = traditions.filter((tradition) => traditionInfo[tradition].spells);
   const currentRules = classRules(character.classMode, character.classOne, character.classTwo, from);
   const nextRules = classRules(character.classMode, character.classOne, character.classTwo, to);
-  const currentArts = traditions.reduce((total, tradition) =>
-    total + artSlots(tradition, from, character.classMode === "adventurer"), 0);
-  const nextArts = traditions.reduce((total, tradition) =>
-    total + artSlots(tradition, to, character.classMode === "adventurer"), 0);
-  const currentSpells = knownSpellSlots(castingTraditions, from, character.classMode === "adventurer");
-  const nextSpells = knownSpellSlots(castingTraditions, to, character.classMode === "adventurer");
+  const artGrants: AdvancementArtGrant[] = traditions.map((tradition) => ({
+    tradition,
+    count: Math.max(0, artSlots(tradition, to, partial) - artSlots(tradition, from, partial)),
+    fixedArts: fixedArtsAtLevel(tradition, to),
+  })).filter((grant) => grant.count > 0);
+  const currentSpells = knownSpellSlots(castingTraditions, from, partial);
+  const nextSpells = knownSpellSlots(castingTraditions, to, partial);
   const gainsFocus = [2, 5, 7, 10].includes(to);
   const expert = classes.includes("Expert");
   return {
@@ -81,7 +112,8 @@ export function advancementPlan(character: AdvancementCharacter) {
     skillPoints: 3 + (expert ? 1 : 0),
     quickLearner: expert,
     gainsFocus,
-    artPicks: Math.max(0, nextArts - currentArts),
+    artGrants,
+    artPicks: artGrants.reduce((total, grant) => total + grant.count, 0),
     spellPicks: Math.max(0, nextSpells - currentSpells),
     attackBefore: currentRules.attack,
     attackAfter: nextRules.attack,

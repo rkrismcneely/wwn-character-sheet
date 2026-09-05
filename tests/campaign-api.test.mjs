@@ -35,9 +35,12 @@ import {
   listCampaignNpcTemplates,
   updateCampaignNpcTemplate,
 } from "../lib/campaigns/npcs.ts";
+import { createCampaignItem, updateCampaignItem } from "../lib/campaigns/items.ts";
+import { campaignInventorySnapshot, campaignInventoryValue } from "../lib/inventory/items.ts";
 import {
   builtInBestiaryCreatureDraft,
   builtInBestiaryEncounterSeed,
+  bestiaryNpcMagicOptions,
   getBuiltInBestiaryCreature,
   searchBestiaryCreatures,
   searchBuiltInBestiaryCreatures,
@@ -145,7 +148,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql", "0017_action_bundle_7_npc_usability.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql", "0016_campaign_items.sql", "0017_action_bundle_7_npc_usability.sql", "0018_action_bundle_13_npc_inventory.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
@@ -278,9 +281,13 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "NPC Company" }, now);
   await addMember(sqlite, campaign.id, player);
-  const draft = { name: "Orc Warrior", hpMax: 12, armorClass: 15, physicalSave: 13, evasionSave: 15, mentalSave: 16, attacks: [{ name: "Axe", attackBonus: 4, damage: "1d8+2", shock: "2/AC 13", description: "" }], hitDice: 2, attacksPerMainAction: 1, notes: "Shield wall" };
+  const item = await createCampaignItem(db, owner, campaign.id, { name: "Healing Tonic", kind: "magical", description: "Restores a small amount of vitality." }, now);
+  const itemSnapshot = campaignInventoryValue(item);
+  const draft = { name: "Orc Warrior", hpMax: 12, armorClass: 15, physicalSave: 13, evasionSave: 15, mentalSave: 16, attacks: [{ name: "Axe", attackBonus: 4, damage: "1d8+2", shock: "2/AC 13", description: "" }], hitDice: 2, attacksPerMainAction: 1, inventory: [itemSnapshot], notes: "Shield wall" };
   await expectServiceError(createCampaignNpcTemplate(db, player, campaign.id, draft), 403);
   const npc = await createCampaignNpcTemplate(db, owner, campaign.id, draft, now);
+  assert.deepEqual(npc.inventory, [itemSnapshot]);
+  assert.deepEqual(campaignInventorySnapshot(npc.inventory[0]), { id: item.id, campaignId: campaign.id, name: "Healing Tonic", kind: "magical", description: "Restores a small amount of vitality." });
   assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id))[0].name, "Orc Warrior");
   assert.equal(npc.hitDice, 2);
   assert.equal(npc.attacks[0].shock, "2/AC 13");
@@ -288,7 +295,9 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   await expectServiceError(listCampaignNpcTemplates(db, admin, campaign.id), 403);
   const duplicate = await duplicateCampaignNpcTemplate(db, owner, campaign.id, npc.id, now);
   assert.equal(duplicate.name, "Orc Warrior Copy");
+  assert.deepEqual(duplicate.inventory, [itemSnapshot]);
   const updated = await updateCampaignNpcTemplate(db, owner, campaign.id, npc.id, { ...draft, hpMax: 18, notes: "Updated template" }, now);
+  await updateCampaignItem(db, owner, campaign.id, item.id, { name: "Replaced Tonic", kind: "magical", description: "A changed library definition." }, now);
   const encounterSeed = await campaignNpcEncounterSeed(db, internalCampaign(sqlite, campaign.id).id, npc.id);
   encounterSeed.hpCurrent = 3;
   const secondEncounterSeed = await campaignNpcEncounterSeed(db, internalCampaign(sqlite, campaign.id).id, npc.id);
@@ -296,6 +305,8 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id)).find(candidate => candidate.id === npc.id)?.hpMax, 18);
   assert.equal(encounterSeed.hpMax, 18);
   assert.equal(secondEncounterSeed.hpCurrent, 18);
+  assert.deepEqual(encounterSeed.inventory, [itemSnapshot]);
+  assert.deepEqual((await listCampaignNpcTemplates(db, owner, campaign.id)).find(candidate => candidate.id === npc.id)?.inventory, [itemSnapshot]);
   assert.deepEqual(secondEncounterSeed.combatStats.threatStats, { hitDice: 2, attacksPerMainAction: 1 });
   const otherCampaign = await createCampaign(db, owner, { name: "Other NPC Company" }, now);
   await expectServiceError(campaignNpcEncounterSeed(db, internalCampaign(sqlite, otherCampaign.id).id, npc.id), 404);
@@ -490,6 +501,34 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(getBuiltInBestiaryCreature("apex-predator")?.hpMax, 27);
   assert.equal(builtInBestiaryCreatureDraft("missing-creature"), null);
   assert.equal(builtInBestiaryEncounterSeed("missing-creature"), null);
+});
+
+test("Bestiary-backed NPC magic options are deduplicated and keep structured rules details", () => {
+  const spells = bestiaryNpcMagicOptions("spells");
+  const arts = bestiaryNpcMagicOptions("arts");
+  assert.ok(spells.length > 0);
+  assert.ok(arts.length > 0);
+  assert.equal(new Set(spells.map(option => option.key)).size, spells.length);
+  assert.equal(new Set(arts.map(option => option.key)).size, arts.length);
+  assert.ok(spells.some(option => option.name === "The Coruscating Coffin" && option.level === 1 && option.summary.includes("Physical save")));
+  assert.ok(arts.some(option => option.name === "Sense Magic" && option.summary.includes("active magic")));
+});
+
+test("Bundle 13 keeps NPC magic selectors and campaign-item inventory GM-scoped", async () => {
+  const [consoleSource, liveSessionSource, npcSource] = await Promise.all([
+    readFile(new URL("../app/campaigns/gm-console.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/npcs.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(consoleSource, /bestiaryNpcMagicOptions\("spells"\)/u);
+  assert.match(consoleSource, /bestiaryNpcMagicOptions\("arts"\)/u);
+  assert.match(consoleSource, /<option value=\{OTHER_MAGIC_VALUE\}>Other…<\/option>/u);
+  assert.match(consoleSource, /fetch\(`\/api\/campaigns\/\$\{campaignId\}\/items`/u);
+  assert.match(consoleSource, /campaignInventoryValue\(item\)/u);
+  assert.match(liveSessionSource, /inventory=\{combatant\.inventory\}/u);
+  assert.match(liveSessionSource, /campaignInventorySnapshot\(item\)/u);
+  assert.match(npcSource, /inventory_json AS inventoryJson/u);
+  assert.match(npcSource, /inventory: \[\.\.\.npc\.inventory\]/u);
 });
 
 test("live-session transport keeps authentication in the Worker and uses hibernating Durable Object presence", async () => {

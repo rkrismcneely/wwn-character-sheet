@@ -49,6 +49,12 @@ export interface BuiltInBestiarySpellcasting {
   readonly spells: readonly Readonly<BuiltInBestiaryMagicReference>[];
   readonly arts: readonly Readonly<BuiltInBestiaryMagicReference>[];
 }
+export interface BestiaryNpcMagicOption {
+  readonly key: string;
+  readonly name: string;
+  readonly level?: number;
+  readonly summary: string;
+}
 export interface BuiltInBestiarySourceStats {
   readonly hitDice: number;
   readonly hitDiceDisplay?: string;
@@ -389,6 +395,25 @@ const alphabeticalBuiltInBestiaryCreatures = Object.freeze(
   [...builtInBestiaryCreatures].sort((left, right) => left.name.localeCompare(right.name)),
 );
 
+function magicOptionKey(kind: "spells" | "arts", reference: BuiltInBestiaryMagicReference): string {
+  return `${kind}|${reference.name.trim().toLocaleLowerCase()}|${reference.level ?? ""}|${reference.summary.trim().toLocaleLowerCase()}`;
+}
+
+/** Derive one stable, deduplicated picker catalog from the imported Bestiary. */
+export function bestiaryNpcMagicOptions(kind: "spells" | "arts"): readonly BestiaryNpcMagicOption[] {
+  const seen = new Set<string>();
+  const options: BestiaryNpcMagicOption[] = [];
+  for (const creature of builtInBestiaryCreatures) {
+    for (const reference of creature.spellcasting?.[kind] ?? []) {
+      const dedupeKey = magicOptionKey(kind, reference);
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      options.push({ key: `${kind}:${options.length}`, name: reference.name, ...(reference.level === undefined ? {} : { level: reference.level }), summary: reference.summary });
+    }
+  }
+  return Object.freeze(options.sort((left, right) => left.name.localeCompare(right.name) || (left.level ?? 99) - (right.level ?? 99) || left.summary.localeCompare(right.summary)));
+}
+
 export function getBuiltInBestiaryCreature(id: string): BuiltInBestiaryCreature | null {
   return builtInBestiaryCreatures.find(creature => creature.id === id) ?? null;
 }
@@ -457,6 +482,7 @@ export function builtInBestiaryCreatureDraft(id: string): CampaignNpcDraft | nul
     attacks: creature.attacks.map(attack => ({ ...attack })),
     spells: creature.spellcasting?.spells.map(spell => ({ ...spell })) ?? [],
     arts: creature.spellcasting?.arts.map(art => ({ ...art })) ?? [],
+    inventory: [],
     friendly: false,
     notes: creature.notes,
   };

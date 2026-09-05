@@ -42,6 +42,8 @@ export interface CampaignEncounterNpc {
   armorClass?: number;
   notes?: string;
   friendly?: boolean;
+  /** Campaign-item snapshot values are visible only in the GM projection. */
+  inventory?: string[];
   combatStats?: CampaignNpcCombatStats;
 }
 

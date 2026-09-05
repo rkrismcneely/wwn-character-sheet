@@ -378,6 +378,88 @@ html[data-theme="dark"] .campaign-encounter-threat>summary::before{color:#d7b96d
 .campaign-encounter-friendly-actions{display:flex;align-items:center;gap:7px;grid-column:2;grid-row:2;min-width:0;justify-self:start}
 .campaign-encounter-friendly-toggle{min-height:28px;padding:5px 8px;white-space:nowrap}
 .campaign-friendly-badge{display:inline-flex;align-items:center;min-height:28px;box-sizing:border-box;padding:4px 8px;border:1px solid #ad8a52;background:#f5ead3;color:#685944;font:700 9px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+
+/* Action Bundle 13: keep the remaining GM Console surfaces in the dark theme. */
+html[data-theme="dark"] .gm-npc-form fieldset,
+html[data-theme="dark"] .gm-npc-inventory,
+html[data-theme="dark"] .gm-npc-threat,
+html[data-theme="dark"] .gm-npc-attacks,
+html[data-theme="dark"] .campaign-item-visibility,
+html[data-theme="dark"] .gm-bestiary-threat,
+html[data-theme="dark"] .gm-party-status-card{
+  border-color:#665431;
+  background:#211f19;
+  color:#ead9b8;
+}
+html[data-theme="dark"] .gm-npc-form input:not([type="checkbox"]),
+html[data-theme="dark"] .gm-npc-form textarea,
+html[data-theme="dark"] .gm-npc-form select{
+  background:#181815;
+  border-color:#665a42;
+  color:#f0dfbd;
+}
+html[data-theme="dark"] .gm-npc-form select:focus-visible,
+html[data-theme="dark"] .gm-npc-form input:focus-visible,
+html[data-theme="dark"] .gm-npc-form textarea:focus-visible,
+html[data-theme="dark"] .campaign-item-visibility input:focus-visible{
+  outline:2px solid #d3a45d;
+  outline-offset:2px;
+}
+html[data-theme="dark"] .gm-npc-form fieldset>p,
+html[data-theme="dark"] .gm-npc-magic-summary,
+html[data-theme="dark"] .gm-npc-card ul,
+html[data-theme="dark"] .gm-npc-inventory small,
+html[data-theme="dark"] .campaign-item-character-grid,
+html[data-theme="dark"] .gm-party-status-heading p,
+html[data-theme="dark"] .gm-bestiary-threat-heading p,
+html[data-theme="dark"] .gm-bestiary-threat-info p,
+html[data-theme="dark"] .gm-bestiary-threat-summary{
+  color:#cdbd9f;
+}
+html[data-theme="dark"] .gm-npc-fields label>span,
+html[data-theme="dark"] .gm-npc-notes>span,
+html[data-theme="dark"] .gm-npc-threat legend,
+html[data-theme="dark"] .gm-npc-threat label>span,
+html[data-theme="dark"] .gm-npc-attacks legend,
+html[data-theme="dark"] .gm-npc-attack-add label>span,
+html[data-theme="dark"] .gm-npc-magic legend,
+html[data-theme="dark"] .gm-npc-inventory legend,
+html[data-theme="dark"] .gm-npc-inventory label>span,
+html[data-theme="dark"] .gm-party-status-core dt,
+html[data-theme="dark"] .gm-party-status-resources dt,
+html[data-theme="dark"] .gm-bestiary-threat-grid dt{
+  color:#d3a75d;
+}
+html[data-theme="dark"] .gm-party-status-heading a,
+html[data-theme="dark"] .gm-party-status-core dd,
+html[data-theme="dark"] .gm-party-status-resources dd,
+html[data-theme="dark"] .gm-bestiary-threat-grid dd,
+html[data-theme="dark"] .gm-bestiary-threat h4,
+html[data-theme="dark"] .gm-bestiary-threat-info summary{
+  color:#f0dbb2;
+}
+html[data-theme="dark"] .gm-party-status-core div{
+  border-color:#665a42;
+  background:#28251e;
+}
+html[data-theme="dark"] .gm-party-status-resources{border-top-color:#665a42}
+html[data-theme="dark"] .gm-bestiary-threat-grid div{
+  border-color:#665a42;
+  background:#28251e;
+}
+html[data-theme="dark"] .gm-bestiary-threat-info{border-top-color:#665a42}
+html[data-theme="dark"] .campaign-encounter-threat,
+html[data-theme="dark"] .campaign-encounter-npc-details-body{
+  color:#ead9b8;
+}
+html[data-theme="dark"] .campaign-encounter-threat h4,
+html[data-theme="dark"] .campaign-encounter-npc-details h4{
+  color:#f0dbb2;
+}
+html[data-theme="dark"] .campaign-encounter-npc-details-body li strong,
+html[data-theme="dark"] .campaign-encounter-npc-inventory strong{
+  color:#f0dfbd;
+}
 @media(max-width:900px){.campaign-encounter-order li{grid-template-columns:16px minmax(105px,160px) minmax(180px,1fr) 48px minmax(90px,auto) 32px 28px}}
 @media(max-width:760px){.campaign-encounter-npc{grid-template-columns:repeat(4,minmax(0,1fr))}.campaign-encounter-npc label:first-child,.campaign-encounter-npc>button{grid-column:1/-1}}
 @media(max-width:640px){.campaign-encounter-order li{grid-template-columns:16px minmax(80px,1fr) 48px 72px 32px 28px}.campaign-encounter-friendly-actions{grid-column:1/-1;grid-row:3}.campaign-encounter-npc-row>.campaign-encounter-npc-details{grid-column:2/-2;grid-row:4}.campaign-encounter-hp-control input{width:48px}}

@@ -83,6 +83,8 @@ import { authClient } from "@/lib/auth-client";
 import { SignedInHeader, TalesBrandLink } from "./app-header";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
+import { campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
+import { CampaignInventoryOptions, StoredItemsSection, useCampaignInventoryItems } from "./inventory-stored-items";
 
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
 type AttributeMethod = "rolled" | "array";
@@ -287,6 +289,7 @@ const initial = {
   weapons: [{ name: "Staff", skill: -1 }, { name: "Dagger", skill: -1 }, { name: "Crossbow", skill: 0 }] as WeaponPick[],
   readied: ["Staff", "Dagger", "Dagger", "Waterskin", "Healer’s pouch", ""],
   stowed: ["Backpack", "Lantern, tinder box, and 2 pint flasks of oil", "Writing kit & 20 sheets of paper", "Rations × 7", "Healing potion × 2", "Potion of Thaumic Vitality", "Elixir of Persistent Luminescence", ""],
+  stored: [] as string[],
   goals: "",
   notes: "",
   allies: "",
@@ -422,6 +425,7 @@ const blankCharacter: Sheet = {
   weapons: Array.from({ length: 3 }, () => ({ name: "", skill: -1 })),
   readied: Array(6).fill(""),
   stowed: Array(8).fill(""),
+  stored: [] as string[],
   goals: "",
   notes: "",
   allies: "",
@@ -692,6 +696,7 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
         ? "chosen-friend"
         : "bind-companion",
     languages: normalizeLanguages(incoming.languages),
+    stored: Array.isArray(incoming.stored) ? incoming.stored.filter((item): item is string => typeof item === "string") : [],
     companions: Array.isArray(incoming.companions)
       ? incoming.companions.map((companion, index) => ({
           ...newCompanion(
@@ -759,6 +764,7 @@ function createBlankSheet(): Sheet {
     weapons: [],
     readied: [...blankCharacter.readied],
     stowed: [...blankCharacter.stowed],
+    stored: [...blankCharacter.stored],
   };
 }
 
@@ -1102,6 +1108,7 @@ export default function Home({
     initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
   );
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
+  const { items: campaignInventoryItems, error: campaignInventoryError } = useCampaignInventoryItems(cloudId, campaignLinks, canEdit);
   const buildFieldsEditable = canEdit && (!cloudId || characterEditMode);
   const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
 
@@ -2444,6 +2451,26 @@ export default function Home({
     if (value === "Unarmed Attack") return;
     patch("stowed", stowedSlots.map((item, itemIndex) => itemIndex === index ? value : item));
   };
+  const moveStowedToStored = (index: number) => {
+    setOtherStowedIndex(null);
+    setSheet(current => {
+      const currentStowed = inventorySlots(current.stowed, stowedCapacity);
+      const item = currentStowed[index] || "";
+      if (!item) return current;
+      const nextStowed = compactInventory(currentStowed.filter((_, itemIndex) => itemIndex !== index), stowedCapacity);
+      return { ...current, stowed: nextStowed, stored: [...current.stored.filter(stored => stored.trim()), item] };
+    });
+  };
+  const moveStoredToStowed = (index: number) => {
+    setSheet(current => {
+      const currentStored = current.stored.filter(item => item.trim());
+      const item = currentStored[index] || "";
+      if (!item) return current;
+      const nextStored = currentStored.filter((_, itemIndex) => itemIndex !== index);
+      const nextStowed = inventorySlots([...current.stowed.filter(stowed => stowed.trim()), item], stowedCapacity);
+      return { ...current, stored: nextStored, stowed: nextStowed };
+    });
+  };
   const companionInventoryLabel = (companion: Companion, index: number) =>
     companion.name || (
       companion.kind === "familiar"
@@ -2512,7 +2539,7 @@ export default function Home({
     });
   };
   const dropInventoryItem = (location: "readied" | "stowed", index: number, item: string) => {
-    if (!window.confirm(`Drop ${item}?\n\nThis removes it from the character’s inventory.`)) return;
+    if (!window.confirm(`Drop ${inventoryItemDisplayName(item)}?\n\nThis removes it from the character’s inventory.`)) return;
     const capacity = location === "readied" ? readiedCapacity : stowedCapacity;
     setSheet(current => ({
       ...current,
@@ -3589,8 +3616,8 @@ export default function Home({
                 <select value="" aria-label={`Readied item slot ${i + 1}`} onChange={e => {
                   if (e.target.value !== "") swapReadiedWithStowed(i, Number(e.target.value));
                 }}>
-                  <option value="">{item || "Choose a stowed item…"}</option>
-                  {stowedSlots.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{stowedItem}</option>)}
+                  <option value="">{item ? inventoryItemDisplayName(item) : "Choose a stowed item…"}</option>
+                  {stowedSlots.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{inventoryItemDisplayName(stowedItem)}</option>)}
                 </select>
               </label>
               {item && <button type="button" className="drop-item" onClick={() => dropInventoryItem("readied", i, item)}>Drop</button>}
@@ -3599,7 +3626,7 @@ export default function Home({
           </Section>
           <Section title="Stowed Items" aside={<span className="caption">{attributeScore("STR") ? `Standard capacity: ${stowedCapacity} · equal to STR ${attributeScore("STR")}` : "Choose a Strength score to calculate capacity"}</span>}>
             {stowedSlots.map((item, i) => {
-              const isCustom = Boolean(item) && !officialInventorySet.has(item);
+              const isCustom = Boolean(item) && !campaignInventorySnapshot(item) && !officialInventorySet.has(item);
               return <div className={`inventory-item-row ${i >= stowedCapacity ? "inventory-overflow" : ""}`} key={i}>
                 <label className="field">
                   <span>{i+1}{i >= stowedCapacity ? " · Over capacity" : ""}</span>
@@ -3619,12 +3646,14 @@ export default function Home({
                   }}>
                     <option value="">Choose an item…</option>
                     <option value="__other__">Other…</option>
+                    {campaignInventorySnapshot(item) && !campaignInventoryItems.some(candidate => campaignInventoryValue(candidate) === item) && <option value={item}>{inventoryItemDisplayName(item)} · Campaign item</option>}
+                    <CampaignInventoryOptions items={campaignInventoryItems} />
                     {sheet.companions.map((companion, companionIndex) => {
                       const items = inventorySlots(companion.stowed, Math.max(0, companion.strength || 0));
                       const available = items.map((name, index) => ({ name, index })).filter(entry => entry.name);
                       if (!available.length) return null;
                       return <optgroup key={companion.id} label={`${companionInventoryLabel(companion, companionIndex)}’s Stowed Items`}>
-                        {available.map(entry => <option key={`${companion.id}-${entry.index}-${entry.name}`} value={encodeInventoryTransfer({ kind: "companion", id: companion.id }, entry.index)}>{entry.name}</option>)}
+                        {available.map(entry => <option key={`${companion.id}-${entry.index}-${entry.name}`} value={encodeInventoryTransfer({ kind: "companion", id: companion.id }, entry.index)}>{inventoryItemDisplayName(entry.name)}</option>)}
                       </optgroup>;
                     })}
                     <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
@@ -3632,13 +3661,15 @@ export default function Home({
                     <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
                     <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                   </select>
-                  {(isCustom || otherStowedIndex === i) && <input autoFocus={otherStowedIndex === i && !item} aria-label={`Other stowed item ${i + 1}`} placeholder="Type another item…" value={item} onChange={e => setStowedItem(i, e.target.value)} />}
+                  {(isCustom || otherStowedIndex === i) && <input autoFocus={otherStowedIndex === i && !item} aria-label={`Other stowed item ${i + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={e => setStowedItem(i, e.target.value)} />}
+                  {campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventorySnapshot(item)?.kind === "magical" ? "Magical" : "Mundane"}</strong>{campaignInventorySnapshot(item)?.description ? ` · ${campaignInventorySnapshot(item)?.description}` : ""}</small>}
                 </label>
-                {item && <button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button>}
+                {item && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => moveStowedToStored(i)}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button></span>}
               </div>;
             })}
             {!stowedSlots.length && <p className="empty-slots">No Stowed slots until a Strength score is selected.</p>}
           </Section>
+          <StoredItemsSection items={sheet.stored} campaignItems={campaignInventoryItems} campaignError={campaignInventoryError} onChange={items => patch("stored", items)} onStow={moveStoredToStowed} />
         </div>}
 
         {tab === "notes" && <div className="notes-grid">
@@ -3833,7 +3864,7 @@ export default function Home({
             }));
           };
           const dropCompanionItem = (location: "readied" | "stowed", index: number, item: string) => {
-            if (!window.confirm(`Drop ${item}?\n\nThis removes it from ${companion.name || "the companion"}’s inventory.`)) return;
+            if (!window.confirm(`Drop ${inventoryItemDisplayName(item)}?\n\nThis removes it from ${companion.name || "the companion"}’s inventory.`)) return;
             const capacity = location === "readied" ? readiedCapacity : stowedCapacity;
             patchCompanion(
               companion.id,
@@ -3951,15 +3982,15 @@ export default function Home({
               <h3 className="companion-inventory-title">Readied items</h3>
               {companionReadied.map((item, index) => <div className={`inventory-item-row ${index >= readiedCapacity ? "inventory-overflow" : ""}`} key={`r-${index}`}>
                 <label className="field"><span>{index + 1}{index >= readiedCapacity ? " · Over capacity" : ""}</span><select value="" aria-label={`Companion readied item slot ${index + 1}`} onChange={e => { if (e.target.value !== "") swapCompanionItem(index, Number(e.target.value)); }}>
-                  <option value="">{item || "Choose a stowed item…"}</option>
-                  {companionStowed.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{stowedItem}</option>)}
+                  <option value="">{item ? inventoryItemDisplayName(item) : "Choose a stowed item…"}</option>
+                  {companionStowed.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{inventoryItemDisplayName(stowedItem)}</option>)}
                 </select></label>
                 {item && <button type="button" className="drop-item" onClick={() => dropCompanionItem("readied", index, item)}>Drop</button>}
               </div>)}
               {!companionReadied.length && <p className="empty-slots">No Readied slots until a Strength score is selected.</p>}
               <h3 className="companion-inventory-title">Stowed items</h3>
               {companionStowed.map((item, index) => {
-                const isCustom = Boolean(item) && !officialInventorySet.has(item);
+                const isCustom = Boolean(item) && !campaignInventorySnapshot(item) && !officialInventorySet.has(item);
                 const editingOther = companionOtherStowed[companion.id] === index;
                 return <div className={`inventory-item-row ${index >= stowedCapacity ? "inventory-overflow" : ""}`} key={`s-${index}`}>
                   <label className="field"><span>{index + 1}{index >= stowedCapacity ? " · Over capacity" : ""}</span>
@@ -3979,11 +4010,13 @@ export default function Home({
                     }}>
                       <option value="">Choose an item…</option>
                       <option value="__other__">Other…</option>
+                    {campaignInventorySnapshot(item) && !campaignInventoryItems.some(candidate => campaignInventoryValue(candidate) === item) && <option value={item}>{inventoryItemDisplayName(item)} · Campaign item</option>}
+                    <CampaignInventoryOptions items={campaignInventoryItems} />
                       {(() => {
                         const pcName = sheet.name || "PC";
                         const available = stowedSlots.map((name, itemIndex) => ({ name, itemIndex })).filter(entry => entry.name);
                         return available.length ? <optgroup label={`${pcName}’s Stowed Items`}>
-                          {available.map(entry => <option key={`pc-${entry.itemIndex}-${entry.name}`} value={encodeInventoryTransfer({ kind: "pc" }, entry.itemIndex)}>{entry.name}</option>)}
+                          {available.map(entry => <option key={`pc-${entry.itemIndex}-${entry.name}`} value={encodeInventoryTransfer({ kind: "pc" }, entry.itemIndex)}>{inventoryItemDisplayName(entry.name)}</option>)}
                         </optgroup> : null;
                       })()}
                       {sheet.companions.map((otherCompanion, otherIndex) => {
@@ -3992,7 +4025,7 @@ export default function Home({
                         const available = items.map((name, itemIndex) => ({ name, itemIndex })).filter(entry => entry.name);
                         if (!available.length) return null;
                         return <optgroup key={otherCompanion.id} label={`${companionInventoryLabel(otherCompanion, otherIndex)}’s Stowed Items`}>
-                          {available.map(entry => <option key={`${otherCompanion.id}-${entry.itemIndex}-${entry.name}`} value={encodeInventoryTransfer({ kind: "companion", id: otherCompanion.id }, entry.itemIndex)}>{entry.name}</option>)}
+                          {available.map(entry => <option key={`${otherCompanion.id}-${entry.itemIndex}-${entry.name}`} value={encodeInventoryTransfer({ kind: "companion", id: otherCompanion.id }, entry.itemIndex)}>{inventoryItemDisplayName(entry.name)}</option>)}
                         </optgroup>;
                       })}
                       <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
@@ -4000,7 +4033,8 @@ export default function Home({
                       <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
                       <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                     </select>
-                    {(isCustom || editingOther) && <input autoFocus={editingOther && !item} aria-label={`Other companion stowed item ${index + 1}`} placeholder="Type another item…" value={item} onChange={e => setCompanionStowedItem(index, e.target.value)} />}
+                    {(isCustom || editingOther) && <input autoFocus={editingOther && !item} aria-label={`Other companion stowed item ${index + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={e => setCompanionStowedItem(index, e.target.value)} />}
+                    {campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventorySnapshot(item)?.kind === "magical" ? "Magical" : "Mundane"}</strong>{campaignInventorySnapshot(item)?.description ? ` · ${campaignInventorySnapshot(item)?.description}` : ""}</small>}
                   </label>
                   {item && <button type="button" className="drop-item" onClick={() => dropCompanionItem("stowed", index, item)}>Drop</button>}
                 </div>;

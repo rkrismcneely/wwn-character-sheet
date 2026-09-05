@@ -8,7 +8,6 @@ test("signed-in dashboard uses the owner-scoped character API", async () => {
   const dashboard = await source("app/dashboard-page.tsx");
   const header = await source("app/app-header.tsx");
   assert.match(dashboard, /\/api\/characters\?scope=mine/u);
-  assert.match(dashboard, /\/api\/legacy-claims/u);
   assert.match(dashboard, /href=\{`\/character\/\$\{character\.id\}`\}/u);
   assert.match(header, /authClient\.signOut/u);
   assert.match(dashboard, /Browse Public Characters/u);
@@ -18,7 +17,7 @@ test("signed-in dashboard uses the owner-scoped character API", async () => {
   assert.doesNotMatch(dashboard, /ownerUserId|owner_user_id|sessionToken|accessToken|refreshToken|Authorization/u);
 });
 
-test("dashboard exposes useful roster, empty, import, and claim states", async () => {
+test("dashboard exposes useful roster and empty states without legacy claiming", async () => {
   const dashboard = await source("app/dashboard-page.tsx");
   const header = await source("app/app-header.tsx");
   for (const copy of [
@@ -28,10 +27,9 @@ test("dashboard exposes useful roster, empty, import, and claim states", async (
     "Visibility",
     "Updated",
     "Your roster is waiting",
-    "Claim a legacy character",
-    "One-time claim code",
   ]) assert.equal(dashboard.includes(copy), true, copy);
   assert.equal(header.includes("Sign Out"), true);
+  assert.doesNotMatch(dashboard, /legacy claim|legacy-claims|One-time claim code/iu);
 });
 
 test("dashboard and character sheet no longer expose portable import/export tools", async () => {

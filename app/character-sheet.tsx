@@ -298,6 +298,56 @@ const initial = {
 
 type Sheet = typeof initial;
 
+const CHARACTER_BUILD_KEYS = [
+  "name",
+  "player",
+  "className",
+  "classMode",
+  "classOne",
+  "classTwo",
+  "vowedEffortSkill",
+  "wiseConceptSkill",
+  "beastmasterBond",
+  "autoClassRules",
+  "level",
+  "homeland",
+  "employer",
+  "profession",
+  "species",
+  "description",
+  "background",
+  "backgroundDevelopmentMethod",
+  "backgroundCombatSkill",
+  "backgroundQuickSkillReplacements",
+  "backgroundLearningPicks",
+  "backgroundDevelopmentRolls",
+  "backgroundDevelopmentLegacy",
+  "benefits",
+  "attributeMethod",
+  "attributeRolls",
+  "attributeSubstitution",
+  "attributeBoosts",
+  "attrs",
+  "skills",
+  "skillPurchases",
+  "focusPicks",
+  "artPicks",
+  "artChoices",
+  "languages",
+] as const satisfies readonly (keyof Sheet)[];
+
+const CHARACTER_BUILD_KEY_SET = new Set<keyof Sheet>(CHARACTER_BUILD_KEYS);
+
+function restoreCharacterBuildFields(current: Sheet, snapshot: Sheet): Sheet {
+  const next = { ...current } as Sheet;
+  for (const key of CHARACTER_BUILD_KEYS) {
+    (next as unknown as Record<string, unknown>)[key] = structuredClone(
+      (snapshot as unknown as Record<string, unknown>)[key],
+    );
+  }
+  return next;
+}
+
 export type InitialCharacterPayload = {
   id: string;
   character: Partial<Sheet>;
@@ -896,8 +946,8 @@ function StepperField({ label, value, minimum, maximum, onChange }: {
   </label>;
 }
 
-function Section({ title, aside, children, className = "" }: { title: string; aside?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return <section className={`sheet-section ${className}`}><header><h2>{title}</h2></header>{aside && <div className="section-aside">{aside}</div>}<div className="section-body">{children}</div></section>;
+function Section({ title, aside, children, className = "", buildControlled = false }: { title: string; aside?: React.ReactNode; children: React.ReactNode; className?: string; buildControlled?: boolean }) {
+  return <section className={`sheet-section ${className}`} data-character-build-section={buildControlled ? "true" : undefined}><header><h2>{title}</h2></header>{aside && <div className="section-aside">{aside}</div>}<div className="section-body">{children}</div></section>;
 }
 
 function DiceControl({
@@ -960,6 +1010,8 @@ export default function Home({
   );
   const [wizardOpen, setWizardOpen] = useState(false);
   const [levelUpOpen, setLevelUpOpen] = useState(false);
+  const [characterEditMode, setCharacterEditMode] = useState(false);
+  const characterEditSnapshot = useRef<Sheet | null>(null);
   const [sheet, setSheet] = useState<Sheet>(() =>
     startNew && !initialCharacter
       ? createBlankSheet()
@@ -1029,8 +1081,6 @@ export default function Home({
   const [joinedLiveSessionCampaignId, setJoinedLiveSessionCampaignId] = useState<string | null>(
     campaignContext && !campaignContext.readOnly ? campaignContext.id : null,
   );
-  const [claimToken, setClaimToken] = useState("");
-  const [claimBusy, setClaimBusy] = useState(false);
   const [otherStowedIndex, setOtherStowedIndex] = useState<number | null>(null);
   const [companionOtherStowed, setCompanionOtherStowed] = useState<Record<string, number | null>>({});
   const [latestRoll, setLatestRoll] = useState<RollResult | null>(null);
@@ -1052,6 +1102,7 @@ export default function Home({
     initialCharacter ? JSON.stringify(normalizeIncomingSheet(initialCharacter.character)) : "",
   );
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
+  const buildFieldsEditable = canEdit && (!cloudId || characterEditMode);
   const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
 
   useEffect(() => {
@@ -1352,14 +1403,14 @@ export default function Home({
   }, [sessionPending, signedIn]);
 
   useEffect(() => {
-    if (!hydrated || !canEdit || !cloudId || cloudVersion === null) return;
+    if (!hydrated || !canEdit || !cloudId || cloudVersion === null || characterEditMode) return;
     const serialized = JSON.stringify(sheet);
     if (serialized === lastCloudData.current) return;
     setSaved("Unsaved changes");
     const t = setTimeout(() => { void saveToCloud(); }, 1200);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheet, hydrated, cloudId, canEdit]);
+  }, [sheet, hydrated, cloudId, canEdit, characterEditMode]);
 
   useEffect(() => {
     const surface = editableSurface.current;
@@ -1370,18 +1421,29 @@ export default function Home({
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement
     >;
     controls.forEach(control => {
-      const staysInteractive = Boolean(
+      const readonlyInteractive = Boolean(
         control.closest('[data-readonly-interactive="true"]'),
       );
-      if (!canEdit && !staysInteractive && !control.disabled) {
-        control.dataset.phase4bDisabled = "true";
+      const buildControlled = Boolean(
+        control.closest('[data-character-build-section="true"], [data-character-build-control="true"]'),
+      );
+      const playStateControl = Boolean(
+        control.closest('[data-character-play-state="true"]'),
+      );
+      const disabledForPermission = !canEdit && !readonlyInteractive;
+      const disabledForBuildLock = canEdit && !buildFieldsEditable && buildControlled && !readonlyInteractive && !playStateControl;
+      const shouldDisable = disabledForPermission || disabledForBuildLock;
+      if (shouldDisable && !control.disabled) {
+        control.dataset.sheetModeDisabled = "true";
+        if (disabledForBuildLock) control.dataset.characterBuildDisabled = "true";
         control.disabled = true;
-      } else if (canEdit && control.dataset.phase4bDisabled === "true") {
+      } else if (!shouldDisable && control.dataset.sheetModeDisabled === "true") {
         control.disabled = false;
-        delete control.dataset.phase4bDisabled;
+        delete control.dataset.sheetModeDisabled;
+        delete control.dataset.characterBuildDisabled;
       }
     });
-  }, [canEdit, sheet, tab]);
+  }, [canEdit, buildFieldsEditable, sheet, tab]);
 
   useEffect(() => {
     function handleHistoryNavigation() {
@@ -1409,7 +1471,7 @@ export default function Home({
   }, [signedIn]);
 
   const patch = <K extends keyof Sheet>(key: K, value: Sheet[K]) => {
-    if (!canEdit) return;
+    if (!canEdit || (!buildFieldsEditable && CHARACTER_BUILD_KEY_SET.has(key))) return;
     setSheet(s => ({ ...s, [key]: value }));
   };
   const patchCompanion = <K extends keyof Companion>(id: string, key: K, value: Companion[K]) =>
@@ -1418,7 +1480,7 @@ export default function Home({
         companions: current.companions.map(companion => companion.id === id ? { ...companion, [key]: value } : companion),
       }));
   const changeBeastmasterBond = (bond: Sheet["beastmasterBond"]) => {
-    if (!canEdit) return;
+    if (!buildFieldsEditable) return;
     const redundant = chosenFriendBenefitArts as readonly string[];
     setSheet(current => ({
       ...current,
@@ -1746,6 +1808,8 @@ export default function Home({
       setCloudAdminReadOnly(Boolean(payload.permissions?.adminReadOnly));
       setCampaignLinks(Array.isArray(payload.campaigns) ? payload.campaigns : []);
       setSaved(payload.permissions?.canEdit ? "Saved online" : "Read-only");
+      setCharacterEditMode(false);
+      characterEditSnapshot.current = null;
       setLibraryOpen(false);
       if (options.updateHistory !== false && window.location.pathname !== `/character/${id}`) {
         window.history.pushState({ characterId: id }, "", `/character/${id}`);
@@ -1757,7 +1821,10 @@ export default function Home({
     }
   }
 
-  async function addCurrentToLibrary(character = sheet) {
+  async function addCurrentToLibrary(
+    character = sheet,
+    options: { keepBuildEditing?: boolean } = {},
+  ) {
     if (!signedIn) {
       requireSignIn("add a character to My Characters");
       return;
@@ -1793,6 +1860,13 @@ export default function Home({
       setCampaignLinks([]);
       lastCloudData.current = JSON.stringify(nextCharacter);
       setSaved("Saved online");
+      if (options.keepBuildEditing) {
+        characterEditSnapshot.current = structuredClone(nextCharacter);
+        setCharacterEditMode(true);
+      } else {
+        characterEditSnapshot.current = null;
+        setCharacterEditMode(false);
+      }
       window.history.pushState(
         { characterId: payload.id },
         "",
@@ -1810,8 +1884,8 @@ export default function Home({
     }
   }
 
-  async function saveToCloud() {
-    if (!signedIn || !canEdit || !cloudId || cloudVersion === null) return;
+  async function saveToCloud(): Promise<boolean> {
+    if (!signedIn || !canEdit || !cloudId || cloudVersion === null) return false;
     setSaved("Saving online…");
     try {
       let character = sheet;
@@ -1833,17 +1907,45 @@ export default function Home({
       if (response.status === 409) {
         setSaved("Newer online copy found");
         setTransferMessage("Someone else saved this character while you were editing. Your changes are still on this screen. Open the shared library and choose whether to reload the online copy or duplicate this one.");
-        return;
+        return false;
       }
       if (!response.ok) throw new Error(payload.error);
       lastCloudData.current = savingData;
       setCloudVersion(Number(payload.version));
       setSaved(`Saved online at ${new Date(String(payload.updatedAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`);
       void refreshLibrary("mine");
+      return true;
     } catch (error) {
       setSaved("Not saved online");
       setTransferMessage(error instanceof Error ? error.message : "The character could not be saved.");
+      return false;
     }
+  }
+
+  function beginCharacterEdit() {
+    if (!cloudId || !canEdit || cloudArchivedAt) return;
+    characterEditSnapshot.current = structuredClone(sheet);
+    setCharacterEditMode(true);
+    setTransferMessage("Foundational character fields are unlocked. Save or cancel when you are finished.");
+  }
+
+  async function saveCharacterEdits() {
+    if (!characterEditMode) return;
+    const succeeded = await saveToCloud();
+    if (!succeeded) return;
+    characterEditSnapshot.current = null;
+    setCharacterEditMode(false);
+    setCreationEntry("none");
+    setTransferMessage("Character-building changes saved. Foundational fields are locked again.");
+  }
+
+  function cancelCharacterEdits() {
+    const snapshot = characterEditSnapshot.current;
+    if (snapshot) setSheet(current => restoreCharacterBuildFields(current, snapshot));
+    characterEditSnapshot.current = null;
+    setCharacterEditMode(false);
+    setCreationEntry("none");
+    setTransferMessage("Character-building changes discarded. Play-state changes were kept.");
   }
 
   async function changeVisibility(visibility: CharacterVisibility) {
@@ -1898,37 +2000,6 @@ export default function Home({
     }
   }
 
-  async function claimLegacyCharacters() {
-    if (!signedIn) {
-      requireSignIn("claim a legacy character");
-      return;
-    }
-    const token = claimToken.trim();
-    if (!token) {
-      setLibraryError("Enter the one-time claim token you received.");
-      return;
-    }
-    setClaimBusy(true);
-    setLibraryError("");
-    try {
-      const response = await fetch("/api/legacy-claims", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const payload = await response.json() as { claimed?: number; error?: string };
-      if (!response.ok) throw new Error(payload.error);
-      setClaimToken("");
-      setTransferMessage(`${payload.claimed || 0} legacy character${payload.claimed === 1 ? "" : "s"} added to My Characters.`);
-      setLibraryScope("mine");
-      await refreshLibrary("mine");
-    } catch (error) {
-      setLibraryError(error instanceof Error ? error.message : "The character claim could not be completed.");
-    } finally {
-      setClaimBusy(false);
-    }
-  }
-
   function beginNewCharacter(mode: "guided" | "blank") {
     if (!signedIn) {
       requireSignIn("create a character");
@@ -1948,7 +2019,9 @@ export default function Home({
     setCloudAdminReadOnly(false);
     setCampaignLinks([]);
     lastCloudData.current = "";
-    void addCurrentToLibrary(fresh);
+    characterEditSnapshot.current = mode === "blank" ? structuredClone(fresh) : null;
+    setCharacterEditMode(mode === "blank");
+    void addCurrentToLibrary(fresh, { keepBuildEditing: mode === "blank" });
   }
 
   function closeGuidedCreation(finished = false) {
@@ -1963,7 +2036,9 @@ export default function Home({
         hpMax: completion.startingHp || current.hpMax,
         hpCurrent: current.hpCurrent || completion.startingHp,
       }));
-      setTransferMessage("Guided creation is complete. This is now an ordinary editable character sheet.");
+      setCharacterEditMode(false);
+      characterEditSnapshot.current = null;
+      setTransferMessage("Guided creation is complete. Foundational choices are locked; use Edit Character at the bottom if they need correction.");
     } else {
       setTransferMessage("Guided creation closed. Every choice remains saved on this character.");
     }
@@ -2730,7 +2805,7 @@ export default function Home({
       {signedIn ? <SignedInHeader utilities={<>
         <span className="save-state"><span className="dot" />{saved}</span>
         {canEdit && creationEntry !== "choose" && (cloudId
-          ? <button type="button" onClick={() => void saveToCloud()}>Save Now</button>
+          ? <button type="button" onClick={() => void (characterEditMode ? saveCharacterEdits() : saveToCloud())}>{characterEditMode ? "Save Character" : "Save Now"}</button>
           : <button type="button" onClick={() => void addCurrentToLibrary()}>Add to My Characters</button>)}
         <button type="button" className="print-button" onClick={() => window.print()}>Print</button>
       </>} /> : <div className="topbar">
@@ -2856,15 +2931,10 @@ export default function Home({
               }}
             >Sign in with Google</button>
           </div>}
-          {signedIn && libraryScope === "mine" && <form className="legacy-claim" onSubmit={event => { event.preventDefault(); void claimLegacyCharacters(); }}>
-            <label htmlFor="legacy-claim-token">Claim a legacy character</label>
-            <p>Enter the private, one-time claim token supplied by the administrator.</p>
-            <div><input id="legacy-claim-token" value={claimToken} onChange={event => setClaimToken(event.target.value)} autoComplete="off" /><button type="submit" disabled={claimBusy}>{claimBusy ? "Claiming…" : "Claim"}</button></div>
-          </form>}
           {libraryError && <div className="library-error" role="alert">{libraryError}</div>}
           <div className="library-list">
             {libraryBusy && library.length === 0 && <div className="library-empty"><span>⌛</span><h2>Opening the archive…</h2></div>}
-            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : libraryScope === "all" ? "No characters found" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character or use a legacy claim token." : "Try a different search or return later."}</p></div>}
+            {!libraryBusy && library.length === 0 && !libraryError && <div className="library-empty"><span>✦</span><h2>{libraryScope === "mine" ? "No characters in your roster yet" : libraryScope === "all" ? "No characters found" : "No public characters found"}</h2><p>{libraryScope === "mine" ? "Create a character to begin your roster." : "Try a different search or return later."}</p></div>}
             {library.map(character => <article className={`library-card ${cloudId === character.id ? "current" : ""}`} key={character.id}>
               <button className="library-card-main" onClick={() => void openCloudCharacter(character.id)}>
                 <span className="library-level">LVL <b>{character.level}</b></span>
@@ -2903,7 +2973,7 @@ export default function Home({
           {!signedIn && <p className="creation-warning">Sign in to create and save a private character.</p>}
         </section> : wizardOpen ? <GuidedCreationWizard
           sheet={sheet}
-          canEdit={canEdit}
+          canEdit={canEdit && (creationEntry === "guided" || characterEditMode)}
           persistenceKey={cloudId || "new-character"}
           reviewStats={{ ac: calculatedAc, attack: baseAttack }}
           onChange={update => setSheet(current => ({ ...current, ...update }))}
@@ -2918,7 +2988,7 @@ export default function Home({
           onFinish={(next, sourceLevel) => commitLevelUp(next as Sheet, sourceLevel)}
         /> : <>
         {transferMessage && <div className="transfer-message" role="status">{transferMessage}<button data-readonly-interactive="true" aria-label="Dismiss message" onClick={() => setTransferMessage("")}>×</button></div>}
-        {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && <div className="character-sheet-guided-action" data-readonly-interactive="true">
+        {signedIn && canEdit && creationEntry !== "choose" && sheet.level === 1 && (creationEntry === "guided" || characterEditMode) && <div className="character-sheet-guided-action" data-readonly-interactive="true">
           <button type="button" onClick={() => setGuidedCreationMode(true)}>Guided Creation</button>
         </div>}
         {!canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
@@ -2937,7 +3007,7 @@ export default function Home({
             </div>
             <div className="hero-identity-copy">
               <p className="eyebrow">THE RECORD OF</p>
-              <textarea ref={characterNameInput} className="character-name" rows={1} value={sheet.name} onChange={e => patch("name", e.target.value)} aria-label="Character name" />
+              <textarea ref={characterNameInput} className="character-name" data-character-build-control="true" rows={1} value={sheet.name} onChange={e => patch("name", e.target.value)} aria-label="Character name" />
               <p className="hero-summary">{sheet.level ? `Level ${sheet.level}` : "Level —"} {classLabel || "Class —"}</p>
               <div className="hero-wealth" aria-label="Character wealth">
                 <span className="wealth-label">COIN PURSE</span>
@@ -3004,7 +3074,7 @@ export default function Home({
 
         {tab === "core" && <div className="page-grid core-grid">
           <div className="stack">
-            <Section title="Identity">
+            <Section title="Identity" buildControlled>
               <div className="two-col">
                 <Field label="Player" value={sheet.player} onChange={v => patch("player", v)} />
                 <label className="field">
@@ -3028,7 +3098,7 @@ export default function Home({
                         <option key={level} value={level} disabled={sheet.level >= 1 && level > sheet.level}>{level}</option>
                       ))}
                     </select>
-                    {signedIn && canEdit && cloudId && !cloudArchivedAt && creationEntry !== "choose" && sheet.level >= 1 && sheet.level < 10 && <button type="button" className="level-up-inline-button" onClick={() => setLevelUpMode(true)}>Level Up</button>}
+                    {signedIn && canEdit && cloudId && !cloudArchivedAt && creationEntry !== "choose" && sheet.level >= 1 && sheet.level < 10 && <button type="button" className="level-up-inline-button" data-readonly-interactive="true" onClick={() => setLevelUpMode(true)}>Level Up</button>}
                   </span>
                 </label>
                 <label className="field"><span>Class structure</span><select value={sheet.classMode} onChange={e => patch("classMode", e.target.value as Sheet["classMode"])}><option value="full">Full class</option><option value="adventurer">Adventurer (two partial classes)</option></select></label>
@@ -3056,7 +3126,7 @@ export default function Home({
               </div>
               <Field label="Description" value={sheet.description} onChange={v => patch("description", v)} />
             </Section>
-            <Section title="Base Attributes" aside={<span className="caption">SRD attribute generation · modifiers calculate automatically</span>} className="attributes-section">
+            <Section title="Base Attributes" buildControlled aside={<span className="caption">SRD attribute generation · modifiers calculate automatically</span>} className="attributes-section">
               <div className="attribute-method-controls">
                 <label className="field">
                   <span>Generation method</span>
@@ -3329,7 +3399,7 @@ export default function Home({
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
               </div>
             </Section>
-            <Section title="Foci" aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 costs two picks</span>}>
+            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 costs two picks</span>}>
               {sheet.focusPicks.map((pick, i) => {
                 const focus = foci.find(f => f.name === pick.name);
                 return <div className={`choice-row${focusChoiceLabel(pick.name) ? " has-focus-choice" : ""}`} key={i}>
@@ -3356,7 +3426,7 @@ export default function Home({
           </div>
 
           <div className="stack skills-column">
-            <Section title="Skills" className="skills-section" aside={<span className="caption">Skill ranks · granted sources · effective usable value</span>}>
+            <Section title="Skills" buildControlled className="skills-section" aside={<span className="caption">Skill ranks · granted sources · effective usable value</span>}>
               <div className={`skill-budget ${advancementPointsSpent > skillPointAllowance ? "over-budget" : ""}`}>
                 <strong>Advancement skill points</strong>
                 <div className="skill-budget-summary">
@@ -3410,7 +3480,7 @@ export default function Home({
                 })}
               </div>
             </Section>
-            <Section title="Languages" aside={<span className="caption">{sheet.languages.length}/{languageAllowance} known · lingua franca + native tongue + Know/Connect bonuses</span>}>
+            <Section title="Languages" buildControlled aside={<span className="caption">{sheet.languages.length}/{languageAllowance} known · lingua franca + native tongue + Know/Connect bonuses</span>}>
               <label className="field language-picker">
                 <span>Add language</span>
                 <select value="" onChange={e => {
@@ -3435,9 +3505,9 @@ export default function Home({
             <div><span>Tradition</span><b className="tradition-name">{magicalTraditions.join(" + ")}</b></div><div><span>{castingTraditions.length ? "Prepared" : "Spellcasting"}</span><b className={preparedCount > limits.prepared ? "bad":""}>{castingTraditions.length ? `${preparedCount}/${limits.prepared}` : "None"}</b></div><div><span>{isInvoker ? "Spell points used" : castingTraditions.length ? "Cast today" : "Arts known"}</span><b>{castingTraditions.length ? `${castsUsed}/${limits.casts}` : `${sheet.artPicks.filter(Boolean).length}/${artAllowance}`}</b></div><div><span>Effort committed</span><b className="effort-pools">{effortPools.map(p=><small key={p.tradition}>{p.tradition} {p.used}/{p.max}</small>)}</b></div>
           </div>
           {castingBlocked && <p className="casting-restriction" role="status"><strong>Armor restriction active:</strong> {castingBlockedReason}</p>}
-          {selectedClasses.includes("Vowed") && <Section title="Vowed Discipline"><div className="vowed-controls"><label className="field"><span>Order skill (Effort + bonus skill)</span><select value={sheet.vowedEffortSkill} onChange={e=>patch("vowedEffortSkill",e.target.value)}>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label><div><span>Punch hit</span><b>{signed(vowedProgression[effectiveLevel-1].hit)}</b></div><div><span>Punch damage</span><b>{vowedProgression[effectiveLevel-1].damage}</b></div><div><span>Punch Shock</span><b>{vowedProgression[effectiveLevel-1].shock.replace("/", "/AC ")}</b></div></div><p className="section-intro">The selected Order skill is the Vowed’s required noncombat bonus skill and is also used to calculate Vowed Effort.</p></Section>}
-          {selectedClasses.includes("Wise") && <Section title="Wise Concept"><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{skills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
-          {hasBeastmaster && <Section title="Beastmaster Companion Bond"><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>changeBeastmasterBond(e.target.value as Sheet["beastmasterBond"])}><option value="">Choose a companion bond…</option><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p>{!sheet.beastmasterBond && <p className="creation-choice-note">Choose the Beastmaster’s companion bond before finishing character creation.</p>}</Section>}
+          {selectedClasses.includes("Vowed") && <Section title="Vowed Discipline" buildControlled><div className="vowed-controls"><label className="field"><span>Order skill (Effort + bonus skill)</span><select value={sheet.vowedEffortSkill} onChange={e=>patch("vowedEffortSkill",e.target.value)}>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label><div><span>Punch hit</span><b>{signed(vowedProgression[effectiveLevel-1].hit)}</b></div><div><span>Punch damage</span><b>{vowedProgression[effectiveLevel-1].damage}</b></div><div><span>Punch Shock</span><b>{vowedProgression[effectiveLevel-1].shock.replace("/", "/AC ")}</b></div></div><p className="section-intro">The selected Order skill is the Vowed’s required noncombat bonus skill and is also used to calculate Vowed Effort.</p></Section>}
+          {selectedClasses.includes("Wise") && <Section title="Wise Concept" buildControlled><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{skills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
+          {hasBeastmaster && <Section title="Beastmaster Companion Bond" buildControlled><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>changeBeastmasterBond(e.target.value as Sheet["beastmasterBond"])}><option value="">Choose a companion bond…</option><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p>{!sheet.beastmasterBond && <p className="creation-choice-note">Choose the Beastmaster’s companion bond before finishing character creation.</p>}</Section>}
           {castingTraditions.length > 0 && <Section title="Spellbook" aside={<span className="caption">{knownSpellAllowance} known-spell selections at level {sheet.level} · spell levels 1–{limits.max} · prepare up to {limits.prepared}</span>}>
             <p className="section-intro">{isInvoker ? `Invoker spells spend points equal to spell level. You have ${limits.casts} spell points each day and may cast a prepared spell repeatedly.` : "Choose each known spell from the complete SRD list. Prepared spells are bright; unprepared spells remain in your spellbook but are muted."}</p>
             <div className="spell-list">
@@ -3471,7 +3541,7 @@ export default function Home({
               })}
             </div>
           </Section>}
-          <Section title="Arts" aside={<span className="caption">{artTraditions.join(" + ")} · {sheet.artPicks.filter(Boolean).length}/{artAllowance} available by level {sheet.level}</span>}>
+          <Section title="Arts" buildControlled aside={<span className="caption">{artTraditions.join(" + ")} · {sheet.artPicks.filter(Boolean).length}/{artAllowance} available by level {sheet.level}</span>}>
             <div className="arts-grid">{sheet.artPicks.map((name, i) => {
               const art = creationArtForSelection(availableArts, name);
               const requiredArt = forcedArts[i];
@@ -3504,7 +3574,7 @@ export default function Home({
                 {requiredArt && <small>Required starting Art</small>}
                 {art ? <Tip title="?"><RulesTooltip name={art.name} text={art.text} extra={art.minLevel ? `Minimum level ${art.minLevel}.` : undefined}/></Tip> :
                   <span className="slot-number" aria-label={`Art selection ${i + 1}`}>{i + 1}</span>}
-                <label className="check"><input type="checkbox" checked={Boolean(sheet.artEffort[i])} disabled={!name || (Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked) || (!sheet.artEffort[i] && (effortPools.find(p => p.tradition === art?.tradition)?.used ?? 0) >= (effortPools.find(p => p.tradition === art?.tradition)?.max ?? 0))} onChange={e => patch("artEffort", sheet.artPicks.map((_, j) => j === i ? e.target.checked : Boolean(sheet.artEffort[j])))} /><span>Effort</span></label>
+                <label className="check" data-character-play-state="true"><input type="checkbox" checked={Boolean(sheet.artEffort[i])} disabled={!name || (Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked) || (!sheet.artEffort[i] && (effortPools.find(p => p.tradition === art?.tradition)?.used ?? 0) >= (effortPools.find(p => p.tradition === art?.tradition)?.max ?? 0))} onChange={e => patch("artEffort", sheet.artPicks.map((_, j) => j === i ? e.target.checked : Boolean(sheet.artEffort[j])))} /><span>Effort</span></label>
               </div>;
             })}</div>
             {!sheet.artPicks.length && <p className="empty-slots">This class has no Art selections at the current level.</p>}
@@ -3945,30 +4015,27 @@ export default function Home({
           <div><strong>Archived Character</strong><small>This folio remains intact and existing campaign links still work.</small></div>
           <button type="button" onClick={() => void restoreArchivedCharacter()}>Restore to My Characters</button>
         </section>}
-        {cloudId && canEdit && campaignLinks.length > 0 && <section className="character-campaign-links" data-readonly-interactive="true" aria-labelledby="character-campaign-links-title">
-          <div>
-            <strong id="character-campaign-links-title">Campaigns</strong>
-            <small>{campaignLinks.length === 1 ? "This character is linked to one private campaign." : `This character is linked to ${campaignLinks.length} private campaigns.`}</small>
+        {cloudId && canEdit && <section className="character-bottom-utilities" data-readonly-interactive="true" aria-label="Character utilities">
+          <div className="character-edit-utility">
+            <span className="character-utility-label">Character</span>
+            {characterEditMode ? <div className="character-edit-actions">
+              <button type="button" className="character-utility-primary" onClick={() => void saveCharacterEdits()}>Save Character</button>
+              <button type="button" onClick={cancelCharacterEdits}>Cancel</button>
+            </div> : <button type="button" onClick={beginCharacterEdit} disabled={Boolean(cloudArchivedAt)}>Edit Character</button>}
           </div>
-          <nav aria-label="Campaigns linked to this character">
-            {campaignLinks.map(campaign => <a key={campaign.id} href={`/campaigns/${campaign.id}`}>
-              <span>{campaign.name}</span>
-              <strong>{campaignLinks.length === 1 ? "Open Campaign" : "Open"}</strong>
-            </a>)}
-          </nav>
-        </section>}
-        {cloudId && canEdit && <section className="character-sharing character-sharing-footer" data-readonly-interactive="true" aria-labelledby="character-sharing-title">
-          <div className="character-sharing-heading">
-            <strong id="character-sharing-title">Privacy & Sharing</strong>
-            <small>Choose who can view this character.</small>
-          </div>
-          <label><span>Visibility</span><select value={cloudVisibility} onChange={event => void changeVisibility(event.target.value as CharacterVisibility)}>
+          {campaignLinks.length > 0 && <details className="character-campaign-utility">
+            <summary>Campaigns ({campaignLinks.length})</summary>
+            <nav aria-label="Campaigns linked to this character">
+              {campaignLinks.map(campaign => <a key={campaign.id} href={`/campaigns/${campaign.id}`}>{campaign.name}<span aria-hidden="true">→</span></a>)}
+            </nav>
+          </details>}
+          <label className="character-visibility-utility"><span>Visibility</span><select value={cloudVisibility} onChange={event => void changeVisibility(event.target.value as CharacterVisibility)}>
             <option value="private">Private · only you</option>
             <option value="unlisted">Unlisted · anyone with link</option>
             <option value="public">Public · discoverable</option>
           </select></label>
-          {cloudVisibility !== "private" && <button type="button" onClick={() => void copyShareLink()}>Copy Share Link</button>}
-          <small className="character-sharing-status">{cloudVisibility === "private" ? "Not available to other visitors." : cloudVisibility === "unlisted" ? "Viewable at its stable link, but absent from Public Characters." : "Viewable at its stable link and listed in Public Characters."}</small>
+          {cloudVisibility !== "private" && <button type="button" className="character-share-utility" onClick={() => void copyShareLink()}>Copy Share Link</button>}
+          <small className="character-utility-status">{characterEditMode ? "Foundational fields unlocked until saved or cancelled." : "Foundational fields locked. Play-state fields remain editable."}</small>
         </section>}
         </>}
       </div>

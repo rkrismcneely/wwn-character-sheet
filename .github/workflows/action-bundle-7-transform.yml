@@ -1,0 +1,38 @@
+name: Action Bundle 7 Transform
+on:
+  push:
+    branches: [feat/action-bundle-7-npc-usability]
+    paths:
+      - '.github/workflows/action-bundle-7-transform.yml'
+permissions:
+  contents: write
+jobs:
+  transform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/action-bundle-7-npc-usability
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply Bundle 7 changes
+        run: node scripts/action-bundle-7-transform.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused tests
+        run: node --test tests/action-bundle-7-npc-usability.test.mjs tests/npc-combat.test.mjs tests/encounter-threat.test.mjs tests/gm-console.test.mjs
+      - name: Full tests
+        run: npm test
+      - name: Commit transformed files
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app lib worker drizzle tests
+          git commit -m 'feat: complete action bundle 7 NPC usability'
+          git push origin HEAD:feat/action-bundle-7-npc-usability

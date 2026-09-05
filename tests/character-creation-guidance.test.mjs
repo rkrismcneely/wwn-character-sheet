@@ -46,10 +46,14 @@ test("every selectable class has a player-facing gameplay description", () => {
   }
   assert.match(wizardSource, /classPlayDescriptions\[sheet\.classOne\]/);
   assert.match(wizardSource, /classPlayDescriptions\[sheet\.classTwo\]/);
+  const classStepStart = wizardSource.indexOf('if (step.id === "class")');
+  const classStepEnd = wizardSource.indexOf('if (step.id === "foci")', classStepStart);
+  const classStepSource = wizardSource.slice(classStepStart, classStepEnd);
+  assert.ok(classStepStart >= 0 && classStepEnd > classStepStart, "class step source should be present");
   assert.ok(
-    wizardSource.indexOf("classPlayDescriptions[sheet.classOne]") <
-      wizardSource.indexOf('className="creation-rule-callout"'),
-    "class guidance should appear before the mechanical class callout",
+    classStepSource.indexOf("classPlayDescriptions[sheet.classOne]") <
+      classStepSource.indexOf('className="creation-rule-callout"'),
+    "class guidance should appear before the class step mechanical callout",
   );
 });
 

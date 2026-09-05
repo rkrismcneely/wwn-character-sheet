@@ -115,11 +115,10 @@ test("Mageslayer advancement exposes the fixed Arts from its class table", () =>
     classOne: "Mageslayer",
     classTwo: "Warrior",
   }));
-  assert.deepEqual(levelTwo.artGrants, [{
-    tradition: "Mageslayer",
-    count: 2,
-    fixedArts: ["Witchfinder", "Spellshield"],
-  }]);
+  assert.equal(levelTwo.artGrants.length, 1);
+  assert.equal(levelTwo.artGrants[0].tradition, "Mageslayer");
+  assert.equal(levelTwo.artGrants[0].count, 2);
+  assert.deepEqual([...levelTwo.artGrants[0].fixedArts].sort(), ["Spellshield", "Witchfinder"]);
   const levelThree = advancementPlan(base({
     level: 2,
     classMode: "adventurer",

@@ -12,6 +12,12 @@ import {
   rollBackgroundTable,
 } from "./background-development";
 import { fullClasses, partialClasses } from "./class-data";
+import {
+  classPlayDescriptions,
+  focusFullRules,
+  ruleSummary,
+  SelectionRuleHelp,
+} from "./character-creation-guidance";
 import { rollDice } from "./dice";
 import { focusTargetAvailable } from "./phase2-rules";
 import { foci } from "./wwn-data";
@@ -823,6 +829,11 @@ export function GuidedCreationWizard({
                   </option>
                 ))}
               </select>
+              {sheet.classOne && classPlayDescriptions[sheet.classOne] && (
+                <small className="creation-class-description">
+                  {classPlayDescriptions[sheet.classOne]}
+                </small>
+              )}
             </label>
             {sheet.classMode === "adventurer" && (
               <label>
@@ -842,6 +853,11 @@ export function GuidedCreationWizard({
                     </option>
                   ))}
                 </select>
+                {sheet.classTwo && classPlayDescriptions[sheet.classTwo] && (
+                  <small className="creation-class-description">
+                    {classPlayDescriptions[sheet.classTwo]}
+                  </small>
+                )}
               </label>
             )}
             {status.selectedClasses.includes("Vowed") && (
@@ -978,88 +994,105 @@ export function GuidedCreationWizard({
                 {status.focusPicksUsed}/{status.allowedFocusPicks} picks used
               </span>
             </header>
-            {sheet.focusPicks.map((pick, index) => (
-              <div className="creation-focus-row" key={`${index}-${pick.name}`}>
-                <select
-                  value={pick.name}
-                  onChange={(event) => setFocus(index, event.target.value)}
-                >
-                  <option value="">Choose a Focus…</option>
-                  {foci.map((focus) => {
-                    const eligible = status.focusEligibility(focus.name, index);
-                    return (
-                      <option
-                        key={focus.name}
-                        value={focus.name}
-                        disabled={!eligible.eligible}
-                      >
-                        {focus.name}
-                        {eligible.eligible ? "" : ` — ${eligible.reason}`}
-                      </option>
-                    );
-                  })}
-                </select>
-                {pick.name && (
-                  <>
+            {sheet.focusPicks.map((pick, index) => {
+              const selectedFocus = foci.find((focus) => focus.name === pick.name);
+              return (
+                <div className="creation-focus-row" key={`${index}-${pick.name}`}>
+                  <div className="creation-focus-choice-main">
                     <select
-                      value={pick.level}
-                      onChange={(event) =>
-                        updateFocus(index, {
-                          level: Number(event.target.value),
-                        })
-                      }
+                      aria-label={`Focus ${index + 1}`}
+                      value={pick.name}
+                      onChange={(event) => setFocus(index, event.target.value)}
                     >
-                      <option value={1}>Level 1</option>
-                      <option
-                        value={2}
-                        disabled={
-                          sheet.level !== 1 ||
-                          !foci.find((focus) => focus.name === pick.name)
-                            ?.level2 ||
-                          (pick.level !== 2 &&
-                            status.focusPicksUsed >= status.allowedFocusPicks)
-                        }
-                      >
-                        Level 2 · costs two picks
-                      </option>
-                    </select>
-                    {creationFocusChoiceLabel(pick.name) && (
-                      <select
-                        value={pick.choice || ""}
-                        onChange={(event) =>
-                          updateFocus(index, { choice: event.target.value })
-                        }
-                      >
-                        <option value="">
-                          Choose{" "}
-                          {creationFocusChoiceLabel(pick.name).toLowerCase()}…
-                        </option>
-                        {creationFocusChoiceOptions(pick.name).map((choice) => (
+                      <option value="">Choose a Focus…</option>
+                      {foci.map((focus) => {
+                        const eligible = status.focusEligibility(focus.name, index);
+                        return (
                           <option
-                            key={choice}
-                            value={choice}
-                            disabled={
-                              !focusChoiceAvailable(pick, index, choice)
-                            }
+                            key={focus.name}
+                            value={focus.name}
+                            disabled={!eligible.eligible}
                           >
-                            {choice === "Other"
-                              ? "Other non-stat benefit"
-                              : choice}
+                            {focus.name}
+                            {eligible.eligible ? "" : ` — ${eligible.reason}`}
                           </option>
-                        ))}
-                      </select>
+                        );
+                      })}
+                    </select>
+                    {selectedFocus && (
+                      <SelectionRuleHelp
+                        label={selectedFocus.name}
+                        fullText={focusFullRules(selectedFocus)}
+                      />
                     )}
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => removeFocus(index)}
-                    >
-                      Remove
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
+                    {selectedFocus && (
+                      <small className="creation-selection-summary">
+                        {ruleSummary(selectedFocus.intro)}
+                      </small>
+                    )}
+                  </div>
+                  {pick.name && (
+                    <>
+                      <select
+                        value={pick.level}
+                        onChange={(event) =>
+                          updateFocus(index, {
+                            level: Number(event.target.value),
+                          })
+                        }
+                      >
+                        <option value={1}>Level 1</option>
+                        <option
+                          value={2}
+                          disabled={
+                            sheet.level !== 1 ||
+                            !foci.find((focus) => focus.name === pick.name)
+                              ?.level2 ||
+                            (pick.level !== 2 &&
+                              status.focusPicksUsed >= status.allowedFocusPicks)
+                          }
+                        >
+                          Level 2 · costs two picks
+                        </option>
+                      </select>
+                      {creationFocusChoiceLabel(pick.name) && (
+                        <select
+                          value={pick.choice || ""}
+                          onChange={(event) =>
+                            updateFocus(index, { choice: event.target.value })
+                          }
+                        >
+                          <option value="">
+                            Choose{" "}
+                            {creationFocusChoiceLabel(pick.name).toLowerCase()}…
+                          </option>
+                          {creationFocusChoiceOptions(pick.name).map((choice) => (
+                            <option
+                              key={choice}
+                              value={choice}
+                              disabled={
+                                !focusChoiceAvailable(pick, index, choice)
+                              }
+                            >
+                              {choice === "Other"
+                                ? "Other non-stat benefit"
+                                : choice}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => removeFocus(index)}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
             {sheet.focusPicks.length < status.allowedFocusPicks && (
               <button
                 type="button"
@@ -1509,62 +1542,80 @@ export function GuidedCreationWizard({
                 const selection = sheet.artPicks[index] || "";
                 const choiceDefinition = artChoiceDefinition(selection);
                 const choiceValues = artChoiceValues(selection, sheet.artChoices);
+                const selectedArt = status.availableArts.find(
+                  (art) =>
+                    art.value === selection ||
+                    art.name === artSelectionName(selection),
+                );
                 return (
                   <div className="creation-art-row" key={index}>
-                    <label>
-                      <span>
-                        {status.forcedArts[index]
-                          ? `Required Art · ${artSelectionName(status.forcedArts[index])}`
-                          : `Art ${index + 1}`}
-                      </span>
-                      <select
-                        value={selection}
-                        onChange={(event) => setArt(index, event.target.value)}
-                      >
-                        <option value="">
+                    <div className="creation-magic-choice-main">
+                      <label>
+                        <span>
                           {status.forcedArts[index]
-                            ? `Choose ${artSelectionName(status.forcedArts[index])}…`
-                            : "Choose an Art…"}
-                        </option>
-                        {status.availableArts
-                          .filter((art) => (art.minLevel || 1) <= 1)
-                          .filter(
-                            (art) =>
-                              !status.forcedArts[index] ||
-                              art.value === status.forcedArts[index],
-                          )
-                          .map((art) => {
-                            const prerequisiteMissing =
-                              art.name === "Deep Apprehension" &&
-                              !sheet.artPicks.some(
-                                (choice) =>
-                                  artSelectionName(choice) ===
-                                  "Surface Apprehension",
+                            ? `Required Art · ${artSelectionName(status.forcedArts[index])}`
+                            : `Art ${index + 1}`}
+                        </span>
+                        <select
+                          value={selection}
+                          onChange={(event) => setArt(index, event.target.value)}
+                        >
+                          <option value="">
+                            {status.forcedArts[index]
+                              ? `Choose ${artSelectionName(status.forcedArts[index])}…`
+                              : "Choose an Art…"}
+                          </option>
+                          {status.availableArts
+                            .filter((art) => (art.minLevel || 1) <= 1)
+                            .filter(
+                              (art) =>
+                                !status.forcedArts[index] ||
+                                art.value === status.forcedArts[index],
+                            )
+                            .map((art) => {
+                              const prerequisiteMissing =
+                                art.name === "Deep Apprehension" &&
+                                !sheet.artPicks.some(
+                                  (choice) =>
+                                    artSelectionName(choice) ===
+                                    "Surface Apprehension",
+                                );
+                              const duplicate =
+                                art.name !== "Skilled" &&
+                                sheet.artPicks.some(
+                                  (choice, row) =>
+                                    row !== index && choice === art.value,
+                                );
+                              const available = !prerequisiteMissing && !duplicate;
+                              return (
+                                <option
+                                  key={`${art.tradition}-${art.name}`}
+                                  value={art.value}
+                                  disabled={!available}
+                                >
+                                  {art.tradition} · {art.name}
+                                  {prerequisiteMissing
+                                    ? " — requires Surface Apprehension"
+                                    : duplicate
+                                      ? " — already selected"
+                                      : ""}
+                                </option>
                               );
-                            const duplicate =
-                              art.name !== "Skilled" &&
-                              sheet.artPicks.some(
-                                (choice, row) =>
-                                  row !== index && choice === art.value,
-                              );
-                            const available = !prerequisiteMissing && !duplicate;
-                            return (
-                              <option
-                                key={`${art.tradition}-${art.name}`}
-                                value={art.value}
-                                disabled={!available}
-                              >
-                                {art.tradition} · {art.name}
-                                {prerequisiteMissing
-                                  ? " — requires Surface Apprehension"
-                                  : duplicate
-                                    ? " — already selected"
-                                    : ""}
-                              </option>
-                            );
-                          })}
-                      </select>
-                    </label>
+                            })}
+                        </select>
+                        {selectedArt && (
+                          <small className="creation-selection-summary">
+                            {ruleSummary(selectedArt.text)}
+                          </small>
+                        )}
+                      </label>
+                      {selectedArt && (
+                        <SelectionRuleHelp
+                          label={`${selectedArt.tradition} · ${selectedArt.name}`}
+                          fullText={selectedArt.text}
+                        />
+                      )}
+                    </div>
                     {choiceDefinition && (
                       <div className="art-choice-fields" aria-label={choiceDefinition.label}>
                         {choiceValues.map((value, choiceIndex) => (
@@ -1599,36 +1650,54 @@ export function GuidedCreationWizard({
               </h3>
               {Array.from(
                 { length: status.knownSpellAllowance },
-                (_, index) => (
-                  <label key={index}>
-                    <span>Spell {index + 1}</span>
-                    <select
-                      value={sheet.spellPicks[index]?.name || ""}
-                      onChange={(event) => setSpell(index, event.target.value)}
-                    >
-                      <option value="">Choose a spell…</option>
-                      {status.availableSpells
-                        .filter((spell) => spell.level <= status.limits.max)
-                        .map((spell) => {
-                          const duplicate = sheet.spellPicks.some(
-                            (pick, row) =>
-                              row !== index && pick.name === spell.name,
-                          );
-                          return (
-                            <option
-                              key={`${spell.tradition}-${spell.name}`}
-                              value={spell.name}
-                              disabled={duplicate}
-                            >
-                              Level {spell.level} · {spell.tradition} ·{" "}
-                              {spell.name}
-                              {duplicate ? " — already selected" : ""}
-                            </option>
-                          );
-                        })}
-                    </select>
-                  </label>
-                ),
+                (_, index) => {
+                  const selectedSpell = status.availableSpells.find(
+                    (spell) => spell.name === sheet.spellPicks[index]?.name,
+                  );
+                  return (
+                    <div className="creation-magic-choice-main" key={index}>
+                      <label>
+                        <span>Spell {index + 1}</span>
+                        <select
+                          value={sheet.spellPicks[index]?.name || ""}
+                          onChange={(event) => setSpell(index, event.target.value)}
+                        >
+                          <option value="">Choose a spell…</option>
+                          {status.availableSpells
+                            .filter((spell) => spell.level <= status.limits.max)
+                            .map((spell) => {
+                              const duplicate = sheet.spellPicks.some(
+                                (pick, row) =>
+                                  row !== index && pick.name === spell.name,
+                              );
+                              return (
+                                <option
+                                  key={`${spell.tradition}-${spell.name}`}
+                                  value={spell.name}
+                                  disabled={duplicate}
+                                >
+                                  Level {spell.level} · {spell.tradition} ·{" "}
+                                  {spell.name}
+                                  {duplicate ? " — already selected" : ""}
+                                </option>
+                              );
+                            })}
+                        </select>
+                        {selectedSpell && (
+                          <small className="creation-selection-summary">
+                            {ruleSummary(selectedSpell.text)}
+                          </small>
+                        )}
+                      </label>
+                      {selectedSpell && (
+                        <SelectionRuleHelp
+                          label={`${selectedSpell.tradition} · ${selectedSpell.name}`}
+                          fullText={selectedSpell.text}
+                        />
+                      )}
+                    </div>
+                  );
+                },
               )}
             </section>
           )}

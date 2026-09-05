@@ -7,6 +7,7 @@ export type PurchasableEquipment = {
   name: string;
   kind: EquipmentKind;
   costCopper: number;
+  details: string;
 };
 
 export const armors = [
@@ -96,6 +97,7 @@ export const purchasableEquipment: readonly PurchasableEquipment[] = [
     name: weapon.name,
     kind: "weapon" as const,
     costCopper: costCopper(weapon.cost),
+    details: `${weapon.damage} damage · Shock ${weapon.shock} · ${weapon.attribute} · Range ${weapon.range} · Enc ${weapon.enc}${weapon.traits ? ` · ${weapon.traits}` : ""}`,
   })),
   ...armors
     .filter((armor) => armor.name !== "No Armor")
@@ -104,6 +106,7 @@ export const purchasableEquipment: readonly PurchasableEquipment[] = [
       name: armor.name,
       kind: "armor" as const,
       costCopper: armor.costCopper,
+      details: `AC ${armor.ac} · Enc ${armor.enc}`,
     })),
   ...shields
     .filter((shield) => shield.name)
@@ -112,24 +115,34 @@ export const purchasableEquipment: readonly PurchasableEquipment[] = [
       name: shield.name,
       kind: "shield" as const,
       costCopper: shield.costCopper,
+      details: `${shield.name === "Large Shield" ? "AC 14" : "AC 13"} base · adds +1 AC when it improves your worn armor`,
     })),
   ...adventuringGear.map((item) => ({
     id: `gear:${item.name}`,
     name: item.name,
     kind: "gear" as const,
     costCopper: item.costCopper,
+    details: "Adventuring gear",
   })),
   ...gearBundles.map((item) => ({
     id: `bundle:${item.name}`,
     name: item.name,
     kind: "bundle" as const,
     costCopper: item.costCopper,
+    details: "A bundled set of adventuring gear",
   })),
 ];
 
 export const purchasableEquipmentById = new Map(
   purchasableEquipment.map((item) => [item.id, item]),
 );
+
+export function equipmentDetailsForName(name: string) {
+  const item = purchasableEquipment.find((candidate) => candidate.name === name);
+  if (item) return item.details;
+  if (name === "Mule and small cart") return "Pack animal and cart";
+  return "Starting gear";
+}
 
 export const formatEquipmentCost = (costInCopper: number) => {
   if (costInCopper === 0) return "Free";

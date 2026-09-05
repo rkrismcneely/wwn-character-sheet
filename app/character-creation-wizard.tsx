@@ -11,15 +11,15 @@ import {
   backgroundTableDieSides,
   rollBackgroundTable,
 } from "./background-development";
-import { fullClasses, partialClasses } from "./class-data";
+import { fullClasses, partialClasses, traditionInfo } from "./class-data";
 import {
   classPlayDescriptions,
   focusFullRules,
-  ruleSummary,
   SelectionRuleHelp,
 } from "./character-creation-guidance";
+import { plainLanguageSummary } from "./plain-language";
 import { rollDice } from "./dice";
-import { focusTargetAvailable } from "./phase2-rules";
+import { armorRestrictsMagic, focusTargetAvailable } from "./phase2-rules";
 import { foci } from "./wwn-data";
 import {
   creationEquipmentKindAlreadyPurchased,
@@ -33,6 +33,7 @@ import {
 } from "./creation-equipment";
 import {
   formatEquipmentCost,
+  equipmentDetailsForName,
   purchasableEquipment,
   purchasableEquipmentById,
   startingEquipmentPackageById,
@@ -64,6 +65,7 @@ import {
   type CreationAttribute,
   type LevelOneCreationCharacter,
 } from "./character-creation";
+import { officialLanguages } from "./language-data";
 import "./character-creation-wizard.css";
 
 type Props = {
@@ -74,6 +76,7 @@ type Props = {
   onChange: (update: Partial<LevelOneCreationCharacter>) => void;
   onPortrait: (file: File | undefined) => void;
   onExit: () => void;
+  onCancel: () => void;
   onFinish: () => void;
 };
 
@@ -184,6 +187,10 @@ function MiniSummary({ sheet }: { sheet: LevelOneCreationCharacter }) {
         </p>
       </div>
       <div>
+        <span>Languages</span>
+        <p>{sheet.languages?.join(" · ") || "Needs Common + a native tongue"}</p>
+      </div>
+      <div>
         <span>Foci</span>
         <p>
           {sheet.focusPicks
@@ -214,16 +221,26 @@ export function GuidedCreationWizard({
   onChange,
   onPortrait,
   onExit,
+  onCancel,
   onFinish,
 }: Props) {
   const initialStep = () => {
-    if (typeof window === "undefined") return 0;
-    const value = Number(
-      window.localStorage.getItem(lastStepStorageKey(persistenceKey)),
+    const creationStatus = levelOneCreationStatus(sheet);
+    const firstIncomplete = creationSteps.findIndex((item) =>
+      item.id !== "review" &&
+      (item.id !== "magic" || creationStatus.hasMagicStep) &&
+      !creationStatus.stepStatus[item.id].complete,
     );
-    return Number.isInteger(value) && value >= 0 && value < creationSteps.length
-      ? value
-      : 0;
+    const fallback = firstIncomplete >= 0
+      ? firstIncomplete
+      : creationSteps.findIndex((item) => item.id === "review");
+    if (typeof window === "undefined") return Math.max(0, fallback);
+    const value = Number(window.localStorage.getItem(lastStepStorageKey(persistenceKey)));
+    if (Number.isInteger(value) && value >= 0 && value < creationSteps.length) {
+      const savedStep = creationSteps[value];
+      if (savedStep?.id !== "review" || creationStatus.canFinish) return value;
+    }
+    return Math.max(0, fallback);
   };
   const [stepIndex, setStepIndex] = useState(initialStep);
   const [focusQuery, setFocusQuery] = useState("");
@@ -254,6 +271,18 @@ export function GuidedCreationWizard({
     if (!canEdit) return;
     onChange(update);
   };
+  const knownLanguages = Array.isArray(sheet.languages) ? sheet.languages : [];
+  const nonCommonLanguages = knownLanguages.filter((language) => language !== "Common");
+  const nativeLanguage = nonCommonLanguages[0] || "";
+  const additionalLanguages = nonCommonLanguages.slice(1);
+  const setNativeLanguage = (language: string) =>
+    change({ languages: ["Common", language, ...additionalLanguages].filter(Boolean) });
+  const addAdditionalLanguage = (language: string) => {
+    if (!language || knownLanguages.includes(language) || knownLanguages.length >= status.languageAllowance) return;
+    change({ languages: [...new Set(["Common", ...knownLanguages.filter((item) => item !== "Common"), language])] });
+  };
+  const removeAdditionalLanguage = (language: string) =>
+    change({ languages: knownLanguages.filter((item) => item !== language) });
   const nextStep = () => {
     const problem = status.stepStatus[step.id].issues[0];
     if (problem && step.id !== "review") {
@@ -554,11 +583,62 @@ export function GuidedCreationWizard({
           </p>
         </>
       );
+    if (step.id === "languages")
+      return (
+        <>
+          <StepTitle
+            eyebrow="Step 2 · Choose the languages you begin with"
+            title="Languages"
+          >
+            Every character starts with Common as a lingua franca and one native tongue. Know and Connect grants can add more languages; they are reflected as the later skills are resolved.
+          </StepTitle>
+          <div className="creation-fields two-columns">
+            <label>
+              <span>Lingua franca</span>
+              <input value="Common" readOnly aria-label="Starting lingua franca" />
+              <small className="creation-class-description">Common is the shared starting language.</small>
+            </label>
+            <label>
+              <span>Native tongue</span>
+              <select value={nativeLanguage} onChange={(event) => setNativeLanguage(event.target.value)}>
+                <option value="">Choose a native tongue…</option>
+                {(officialLanguages as readonly string[]).filter((language) => language !== "Common").map((language) => (
+                  <option key={language} value={language}>{language}</option>
+                ))}
+              </select>
+              <small className="creation-class-description">Choose the language associated with this character’s homeland or upbringing.</small>
+            </label>
+          </div>
+          <div className="creation-rule-callout">
+            <strong>Starting language capacity: {status.languageAllowance}</strong>
+            <span>Common and the native tongue use the first two slots. Know-0 or Connect-0 adds one slot; Know-1 or Connect-1 adds two.</span>
+          </div>
+          <label className="creation-select creation-language-additional">
+            <span>Additional language</span>
+            <select value="" disabled={knownLanguages.length >= status.languageAllowance} onChange={(event) => addAdditionalLanguage(event.target.value)}>
+              <option value="">Choose an additional language…</option>
+              {(officialLanguages as readonly string[]).filter((language) => language !== "Common" && !knownLanguages.includes(language)).map((language) => (
+                <option key={language} value={language}>{language}</option>
+              ))}
+            </select>
+          </label>
+          <div className="known-languages" aria-live="polite">
+            {knownLanguages.map((language) => (
+              <span className="language-chip" key={language}>
+                {language}{language === "Common" ? " · lingua franca" : language === nativeLanguage ? " · native tongue" : " · additional"}
+                {language !== "Common" && language !== nativeLanguage && <button type="button" aria-label={`Remove ${language}`} title={`Remove ${language}`} onClick={() => removeAdditionalLanguage(language)}>×</button>}
+              </span>
+            ))}
+            {!knownLanguages.length && <p className="empty-slots">Choose Common and a native tongue.</p>}
+          </div>
+          {!status.stepStatus.languages.complete && <p className="creation-warning">{status.stepStatus.languages.issues.join(" ")}</p>}
+        </>
+      );
     if (step.id === "attributes")
       return (
         <>
           <StepTitle
-            eyebrow="Step 2 · Choose your attributes"
+            eyebrow="Step 3 · Choose your attributes"
             title="Attributes"
           >
             <p>
@@ -722,7 +802,7 @@ export function GuidedCreationWizard({
     if (step.id === "background")
       return (
         <>
-          <StepTitle eyebrow="Step 3 · Establish your past" title="Background">
+          <StepTitle eyebrow="Step 4 · Establish your past" title="Background">
             <p>
               Pick an identity now. Its optional Growth and Learning decisions
               wait until the wizard can account for your class and Foci.
@@ -755,7 +835,7 @@ export function GuidedCreationWizard({
       return (
         <>
           <StepTitle
-            eyebrow="Step 4 · Choose your adventuring path"
+            eyebrow="Step 5 · Choose your adventuring path"
             title="Class & Tradition"
           >
             <p>
@@ -909,7 +989,7 @@ export function GuidedCreationWizard({
       return (
         <>
           <StepTitle
-            eyebrow="Step 5 · Talents and Origin"
+            eyebrow="Step 6 · Talents and Origin"
             title="Foci / Origin"
           >
             <p>
@@ -1027,7 +1107,7 @@ export function GuidedCreationWizard({
                     )}
                     {selectedFocus && (
                       <small className="creation-selection-summary">
-                        {ruleSummary(selectedFocus.intro)}
+                        <b>In plain terms:</b> {plainLanguageSummary(selectedFocus.name, selectedFocus.level1 || selectedFocus.intro)}
                       </small>
                     )}
                   </div>
@@ -1115,7 +1195,7 @@ export function GuidedCreationWizard({
       return (
         <>
           <StepTitle
-            eyebrow="Step 6 · Resolve remaining creation benefits"
+            eyebrow="Step 7 · Resolve remaining creation benefits"
             title="Background Benefits & Skills"
           >
             <p>
@@ -1472,7 +1552,7 @@ export function GuidedCreationWizard({
       return (
         <>
           <StepTitle
-            eyebrow="Step 7 · Only choices your tradition permits"
+            eyebrow="Step 8 · Only choices your tradition permits"
             title="Magic"
           >
             <p>
@@ -1603,12 +1683,12 @@ export function GuidedCreationWizard({
                               );
                             })}
                         </select>
-                        {selectedArt && (
-                          <small className="creation-selection-summary">
-                            {ruleSummary(selectedArt.text)}
-                          </small>
-                        )}
                       </label>
+                      {selectedArt && (
+                        <small className="creation-selection-summary">
+                          <b>In plain terms:</b> {plainLanguageSummary(selectedArt.name, selectedArt.text)}
+                        </small>
+                      )}
                       {selectedArt && (
                         <SelectionRuleHelp
                           label={`${selectedArt.tradition} · ${selectedArt.name}`}
@@ -1683,12 +1763,12 @@ export function GuidedCreationWizard({
                               );
                             })}
                         </select>
-                        {selectedSpell && (
-                          <small className="creation-selection-summary">
-                            {ruleSummary(selectedSpell.text)}
-                          </small>
-                        )}
                       </label>
+                      {selectedSpell && (
+                        <small className="creation-selection-summary">
+                          <b>In plain terms:</b> {plainLanguageSummary(selectedSpell.name, selectedSpell.text)}
+                        </small>
+                      )}
                       {selectedSpell && (
                         <SelectionRuleHelp
                           label={`${selectedSpell.tradition} · ${selectedSpell.name}`}
@@ -1725,7 +1805,7 @@ export function GuidedCreationWizard({
         return (
         <>
           <StepTitle
-            eyebrow="Step 8 · Choose starting gear"
+            eyebrow="Step 9 · Choose starting gear"
             title="Starting Equipment"
           >
             <p>
@@ -1733,6 +1813,14 @@ export function GuidedCreationWizard({
               pieces once and buy from the canonical equipment lists.
             </p>
           </StepTitle>
+          {status.magicalTraditions.some((tradition) => armorRestrictsMagic(traditionInfo[tradition].armor)) && (
+            <div className="creation-rule-callout">
+              <strong>Armor and magic</strong>
+              {status.magicalTraditions.filter((tradition) => armorRestrictsMagic(traditionInfo[tradition].armor)).map((tradition) => (
+                <span key={tradition}>{tradition}: {traditionInfo[tradition].armor}</span>
+              ))}
+            </div>
+          )}
           <div className="creation-methods creation-equipment-methods" role="group" aria-label="Starting equipment method">
             <button
               type="button"
@@ -1775,19 +1863,20 @@ export function GuidedCreationWizard({
               {selectedPackage && (
                 <div className="creation-package-summary">
                   <h3>{selectedPackage.name}</h3>
-                  <p>
+                  <ul className="creation-package-items">
                     {[
                       selectedPackage.armor,
                       selectedPackage.shield,
                       ...selectedPackage.weapons,
                       ...selectedPackage.stowed,
-                      selectedPackage.silver
-                        ? `${selectedPackage.silver} sp`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
+                    ].filter(Boolean).map((item, index) => (
+                      <li key={`${item}-${index}`}>
+                        <b>{item}</b>
+                        <small>{equipmentDetailsForName(item)}</small>
+                      </li>
+                    ))}
+                    {selectedPackage.silver > 0 && <li><b>Starting silver</b><small>{selectedPackage.silver} sp</small></li>}
+                  </ul>
                 </div>
               )}
             </section>
@@ -1886,7 +1975,7 @@ export function GuidedCreationWizard({
                                   value={item.id}
                                   disabled={unavailableKind || unaffordable}
                                 >
-                                  {item.name} — {formatEquipmentCost(item.costCopper)}
+                                  {item.name} — {formatEquipmentCost(item.costCopper)} · {item.details}
                                   {unavailableKind
                                     ? ` — remove current ${kind} first`
                                     : unaffordable
@@ -1910,7 +1999,7 @@ export function GuidedCreationWizard({
                       <li key={`${id}-${index}`}>
                         <span>
                           <b>{item.name}</b>
-                          <small>{formatEquipmentCost(item.costCopper)}</small>
+                          <small>{formatEquipmentCost(item.costCopper)} · {item.details}</small>
                         </span>
                         <button
                           type="button"
@@ -1970,8 +2059,9 @@ export function GuidedCreationWizard({
           </div>
           )}
           <p className="creation-note">
-            Weapons are added as canonical Readied items, armor and shields use
-            their normal equipped fields, and other gear is Stowed. Everything
+              Weapons show their canonical damage and combat traits. Armor and shields show
+              their normal protection above and use
+              their normal equipped fields, and other gear is Stowed. Everything
             carries directly into the finished character sheet.
           </p>
         </>
@@ -1980,7 +2070,7 @@ export function GuidedCreationWizard({
     return (
       <>
         <StepTitle
-          eyebrow="Step 9 · Check the finished folio"
+          eyebrow="Step 10 · Check the finished folio"
           title="Review & Finish"
         >
           <p>
@@ -2153,9 +2243,14 @@ export function GuidedCreationWizard({
             sheet at any time.
           </span>
         </div>
-        <button type="button" className="secondary-button" onClick={onExit}>
-          Edit on Character Sheet
-        </button>
+        <div className="guided-creation-header-actions">
+          <button type="button" className="secondary-button" onClick={onExit}>
+            Edit on Character Sheet
+          </button>
+          <button type="button" className="secondary-button" onClick={onCancel}>
+            Cancel Character Creation
+          </button>
+        </div>
       </header>
       <details className="creation-mobile-summary">
         <summary>Character so far</summary>

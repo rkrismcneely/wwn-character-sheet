@@ -18,6 +18,8 @@ import {
 import { rollDice } from "./dice";
 import {
   advancementClassPerDieBonus,
+  attributeImprovementCostForCount,
+  attributeImprovementCostForNext,
   advancementPlan,
   advancementSkillCreditBySkill,
   legalAdvancementFocuses,
@@ -28,8 +30,10 @@ import {
   type AdvancementCharacter,
 } from "./level-advancement";
 import { deriveSkillProfile, storedRankForDisplayedSkillRank } from "./phase2-rules";
-import { highMageArts, highMagic } from "./wwn-data";
+import { foci, highMageArts, highMagic } from "./wwn-data";
 import { beastmasterArtAvailableForBond } from "./beastmaster-companion";
+import { focusFullRules, SelectionRuleHelp } from "./character-creation-guidance";
+import { plainLanguageSummary } from "./plain-language";
 import "./character-creation-wizard.css";
 
 type WizardCharacter = LevelOneCreationCharacter & {
@@ -141,8 +145,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   const focusComplete = !plan.gainsFocus || (focusChanged && (!focusAdded || !focusChoiceRequired(selectedFocus?.name || "") || Boolean(selectedFocus?.choice)));
   const originalBoosts = Object.values(sheet.attributeBoosts).reduce((total, count) => total + Number(count), 0);
   const draftBoosts = Object.values(state.draft.attributeBoosts).reduce((total, count) => total + Number(count), 0);
-  const boostCost = (count: number) => count * (count + 1) / 2;
-  const attributePointsSpent = Math.max(0, boostCost(draftBoosts) - boostCost(originalBoosts));
+  const attributePointsSpent = Math.max(0, attributeImprovementCostForCount(draftBoosts) - attributeImprovementCostForCount(originalBoosts));
   const skillSpendForRank = (skill: string, targetRank: number) => {
     const baselineProfile = deriveSkillProfile({
       purchased: sheet.skillPurchases[skill],
@@ -221,6 +224,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     ...state.draft,
     focusPicks: sheet.focusPicks,
   }), [sheet.focusPicks, state.draft]);
+  const selectedFocusDefinition = foci.find((focus) => focus.name === selectedFocus?.name);
   const chooseFocus = (name: string) => {
     if (!name) {
       update((draft) => ({ ...draft, focusPicks: clone(sheet.focusPicks), artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) }));
@@ -347,13 +351,15 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       <div className="creation-rule-callout"><strong>Increasing costs</strong><span>Skills cost 1 point for level 0, 2 for level 1, 3 for level 2, 4 for level 3, and 5 for level 4. Skills cap at {skillLabel(plan.skillCap)} at level {plan.to}; Focus bonus skill credits are separate from this level’s normal skill-point pool.</span></div>
       <section className="level-up-spend-section" aria-labelledby="level-up-attributes-title">
         <h3 id="level-up-attributes-title">Attributes</h3>
+        <p className="level-up-attribute-progression">Attribute improvements use one shared escalating cost: 1 point for the first increase, 2 for the second, 3 for the third, 4 for the fourth, and 5 for the fifth. The next increase costs {attributeImprovementCostForNext(draftBoosts)} point{attributeImprovementCostForNext(draftBoosts) === 1 ? "" : "s"}.</p>
         <div className="level-up-attributes-grid">{attributes.map((attribute) => {
           const boosts = state.draft.attributeBoosts[attribute] || 0;
           const baselineBoostsForAttribute = sheet.attributeBoosts[attribute] || 0;
-          const canIncrease = draftBoosts < plan.attributeBoostLimit && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= draftBoosts + 1;
+          const nextCost = draftBoosts < plan.attributeBoostLimit ? attributeImprovementCostForNext(draftBoosts) : null;
+          const canIncrease = nextCost !== null && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= nextCost;
           return <article className="level-up-attribute-card" key={attribute}>
             <div className="level-up-attribute-heading"><strong>{attribute}</strong><b>{state.draft.attrs[attribute]}</b></div>
-            <span>{boosts} purchased increase{boosts === 1 ? "" : "s"}</span>
+            <span>{boosts} purchased increase{boosts === 1 ? "" : "s"} · {nextCost === null ? "No further increase at this level" : `next increase costs ${nextCost} point${nextCost === 1 ? "" : "s"}`}</span>
             <div className="level-up-attribute-controls">
               <button type="button" aria-label={`Decrease ${attribute}`} disabled={boosts <= baselineBoostsForAttribute} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts - 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] - 1 } }))}>−</button>
               <button type="button" aria-label={`Increase ${attribute}`} disabled={!canIncrease} onClick={() => update((draft) => ({ ...draft, attributeBoosts: { ...draft.attributeBoosts, [attribute]: boosts + 1 }, attrs: { ...draft.attrs, [attribute]: draft.attrs[attribute] + 1 } }))}>+</button>
@@ -390,9 +396,13 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     </>;
     if (state.step === 3) return <>
       <StepTitle eyebrow="FOCI" title={plan.gainsFocus ? "Choose a Focus" : "No Focus this level"}>
-        {plan.gainsFocus ? "A Focus may improve an existing Focus to level 2 or add a legal new Focus." : "The next Focus opportunity is at level 5."}
+        {plan.gainsFocus
+          ? `A Focus may improve an existing Focus to level 2 or add a legal new Focus.${plan.nextFocusLevel ? ` The next Focus opportunity is at level ${plan.nextFocusLevel}.` : " This is the final Focus opportunity in the normal level-1-to-10 progression."}`
+          : plan.nextFocusLevel
+            ? `The next Focus opportunity is at level ${plan.nextFocusLevel}.`
+            : "There are no further Focus opportunities in the normal level-1-to-10 progression."}
       </StepTitle>
-      {plan.gainsFocus && <div className="creation-fields"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{focus.name}</option>)}</select></label>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives a three-point credit. It is reflected in the skills step without spending this level’s normal points.</span></div>}</div>}
+      {plan.gainsFocus && <div className="creation-fields"><div className="creation-magic-choice-main"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{focus.name}</option>)}</select></label>{selectedFocusDefinition && <small className="creation-selection-summary"><b>In plain terms:</b> {plainLanguageSummary(selectedFocusDefinition.name, selectedFocusDefinition.level1 || selectedFocusDefinition.intro || "")}</small>}{selectedFocusDefinition && <SelectionRuleHelp label={selectedFocusDefinition.name} fullText={focusFullRules(selectedFocusDefinition)} />}</div>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives a three-point credit. It is reflected in the skills step without spending this level’s normal points.</span></div>}</div>}
     </>;
     if (state.step === 4) return <>
       <StepTitle eyebrow="MAGIC" title={requiredArtPicks || plan.spellPicks ? "Choose new magic" : "No new magic choices"}>
@@ -404,25 +414,30 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
           const requiredArt = requirement.requiredArt;
           const artIndex = sheet.artPicks.length + index;
           const selection = state.draft.artPicks[artIndex] || "";
+          const selectedArt = artOptions.find((art) => art.value === selection || art.name === artSelectionName(selection));
           const choiceDefinition = artChoiceDefinition(selection);
           const choiceValues = artChoiceValues(selection, state.draft.artChoices);
           return <div className="creation-art-row" key={`${requirement.tradition}-${index}`}>
-            <label>
-              <span>{requiredArt ? `${requirement.tradition} · Required Art · ${artSelectionName(requiredArt)}` : `New ${requirement.tradition} Art`}</span>
-              <select value={selection} onChange={(event) => update((draft) => ({
-                ...draft,
-                artPicks: [...draft.artPicks.slice(0, artIndex), event.target.value, ...draft.artPicks.slice(artIndex + 1)],
-              }))}>
-                <option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : `Choose a ${requirement.tradition} Art…`}</option>
-                {artOptions.filter((art) => {
-                  if (art.tradition !== requirement.tradition) return false;
-                  if (requiredArt && art.value !== requiredArt) return false;
-                  const duplicate = art.name !== "Skilled" && state.draft.artPicks.some((picked, selectedIndex) => selectedIndex !== artIndex && picked === art.value);
-                  const needsSurface = art.name === "Deep Apprehension" && !state.draft.artPicks.some((picked) => artSelectionName(picked) === "Surface Apprehension");
-                  return !duplicate && !needsSurface;
-                }).map((art) => <option key={art.value} value={art.value}>{art.name} · {art.tradition}</option>)}
-              </select>
-            </label>
+            <div className="creation-magic-choice-main">
+              <label>
+                <span>{requiredArt ? `${requirement.tradition} · Required Art · ${artSelectionName(requiredArt)}` : `New ${requirement.tradition} Art`}</span>
+                <select value={selection} onChange={(event) => update((draft) => ({
+                  ...draft,
+                  artPicks: [...draft.artPicks.slice(0, artIndex), event.target.value, ...draft.artPicks.slice(artIndex + 1)],
+                }))}>
+                  <option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : `Choose a ${requirement.tradition} Art…`}</option>
+                  {artOptions.filter((art) => {
+                    if (art.tradition !== requirement.tradition) return false;
+                    if (requiredArt && art.value !== requiredArt) return false;
+                    const duplicate = art.name !== "Skilled" && state.draft.artPicks.some((picked, selectedIndex) => selectedIndex !== artIndex && picked === art.value);
+                    const needsSurface = art.name === "Deep Apprehension" && !state.draft.artPicks.some((picked) => artSelectionName(picked) === "Surface Apprehension");
+                    return !duplicate && !needsSurface;
+                  }).map((art) => <option key={art.value} value={art.value}>{art.name} · {art.tradition}</option>)}
+                </select>
+              </label>
+              {selectedArt && <small className="creation-selection-summary"><b>In plain terms:</b> {plainLanguageSummary(selectedArt.name, selectedArt.text)}</small>}
+              {selectedArt && <SelectionRuleHelp label={`${selectedArt.tradition} · ${selectedArt.name}`} fullText={selectedArt.text} />}
+            </div>
             {choiceDefinition && <div className="art-choice-fields" aria-label={choiceDefinition.label}>
               {choiceValues.map((value, choiceIndex) => <label key={`${artChoiceKey(selection)}-${choiceIndex}`}>
                 <span>{choiceDefinition.itemLabel}{choiceDefinition.count > 1 ? ` ${choiceIndex + 1}` : ""}</span>
@@ -439,7 +454,16 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
           </div>;
         })}
       </div>}
-      {plan.spellPicks > 0 && <div className="creation-magic-section"><h3>Spells ({newSpells}/{plan.spellPicks})</h3>{Array.from({ length: plan.spellPicks }, (_, index) => <label key={index}><span>New spell {index + 1}</span><select value={state.draft.spellPicks[sheet.spellPicks.length + index]?.name || ""} onChange={(event) => update((draft) => ({ ...draft, spellPicks: [...draft.spellPicks.slice(0, sheet.spellPicks.length + index), { name: event.target.value, prepared: false, cast: false }, ...draft.spellPicks.slice(sheet.spellPicks.length + index + 1)] }))}><option value="">Choose a spell…</option>{spellOptions.options.filter((spell) => !state.draft.spellPicks.some((pick, selectedIndex) => selectedIndex !== sheet.spellPicks.length + index && pick.name === spell.name)).map((spell) => <option key={spell.name} value={spell.name}>{spell.name} · level {spell.level}</option>)}</select></label>)}</div>}
+      {plan.spellPicks > 0 && <div className="creation-magic-section"><h3>Spells ({newSpells}/{plan.spellPicks})</h3>{Array.from({ length: plan.spellPicks }, (_, index) => {
+        const spellIndex = sheet.spellPicks.length + index;
+        const selection = state.draft.spellPicks[spellIndex]?.name || "";
+        const selectedSpell = spellOptions.options.find((spell) => spell.name === selection);
+        return <div className="creation-magic-choice-main" key={index}>
+          <label><span>New spell {index + 1}</span><select value={selection} onChange={(event) => update((draft) => ({ ...draft, spellPicks: [...draft.spellPicks.slice(0, spellIndex), { name: event.target.value, prepared: false, cast: false }, ...draft.spellPicks.slice(spellIndex + 1)] }))}><option value="">Choose a spell…</option>{spellOptions.options.filter((spell) => !state.draft.spellPicks.some((pick, selectedIndex) => selectedIndex !== spellIndex && pick.name === spell.name)).map((spell) => <option key={spell.name} value={spell.name}>{spell.name} · level {spell.level}</option>)}</select></label>
+          {selectedSpell && <small className="creation-selection-summary"><b>In plain terms:</b> {plainLanguageSummary(selectedSpell.name, selectedSpell.text)}</small>}
+          {selectedSpell && <SelectionRuleHelp label={`${selectedSpell.tradition} · ${selectedSpell.name}`} fullText={selectedSpell.text} />}
+        </div>;
+      })}</div>}
     </>;
     return <>
       <StepTitle eyebrow="REVIEW" title={`Level ${plan.from} → Level ${plan.to}`}>

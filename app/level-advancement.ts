@@ -41,6 +41,18 @@ export const skillRankCapAtLevel = (level: number) =>
   level >= 9 ? 4 : level >= 6 ? 3 : level >= 3 ? 2 : 1;
 export const attributeBoostLimitAtLevel = (level: number) =>
   level >= 9 ? 5 : level >= 6 ? 4 : level >= 3 ? 3 : 2;
+export const attributeImprovementCost = (improvementNumber: number) =>
+  Math.max(1, Math.trunc(Number(improvementNumber) || 1));
+export const attributeImprovementCostForCount = (count: number) => {
+  const normalized = Math.max(0, Math.trunc(Number(count) || 0));
+  return (normalized * (normalized + 1)) / 2;
+};
+export const attributeImprovementCostForNext = (count: number) =>
+  attributeImprovementCost(Math.max(0, Math.trunc(Number(count) || 0)) + 1);
+export const focusOpportunityLevels = [2, 5, 7, 10] as const;
+export function nextFocusOpportunityAfter(level: number) {
+  return focusOpportunityLevels.find((opportunity) => opportunity > Number(level)) ?? null;
+}
 export const skillRankCostAtLevel = (rank: number) => {
   const normalized = Math.max(-1, Math.min(4, Math.trunc(Number(rank))));
   return normalized < 0 ? 0 : [1, 3, 6, 10, 15][normalized];
@@ -100,7 +112,7 @@ export function advancementPlan(character: AdvancementCharacter) {
   })).filter((grant) => grant.count > 0);
   const currentSpells = knownSpellSlots(castingTraditions, from, partial);
   const nextSpells = knownSpellSlots(castingTraditions, to, partial);
-  const gainsFocus = [2, 5, 7, 10].includes(to);
+  const gainsFocus = focusOpportunityLevels.includes(to as (typeof focusOpportunityLevels)[number]);
   const expert = classes.includes("Expert");
   return {
     from,
@@ -112,6 +124,7 @@ export function advancementPlan(character: AdvancementCharacter) {
     skillPoints: 3 + (expert ? 1 : 0),
     quickLearner: expert,
     gainsFocus,
+    nextFocusLevel: nextFocusOpportunityAfter(to),
     artGrants,
     artPicks: artGrants.reduce((total, grant) => total + grant.count, 0),
     spellPicks: Math.max(0, nextSpells - currentSpells),

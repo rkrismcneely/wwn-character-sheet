@@ -70,6 +70,7 @@ const baseCharacter = () => ({
   ],
   backgroundDevelopmentRolls: [],
   classMode: "full",
+  languages: ["Common", "Trade Cant"],
   classOne: "Warrior",
   classTwo: "",
   vowedEffortSkill: "Exert",

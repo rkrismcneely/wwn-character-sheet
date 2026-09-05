@@ -78,7 +78,7 @@ export function normalizeCampaignNpcCombatStats(value: unknown): CampaignNpcComb
   } else {
     delete normalized.abilities;
   }
-  return normalized as CampaignNpcCombatStats;
+  return normalized as unknown as CampaignNpcCombatStats;
 }
 
 export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;

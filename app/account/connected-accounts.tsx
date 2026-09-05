@@ -58,20 +58,22 @@ export function ConnectedAccounts() {
     finally { setBusy(false); cancel(); }
   }
 
-  return <section className="account-panel" aria-labelledby="connected-accounts-title">
+  return <section className="account-panel account-connections-panel" aria-labelledby="connected-accounts-title">
     <div className="account-section-heading"><h2 id="connected-accounts-title">Connected Accounts</h2></div>
     <p className="account-explanation">Use either connected method to open the same characters and campaigns. Connect a method here before signing in with it separately.</p>
     {error && <p role="alert" className="account-error">{error}</p>}
     {notice && <p role="status" className="account-notice">{notice}</p>}
     {!accounts && !error && <p role="status">Loading connected accounts…</p>}
-    {accounts?.map(account => <div className="account-connection" key={account.provider}>
-      <div><strong>{providerName(account.provider)}</strong><span>{account.connected ? "Connected" : "Not connected"}</span></div>
-      {account.connected
-        ? <button type="button" className="account-secondary" disabled={busy || !account.canDisconnect} aria-label={`Disconnect ${providerName(account.provider)}`} onClick={event => { disconnectButton.current = event.currentTarget; setConfirm(account.provider); }}>Disconnect</button>
-        : account.available
-          ? <button type="button" className="account-secondary" disabled={busy} onClick={() => void connect(account.provider)} aria-label={`Connect ${providerName(account.provider)}`}>Connect</button>
-          : <span>Currently unavailable</span>}
-    </div>)}
+    <div className="account-connections-list">
+      {accounts?.map(account => <div className="account-connection" key={account.provider}>
+        <div><strong>{providerName(account.provider)}</strong><span>{account.connected ? "Connected" : "Not connected"}</span></div>
+        {account.connected
+          ? <button type="button" className="account-secondary" disabled={busy || !account.canDisconnect} aria-label={`Disconnect ${providerName(account.provider)}`} onClick={event => { disconnectButton.current = event.currentTarget; setConfirm(account.provider); }}>Disconnect</button>
+          : account.available
+            ? <button type="button" className="account-secondary" disabled={busy} onClick={() => void connect(account.provider)} aria-label={`Connect ${providerName(account.provider)}`}>Connect</button>
+            : <span>Currently unavailable</span>}
+      </div>)}
+    </div>
     <p className="account-explanation">Keep at least one available sign-in method connected. Connecting or disconnecting never moves your characters or campaigns.</p>
     {confirm && <div className="account-disconnect-confirmation" role="group" aria-label={`Confirm disconnect ${providerName(confirm)}`} onKeyDown={event => { if (event.key === "Escape" && !busy) cancel(); }}>
       <p>Disconnect {providerName(confirm)}? You will need your other connected method to sign in. Your account and game data will remain.</p>

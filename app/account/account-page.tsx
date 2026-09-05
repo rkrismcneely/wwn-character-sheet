@@ -140,33 +140,6 @@ export function AccountPageClient({
     }
   }
 
-  async function resetToProviderName() {
-    setBusy(true);
-    setNotice("");
-    setError("");
-    try {
-      const response = await fetch("/api/account/profile", { method: "DELETE" });
-      const payload = await response.json() as {
-        profile?: AccountProfilePayload;
-        error?: string;
-      };
-      if (!response.ok || !payload.profile) {
-        throw new Error(payload.error || "Your username could not be reset.");
-      }
-      setProfile(payload.profile);
-      setDisplayName(payload.profile.effectiveDisplayName);
-      setNotice("Your original profile name is now used throughout Tales Without End.");
-    } catch (resetError) {
-      setError(
-        resetError instanceof Error
-          ? resetError.message
-          : "Your username could not be reset.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <main className="account-shell">
       <SignedInHeader active="account" />
@@ -188,7 +161,6 @@ export function AccountPageClient({
               <p className="account-kicker">APPLICATION IDENTITY</p>
               <h2 id="username-title">Username</h2>
             </div>
-            <span>{profile.usesProviderName ? "Profile fallback" : "Custom"}</span>
           </div>
           <p className="account-explanation">
             This is your public display name inside Tales Without End. It appears in
@@ -197,39 +169,28 @@ export function AccountPageClient({
           </p>
           <form onSubmit={saveDisplayName} className="account-form">
             <label htmlFor="account-display-name">Username</label>
-            <input
-              id="account-display-name"
-              value={displayName}
-              onChange={event => setDisplayName(event.target.value)}
-              maxLength={DISPLAY_NAME_MAX_LENGTH}
-              autoComplete="nickname"
-              aria-describedby="account-name-guidance"
-            />
+            <div className="account-name-entry">
+              <input
+                id="account-display-name"
+                value={displayName}
+                onChange={event => setDisplayName(event.target.value)}
+                maxLength={DISPLAY_NAME_MAX_LENGTH}
+                autoComplete="nickname"
+                aria-describedby="account-name-guidance"
+              />
+              <button type="submit" className="account-primary" disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </button>
+            </div>
             <small id="account-name-guidance">
               2–{DISPLAY_NAME_MAX_LENGTH} visible characters. Spaces and punctuation are welcome.
             </small>
-            <div className="account-actions">
-              <button type="submit" className="account-primary" disabled={busy}>
-                {busy ? "Saving…" : "Save Username"}
-              </button>
-              <button
-                type="button"
-                className="account-secondary"
-                onClick={() => void resetToProviderName()}
-                disabled={busy || profile.usesProviderName}
-              >
-                Use Original Name
-              </button>
-            </div>
           </form>
           <dl className="account-provider">
             <div><dt>Current display</dt><dd>{profile.effectiveDisplayName}</dd></div>
-            <div><dt>Original profile name</dt><dd>{profile.providerName}</dd></div>
             <div><dt>Signed in as</dt><dd>{profile.email}</dd></div>
           </dl>
           </section>
-
-          <ConnectedAccounts />
 
           <section className="account-panel account-appearance" aria-labelledby="appearance-title">
           <div className="account-section-heading">
@@ -271,6 +232,8 @@ export function AccountPageClient({
             <DicePreviewControl />
           </div>
           </section>
+
+          <ConnectedAccounts />
         </div>
 
         <aside className="account-destinations" aria-label="Signed-in destinations">

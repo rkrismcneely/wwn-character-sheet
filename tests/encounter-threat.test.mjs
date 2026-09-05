@@ -116,3 +116,15 @@ test("an encounter snapshot remains independent after a source template changes"
   ]);
   assert.deepEqual(result.enemy, { totalHitDice: 11, totalAttacks: 4, score: 44 });
 });
+
+
+test("friendly NPCs are excluded completely from hostile encounter threat", () => {
+  const hostile = npc({ id: "hostile", name: "Hostile Guard", threatStats: { hitDice: 2, attacksPerMainAction: 1 } });
+  const ally = { ...npc({ id: "friendly", name: "Allied Beast", threatStats: { hitDice: 8, attacksPerMainAction: 4 } }), friendly: true };
+  const result = summarizeEncounterThreat(encounter([hostile, ally]), [2, 2]);
+
+  assert.equal(result.npcCount, 1);
+  assert.deepEqual(result.eligible.map(({ name }) => name), ["Hostile Guard"]);
+  assert.deepEqual(result.enemy, { totalHitDice: 2, totalAttacks: 1, score: 2 });
+  assert.equal(result.excluded.length, 0);
+});

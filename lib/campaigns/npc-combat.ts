@@ -9,6 +9,12 @@ export interface CampaignNpcAttack {
   description: string;
 }
 
+export interface CampaignNpcMagicReference {
+  name: string;
+  level?: number;
+  summary: string;
+}
+
 export interface CampaignNpcThreatStats {
   hitDice: number;
   attacksPerMainAction: number;
@@ -102,4 +108,26 @@ export function normalizeNpcThreatStats(value: unknown): CampaignNpcThreatStats 
 
 export function threatInput(stats: CampaignNpcThreatStats | null | undefined) {
   return stats ? { hitDice: stats.hitDice, attacksPerMainAction: stats.attacksPerMainAction } : null;
+}
+
+export function normalizeNpcMagicReferences(value: unknown, label: "Spells" | "Arts"): CampaignNpcMagicReference[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > 24) throw new CampaignServiceError(`${label} are invalid.`, 422);
+  return value.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new CampaignServiceError(`${label} are invalid.`, 422);
+    const candidate = entry as Record<string, unknown>;
+    const level = candidate.level === undefined || candidate.level === null || candidate.level === "" ? undefined : integer(candidate.level, `${label} ${index + 1} level`, 0, 9);
+    return { name: text(candidate.name, `${label} ${index + 1} name`, 100), ...(level === undefined ? {} : { level }), summary: text(candidate.summary, `${label} ${index + 1} summary`, 500, false) };
+  });
+}
+
+/** WWN creature Hit Dice are d8s. Fractional HD rolls a proportionally-sized die (1/2 HD => d4), minimum 1 HP. */
+export function rollNpcHitPoints(hitDice: number, random: () => number = Math.random): number {
+  if (!Number.isFinite(hitDice) || hitDice <= 0 || hitDice > 1000) throw new CampaignServiceError("Hit Dice is invalid.", 422);
+  const whole = Math.floor(hitDice);
+  const fraction = hitDice - whole;
+  let hp = 0;
+  for (let i = 0; i < whole; i += 1) hp += Math.floor(random() * 8) + 1;
+  if (fraction > 0) { const sides = Math.max(1, Math.round(8 * fraction)); hp += Math.floor(random() * sides) + 1; }
+  return Math.max(1, hp);
 }

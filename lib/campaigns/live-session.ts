@@ -54,6 +54,23 @@ export interface CampaignNpcCombatStats {
   threatStats?: import("./npc-combat.ts").CampaignNpcThreatStats;
   sourceStats?: { hitDice: number; hitDiceDisplay?: string; attacksPerMainAction?: number; attacksPerMainActionDisplay?: string; shock: string; move: string; morale: number; instinct: number; skill: number };
 }
+
+/**
+ * Encounter snapshots can outlive the application version that created them.
+ * Bundle 7 added structured magic fields, so keep older snapshots renderable
+ * without changing their stored combat data.
+ */
+export function normalizeCampaignNpcCombatStats(value: unknown): CampaignNpcCombatStats | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (!candidate.saves || !Array.isArray(candidate.attacks) || typeof candidate.notes !== "string") return undefined;
+  return {
+    ...candidate,
+    spells: Array.isArray(candidate.spells) ? candidate.spells : [],
+    arts: Array.isArray(candidate.arts) ? candidate.arts : [],
+  } as CampaignNpcCombatStats;
+}
+
 export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;
 
 export interface CampaignEncounter {

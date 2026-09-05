@@ -9,10 +9,7 @@ import {
   isPubliclyDiscoverable,
 } from "../lib/characters/authorization.ts";
 import {
-  generateLegacyClaimToken,
   generatePublicCharacterId,
-  hashLegacyClaimToken,
-  isPlausibleLegacyClaimToken,
   isPlausiblePublicCharacterId,
 } from "../lib/characters/identifiers.ts";
 import {
@@ -24,10 +21,6 @@ import {
   portraitObjectKey,
   validPortraitObjectKey,
 } from "../lib/characters/portraits.ts";
-import {
-  claimLegacyCharacters,
-  LegacyClaimError,
-} from "../lib/characters/claims.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/http-json.ts";
 
 const owner = { userId: "user-owner", role: "user" };
@@ -100,10 +93,9 @@ test("all-character scope is guarded by the server session role", async () => {
 });
 
 test("admin read paths do not weaken mutation endpoints", async () => {
-  const [characterRoute, portraitRoute, claimRoute] = await Promise.all([
+  const [characterRoute, portraitRoute] = await Promise.all([
     source("app/api/characters/[id]/route.ts"),
     source("app/api/characters/[id]/portrait/route.ts"),
-    source("app/api/legacy-claims/route.ts"),
   ]);
   for (const method of ["PUT", "PATCH", "DELETE"]) {
     const section = characterRoute.slice(characterRoute.indexOf(`export async function ${method}`));
@@ -112,7 +104,6 @@ test("admin read paths do not weaken mutation endpoints", async () => {
   assert.match(characterRoute, /WHERE id = \? AND owner_user_id = \?/u);
   assert.match(portraitRoute, /authorizeCharacterWrite\(actor, row\)/u);
   assert.match(portraitRoute, /owner_user_id = \?/u);
-  assert.doesNotMatch(claimRoute, /role\s*===\s*["']admin/u);
 });
 
 test("administrator UI is explicitly read-only for non-owned characters", async () => {
@@ -122,7 +113,7 @@ test("administrator UI is explicitly read-only for non-owned characters", async 
   assert.match(page, /const canEdit = signedIn && \(!cloudId \|\| cloudCanEdit\)/u);
   assert.match(page, /!hydrated \|\| !canEdit \|\| !cloudId/u);
   assert.match(page, /character\.permissions\.canEdit && <button className="danger-action"/u);
-  assert.match(page, /cloudId && canEdit && <section className="character-sharing character-sharing-footer"/u);
+  assert.match(page, /cloudId && canEdit && <section className="character-bottom-utilities"/u);
   assert.match(page, /canEdit && <button type="button" onClick=\{\(\) => portraitInput/u);
 });
 
@@ -197,133 +188,6 @@ test("portrait validation rejects mismatched or unsupported content", () => {
   assert.doesNotMatch(key, /user|email|google/u);
 });
 
-class FakeClaimStatement {
-  constructor(database, sql) {
-    this.database = database;
-    this.sql = sql;
-    this.values = [];
-  }
-
-  bind(...values) {
-    this.values = values;
-    return this;
-  }
-
-  async first() {
-    const [tokenHash] = this.values;
-    const claim = this.database.claim;
-    if (tokenHash !== claim.tokenHash) return null;
-    return {
-      id: claim.id,
-      expiresAt: claim.expiresAt,
-      claimedAt: claim.claimedAt,
-      revokedAt: claim.revokedAt,
-      itemCount: this.database.characters.length,
-      ownedCount: this.database.characters.filter(character => character.ownerUserId).length,
-      missingPublicIdCount: this.database.characters.filter(character => !character.publicId).length,
-    };
-  }
-
-  async all() {
-    const [claimId, userId] = this.values;
-    return {
-      results: claimId === this.database.claim.id
-        ? this.database.characters
-            .filter(character => character.ownerUserId === userId)
-            .map(({ publicId, name }) => ({ publicId, name }))
-        : [],
-    };
-  }
-}
-
-class FakeClaimDatabase {
-  constructor(tokenHash) {
-    this.claim = {
-      id: "claim-id",
-      tokenHash,
-      expiresAt: "2030-01-01T00:00:00.000Z",
-      claimedAt: null,
-      revokedAt: null,
-      claimedByUserId: null,
-    };
-    this.characters = [{ publicId: generatePublicCharacterId(), name: "Legacy", ownerUserId: null }];
-    this.queue = Promise.resolve();
-  }
-
-  prepare(sql) {
-    return new FakeClaimStatement(this, sql);
-  }
-
-  async batch(statements) {
-    const operation = this.queue.then(async () => {
-      const claimStatement = statements[0];
-      const [claimedAt, userId, claimId, tokenHash, minimumExpiry] = claimStatement.values;
-      const claimCanChange = this.claim.id === claimId
-        && this.claim.tokenHash === tokenHash
-        && this.claim.claimedAt === null
-        && this.claim.revokedAt === null
-        && this.claim.expiresAt > minimumExpiry
-        && this.characters.every(character => character.ownerUserId === null);
-      if (claimCanChange) {
-        this.claim.claimedAt = claimedAt;
-        this.claim.claimedByUserId = userId;
-      }
-
-      const characterStatement = statements[1];
-      const [characterOwner, selectedClaimId, selectedHash, selectedUser, selectedAt] = characterStatement.values;
-      let characterChanges = 0;
-      if (
-        claimCanChange
-        && selectedClaimId === this.claim.id
-        && selectedHash === this.claim.tokenHash
-        && selectedUser === this.claim.claimedByUserId
-        && selectedAt === this.claim.claimedAt
-      ) {
-        for (const character of this.characters) {
-          if (character.ownerUserId === null) {
-            character.ownerUserId = characterOwner;
-            characterChanges += 1;
-          }
-        }
-      }
-      return [{ meta: { changes: Number(claimCanChange) } }, { meta: { changes: characterChanges } }];
-    });
-    this.queue = operation.catch(() => {});
-    return operation;
-  }
-}
-
-async function claimFixture() {
-  const token = generateLegacyClaimToken();
-  assert.equal(isPlausibleLegacyClaimToken(token), true);
-  return { token, database: new FakeClaimDatabase(await hashLegacyClaimToken(token)) };
-}
-
-test("claim token is single-use", async () => {
-  const { token, database } = await claimFixture();
-  const claimed = await claimLegacyCharacters(database, owner, token, new Date("2029-01-01T00:00:00.000Z"));
-  assert.equal(claimed.length, 1);
-  await assert.rejects(
-    claimLegacyCharacters(database, owner, token, new Date("2029-01-01T00:00:01.000Z")),
-    error => error instanceof LegacyClaimError && error.status === 409,
-  );
-});
-
-test("claim token cannot be used while signed out", async () => {
-  const route = await source("app/api/legacy-claims/route.ts");
-  assert.match(route, /getSessionActor\(request\)[\s\S]*if \(!actor\)[\s\S]*status: 401/u);
-});
-
-test("claim token cannot be reused or raced successfully", async () => {
-  const { token, database } = await claimFixture();
-  const outcomes = await Promise.allSettled([
-    claimLegacyCharacters(database, owner, token, new Date("2029-01-01T00:00:00.000Z")),
-    claimLegacyCharacters(database, otherUser, token, new Date("2029-01-01T00:00:00.000Z")),
-  ]);
-  assert.equal(outcomes.filter(outcome => outcome.status === "fulfilled").length, 1);
-  assert.equal(outcomes.filter(outcome => outcome.status === "rejected").length, 1);
-  assert.ok(database.characters.every(character => character.ownerUserId === database.claim.claimedByUserId));
-});
 
 test("visible Google sign-in controls keep direct Better Auth click paths", async () => {
   const page = await source("app/character-sheet.tsx");
@@ -405,17 +269,13 @@ test("regular character saves cannot replace server-controlled portrait referenc
   assert.match(storage, /clean\.portrait = ""/u);
 });
 
-test("production migration and legacy admin commands fail closed", async () => {
+test("production migration and admin commands fail closed", async () => {
   const migration = await source("scripts/migrate-production.mjs");
   const admin = await source("scripts/d1-admin.mjs");
-  const claim = await source("scripts/create-legacy-claim.mjs");
   const promotion = await source("scripts/promote-admin.mjs");
   assert.match(migration, /if \(!remote \|\| !apply\)/u);
   assert.match(admin, /--confirm-database-id/u);
   assert.match(admin, /containsDatabaseId\(info\)/u);
-  assert.match(claim, /private token output file must be outside the repository/u);
-  assert.match(claim, /mode: 0o600/u);
-  assert.doesNotMatch(claim, /console\.log\(\s*token\s*\)/u);
   assert.match(promotion, /process\.env\.TWE_ADMIN_EMAIL/u);
   assert.match(promotion, /matchingUsers\.length !== 1/u);
   assert.match(promotion, /UPDATE user SET role = 'admin'/u);

@@ -30,13 +30,3 @@ test("Tales Without End branding survives Phase 4B reconciliation", async () => 
   assert.match(css, /body\{[^}]*overflow-x:hidden/u);
 });
 
-test("legacy claim creation preserves recovery material before D1 mutation", async () => {
-  const claim = await source("scripts/create-legacy-claim.mjs");
-  const section = claim.slice(claim.indexOf("const statements ="));
-  const writeIndex = section.indexOf("writeFileSync(");
-  const executeIndex = section.indexOf('executeD1(statements.join("\\n"), remote)');
-  assert.ok(writeIndex >= 0 && executeIndex > writeIndex);
-  assert.match(section, /flag: "wx", mode: 0o600/u);
-  assert.match(section, /Claim database creation failed after reserving/u);
-  assert.doesNotMatch(section, /console\.log\(\s*token\s*\)/u);
-});

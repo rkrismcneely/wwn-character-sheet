@@ -230,15 +230,15 @@ test("owned characters expose only server-authorized campaign navigation below t
   assert.match(characters, /ch\.owner_user_id = \?/u);
   assert.match(characters, /c\.owner_user_id = \? OR cm\.user_id IS NOT NULL/u);
   assert.match(characters, /SELECT c\.public_id AS id, c\.name/u);
-  assert.match(sheet, /cloudId && canEdit && campaignLinks\.length > 0/u);
-  assert.match(sheet, /character-campaign-links/u);
-  assert.match(sheet, /Open Campaign/u);
+  assert.match(sheet, /cloudId && canEdit && <section className="character-bottom-utilities"/u);
+  assert.match(sheet, /campaignLinks\.length > 0 && <details className="character-campaign-utility"/u);
+  assert.match(sheet, /Campaigns \(\{campaignLinks\.length\}\)/u);
   assert.ok(
-    sheet.indexOf("character-campaign-links") > sheet.indexOf("Privacy & Sharing") - 2000,
-    "campaign navigation belongs near the established bottom utility area",
+    sheet.indexOf("character-campaign-utility") > sheet.indexOf('<div className="hero">'),
+    "campaign navigation belongs in the bottom utility area",
   );
-  assert.match(css, /\.character-campaign-links nav\{[^}]*flex-wrap:wrap/u);
-  assert.match(css, /\.character-campaign-links a\{[\s\S]*min-height:40px/u);
+  assert.match(css, /\.character-campaign-utility nav\{[\s\S]*position:absolute/u);
+  assert.match(css, /\.character-campaign-utility a\{[\s\S]*display:flex/u);
 });
 
 test("ordinary players get an intentional, confirmed character replacement flow", async () => {
@@ -395,7 +395,8 @@ test("character-sheet learning choices and privacy controls use responsive layou
   assert.match(sheet, /background-learning-rows/u);
   assert.match(sheet, /sheet\.backgroundLearningPicks\.map/u);
   assert.match(sheet, /Learning \{index \+ 1\}/u);
-  assert.match(sheet, /Privacy & Sharing/u);
+  assert.match(sheet, /character-bottom-utilities/u);
+  assert.match(sheet, />Visibility<\/span><select/u);
   assert.doesNotMatch(sheet, /Rules authority:/u);
   assert.match(footer, /Tales Without End · v/u);
 

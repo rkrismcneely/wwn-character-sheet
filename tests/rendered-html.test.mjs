@@ -283,7 +283,6 @@ test("local Worker renders the signed-out UI and rejects protected writes", { ti
       ["/api/characters", "POST", { character: { name: "Denied" } }],
       ["/api/characters/chr_AAAAAAAAAAAAAAAAAAAAAA", "PUT", { character: {}, version: 1 }],
       ["/api/characters/chr_AAAAAAAAAAAAAAAAAAAAAA", "DELETE", undefined],
-      ["/api/legacy-claims", "POST", { token: `claim_${"A".repeat(43)}` }],
     ]) {
       let denied;
       let denial = "";
@@ -347,7 +346,7 @@ test("local Worker enforces read-only administrator access", { timeout: 90_000 }
     const normalRootHTML = await normalRoot.text();
     assert.match(normalRootHTML, /My Characters/u);
     assert.match(normalRootHTML, /Create New Character/u);
-    assert.match(normalRootHTML, /Claim a legacy character/u);
+    assert.doesNotMatch(normalRootHTML, /Claim a legacy character|One-time claim code/u);
     assert.doesNotMatch(normalRootHTML, /Your Adventures\.<br/u);
     const mine = await fetch(`${worker.origin}/api/characters?scope=mine`, { headers: normalHeaders });
     assert.equal(mine.status, 200);

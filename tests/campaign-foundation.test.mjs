@@ -27,11 +27,7 @@ import {
 import { evaluateCampaignInvite } from "../lib/campaigns/invites.ts";
 import { isCampaignRole } from "../lib/campaigns/types.ts";
 import { canReadCharacter } from "../lib/characters/authorization.ts";
-import {
-  generateLegacyClaimToken,
-  generatePublicCharacterId,
-  hashLegacyClaimToken,
-} from "../lib/characters/identifiers.ts";
+import { generatePublicCharacterId } from "../lib/characters/identifiers.ts";
 
 const owner = { userId: "owner", role: "user" };
 const gm = { userId: "gm", role: "user" };
@@ -100,12 +96,9 @@ test("campaign invite hashing is deterministic and stores no plaintext", async (
   assert.match(first, /^[0-9a-f]{64}$/u);
 });
 
-test("shared opaque-token utility preserves existing character token behavior", async () => {
+test("character public IDs retain their opaque format", () => {
   const publicId = generatePublicCharacterId();
-  const claim = generateLegacyClaimToken();
   assert.match(publicId, /^chr_[A-Za-z0-9_-]{22}$/u);
-  assert.match(claim, /^claim_[A-Za-z0-9_-]{43}$/u);
-  assert.match(await hashLegacyClaimToken(claim), /^[0-9a-f]{64}$/u);
 });
 
 test("invite decisions enforce expiry, revocation, and single use", () => {

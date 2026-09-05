@@ -28,8 +28,8 @@ test("encounter snapshots carry and can toggle friendliness", () => {
 test("GM NPC editor exposes HP rolling, structured magic and friendly default", () => {
   const source = read("app/campaigns/gm-console.tsx");
   assert.ok(source.includes("Roll HP"));
-  assert.ok(source.includes("Add Spell"));
-  assert.ok(source.includes("Add Art"));
+  assert.ok(source.includes('NpcMagicAdd kind="Spell"'));
+  assert.ok(source.includes('NpcMagicAdd kind="Art"'));
   assert.ok(source.includes("Friendly / allied creature"));
 });
 

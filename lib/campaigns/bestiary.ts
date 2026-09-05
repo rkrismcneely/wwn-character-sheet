@@ -55,6 +55,9 @@ export interface BestiaryNpcMagicOption {
   readonly level?: number;
   readonly summary: string;
 }
+export interface BestiaryNpcAttackOption extends Readonly<CampaignNpcAttack> {
+  readonly key: string;
+}
 export interface BuiltInBestiarySourceStats {
   readonly hitDice: number;
   readonly hitDiceDisplay?: string;
@@ -179,6 +182,61 @@ const curatedMagicLoadouts: Readonly<Record<string, CuratedMagicLoadout>> = Obje
     ],
   },
 });
+
+type CanonicalSpell = { readonly name: string; readonly level: number; readonly summary: string };
+
+/**
+ * The preview statblocks use a few shortened spell names and terse summaries.
+ * These are the corresponding canonical SRD entries already imported by the
+ * character creator, kept here as a small catalogue so Bestiary copies use
+ * one name, one level, and one useful GM-facing summary.
+ */
+const canonicalSpells: Readonly<Record<string, CanonicalSpell>> = Object.freeze({
+  "apprehending the arcane form": { name: "Apprehending the Arcane Form", level: 1, summary: "Detects active magic and can identify magical items." },
+  "banishment to the black glass labyrinth": { name: "Banishment to the Black Glass Labyrinth", level: 5, summary: "Banishes creatures in a small area to an extradimensional maze." },
+  "decree of lithic dissolution": { name: "Decree of Lithic Dissolution", level: 2, summary: "Destroys a large amount of ordinary earth or stone." },
+  "deluge of hell": { name: "Deluge of Hell", level: 5, summary: "Devastating outdoor area attack; Physical save halves the damage." },
+  "excellent transpicuous transformation": { name: "The Excellent Transpicuous Transformation", level: 1, summary: "Makes willing creatures invisible until one of them acts violently." },
+  "extirpate arcana": { name: "Extirpate Arcana", level: 2, summary: "Dispels or suppresses unwanted magical effects." },
+  "foresightful apprehension": { name: "Foresightful Apprehension", level: 3, summary: "Reveals the most likely immediate result of a planned action." },
+  "howl of light": { name: "The Howl of Light", level: 3, summary: "Area flame, concussion, and sonic damage; Evasion save halves it." },
+  "ineluctable shackles of volition": { name: "Ineluctable Shackles of Volition", level: 1, summary: "Enthralls a creature and makes it obey your physical commands." },
+  "inexorable imputation": { name: "The Inexorable Imputation", level: 2, summary: "Makes listeners believe one plausible statement for a limited time." },
+  "invocation of the invincible citadel": { name: "Invocation of the Invincible Citadel", level: 5, summary: "Creates a temporary, nearly impenetrable protective shelter." },
+  "resounding temporal echo": { name: "Resounding Temporal Echo", level: 2, summary: "Gives allies an extra Main Action for several rounds." },
+  "coruscating coffin": { name: "The Coruscating Coffin", level: 1, summary: "Single-target arcane damage; Physical save halves it." },
+  "dazzling prismatic hemicycle": { name: "The Dazzling Prismatic Hemicycle", level: 5, summary: "A broad cone with a dangerous spectrum of effects." },
+  "grinding geas": { name: "The Grinding Geas", level: 4, summary: "Binds a target to a specific command or inflicts a wasting curse." },
+  "torment of tumefaction": { name: "The Torment of Tumefaction", level: 3, summary: "Curses a creature so strenuous actions cause it damage." },
+  "wind of the final repose": { name: "The Wind of the Final Repose", level: 1, summary: "Puts a group of weaker living creatures to sleep." },
+});
+
+const canonicalSpellAliases: Readonly<Record<string, string>> = Object.freeze({
+  "torment tumefacation": "torment of tumefaction",
+});
+
+const canonicalArtSummaries: Readonly<Record<string, string>> = Object.freeze({
+  "counter magic": "Instant; Commit Effort for the day to contest a visible enemy spell with an opposed Intelligence/Magic or Charisma/Magic check.",
+  "inexorable effort": "Once per scene, force a target spell saving throw to be rerolled.",
+  "sense magic": "Commit Effort as an Instant action to perceive magical energy and inspect magical effects.",
+  "swift casting": "Once per scene, Commit Effort for the day to cast a Main Action spell as an On Turn action.",
+  "ward allies": "Commit Effort for the day as an Instant action to omit up to six allies from an area-effect spell.",
+});
+
+function magicNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase().replace(/^the\s+/u, "").replace(/\s+/gu, " ");
+}
+
+function canonicalSpellReference(reference: BuiltInBestiaryMagicReference): BuiltInBestiaryMagicReference {
+  const baseKey = magicNameKey(reference.name);
+  const canonical = canonicalSpells[canonicalSpellAliases[baseKey] ?? baseKey];
+  return canonical ? Object.freeze({ ...canonical }) : Object.freeze({ ...reference });
+}
+
+function canonicalArtReference(reference: BuiltInBestiaryMagicReference): BuiltInBestiaryMagicReference {
+  const summary = canonicalArtSummaries[magicNameKey(reference.name)];
+  return Object.freeze({ ...reference, ...(summary ? { summary } : {}) });
+}
 
 function weaponDamageWithSourceBonus(damage: string, sourceDamage: string): string {
   const match = /^Weapon(?: \+(\d+))?$/u.exec(sourceDamage);
@@ -352,7 +410,7 @@ const creatureContext: Record<string, { description: string; sourceStats: BuiltI
   "predator-hellbeast": { description: "A hellbeast or other supernatural apex predator with extreme speed and a barrage of savage attacks.", sourceStats: { hitDice: 10, attacksPerMainAction: 4, shock: "6/-", move: "60'", morale: 11, instinct: 4, skill: 3 } },
 };
 
-export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze([
+const rawBuiltInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze([
   defineCreature({ id: "small-pack-predator", name: "Small Pack Predator", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "1d4")], notes: "" }),
   defineCreature({ id: "large-solitary-predator", name: "Large Solitary Predator", hpMax: 23, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "1d8")], notes: "" }),
   defineCreature({ id: "apex-predator", name: "Apex Predator", hpMax: 27, armorClass: 13, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(6, "1d8")], notes: "" }),
@@ -391,27 +449,79 @@ export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Obje
   ...thoseOutsideTheWallsPreviewCreatures,
 ]);
 
+function masterMagicReference(kind: "spells" | "arts", reference: BuiltInBestiaryMagicReference): BuiltInBestiaryMagicReference {
+  return kind === "spells" ? canonicalSpellReference(reference) : canonicalArtReference(reference);
+}
+
+function chooseMagicMaster(current: BuiltInBestiaryMagicReference | undefined, candidate: BuiltInBestiaryMagicReference): BuiltInBestiaryMagicReference {
+  if (!current) return candidate;
+  if (candidate.level !== undefined && current.level === undefined) return candidate;
+  if (candidate.summary.length > current.summary.length) return candidate;
+  return current;
+}
+
+function magicMasters(kind: "spells" | "arts"): ReadonlyMap<string, BuiltInBestiaryMagicReference> {
+  const masters = new Map<string, BuiltInBestiaryMagicReference>();
+  for (const creature of rawBuiltInBestiaryCreatures) {
+    for (const reference of creature.spellcasting?.[kind] ?? []) {
+      const master = masterMagicReference(kind, reference);
+      const key = magicNameKey(master.name);
+      masters.set(key, chooseMagicMaster(masters.get(key), master));
+    }
+  }
+  return masters;
+}
+
+const bestiarySpellMasters = magicMasters("spells");
+const bestiaryArtMasters = magicMasters("arts");
+
+function sourceSpellcastingNote(spellcasting: BuiltInBestiarySpellcasting, abilities: readonly Readonly<BuiltInBestiaryAbility>[] = []): string {
+  const spells = spellcasting.spells.map(spell => `${spell.name}${spell.level === undefined ? "" : ` (L${spell.level})`}`).join(", ");
+  const arts = spellcasting.arts.map(art => art.name).join(", ");
+  const abilitiesNote = abilities.map(ability => `${ability.name}: ${ability.summary}`).join(" ");
+  return `Source-statblock ${spellcasting.tradition}: Mage level ${spellcasting.level}; Effort ${spellcasting.effort}${spellcasting.spellsPerDay ? `; ${spellcasting.spellsPerDay} spells/day` : ""}. Spells: ${spells}. Arts: ${arts}.${abilitiesNote ? ` ${abilitiesNote}` : ""}`;
+}
+
+function normalizeBestiaryCreature(creature: BuiltInBestiaryCreature): BuiltInBestiaryCreature {
+  if (!creature.spellcasting) return creature;
+  const spellcasting = Object.freeze({
+    ...creature.spellcasting,
+    spells: Object.freeze(creature.spellcasting.spells.map(spell => bestiarySpellMasters.get(magicNameKey(masterMagicReference("spells", spell).name)) ?? masterMagicReference("spells", spell))),
+    arts: Object.freeze(creature.spellcasting.arts.map(art => bestiaryArtMasters.get(magicNameKey(masterMagicReference("arts", art).name)) ?? masterMagicReference("arts", art))),
+  });
+  const notes = spellcasting.sourceLoadout ? sourceSpellcastingNote(spellcasting, creature.abilities ?? []) : spellcastingNote(spellcasting);
+  return Object.freeze({ ...creature, spellcasting, notes });
+}
+
+export const builtInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze(
+  rawBuiltInBestiaryCreatures.map(normalizeBestiaryCreature),
+);
+
 const alphabeticalBuiltInBestiaryCreatures = Object.freeze(
   [...builtInBestiaryCreatures].sort((left, right) => left.name.localeCompare(right.name)),
 );
 
-function magicOptionKey(kind: "spells" | "arts", reference: BuiltInBestiaryMagicReference): string {
-  return `${kind}|${reference.name.trim().toLocaleLowerCase()}|${reference.level ?? ""}|${reference.summary.trim().toLocaleLowerCase()}`;
-}
-
 /** Derive one stable, deduplicated picker catalog from the imported Bestiary. */
 export function bestiaryNpcMagicOptions(kind: "spells" | "arts"): readonly BestiaryNpcMagicOption[] {
-  const seen = new Set<string>();
-  const options: BestiaryNpcMagicOption[] = [];
+  const masters = kind === "spells" ? bestiarySpellMasters : bestiaryArtMasters;
+  const options = [...masters.values()].map(reference => ({ key: `${kind}:${magicNameKey(reference.name)}`, name: reference.name, ...(reference.level === undefined ? {} : { level: reference.level }), summary: reference.summary }));
+  return Object.freeze(options.sort((left, right) => (kind === "spells" ? (left.level ?? 99) - (right.level ?? 99) : 0) || left.name.localeCompare(right.name) || left.summary.localeCompare(right.summary)));
+}
+
+function attackOptionKey(attack: CampaignNpcAttack): string {
+  return [attack.name.trim().toLocaleLowerCase(), attack.attackBonus, attack.damage.trim().toLocaleLowerCase(), (attack.shock ?? "").trim().toLocaleLowerCase(), attack.description.trim().toLocaleLowerCase()].join("|");
+}
+
+/** Derive one stable catalogue of attack snapshots from all Bestiary entries. */
+export function bestiaryNpcAttackOptions(): readonly BestiaryNpcAttackOption[] {
+  const options = new Map<string, BestiaryNpcAttackOption>();
   for (const creature of builtInBestiaryCreatures) {
-    for (const reference of creature.spellcasting?.[kind] ?? []) {
-      const dedupeKey = magicOptionKey(kind, reference);
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      options.push({ key: `${kind}:${options.length}`, name: reference.name, ...(reference.level === undefined ? {} : { level: reference.level }), summary: reference.summary });
+    for (const attack of creature.attacks) {
+      const key = attackOptionKey(attack);
+      if (!options.has(key)) options.set(key, { key: `monster:${key}`, ...attack });
     }
   }
-  return Object.freeze(options.sort((left, right) => left.name.localeCompare(right.name) || (left.level ?? 99) - (right.level ?? 99) || left.summary.localeCompare(right.summary)));
+  return Object.freeze([...options.values()].sort((left, right) => left.name.localeCompare(right.name) || left.attackBonus - right.attackBonus || left.damage.localeCompare(right.damage) || left.description.localeCompare(right.description)));
 }
 
 export function getBuiltInBestiaryCreature(id: string): BuiltInBestiaryCreature | null {

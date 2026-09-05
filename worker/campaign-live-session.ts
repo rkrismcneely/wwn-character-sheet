@@ -9,7 +9,7 @@ import type {
 } from "../lib/campaigns/live-session.ts";
 import { normalizeCampaignNpcCombatStats } from "../lib/campaigns/live-session.ts";
 import { encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
-import { repairLegacyBestiaryEncounterNpc } from "../lib/campaigns/bestiary.ts";
+import { repairLegacyBestiaryEncounterNpc, restoreBestiaryEncounterAbilities } from "../lib/campaigns/bestiary.ts";
 
 interface SocketAttachment { sessionId: string; participantKey: string }
 
@@ -280,12 +280,21 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     for (const combatant of resolvedCombatants) {
       if (combatant.kind !== "npc") continue;
       const repaired = repairLegacyBestiaryEncounterNpc(combatant);
-      if (!repaired) continue;
-      this.ctx.storage.sql.exec(
-        "UPDATE encounter_combatants SET notes = ?, combat_stats_json = ? WHERE encounter_id = ? AND combatant_id = ?",
-        repaired.notes ?? "", JSON.stringify(repaired.combatStats), row.encounter_id, repaired.id,
-      );
-      Object.assign(combatant, repaired);
+      if (repaired) {
+        this.ctx.storage.sql.exec(
+          "UPDATE encounter_combatants SET notes = ?, combat_stats_json = ? WHERE encounter_id = ? AND combatant_id = ?",
+          repaired.notes ?? "", JSON.stringify(repaired.combatStats), row.encounter_id, repaired.id,
+        );
+        Object.assign(combatant, repaired);
+      }
+      const withAbilities = restoreBestiaryEncounterAbilities(combatant);
+      if (withAbilities) {
+        this.ctx.storage.sql.exec(
+          "UPDATE encounter_combatants SET combat_stats_json = ? WHERE encounter_id = ? AND combatant_id = ?",
+          JSON.stringify(withAbilities.combatStats), row.encounter_id, withAbilities.id,
+        );
+        Object.assign(combatant, withAbilities);
+      }
     }
     return {
       id: row.encounter_id,

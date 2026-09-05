@@ -50,6 +50,8 @@ export interface CampaignNpcCombatStats {
   attacks: import("./npc-combat.ts").CampaignNpcAttack[];
   spells: import("./npc-combat.ts").CampaignNpcMagicReference[];
   arts: import("./npc-combat.ts").CampaignNpcMagicReference[];
+  /** Structured creature abilities kept near attacks in the encounter view. */
+  abilities?: { name: string; summary: string }[];
   notes: string;
   threatStats?: import("./npc-combat.ts").CampaignNpcThreatStats;
   sourceStats?: { hitDice: number; hitDiceDisplay?: string; attacksPerMainAction?: number; attacksPerMainActionDisplay?: string; shock: string; move: string; morale: number; instinct: number; skill: number };
@@ -64,11 +66,19 @@ export function normalizeCampaignNpcCombatStats(value: unknown): CampaignNpcComb
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const candidate = value as Record<string, unknown>;
   if (!candidate.saves || !Array.isArray(candidate.attacks) || typeof candidate.notes !== "string") return undefined;
-  return {
+  const normalized = {
     ...candidate,
     spells: Array.isArray(candidate.spells) ? candidate.spells : [],
     arts: Array.isArray(candidate.arts) ? candidate.arts : [],
-  } as CampaignNpcCombatStats;
+  } as Record<string, unknown>;
+  if (Array.isArray(candidate.abilities)) {
+    normalized.abilities = candidate.abilities
+      .filter((ability): ability is { name: string; summary: string } => Boolean(ability && typeof ability === "object" && !Array.isArray(ability) && typeof (ability as Record<string, unknown>).name === "string" && typeof (ability as Record<string, unknown>).summary === "string"))
+      .map(ability => ({ name: ability.name, summary: ability.summary }));
+  } else {
+    delete normalized.abilities;
+  }
+  return normalized as unknown as CampaignNpcCombatStats;
 }
 
 export type CampaignEncounterCombatant = CampaignEncounterPc | CampaignEncounterNpc;

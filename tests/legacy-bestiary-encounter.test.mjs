@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { builtInBestiaryEncounterSeed, repairLegacyBestiaryEncounterNpc } from "../lib/campaigns/bestiary.ts";
+import { builtInBestiaryEncounterSeed, repairLegacyBestiaryEncounterNpc, restoreBestiaryEncounterAbilities } from "../lib/campaigns/bestiary.ts";
 import { summarizeEncounterThreat } from "../lib/campaigns/encounter-threat.ts";
 
 const apexLegacyNotes = "CC0 WWN SRD stat line: 6 HD (default HP 27, rounded-up average of 6d8); Shock 2/13; Move 40'; Morale 8; Instinct 6; Skill +2.";
@@ -74,6 +74,16 @@ test("modern Bestiary copies and sparse custom NPCs remain unchanged", () => {
   const result = summarizeEncounterThreat(encounter([modernNpc, sparse]), [3]);
   assert.deepEqual(result.enemy, { totalHitDice: 6, totalAttacks: 2, score: 12 });
   assert.deepEqual(result.excluded.map(entry => entry.name), ["Custom Brute"]);
+});
+
+test("restores source abilities for a pre-structured modern Bestiary encounter snapshot", () => {
+  const modern = builtInBestiaryEncounterSeed("totw-banshee");
+  assert.ok(modern);
+  const beforeStructuredAbilities = { id: "banshee", kind: "npc", ...modern, combatStats: { ...modern.combatStats, abilities: undefined } };
+  const restored = restoreBestiaryEncounterAbilities(beforeStructuredAbilities);
+  assert.ok(restored);
+  assert.deepEqual(restored.combatStats?.abilities?.map(ability => ability.name), ["Wail", "Terrifying", "Immunities", "Senses"]);
+  assert.equal(restored.hpCurrent, modern.hpCurrent, "encounter-local HP remains untouched");
 });
 
 test("a note with GM-authored text is never cleaned or backfilled", () => {

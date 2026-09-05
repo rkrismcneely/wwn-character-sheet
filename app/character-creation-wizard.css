@@ -625,7 +625,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
   gap: 6px;
-  align-items: center;
+  align-items: start;
   margin-top: 7px;
 }
 .text-button {
@@ -1111,9 +1111,6 @@
   }
   .creation-focus-row {
     grid-template-columns: 1fr 1fr;
-  }
-  .creation-focus-row > select:first-child {
-    grid-column: 1/-1;
   }
   .creation-rolls article {
     grid-template-columns: 1fr auto;

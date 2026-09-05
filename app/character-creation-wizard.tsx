@@ -1100,15 +1100,15 @@ export function GuidedCreationWizard({
                       })}
                     </select>
                     {selectedFocus && (
-                      <SelectionRuleHelp
-                        label={selectedFocus.name}
-                        fullText={focusFullRules(selectedFocus)}
-                      />
-                    )}
-                    {selectedFocus && (
-                      <small className="creation-selection-summary">
-                        <b>In plain terms:</b> {plainLanguageSummary(selectedFocus.name, selectedFocus.level1 || selectedFocus.intro)}
-                      </small>
+                      <div className="creation-selection-guidance">
+                        <SelectionRuleHelp
+                          label={selectedFocus.name}
+                          fullText={focusFullRules(selectedFocus)}
+                        />
+                        <small className="creation-selection-summary">
+                          {plainLanguageSummary(selectedFocus.name, selectedFocus.level1 || selectedFocus.intro)}
+                        </small>
+                      </div>
                     )}
                   </div>
                   {pick.name && (
@@ -1685,15 +1685,15 @@ export function GuidedCreationWizard({
                         </select>
                       </label>
                       {selectedArt && (
-                        <small className="creation-selection-summary">
-                          <b>In plain terms:</b> {plainLanguageSummary(selectedArt.name, selectedArt.text)}
-                        </small>
-                      )}
-                      {selectedArt && (
-                        <SelectionRuleHelp
-                          label={`${selectedArt.tradition} · ${selectedArt.name}`}
-                          fullText={selectedArt.text}
-                        />
+                        <div className="creation-selection-guidance">
+                          <SelectionRuleHelp
+                            label={`${selectedArt.tradition} · ${selectedArt.name}`}
+                            fullText={selectedArt.text}
+                          />
+                          <small className="creation-selection-summary">
+                            {plainLanguageSummary(selectedArt.name, selectedArt.text)}
+                          </small>
+                        </div>
                       )}
                     </div>
                     {choiceDefinition && (
@@ -1765,15 +1765,15 @@ export function GuidedCreationWizard({
                         </select>
                       </label>
                       {selectedSpell && (
-                        <small className="creation-selection-summary">
-                          <b>In plain terms:</b> {plainLanguageSummary(selectedSpell.name, selectedSpell.text)}
-                        </small>
-                      )}
-                      {selectedSpell && (
-                        <SelectionRuleHelp
-                          label={`${selectedSpell.tradition} · ${selectedSpell.name}`}
-                          fullText={selectedSpell.text}
-                        />
+                        <div className="creation-selection-guidance">
+                          <SelectionRuleHelp
+                            label={`${selectedSpell.tradition} · ${selectedSpell.name}`}
+                            fullText={selectedSpell.text}
+                          />
+                          <small className="creation-selection-summary">
+                            {plainLanguageSummary(selectedSpell.name, selectedSpell.text)}
+                          </small>
+                        </div>
                       )}
                     </div>
                   );

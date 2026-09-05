@@ -6,6 +6,10 @@ const wizardSource = await readFile(
   new URL("../app/character-creation-wizard.tsx", import.meta.url),
   "utf8",
 );
+const levelUpSource = await readFile(
+  new URL("../app/level-up-wizard.tsx", import.meta.url),
+  "utf8",
+);
 const guidanceSource = await readFile(
   new URL("../app/character-creation-guidance.tsx", import.meta.url),
   "utf8",
@@ -65,10 +69,15 @@ test("selected Foci, Arts, and Spells show a concise summary plus full rules hel
   assert.match(wizardSource, /plainLanguageSummary\(selectedSpell\.name/);
   assert.match(wizardSource, /fullText=\{selectedSpell\.text\}/);
   assert.match(wizardSource, /className="creation-selection-summary"/);
+  assert.match(wizardSource, /className="creation-selection-guidance"/);
+  assert.doesNotMatch(wizardSource, /In plain terms/u);
+  assert.doesNotMatch(levelUpSource, /In plain terms/u);
   assert.match(wizardSource, /onClick=\{onCancel\}/);
   assert.match(wizardSource, /Cancel Character Creation/);
   assert.match(wizardSource, /creation-magic-choice-main/);
-  assert.match(guidanceCss, /creation-magic-choice-main > \.creation-selection-summary/);
+  assert.match(guidanceCss, /\.creation-selection-guidance[\s\S]*grid-template-columns: auto minmax\(0, 1fr\)/u);
+  assert.match(guidanceCss, /creation-magic-choice-main > \.creation-selection-guidance/);
+  assert.match(guidanceCss, /\.creation-focus-choice-main \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/u);
 });
 
 test("rules help is usable by hover, keyboard focus, click, touch, and Escape", () => {

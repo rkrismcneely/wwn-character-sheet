@@ -7,6 +7,7 @@ import type {
   CampaignLiveSessionEvent,
   CampaignSharedRoll,
 } from "../lib/campaigns/live-session.ts";
+import { normalizeCampaignNpcCombatStats } from "../lib/campaigns/live-session.ts";
 import { encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
 import { repairLegacyBestiaryEncounterNpc } from "../lib/campaigns/bestiary.ts";
 
@@ -274,7 +275,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
       : {
         id: combatant.combatant_id, kind: "npc", name: combatant.name as string, initiative: combatant.initiative,
         hpCurrent: combatant.hp_current as number, hpMax: combatant.hp_max as number,
-        armorClass: combatant.armor_class as number, notes: combatant.notes, friendly: combatant.friendly === 1, combatStats: combatant.combat_stats_json ? JSON.parse(combatant.combat_stats_json) : undefined,
+        armorClass: combatant.armor_class as number, notes: combatant.notes, friendly: combatant.friendly === 1, combatStats: combatant.combat_stats_json ? normalizeCampaignNpcCombatStats(JSON.parse(combatant.combat_stats_json)) : undefined,
       });
     for (const combatant of resolvedCombatants) {
       if (combatant.kind !== "npc") continue;

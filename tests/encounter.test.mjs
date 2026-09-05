@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { collapsedNpcCombatSummary, encounterCurrentAfterRemoval, encounterTurnTransition } from "../lib/campaigns/encounter.ts";
-import { memberEncounterProjection } from "../lib/campaigns/live-session.ts";
+import { memberEncounterProjection, normalizeCampaignNpcCombatStats } from "../lib/campaigns/live-session.ts";
 
 const encounter = {
   id: "enc_one",
@@ -56,6 +56,21 @@ test("combat summary presentation supports rich, custom, sparse, and legacy NPC 
   assert.deepEqual(custom, { saves: "P 15 · E 14 · M 13", primaryAttack: "Spear +2 · 1d6", additionalAttacks: 0, shock: null, move: null, morale: null });
 
   assert.equal(collapsedNpcCombatSummary(undefined), null);
+});
+
+test("legacy encounter combat snapshots gain empty Bundle 7 magic arrays without losing data", () => {
+  const legacy = {
+    saves: { physical: 12, evasion: 13, mental: 14 },
+    attacks: [{ name: "Spear", attackBonus: 2, damage: "1d6", description: "" }],
+    notes: "Existing encounter NPC",
+    sourceStats: { hitDice: 2, shock: "1/AC 13", move: "30'", morale: 7, instinct: 4, skill: 0 },
+  };
+  const normalized = normalizeCampaignNpcCombatStats(legacy);
+  assert.deepEqual(normalized?.spells, []);
+  assert.deepEqual(normalized?.arts, []);
+  assert.deepEqual(normalized?.attacks, legacy.attacks);
+  assert.equal(normalized?.notes, legacy.notes);
+  assert.equal(normalizeCampaignNpcCombatStats({}), undefined);
 });
 
 test("encounters stay durable, ordered, owner-controlled, and realtime", async () => {

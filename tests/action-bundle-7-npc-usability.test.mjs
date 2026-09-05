@@ -22,6 +22,7 @@ test("encounter snapshots carry and can toggle friendliness", () => {
   assert.ok(worker.includes("setNpcFriendly"));
   assert.ok(worker.includes("friendly INTEGER NOT NULL DEFAULT 0"));
   assert.ok(route.includes('body.action === "npc_friendly"'));
+  assert.ok(worker.includes("normalizeCampaignNpcCombatStats"));
 });
 
 test("GM NPC editor exposes HP rolling, structured magic and friendly default", () => {

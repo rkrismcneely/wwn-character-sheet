@@ -26,6 +26,8 @@ jobs:
         run: node scripts/finalize-action-bundle-5.mjs
       - name: Repair shared CSS after claim removal
         run: node scripts/fix-action-bundle-5-css.mjs
+      - name: Update stale Bundle 5 tests
+        run: node scripts/update-action-bundle-5-tests.mjs
       - name: Persist finalized branch
         run: |
           git config user.name "github-actions[bot]"
@@ -34,7 +36,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No finalization changes required."
           else
-            git commit -m "Harden and finalize Action Bundle 5"
+            git commit -m "Update regressions for Action Bundle 5"
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
       - name: Typecheck

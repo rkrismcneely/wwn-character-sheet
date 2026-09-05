@@ -23,6 +23,7 @@ jobs:
         run: |
           node scripts/action-bundle-7-transform.mjs
           node scripts/action-bundle-7-fix-transform.mjs
+          node scripts/action-bundle-7-typefix.mjs
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

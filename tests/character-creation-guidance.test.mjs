@@ -64,10 +64,13 @@ test("selected Foci, Arts, and Spells show a concise summary plus full rules hel
 });
 
 test("rules help is usable by hover, keyboard focus, click, touch, and Escape", () => {
-  assert.match(guidanceSource, /onMouseEnter=\{\(\) => setOpen\(true\)\}/);
-  assert.match(guidanceSource, /onMouseLeave=\{\(\) => setOpen\(false\)\}/);
-  assert.match(guidanceSource, /onClick=\{\(\) => setOpen\(\(value\) => !value\)\}/);
-  assert.match(guidanceSource, /onFocus=\{\(\) => setOpen\(true\)\}/);
+  assert.match(guidanceSource, /onMouseEnter=\{\(\) => setHovered\(true\)\}/);
+  assert.match(guidanceSource, /onMouseLeave=\{\(\) => setHovered\(false\)\}/);
+  assert.match(guidanceSource, /const open = hovered \|\| focused \|\| pinned/);
+  assert.match(guidanceSource, /onClick=\{\(event\) => \{/);
+  assert.match(guidanceSource, /setPinned\(true\)/);
+  assert.match(guidanceSource, /onFocus=\{\(\) => setFocused\(true\)\}/);
+  assert.match(guidanceSource, /onBlur=\{\(\) => \{/);
   assert.match(guidanceSource, /event\.key === "Escape"/);
   assert.match(guidanceSource, /aria-label=\{`Show full rules for \$\{label\}`\}/);
   assert.match(guidanceSource, /aria-expanded=\{open\}/);

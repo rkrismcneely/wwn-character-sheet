@@ -20,8 +20,14 @@ interface InteractionTokenRow {
   version: number;
 }
 
+interface MapPreferenceRow {
+  snapEnabled: number;
+  sharedRollDiceEnabled: number;
+}
+
 export interface CampaignMapInteractions {
   snapEnabled: boolean;
+  sharedRollDiceEnabled: boolean;
   tokenSizes: Record<string, number>;
 }
 
@@ -68,10 +74,19 @@ function requireManagement(access: Awaited<ReturnType<typeof loadCampaignMapAcce
   if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
 }
 
+async function mapPreferences(db: D1Database, mapId: string): Promise<{ snapEnabled: boolean; sharedRollDiceEnabled: boolean }> {
+  const row = await db.prepare(`SELECT snap_enabled AS snapEnabled,
+      shared_roll_dice_enabled AS sharedRollDiceEnabled
+    FROM campaign_map_preferences WHERE map_id = ?`)
+    .bind(mapId).first<MapPreferenceRow>();
+  return {
+    snapEnabled: Boolean(row?.snapEnabled),
+    sharedRollDiceEnabled: row ? Boolean(row.sharedRollDiceEnabled) : true,
+  };
+}
+
 async function snapEnabled(db: D1Database, mapId: string): Promise<boolean> {
-  const row = await db.prepare("SELECT snap_enabled AS snapEnabled FROM campaign_map_preferences WHERE map_id = ?")
-    .bind(mapId).first<{ snapEnabled: number }>();
-  return Boolean(row?.snapEnabled);
+  return (await mapPreferences(db, mapId)).snapEnabled;
 }
 
 async function tokenSizeCells(db: D1Database, mapId: string, tokenId: string): Promise<number> {
@@ -87,13 +102,17 @@ export async function readCampaignMapInteractions(
   mapIdValue: unknown,
 ): Promise<CampaignMapInteractions> {
   const { map } = await interactionMap(db, actor, publicId, mapIdValue);
-  const sizes = await db.prepare(`SELECT s.token_id AS tokenId, s.size_cells AS sizeCells
-    FROM campaign_map_token_sizes s
-    JOIN campaign_map_tokens t ON t.id = s.token_id
-    WHERE s.map_id = ? AND t.map_id = ?`)
-    .bind(map.id, map.id).all<{ tokenId: string; sizeCells: number }>();
+  const [preferences, sizes] = await Promise.all([
+    mapPreferences(db, map.id),
+    db.prepare(`SELECT s.token_id AS tokenId, s.size_cells AS sizeCells
+      FROM campaign_map_token_sizes s
+      JOIN campaign_map_tokens t ON t.id = s.token_id
+      WHERE s.map_id = ? AND t.map_id = ?`)
+      .bind(map.id, map.id).all<{ tokenId: string; sizeCells: number }>(),
+  ]);
   return {
-    snapEnabled: await snapEnabled(db, map.id),
+    snapEnabled: preferences.snapEnabled,
+    sharedRollDiceEnabled: preferences.sharedRollDiceEnabled,
     tokenSizes: Object.fromEntries(sizes.results.map(row => [row.tokenId, clampTokenSizeCells(row.sizeCells)])),
   };
 }
@@ -132,6 +151,26 @@ export async function setCampaignMapSnapPreference(
   await db.prepare(`INSERT INTO campaign_map_preferences (map_id, campaign_id, snap_enabled, updated_at)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(map_id) DO UPDATE SET snap_enabled = excluded.snap_enabled, updated_at = excluded.updated_at`)
+    .bind(map.id, access.campaignInternalId, enabled ? 1 : 0, now).run();
+  return readCampaignMapInteractions(db, actor, publicId, map.id);
+}
+
+export async function setCampaignMapSharedRollDicePreference(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+  enabledValue: unknown,
+  now = new Date().toISOString(),
+): Promise<CampaignMapInteractions> {
+  const { access, map } = await interactionMap(db, actor, publicId, mapIdValue);
+  requireManagement(access);
+  const enabled = booleanValue(enabledValue, "Shared roll dice");
+  await db.prepare(`INSERT INTO campaign_map_preferences
+      (map_id, campaign_id, snap_enabled, shared_roll_dice_enabled, updated_at)
+      VALUES (?, ?, 0, ?, ?)
+      ON CONFLICT(map_id) DO UPDATE SET shared_roll_dice_enabled = excluded.shared_roll_dice_enabled,
+        updated_at = excluded.updated_at`)
     .bind(map.id, access.campaignInternalId, enabled ? 1 : 0, now).run();
   return readCampaignMapInteractions(db, actor, publicId, map.id);
 }

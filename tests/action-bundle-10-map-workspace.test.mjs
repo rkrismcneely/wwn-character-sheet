@@ -47,13 +47,14 @@ test("Action Bundle 10 uses one authenticated workspace controller across deskto
   assert.match(launcher, /Split panel/u);
   assert.match(launcher, /Side drawer/u);
   assert.match(launcher, /Floating window/u);
-  assert.match(launcher, /Move to Picture-in-Picture/u);
-  assert.match(launcher, /Open Separate Window/u);
+  assert.match(launcher, /Picture-in-Picture/u);
+  assert.match(launcher, /Separate Window/u);
   assert.match(launcher, /mapViewStorageKey/u);
   assert.match(standalone, /initialPresentation="standalone"/u);
   assert.match(standalone, /loadCampaignAccess/u);
   assert.match(css, /\.campaign-map-host-split/u);
   assert.match(css, /\.campaign-map-host-drawer/u);
+  assert.match(css, /\.campaign-map-drawer-resize-handle/u);
   assert.match(css, /\.campaign-map-host-floating/u);
   assert.match(css, /\.campaign-map-pip-host/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-backdrop\s*\{\s*place-items: stretch;/u);

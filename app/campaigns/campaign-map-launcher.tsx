@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
@@ -37,6 +38,12 @@ import {
   type InPageMapPresentation,
 } from "@/lib/campaigns/map-workspace-lifecycle";
 import {
+  campaignMapDrawerDefaultWidth,
+  clampCampaignMapDrawerWidth,
+  resizedCampaignMapDrawerWidth,
+  type CampaignMapDrawerDock,
+} from "@/lib/campaigns/map-drawer";
+import {
   campaignMapOpenEvent,
   campaignMapStateEvent,
   type CampaignMapOpenDetail,
@@ -58,6 +65,8 @@ type DocumentPictureInPictureController = {
 };
 
 const mapPresentationStorageKey = "twe:campaign-map:presentation";
+const mapDrawerDockStorageKey = "twe:campaign-map:drawer-dock";
+const mapDrawerWidthStorageKey = "twe:campaign-map:drawer-width";
 
 function isMapPresentation(value: unknown): value is InPageMapPresentation {
   return value === "fullscreen" || value === "split" || value === "drawer" || value === "floating";
@@ -70,6 +79,27 @@ function preferredMapPresentation(): InPageMapPresentation {
     return isMapPresentation(value) ? value : "fullscreen";
   } catch {
     return "fullscreen";
+  }
+}
+
+function preferredDrawerDock(): CampaignMapDrawerDock {
+  if (typeof window === "undefined") return "right";
+  try {
+    return window.localStorage.getItem(mapDrawerDockStorageKey) === "left" ? "left" : "right";
+  } catch {
+    return "right";
+  }
+}
+
+function preferredDrawerWidth(): number {
+  if (typeof window === "undefined") return campaignMapDrawerDefaultWidth;
+  try {
+    const value = Number(window.localStorage.getItem(mapDrawerWidthStorageKey));
+    return Number.isFinite(value)
+      ? clampCampaignMapDrawerWidth(value, window.innerWidth)
+      : campaignMapDrawerDefaultWidth;
+  } catch {
+    return campaignMapDrawerDefaultWidth;
   }
 }
 
@@ -220,6 +250,9 @@ export function CampaignMapWorkspace({
   const pipExitIntentRef = useRef<PipExitIntent>("close");
   const [floatingPosition, setFloatingPosition] = useState<FloatingPosition>({ x: 0, y: 0 });
   const floatingDragRef = useRef<{ pointerId: number; clientX: number; clientY: number; position: FloatingPosition } | null>(null);
+  const drawerResizeRef = useRef<{ pointerId: number; clientX: number; width: number } | null>(null);
+  const [drawerDock, setDrawerDock] = useState<CampaignMapDrawerDock>(preferredDrawerDock);
+  const [drawerWidth, setDrawerWidth] = useState(preferredDrawerWidth);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -270,6 +303,13 @@ export function CampaignMapWorkspace({
       window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view));
     } catch { /* Local view preference is optional. */ }
   }, [campaignId, map, open, presentation, view]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(mapDrawerDockStorageKey, drawerDock);
+      window.localStorage.setItem(mapDrawerWidthStorageKey, String(drawerWidth));
+    } catch { /* Local workspace preferences are optional. */ }
+  }, [drawerDock, drawerWidth]);
 
   useEffect(() => {
     if (!open || (presentation !== "fullscreen" && presentation !== "standalone")) return;
@@ -418,6 +458,10 @@ export function CampaignMapWorkspace({
     setSettingsOpen(false);
   }
 
+  function chooseDrawerDock(nextDock: CampaignMapDrawerDock) {
+    setDrawerDock(nextDock);
+  }
+
   function openMapPopout() {
     const url = new URL(`/campaigns/${campaignId}/map`, window.location.origin);
     const popup = window.open(url.toString(), "twe-campaign-map", "popup=yes,width=1180,height=820,resizable=yes,scrollbars=yes");
@@ -484,6 +528,31 @@ export function CampaignMapWorkspace({
   function handleFloatingDragEnd(event: ReactPointerEvent<HTMLDivElement>) {
     if (floatingDragRef.current?.pointerId !== event.pointerId) return;
     floatingDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function handleDrawerResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
+    if (presentation !== "drawer" || event.button !== 0) return;
+    drawerResizeRef.current = { pointerId: event.pointerId, clientX: event.clientX, width: drawerWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function handleDrawerResizeMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const resize = drawerResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    setDrawerWidth(resizedCampaignMapDrawerWidth({
+      dock: drawerDock,
+      startWidth: resize.width,
+      startClientX: resize.clientX,
+      clientX: event.clientX,
+      viewportWidth: window.innerWidth,
+    }));
+  }
+
+  function handleDrawerResizeEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    if (drawerResizeRef.current?.pointerId !== event.pointerId) return;
+    drawerResizeRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
@@ -897,49 +966,81 @@ export function CampaignMapWorkspace({
   const inPageHost = presentation !== "pip" && presentation !== "standalone" && presentation !== "closed";
 
   const mapSurface = open ? <section
-    className={`campaign-map-dialog campaign-map-host-${presentation}`}
+    className={`campaign-map-dialog campaign-map-host-${presentation}${presentation === "drawer" ? ` campaign-map-drawer-${drawerDock}` : ""}`}
     role="dialog"
     aria-modal={presentation === "fullscreen"}
     aria-labelledby="campaign-map-title"
-    style={presentation === "floating" ? { transform: `translate3d(${floatingPosition.x}px, ${floatingPosition.y}px, 0)` } : undefined}
+    style={presentation === "floating"
+      ? { transform: `translate3d(${floatingPosition.x}px, ${floatingPosition.y}px, 0)` }
+      : presentation === "drawer"
+        ? { "--campaign-map-drawer-width": `${drawerWidth}px` } as CSSProperties
+        : undefined}
   >
+        {presentation === "drawer" && <div
+          className="campaign-map-drawer-resize-handle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize map side drawer"
+          onPointerDown={handleDrawerResizeStart}
+          onPointerMove={handleDrawerResizeMove}
+          onPointerUp={handleDrawerResizeEnd}
+          onPointerCancel={handleDrawerResizeEnd}
+        />}
         <header className="campaign-map-toolbar">
-          <div
-            className={`campaign-map-title-block${presentation === "floating" ? " is-draggable" : ""}`}
-            onPointerDown={handleFloatingDragStart}
-            onPointerMove={handleFloatingDragMove}
-            onPointerUp={handleFloatingDragEnd}
-            onPointerCancel={handleFloatingDragEnd}
-          >
-            <p className="campaign-kicker">CAMPAIGN MAP</p>
-            <h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>
-            {canManage && map && <small className={map.isActive ? "campaign-map-live-label" : "campaign-map-private-label"}>{map.isActive ? "Visible to players" : "GM preview — players still see the active map"}</small>}
+          <div className="campaign-map-toolbar-primary">
+            <div
+              className={`campaign-map-title-block${presentation === "floating" ? " is-draggable" : ""}`}
+              onPointerDown={handleFloatingDragStart}
+              onPointerMove={handleFloatingDragMove}
+              onPointerUp={handleFloatingDragEnd}
+              onPointerCancel={handleFloatingDragEnd}
+            >
+              <p className="campaign-kicker">CAMPAIGN MAP</p>
+              <h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>
+              {canManage && map && <small className={map.isActive ? "campaign-map-live-label" : "campaign-map-private-label"}>{map.isActive ? "Visible to players" : "GM preview — players still see the active map"}</small>}
+            </div>
+            <div className="campaign-map-mode-controls">
+              {inPageHost && <label className="campaign-map-presentation-picker">
+                <span>View</span>
+                <select value={workspace.inPagePresentation} onChange={event => choosePresentation(event.target.value as InPageMapPresentation)}>
+                  <option value="fullscreen">Full screen</option>
+                  <option value="split">Split panel</option>
+                  <option value="drawer">Side drawer</option>
+                  <option value="floating">Floating window</option>
+                </select>
+              </label>}
+              {presentation === "drawer" && <div className="campaign-map-dock-control" role="group" aria-label="Side drawer position">
+                <span>Dock</span>
+                <button type="button" className={`campaign-quiet${drawerDock === "left" ? " is-active" : ""}`} aria-pressed={drawerDock === "left"} onClick={() => chooseDrawerDock("left")}>Left</button>
+                <button type="button" className={`campaign-quiet${drawerDock === "right" ? " is-active" : ""}`} aria-pressed={drawerDock === "right"} onClick={() => chooseDrawerDock("right")}>Right</button>
+              </div>}
+              {presentation === "pip" && <button type="button" className="campaign-secondary" onClick={returnFromPictureInPicture}>Return to Page</button>}
+              <button type="button" className="campaign-secondary campaign-map-close-button" onClick={closeMap}>{presentation === "standalone" ? "Close Map Window" : "Close Map"}</button>
+            </div>
           </div>
           <div className="campaign-map-toolbar-actions">
-            {map?.backgroundUrl && <>
+            {map?.backgroundUrl && <div className="campaign-map-control-group" aria-label="Map view controls">
+              <span className="campaign-map-control-label">Map</span>
               <button type="button" className="campaign-quiet" onClick={() => zoom(1.2)} aria-label="Zoom out">−</button>
               <button type="button" className="campaign-quiet" onClick={() => zoom(0.82)} aria-label="Zoom in">+</button>
-              <button type="button" className="campaign-secondary" onClick={resetView}>Fit Map</button>
-            </>}
-            {map && <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />}
-            {canManage && map?.backgroundUrl && <>
-              <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide Area</button>
-              <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal Area</button>
-            </>}
-            {canManage && <button type="button" className="campaign-secondary" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Map Settings</button>}
-            {inPageHost && <label className="campaign-map-presentation-picker">
-              <span className="sr-only">Map display</span>
-              <select value={workspace.inPagePresentation} onChange={event => choosePresentation(event.target.value as InPageMapPresentation)}>
-                <option value="fullscreen">Full screen</option>
-                <option value="split">Split panel</option>
-                <option value="drawer">Side drawer</option>
-                <option value="floating">Floating window</option>
-              </select>
-            </label>}
-            {inPageHost && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={() => void openMapPictureInPicture()}>Move to Picture-in-Picture</button>}
-            {inPageHost && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={openMapPopout}>Open Separate Window</button>}
-            {presentation === "pip" && <button type="button" className="campaign-secondary" onClick={returnFromPictureInPicture}>Return to Page</button>}
-            <button type="button" className="campaign-secondary" onClick={closeMap}>{presentation === "standalone" ? "Close Map Window" : "Close Map"}</button>
+              <button type="button" className="campaign-secondary" onClick={resetView}>Fit</button>
+            </div>}
+            {map && <div className="campaign-map-control-group" aria-label="Table controls">
+              <span className="campaign-map-control-label">Table</span>
+              <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />
+              {canManage && map.backgroundUrl && <>
+                <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide</button>
+                <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal</button>
+              </>}
+              {canManage && <button type="button" className={`campaign-secondary${settingsOpen ? " is-active" : ""}`} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Settings</button>}
+            </div>}
+            {inPageHost && <details className="campaign-map-window-menu campaign-map-desktop-action">
+              <summary>Window</summary>
+              <div className="campaign-map-window-menu-panel">
+                <button type="button" className="campaign-secondary" onClick={() => void openMapPictureInPicture()}>Picture-in-Picture</button>
+                <button type="button" className="campaign-secondary" onClick={openMapPopout}>Separate Window</button>
+              </div>
+            </details>}
           </div>
         </header>
 

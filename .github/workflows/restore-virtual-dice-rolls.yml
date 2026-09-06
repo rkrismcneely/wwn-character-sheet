@@ -1,0 +1,53 @@
+name: Restore Virtual Dice Rolls
+
+on:
+  push:
+    branches:
+      - fix/restore-virtual-dice-rolls
+    paths:
+      - scripts/restore-virtual-dice-rolls.mjs
+      - .github/workflows/restore-virtual-dice-rolls.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  transform-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-virtual-dice-rolls
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Apply runtime-safe dice fix
+        run: node scripts/restore-virtual-dice-rolls.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused dice tests
+        run: node --experimental-strip-types --test tests/roll-ui.test.mjs tests/action-bundle-8-live-map-dice.test.mjs
+      - name: Full repository tests
+        run: npm test
+      - name: Build production artifact
+        run: npm run build
+      - name: Validate Worker artifact
+        run: npm run validate:artifact
+      - name: Commit validated fix
+        run: |
+          if git diff --quiet; then
+            echo "Runtime-safe dice fix is already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/virtual-dice-adapter.ts tests/roll-ui.test.mjs
+          git commit -m "Restore virtual dice with renderer-native lighting"
+          git push origin HEAD:fix/restore-virtual-dice-rolls

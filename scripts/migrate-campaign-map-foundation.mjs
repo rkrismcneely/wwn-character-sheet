@@ -6,6 +6,7 @@ import { DATABASE_ID, DATABASE_NAME } from "./d1-admin.mjs";
 const migrationNames = [
   "0014_campaign_map_foundation.sql",
   "0015_campaign_map_interactions.sql",
+  "0020_action_bundle_8_live_map_dice.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -75,6 +76,7 @@ for (const baseline of [
   "0011_campaign_npc_templates.sql",
   "0012_campaign_npc_threat_stats.sql",
   "0013_connected_accounts.sql",
+  "0019_campaign_item_equipment.sql",
 ]) {
   if (!applied.has(baseline)) {
     throw new Error(`Production is missing baseline migration ${baseline}; campaign-map migration was not applied.`);
@@ -127,8 +129,13 @@ for (const column of ["id", "campaign_id", "map_id", "kind", "source_id", "x", "
 }
 
 const preferenceColumns = new Set(query("PRAGMA table_info(campaign_map_preferences)").map(row => row.name));
-for (const column of ["map_id", "campaign_id", "snap_enabled", "updated_at"]) {
+for (const column of ["map_id", "campaign_id", "snap_enabled", "shared_roll_dice_enabled", "updated_at"]) {
   if (!preferenceColumns.has(column)) throw new Error(`campaign_map_preferences is missing ${column}.`);
+}
+const invalidSharedDicePreferences = query(`SELECT COUNT(*) AS count FROM campaign_map_preferences
+  WHERE shared_roll_dice_enabled IS NULL OR shared_roll_dice_enabled NOT IN (0, 1)`)[0]?.count ?? 0;
+if (Number(invalidSharedDicePreferences) !== 0) {
+  throw new Error("campaign_map_preferences contains an invalid shared_roll_dice_enabled value.");
 }
 
 const sizeColumns = new Set(query("PRAGMA table_info(campaign_map_token_sizes)").map(row => row.name));

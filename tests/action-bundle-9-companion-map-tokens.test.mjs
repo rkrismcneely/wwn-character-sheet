@@ -61,7 +61,8 @@ test("companion token migration preserves existing placements and size rows", as
 
   applyMigration(database, await read("drizzle/0021_action_bundle_9_companion_map_tokens.sql"));
 
-  assert.deepEqual(database.prepare("SELECT kind, source_id AS sourceId, x, y, version FROM campaign_map_tokens WHERE id = 'token-pc'").get(), {
+  const preserved = database.prepare("SELECT kind, source_id AS sourceId, x, y, version FROM campaign_map_tokens WHERE id = 'token-pc'").get();
+  assert.deepEqual({ ...preserved }, {
     kind: "pc", sourceId: "chr_1", x: 123, y: 456, version: 3,
   });
   assert.equal(database.prepare("SELECT size_cells AS sizeCells FROM campaign_map_token_sizes WHERE token_id = 'token-pc'").get().sizeCells, 2);
@@ -87,10 +88,11 @@ test("map services, API, UI, and release path explicitly support companion token
 
   assert.match(service, /"pc" \| "npc" \| "companion"/u);
   assert.match(service, /placeCampaignMapCompanionToken/u);
-  assert.match(service, /campaignMapCompanionCharacterId\(token\.sourceId\)/u);
+  assert.match(service, /campaignMapCompanionCharacterId\(sourceId\)/u);
+  assert.match(service, /actorOwnsActiveCompanionSource\(db, actor, access\.campaignInternalId, token\.sourceId\)/u);
   assert.match(route, /body\.action === "place_companion"/u);
   assert.match(launcher, /action: "place_companion"/u);
-  assert.match(launcher, /Spirit Familiar/u);
+  assert.match(launcher, /companion\.characterName\} · \{companion\.label/u);
   assert.match(css, /campaign-map-token-companion/u);
   assert.match(migrateScript, /0021_action_bundle_9_companion_map_tokens\.sql/u);
   assert.match(migrateWorkflow, /0021_action_bundle_9_companion_map_tokens\.sql/u);

@@ -16,6 +16,46 @@ const {
   DICE_STYLE_TEXTURE_DEFINITIONS,
 } = await import(new URL("../app/virtual-dice-style.ts", import.meta.url));
 
+function rgbFromHex(hex) {
+  return [1, 3, 5].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
+}
+
+function relativeLuminance(hex) {
+  const [red, green, blue] = rgbFromHex(hex).map(channel => (
+    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  ));
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+function contrastRatio(first, second) {
+  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort((left, right) => right - left);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function rgbDistance(first, second) {
+  const firstRgb = rgbFromHex(first);
+  const secondRgb = rgbFromHex(second);
+  return Math.hypot(...firstRgb.map((channel, index) => (channel - secondRgb[index]) * 255));
+}
+
+function hueAndSaturation(hex) {
+  const [red, green, blue] = rgbFromHex(hex);
+  const highest = Math.max(red, green, blue);
+  const lowest = Math.min(red, green, blue);
+  const delta = highest - lowest;
+  if (delta === 0) return { hue: 0, saturation: 0 };
+
+  const rawHue = highest === red
+    ? ((green - blue) / delta) % 6
+    : highest === green
+      ? (blue - red) / delta + 2
+      : (red - green) / delta + 4;
+  return {
+    hue: (rawHue * 60 + 360) % 360,
+    saturation: delta / (1 - Math.abs(2 * ((highest + lowest) / 2) - 1)),
+  };
+}
+
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
   assert.match(sheetSource, /rawRoll = preparedSharedRoll\?\.dice \|\| rollDice\(request\.dice\.count, request\.dice\.sides\)/);
   assert.match(sheetSource, /resolveRoll\(request, \{ roll: \(\) => rawRoll \}\)/);
@@ -37,6 +77,11 @@ test("virtual dice preserve one authoritative raw roll and fall back without rer
   assert.match(adapterSource, /request\.dice\.map\(die => die\.value\)\.join\(","\)/);
   assert.match(adapterSource, /theme_surface: "green-felt"/);
   assert.match(overlaySource, /createPortal/);
+});
+
+test("virtual dice retain the renderer-safe dynamic import boundary", () => {
+  assert.match(adapterSource, /import\("@drdreo\/dice-box-threejs"\)/);
+  assert.doesNotMatch(adapterSource, /(?:from\s*|import\()\s*["']three["']/);
 });
 
 test("virtual dice preference is browser-local and off by default", () => {
@@ -106,13 +151,84 @@ test("Dice Style renderer configs have stable, style-scoped cache and texture id
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["ember-forge"].source, "textures/fire.webp");
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["winter-ice"].source, "textures/ice.webp");
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["carved-wood"].source, "textures/wood.webp");
-  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.source, "textures/stars.webp");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.source, "textures/glitter.webp");
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].source, "textures/bronze03.webp");
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.composite, "screen");
-  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].composite, "screen");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["starfall-glitter"].composite, "multiply");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].composite, "multiply");
   assert.match(diceStyleSource, /rendererTextureForKey/);
   assert.match(adapterSource, /installStyleTextureRegistry\(box\)/);
   assert.match(adapterSource, /rendererTextureForKey\(texture\)/);
+});
+
+test("curated Dice Styles retain readable figure contrast and opposite-luminance outlines", () => {
+  for (const style of DICE_STYLE_IDS) {
+    const { foreground, background, outline } = DICE_STYLE_RENDERER_CONFIG[style];
+    assert.ok(
+      contrastRatio(foreground, background) >= 2.5,
+      `${style} keeps enough numeral-to-face contrast before texture detail is applied`,
+    );
+    assert.ok(
+      contrastRatio(foreground, outline) >= 10,
+      `${style} has a pronounced outline that separates its numerals from busy faces`,
+    );
+    assert.notEqual(
+      relativeLuminance(foreground) > 0.5,
+      relativeLuminance(outline) > 0.5,
+      `${style} uses an outline with the opposite luminance role from its numerals`,
+    );
+  }
+});
+
+test("curated Dice Style palettes preserve distinct visual identities", () => {
+  const backgrounds = DICE_STYLE_IDS.map(style => DICE_STYLE_RENDERER_CONFIG[style].background);
+  for (let index = 0; index < backgrounds.length; index += 1) {
+    for (let comparison = index + 1; comparison < backgrounds.length; comparison += 1) {
+      assert.ok(
+        rgbDistance(backgrounds[index], backgrounds[comparison]) >= 18,
+        `${DICE_STYLE_IDS[index]} and ${DICE_STYLE_IDS[comparison]} cannot collapse into near-identical palettes`,
+      );
+    }
+  }
+
+  const keyPairs = [
+    ["winter-ice", "tidal-water"],
+    ["forged-steel", "moonlit-marble"],
+    ["starfall-glitter", "starfield"],
+    ["dragon-scale", "lizard-scale"],
+    ["leopard-pattern", "tiger-stripe"],
+    ["arcane-glass", "astral-nebula"],
+  ];
+  for (const [first, second] of keyPairs) {
+    assert.ok(
+      rgbDistance(DICE_STYLE_RENDERER_CONFIG[first].background, DICE_STYLE_RENDERER_CONFIG[second].background) >= 30,
+      `${first} and ${second} retain intentionally different art directions`,
+    );
+  }
+});
+
+test("key Dice Styles stay inside their intended color families and avoid reflective washout", () => {
+  const palette = Object.fromEntries(DICE_STYLE_IDS.map(style => [
+    style,
+    hueAndSaturation(DICE_STYLE_RENDERER_CONFIG[style].background),
+  ]));
+
+  assert.ok(palette["arcane-glass"].hue >= 245 && palette["arcane-glass"].hue <= 275);
+  assert.ok(palette["arcane-glass"].saturation >= 0.5);
+  assert.ok(palette["dragon-scale"].hue >= 140 && palette["dragon-scale"].hue <= 165);
+  assert.ok(palette["ember-forge"].hue <= 30 || palette["ember-forge"].hue >= 345);
+  assert.ok(palette["winter-ice"].hue >= 185 && palette["winter-ice"].hue <= 205);
+  assert.ok(palette["tidal-water"].hue >= 200 && palette["tidal-water"].hue <= 220);
+  assert.ok(palette["forged-steel"].saturation <= 0.2);
+  assert.ok(palette.starfield.hue >= 220 && palette.starfield.hue <= 250);
+  assert.ok(palette["astral-nebula"].hue >= 315 && palette["astral-nebula"].hue <= 345);
+
+  for (const style of [
+    "obsidian-gold", "arcane-glass", "ember-forge", "tidal-water",
+    "forged-steel", "antique-bronze", "starfall-glitter", "starfield", "astral-nebula",
+  ]) {
+    assert.equal(DICE_STYLE_RENDERER_CONFIG[style].material, "none", `${style} avoids environment-reflection color washout`);
+  }
 });
 
 test("virtual rolls use the chosen style while preserving authoritative notation", () => {

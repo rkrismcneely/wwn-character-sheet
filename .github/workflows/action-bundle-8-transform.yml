@@ -12,8 +12,13 @@ on:
       - app/api/campaigns/**/map/interactions/route.ts
       - lib/campaigns/map-interactions.ts
       - drizzle/0020_action_bundle_8_live_map_dice.sql
+      - scripts/migrate-campaign-map-foundation.mjs
+      - .github/workflows/migrate-campaign-map-foundation.yml
+      - .github/workflows/deploy-production.yml
       - scripts/action-bundle-8-launcher-transform.mjs
       - .github/workflows/action-bundle-8-transform.yml
+      - tests/action-bundle-8-live-map-dice.test.mjs
+      - tests/campaign-map-interactions.test.mjs
 
 permissions:
   contents: write
@@ -38,7 +43,7 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Focused tests
-        run: node --test tests/campaign-map-interactions.test.mjs tests/shared-session-roll.test.mjs tests/roll-ui.test.mjs
+        run: node --test tests/action-bundle-8-live-map-dice.test.mjs tests/campaign-map-interactions.test.mjs tests/shared-session-roll.test.mjs tests/roll-ui.test.mjs
       - name: Full tests
         run: npm test
       - name: Production build
@@ -55,4 +60,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/campaigns/campaign-map-launcher.tsx
           git commit -m "Wire shared dice into campaign map launcher"
+          git pull --rebase origin feat/action-bundle-8-live-map-dice
           git push origin HEAD:feat/action-bundle-8-live-map-dice

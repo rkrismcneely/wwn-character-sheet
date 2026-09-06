@@ -53,4 +53,7 @@ test("Action Bundle 10 uses one authenticated workspace controller across deskto
   assert.match(css, /\.campaign-map-host-drawer/u);
   assert.match(css, /\.campaign-map-host-floating/u);
   assert.match(css, /\.campaign-map-pip-host/u);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-backdrop\s*\{\s*place-items: stretch;/u);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dialog\s*\{\s*width: 100%;\s*max-width: 100%;/u);
+  assert.doesNotMatch(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-host-floating[\s\S]*?width: 100vw;/u);
 });

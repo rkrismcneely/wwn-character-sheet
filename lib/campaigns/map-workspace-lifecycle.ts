@@ -1,4 +1,4 @@
-export type InPageMapPresentation = "fullscreen" | "split" | "drawer" | "floating";
+export type InPageMapPresentation = "fullscreen" | "drawer";
 export type MapWorkspacePresentation = InPageMapPresentation | "pip" | "standalone" | "closed";
 
 export type MapWorkspaceState = {
@@ -11,8 +11,7 @@ export type MapWorkspaceEvent =
   | { type: "close" }
   | { type: "choose-in-page-presentation"; presentation: InPageMapPresentation }
   | { type: "move-to-picture-in-picture" }
-  | { type: "picture-in-picture-closed"; returnToPage: boolean }
-  | { type: "move-to-popout" };
+  | { type: "picture-in-picture-closed"; returnToPage: boolean };
 
 export function createMapWorkspaceState(options: {
   initialOpen: boolean;
@@ -30,16 +29,15 @@ export function createMapWorkspaceState(options: {
 }
 
 /**
- * A map has exactly one visible host. Moving it to a pop-out closes the source
- * host; moving it to Picture-in-Picture can either close it or return it to
- * the in-page presentation explicitly selected by the player.
+ * A map has exactly one visible host. Moving it to Picture-in-Picture can
+ * either close it or return it to the in-page presentation explicitly
+ * selected by the player.
  */
 export function mapWorkspaceReducer(state: MapWorkspaceState, event: MapWorkspaceEvent): MapWorkspaceState {
   switch (event.type) {
     case "open":
       return { ...state, presentation: state.inPagePresentation };
     case "close":
-    case "move-to-popout":
       return { ...state, presentation: "closed" };
     case "choose-in-page-presentation":
       return { presentation: event.presentation, inPagePresentation: event.presentation };

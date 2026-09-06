@@ -28,7 +28,7 @@ test("Action Bundle 10 persists grid type and sparse fog through the existing ca
   assert.match(deploy, /0023_action_bundle_10_map_fog/u);
 });
 
-test("Action Bundle 10 uses one authenticated workspace controller across desktop hosts and a standalone pop-out", async () => {
+test("Action Bundle 10 uses one authenticated workspace controller with simplified presentation choices", async () => {
   const [launcher, standalone, css] = await Promise.all([
     read("app/campaigns/campaign-map-launcher.tsx"),
     read("app/campaigns/[id]/map/page.tsx"),
@@ -43,21 +43,19 @@ test("Action Bundle 10 uses one authenticated workspace controller across deskto
   assert.match(launcher, /publishMapInvalidation/u);
   assert.match(launcher, /createPortal\(/u);
   assert.match(launcher, /documentPictureInPicture/u);
-  assert.match(launcher, /openMapPopout/u);
-  assert.match(launcher, /Split panel/u);
   assert.match(launcher, /Side drawer/u);
-  assert.match(launcher, /Floating window/u);
   assert.match(launcher, /Picture-in-Picture/u);
-  assert.match(launcher, /Separate Window/u);
+  assert.match(launcher, /campaign-map-collapsed-drawer/u);
+  assert.match(launcher, /campaign-map-mobile-launcher-button/u);
+  assert.doesNotMatch(launcher, /Split panel|Floating window|Separate Window|openMapPopout/u);
   assert.match(launcher, /mapViewStorageKey/u);
   assert.match(standalone, /initialPresentation="standalone"/u);
   assert.match(standalone, /loadCampaignAccess/u);
-  assert.match(css, /\.campaign-map-host-split/u);
   assert.match(css, /\.campaign-map-host-drawer/u);
   assert.match(css, /\.campaign-map-drawer-resize-handle/u);
-  assert.match(css, /\.campaign-map-host-floating/u);
   assert.match(css, /\.campaign-map-pip-host/u);
+  assert.match(css, /\.campaign-map-collapsed-drawer/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-backdrop\s*\{\s*place-items: stretch;/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dialog\s*\{\s*width: 100%;\s*max-width: 100%;/u);
-  assert.doesNotMatch(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-host-floating[\s\S]*?width: 100vw;/u);
+  assert.match(css, /max-width: calc\(100vw - 2rem\)/u);
 });

@@ -1,8 +1,40 @@
-.campaign-map-launcher-button {
+.campaign-map-collapsed-drawer,
+.campaign-map-mobile-launcher-button {
   position: fixed;
+  z-index: 190;
+  border: 1px solid rgba(204, 163, 83, .7);
+  background: color-mix(in srgb, var(--surface, #17130f) 90%, #6b4a1f 10%);
+  color: var(--text, #f4ead8);
+  box-shadow: 0 .7rem 2rem rgba(0, 0, 0, .3);
+  cursor: pointer;
+}
+
+.campaign-map-collapsed-drawer {
+  top: 50%;
+  width: 2.9rem;
+  min-height: 7.5rem;
+  padding: .7rem .35rem;
+  border-radius: .55rem 0 0 .55rem;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font: 600 .78rem/1 var(--font-ui, sans-serif);
+  letter-spacing: .08em;
+  transform: translateY(-50%);
+}
+
+.campaign-map-collapsed-drawer-left {
+  left: 0;
+  border-radius: 0 .55rem .55rem 0;
+}
+
+.campaign-map-collapsed-drawer-right {
+  right: 0;
+}
+
+.campaign-map-mobile-launcher-button {
+  display: none;
   right: 1.25rem;
   bottom: 1.25rem;
-  z-index: 190;
   min-width: 5.5rem;
   border: 1px solid rgba(204, 163, 83, .7);
   border-radius: 999px;
@@ -14,8 +46,14 @@
   cursor: pointer;
 }
 
-.campaign-map-launcher-button:hover,
-.campaign-map-launcher-button:focus-visible {
+.campaign-map-collapsed-drawer:hover,
+.campaign-map-collapsed-drawer:focus-visible {
+  border-color: rgba(232, 192, 110, .95);
+  transform: translateY(calc(-50% - 1px));
+}
+
+.campaign-map-mobile-launcher-button:hover,
+.campaign-map-mobile-launcher-button:focus-visible {
   border-color: rgba(232, 192, 110, .95);
   transform: translateY(-1px);
 }
@@ -46,9 +84,7 @@
 /* Every desktop presentation hosts the same CampaignMapLauncher instance.
    Only its shell changes; map data and permissions never move into a second
    client-side store. */
-.campaign-map-presentation-split,
-.campaign-map-presentation-drawer,
-.campaign-map-presentation-floating {
+.campaign-map-presentation-drawer {
   display: block;
   padding: 0;
   background: transparent;
@@ -56,21 +92,9 @@
   pointer-events: none;
 }
 
-.campaign-map-presentation-split .campaign-map-dialog,
-.campaign-map-presentation-drawer .campaign-map-dialog,
-.campaign-map-presentation-floating .campaign-map-dialog {
+.campaign-map-presentation-drawer .campaign-map-dialog {
   position: fixed;
   pointer-events: auto;
-}
-
-.campaign-map-host-split {
-  inset: 0 0 0 auto;
-  width: clamp(28rem, 44vw, 56rem);
-  min-width: 24rem;
-  max-width: 100vw;
-  height: 100dvh;
-  resize: horizontal;
-  border-radius: 0;
 }
 
 .campaign-map-host-drawer {
@@ -81,7 +105,7 @@
      outer gutter around the centered folio before it overlays sheet content. */
   width: min(var(--campaign-map-drawer-width, 25rem), calc(100vw - 2rem));
   min-width: 20rem;
-  max-width: min(45rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
   height: 100dvh;
   border-radius: 0;
 }
@@ -131,26 +155,12 @@
   left: auto;
 }
 
-.campaign-map-host-floating {
-  right: 1.25rem;
-  bottom: 1.25rem;
-  width: min(70rem, calc(100vw - 2.5rem));
-  height: min(48rem, calc(100dvh - 2.5rem));
-  min-width: 25rem;
-  min-height: 21rem;
-  max-width: calc(100vw - 1rem);
-  max-height: calc(100dvh - 1rem);
-  resize: both;
-}
-
-.campaign-map-host-drawer .campaign-map-workspace.settings-open,
-.campaign-map-host-floating .campaign-map-workspace.settings-open {
+.campaign-map-host-drawer .campaign-map-workspace.settings-open {
   grid-template-columns: 1fr;
   grid-template-rows: minmax(0, 1fr) minmax(15rem, 42%);
 }
 
-.campaign-map-host-drawer .campaign-map-settings,
-.campaign-map-host-floating .campaign-map-settings {
+.campaign-map-host-drawer .campaign-map-settings {
   border-top: 1px solid color-mix(in srgb, var(--border, #725f47) 65%, transparent);
   border-left: 0;
 }
@@ -202,11 +212,6 @@
   gap: .8rem;
 }
 
-.campaign-map-title-block.is-draggable {
-  cursor: move;
-  touch-action: none;
-}
-
 .campaign-map-toolbar h2,
 .campaign-map-settings h3,
 .campaign-map-settings h4,
@@ -255,8 +260,7 @@
 }
 
 .campaign-map-control-group,
-.campaign-map-dock-control,
-.campaign-map-window-menu {
+.campaign-map-dock-control {
   min-height: 2.35rem;
   padding: .22rem;
   border: 1px solid color-mix(in srgb, var(--border, #725f47) 62%, transparent);
@@ -305,49 +309,6 @@
   border-color: rgba(236, 187, 79, .95);
   background: color-mix(in srgb, #8a5e20 34%, var(--surface, #17130f));
   color: #fff3cf;
-}
-
-.campaign-map-window-menu {
-  position: relative;
-  list-style: none;
-}
-
-.campaign-map-window-menu summary {
-  display: flex;
-  align-items: center;
-  min-height: 1.85rem;
-  padding: 0 .45rem;
-  color: var(--text, #f4ead8);
-  cursor: pointer;
-  font: 700 .72rem/1 var(--font-ui, sans-serif);
-  list-style: none;
-}
-
-.campaign-map-window-menu summary::-webkit-details-marker { display: none; }
-
-.campaign-map-window-menu summary::after {
-  content: "⌄";
-  margin-left: .35rem;
-  color: var(--text-muted, #b9ad9b);
-}
-
-.campaign-map-window-menu-panel {
-  position: absolute;
-  z-index: 7;
-  top: calc(100% + .35rem);
-  right: 0;
-  display: grid;
-  min-width: 12.5rem;
-  gap: .35rem;
-  padding: .45rem;
-  border: 1px solid color-mix(in srgb, var(--border, #725f47) 78%, transparent);
-  border-radius: 8px;
-  background: var(--surface, #17130f);
-  box-shadow: 0 .7rem 1.6rem rgba(0, 0, 0, .36);
-}
-
-.campaign-map-window-menu-panel .campaign-secondary {
-  justify-content: flex-start;
 }
 
 .campaign-map-error {
@@ -757,25 +718,22 @@
     border-left: 0;
     border-top: 1px solid color-mix(in srgb, var(--border, #725f47) 65%, transparent);
   }
-  .campaign-map-launcher-button {
+  .campaign-map-mobile-launcher-button {
+    display: block;
     right: .8rem;
     bottom: .8rem;
   }
-  .campaign-map-desktop-action,
+  .campaign-map-collapsed-drawer { display: none; }
   .campaign-map-presentation-picker,
   .campaign-map-dock-control { display: none; }
-  .campaign-map-presentation-split,
-  .campaign-map-presentation-drawer,
-  .campaign-map-presentation-floating {
+  .campaign-map-presentation-drawer {
     display: grid;
     padding: 0;
     background: rgba(5, 5, 6, .82);
     backdrop-filter: blur(8px);
     pointer-events: auto;
   }
-  .campaign-map-host-split,
-  .campaign-map-host-drawer,
-  .campaign-map-host-floating {
+  .campaign-map-host-drawer {
     position: static;
     width: 100%;
     min-width: 0;

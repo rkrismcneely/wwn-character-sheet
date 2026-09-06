@@ -8,10 +8,10 @@ import {
   resizedCampaignMapDrawerWidth,
 } from "../lib/campaigns/map-drawer.ts";
 
-test("side drawer resizing remains edge-anchored and never exceeds a practical viewport width", () => {
+test("side drawer resizing remains edge-anchored and only respects the viewport", () => {
   assert.equal(campaignMapDrawerDefaultWidth, 400);
   assert.equal(clampCampaignMapDrawerWidth(40, 1600), campaignMapDrawerMinWidth);
-  assert.equal(clampCampaignMapDrawerWidth(900, 1600), 720);
+  assert.equal(clampCampaignMapDrawerWidth(900, 1600), 900);
   assert.equal(clampCampaignMapDrawerWidth(500, 400), 368);
 
   assert.equal(resizedCampaignMapDrawerWidth({
@@ -45,11 +45,18 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(launcher, />Right<\/button>/u);
   assert.match(launcher, /campaign-map-control-label">Map/u);
   assert.match(launcher, /campaign-map-control-label">Table/u);
-  assert.match(launcher, /<summary>Window<\/summary>/u);
+  assert.match(launcher, /<option value="pip">Picture-in-Picture<\/option>/u);
+  assert.doesNotMatch(launcher, /<summary>Window<\/summary>|Separate Window|Split panel|Floating window/u);
   assert.match(css, /campaign-map-drawer-left/u);
   assert.match(css, /campaign-map-drawer-right/u);
   assert.match(css, /campaign-map-drawer-resize-handle/u);
   assert.match(css, /empty\s+outer\s+gutter/u);
+  assert.match(css, /campaign-map-collapsed-drawer/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dock-control\s*\{\s*display: none/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?campaign-map-drawer-resize-handle\s*\{\s*display: none/u);
+
+  const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(globals, /data-campaign-map-drawer="right"/u);
+  assert.match(globals, /data-campaign-map-drawer="left"/u);
+  assert.match(globals, /var\(--campaign-map-drawer-space\)/u);
 });

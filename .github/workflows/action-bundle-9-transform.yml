@@ -16,6 +16,7 @@ on:
       - .github/workflows/deploy-production.yml
       - tests/action-bundle-9-companion-map-tokens.test.mjs
       - scripts/action-bundle-9-transform.mjs
+      - scripts/action-bundle-9-typefix.mjs
       - .github/workflows/action-bundle-9-transform.yml
 
 permissions:
@@ -36,7 +37,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply focused Bundle 9 transform
-        run: node scripts/action-bundle-9-transform.mjs
+        run: |
+          node scripts/action-bundle-9-transform.mjs
+          node scripts/action-bundle-9-typefix.mjs
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

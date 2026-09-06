@@ -247,3 +247,50 @@ test("Roll History popout owns a stacking layer above Core Sheet panels", () => 
   assert.match(cssSource, /\.roll-history-popout\{[\s\S]*z-index:100;[\s\S]*pointer-events:auto/);
   assert.match(cssSource, /\.topbar\{[\s\S]*z-index:80/);
 });
+
+
+function diceStyleRelativeLuminance(hex) {
+  const channel = pair => {
+    const value = Number.parseInt(pair, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const r = channel(hex.slice(1, 3));
+  const g = channel(hex.slice(3, 5));
+  const b = channel(hex.slice(5, 7));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function diceStyleContrastRatio(foreground, background) {
+  const foregroundLuminance = diceStyleRelativeLuminance(foreground);
+  const backgroundLuminance = diceStyleRelativeLuminance(background);
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+test("curated dice styles keep readable face-label contrast", () => {
+  for (const style of DICE_STYLE_IDS) {
+    const config = DICE_STYLE_RENDERER_CONFIG[style];
+    assert.match(config.foreground, /^#[0-9a-f]{6}$/i);
+    assert.match(config.background, /^#[0-9a-f]{6}$/i);
+    assert.ok(
+      diceStyleContrastRatio(config.foreground, config.background) >= 7,
+      `${style} face labels keep at least 7:1 base contrast`,
+    );
+  }
+});
+
+test("virtual dice lighting keeps every resting face legible", () => {
+  assert.match(adapterSource, /const threeModuleName = "three"/);
+  assert.match(adapterSource, /import\(threeModuleName\)/);
+  assert.match(adapterSource, /HemisphereLight/);
+  assert.match(adapterSource, /twe-dice-fill-light/);
+  assert.match(adapterSource, /scene\.add\(fillLight\)/);
+});
+
+test("metal-look dice avoid unlit PBR metal while retaining their textures", () => {
+  for (const style of ["obsidian-gold", "ember-forge", "forged-steel", "antique-bronze"]) {
+    assert.equal(DICE_STYLE_RENDERER_CONFIG[style].material, "none");
+    assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS[style].material, "none");
+  }
+});

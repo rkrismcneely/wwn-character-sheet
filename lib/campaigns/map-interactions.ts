@@ -1,6 +1,10 @@
 import { CampaignServiceError } from "./service.ts";
 import { loadCampaignMapAccess } from "./map.ts";
-import { clampTokenSizeCells, snapTokenCenter } from "./map-grid.ts";
+import {
+  clampTokenSizeCells,
+  snapTokenCenterOnGrid,
+  type CampaignMapGridType,
+} from "./map-grid.ts";
 import type { CampaignActor } from "./types.ts";
 
 interface InteractionMapRow {
@@ -8,6 +12,7 @@ interface InteractionMapRow {
   isActive: number;
   backgroundWidth: number | null;
   backgroundHeight: number | null;
+  gridType: CampaignMapGridType;
   gridSize: number;
   gridOffsetX: number;
   gridOffsetY: number;
@@ -62,7 +67,8 @@ async function interactionMap(
   const mapId = identifier(mapIdValue, "Map");
   const map = await db.prepare(`SELECT id, is_active AS isActive,
       background_width AS backgroundWidth, background_height AS backgroundHeight,
-      grid_size AS gridSize, grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY
+      grid_type AS gridType, grid_size AS gridSize,
+      grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY
     FROM campaign_maps WHERE campaign_id = ? AND id = ?`)
     .bind(access.campaignInternalId, mapId).first<InteractionMapRow>();
   if (!map || (!access.canManage && !map.isActive)) throw new CampaignServiceError("Campaign map not found.", 404);
@@ -130,11 +136,14 @@ export async function snapCampaignMapTokenMove(
   }
   const tokenId = identifier(input.tokenId, "Map token");
   const sizeCells = await tokenSizeCells(db, map.id, tokenId);
-  return {
-    ...input,
-    x: snapTokenCenter(input.x, map.gridOffsetX, map.gridSize, sizeCells, map.backgroundWidth),
-    y: snapTokenCenter(input.y, map.gridOffsetY, map.gridSize, sizeCells, map.backgroundHeight),
-  };
+  const snapped = snapTokenCenterOnGrid(
+    { x: input.x, y: input.y },
+    { type: map.gridType, size: map.gridSize, offsetX: map.gridOffsetX, offsetY: map.gridOffsetY },
+    sizeCells,
+    map.backgroundWidth,
+    map.backgroundHeight,
+  );
+  return { ...input, ...snapped };
 }
 
 export async function setCampaignMapSnapPreference(
@@ -199,8 +208,15 @@ export async function resizeCampaignMapToken(
   let y = token.y;
   if (await snapEnabled(db, map.id)) {
     if (map.backgroundWidth && map.backgroundHeight) {
-      x = snapTokenCenter(x, map.gridOffsetX, map.gridSize, sizeCells, map.backgroundWidth);
-      y = snapTokenCenter(y, map.gridOffsetY, map.gridSize, sizeCells, map.backgroundHeight);
+      const snapped = snapTokenCenterOnGrid(
+        { x, y },
+        { type: map.gridType, size: map.gridSize, offsetX: map.gridOffsetX, offsetY: map.gridOffsetY },
+        sizeCells,
+        map.backgroundWidth,
+        map.backgroundHeight,
+      );
+      x = snapped.x;
+      y = snapped.y;
     }
   }
 

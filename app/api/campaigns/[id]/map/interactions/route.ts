@@ -7,7 +7,7 @@ import {
   setCampaignMapSharedRollDicePreference,
   setCampaignMapSnapPreference,
 } from "@/lib/campaigns/map-interactions";
-import { loadCampaignMapAccess } from "@/lib/campaigns/map";
+import { loadCampaignMapAccess, setCampaignMapFogCells } from "@/lib/campaigns/map";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
@@ -66,6 +66,11 @@ export async function POST(request: Request, context: Context): Promise<Response
       const result = await resizeCampaignMapToken(db, actor, id, body.mapId, body.tokenId, body.sizeCells);
       await announceMapChanged(db, access.campaignInternalId);
       return Response.json(result, { headers: { "cache-control": "no-store" } });
+    }
+    if (body.action === "set_fog") {
+      const map = await setCampaignMapFogCells(db, actor, id, body);
+      if (map.isActive) await announceMapChanged(db, access.campaignInternalId);
+      return Response.json({ map }, { headers: { "cache-control": "no-store" } });
     }
     throw new CampaignServiceError("A valid map-interaction action is required.", 422);
   } catch (error) {

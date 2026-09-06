@@ -78,6 +78,12 @@
   border: 1px solid color-mix(in srgb, var(--border, #725f47) 80%, #000 20%);
   border-radius: 14px;
   background: var(--surface, #17130f);
+  color: var(--text, #f4ead8);
+  --surface: #17130f;
+  --text: #f4ead8;
+  --text-muted: #b9ad9b;
+  --border: #725f47;
+  --page: #0b0c0d;
   box-shadow: 0 2rem 7rem rgba(0, 0, 0, .6);
 }
 
@@ -251,6 +257,10 @@
 .campaign-map-toolbar .campaign-kicker,
 .campaign-map-settings .campaign-kicker {
   margin: 0 0 .15rem;
+}
+
+.campaign-map-toolbar .campaign-kicker {
+  color: #d5a65b;
 }
 
 .campaign-map-toolbar small {

@@ -52,6 +52,8 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(css, /campaign-map-drawer-resize-handle/u);
   assert.match(css, /campaign-map-host-drawer \.campaign-map-toolbar-primary[\s\S]*?flex-direction: column/u);
   assert.match(css, /campaign-map-host-drawer \.campaign-map-mode-controls[\s\S]*?width: 100%/u);
+  assert.match(css, /\.campaign-map-dialog[\s\S]*?--text: #f4ead8/u);
+  assert.match(css, /\.campaign-map-toolbar \.campaign-kicker[\s\S]*?color: #d5a65b/u);
   assert.match(css, /empty\s+outer\s+gutter/u);
   assert.match(css, /campaign-map-collapsed-drawer/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dock-control\s*\{\s*display: none/u);

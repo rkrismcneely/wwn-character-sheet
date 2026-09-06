@@ -1,0 +1,58 @@
+name: Action Bundle 8 Transform
+
+on:
+  push:
+    branches:
+      - feat/action-bundle-8-live-map-dice
+    paths:
+      - app/campaigns/campaign-map-launcher.tsx
+      - app/campaigns/campaign-map-shared-dice.tsx
+      - app/campaigns/use-live-session.ts
+      - app/virtual-dice-overlay.tsx
+      - app/api/campaigns/**/map/interactions/route.ts
+      - lib/campaigns/map-interactions.ts
+      - drizzle/0020_action_bundle_8_live_map_dice.sql
+      - scripts/action-bundle-8-launcher-transform.mjs
+      - .github/workflows/action-bundle-8-transform.yml
+
+permissions:
+  contents: write
+
+jobs:
+  transform-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/action-bundle-8-live-map-dice
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Apply focused launcher transform
+        run: node scripts/action-bundle-8-launcher-transform.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused tests
+        run: node --test tests/campaign-map-interactions.test.mjs tests/shared-session-roll.test.mjs tests/roll-ui.test.mjs
+      - name: Full tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Validate Worker artifact
+        run: npm run validate:artifact
+      - name: Commit transformed launcher
+        run: |
+          if git diff --quiet -- app/campaigns/campaign-map-launcher.tsx; then
+            echo "Launcher already transformed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/campaigns/campaign-map-launcher.tsx
+          git commit -m "Wire shared dice into campaign map launcher"
+          git push origin HEAD:feat/action-bundle-8-live-map-dice

@@ -4,6 +4,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import {
   readCampaignMapInteractions,
   resizeCampaignMapToken,
+  setCampaignMapSharedRollDicePreference,
   setCampaignMapSnapPreference,
 } from "@/lib/campaigns/map-interactions";
 import { loadCampaignMapAccess } from "@/lib/campaigns/map";
@@ -53,6 +54,11 @@ export async function POST(request: Request, context: Context): Promise<Response
 
     if (body.action === "set_snap") {
       const interactions = await setCampaignMapSnapPreference(db, actor, id, body.mapId, body.enabled);
+      await announceMapChanged(db, access.campaignInternalId);
+      return Response.json({ interactions }, { headers: { "cache-control": "no-store" } });
+    }
+    if (body.action === "set_shared_roll_dice") {
+      const interactions = await setCampaignMapSharedRollDicePreference(db, actor, id, body.mapId, body.enabled);
       await announceMapChanged(db, access.campaignInternalId);
       return Response.json({ interactions }, { headers: { "cache-control": "no-store" } });
     }

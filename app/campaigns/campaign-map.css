@@ -212,6 +212,35 @@
   gap: .8rem;
 }
 
+/* A side drawer can be narrower than the full-page toolbar. Stack its title
+   and mode controls so the view selector and dock buttons remain readable at
+   the minimum drawer width instead of competing for one flex row. */
+.campaign-map-host-drawer .campaign-map-toolbar-primary {
+  flex-direction: column;
+}
+
+.campaign-map-host-drawer .campaign-map-title-block {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.campaign-map-host-drawer .campaign-map-title-block h2 {
+  overflow-wrap: anywhere;
+}
+
+.campaign-map-host-drawer .campaign-map-mode-controls {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar-actions {
+  justify-content: flex-start;
+}
+
+.campaign-map-host-drawer .campaign-map-control-group {
+  max-width: 100%;
+}
+
 .campaign-map-toolbar h2,
 .campaign-map-settings h3,
 .campaign-map-settings h4,

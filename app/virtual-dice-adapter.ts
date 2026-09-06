@@ -21,9 +21,6 @@ type DiceTextureRegistry = {
 type DiceBoxWithTextureRegistry = DiceBox & {
   DiceColors: DiceTextureRegistry;
 };
-type DiceBoxRendererInternals = DiceBoxWithTextureRegistry & {
-  scene: { add: (object: unknown) => void };
-};
 
 let diceBoxModule: Promise<DiceBoxModule> | null = null;
 
@@ -70,11 +67,7 @@ export class VirtualDiceRendererAdapter {
     }
 
     this.initializing = (async () => {
-      const threeModuleName = "three";
-      const [{ DiceBox }, { HemisphereLight }] = await Promise.all([
-        loadDiceBoxModule(),
-        import(threeModuleName),
-      ]);
+      const { DiceBox } = await loadDiceBoxModule();
       const config: Partial<DiceConfig> = {
         assetPath: "/assets/virtual-dice/",
         sounds: false,
@@ -83,7 +76,9 @@ export class VirtualDiceRendererAdapter {
         theme_material: "plastic",
         theme_customColorset: rendererConfigForDiceStyle(style),
         gravity_multiplier: 400,
-        light_intensity: 1.4,
+        // dice-box-threejs already creates both its spotlight and hemisphere
+        // fill light from this supported setting; no extra Three.js import is needed.
+        light_intensity: 1.6,
         baseScale: 70,
         strength: 1,
         iterationLimit: 1400,
@@ -91,12 +86,6 @@ export class VirtualDiceRendererAdapter {
       const box = new DiceBox(this.container, config);
       installStyleTextureRegistry(box);
       await box.initialize();
-      // dice-box-threejs predates Three.js' physically-correct lighting default.
-      // A neutral hemispheric fill keeps textured faces and numerals readable at
-      // every resting angle while the renderer's spotlight retains direction.
-      const fillLight = new HemisphereLight(0xffffff, 0xb8c1cb, 1.05);
-      fillLight.name = "twe-dice-fill-light";
-      (box as DiceBoxRendererInternals).scene.add(fillLight);
       this.box = box;
       const canvas = this.container.querySelector("canvas");
       canvas?.addEventListener("webglcontextlost", () => {

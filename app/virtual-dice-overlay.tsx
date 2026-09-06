@@ -50,6 +50,11 @@ export const VirtualDiceOverlay = forwardRef<VirtualDiceOverlayHandle, { theme: 
         className={`virtual-dice-overlay ${active ? "is-active" : ""}`}
         aria-hidden="true"
         data-theme={theme}
+        style={{
+          background: active
+            ? theme === "dark" ? "rgba(0, 0, 0, 0.36)" : "rgba(35, 24, 12, 0.20)"
+            : "transparent",
+        }}
       >
         <div ref={scene} className="virtual-dice-scene" />
       </div>,

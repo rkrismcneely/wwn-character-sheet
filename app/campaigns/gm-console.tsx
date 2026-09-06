@@ -27,7 +27,7 @@ import { useDisplayTheme } from "@/app/theme-provider";
 import { RulesAssistant } from "@/app/rules-assistant";
 import { CampaignItemLibrary } from "./campaign-item-library";
 import type { CampaignItem, CampaignItemManagementPayload } from "@/lib/campaigns/items";
-import { campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
+import { campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
 
 type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "party";
 
@@ -95,7 +95,7 @@ function NpcInventoryPicker({ items, values, onChange }: { items: readonly Campa
   return <fieldset className="gm-npc-inventory"><legend>Inventory</legend><p>Campaign items are available to NPCs regardless of player visibility targeting. Saved entries keep their item snapshot if the library changes.</p>{slots.map((value, index) => {
     const snapshot = campaignInventorySnapshot(value);
     const stillAvailable = value && items.some(item => campaignInventoryValue(item) === value);
-    return <label key={`${index}-${value}`}><span>{index < values.length ? `Item ${index + 1}` : "Add item"}</span><select aria-label={`NPC inventory item ${index + 1}`} value={value} onChange={event => setItem(index, event.target.value)}><option value="">Choose a campaign item…</option>{snapshot && !stillAvailable && <option value={value}>{inventoryItemDisplayName(value)} · Saved snapshot</option>}{items.map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} · {item.kind === "magical" ? "Magical" : "Mundane"}</option>)}</select>{snapshot && <small>{snapshot.kind === "magical" ? "Magical" : "Mundane"}{snapshot.description ? ` · ${snapshot.description}` : ""}</small>}</label>;
+    return <label key={`${index}-${value}`}><span>{index < values.length ? `Item ${index + 1}` : "Add item"}</span><select aria-label={`NPC inventory item ${index + 1}`} value={value} onChange={event => setItem(index, event.target.value)}><option value="">Choose a campaign item…</option>{snapshot && !stillAvailable && <option value={value}>{inventoryItemDisplayName(value)} · Saved snapshot</option>}{items.map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} · {campaignInventoryKindLabel(item.kind)}</option>)}</select>{snapshot && <small>{campaignInventoryKindLabel(snapshot.kind)}{snapshot.description ? ` · ${snapshot.description}` : ""}</small>}</label>;
   })}</fieldset>;
 }
 function rollNpcHitPoints(hitDice: number): number {

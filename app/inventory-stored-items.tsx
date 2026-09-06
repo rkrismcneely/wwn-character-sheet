@@ -11,7 +11,9 @@ import {
 import {
   campaignInventorySnapshot,
   campaignInventoryValue,
+  campaignInventoryKindLabel,
   inventoryItemDisplayName,
+  inventoryItemDescription,
   type CampaignInventoryItemSnapshot,
 } from "@/lib/inventory/items";
 
@@ -62,7 +64,7 @@ export function CampaignInventoryOptions({ items }: { items: readonly CampaignIn
   if (!items.length) return null;
   return <optgroup label="Campaign Items">
     {items.map(item => <option key={`${item.campaignId}-${item.id}`} value={campaignInventoryValue(item)}>
-      {item.name} · {item.kind === "magical" ? "Magical" : "Mundane"} · {item.campaignName}
+      {item.name} · {campaignInventoryKindLabel(item.kind)} · {item.campaignName}
     </option>)}
   </optgroup>;
 }
@@ -137,7 +139,7 @@ export function StoredItemsSection({
               <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle.name} value={bundle.name}>{bundle.name}</option>)}</optgroup>
             </select>
             {(isCustom || editingOther) && <input autoFocus={editingOther && !item} aria-label={`Other stored item ${index + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={event => setItem(index, event.target.value)} />}
-            {campaignItem && <small className="campaign-item-description"><strong>{campaignItem.kind === "magical" ? "Magical" : "Mundane"}</strong>{campaignItem.description ? ` · ${campaignItem.description}` : ""}</small>}
+              {campaignItem && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignItem.kind)}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
           </label>
           {item && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => onStow(index)}>Stow</button><button type="button" className="drop-item" onClick={() => drop(index, item)}>Drop</button></span>}
         </div>;

@@ -246,15 +246,16 @@ export const campaignItems = sqliteTable(
     id: text("id").primaryKey(),
     campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    kind: text("kind", { enum: ["mundane", "magical"] }).notNull().default("mundane"),
+    kind: text("kind", { enum: ["mundane", "magical", "weapon", "armor"] }).notNull().default("mundane"),
     description: text("description").notNull().default(""),
+    propertiesJson: text("properties_json").notNull().default("{}"),
     visibilityMode: text("visibility_mode", { enum: ["all", "selected"] }).notNull().default("all"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
     index("campaign_items_campaign_name_idx").on(table.campaignId, table.name, table.updatedAt),
-    check("campaign_items_kind_check", sql`${table.kind} in ('mundane', 'magical')`),
+    check("campaign_items_kind_check", sql`${table.kind} in ('mundane', 'magical', 'weapon', 'armor')`),
     check("campaign_items_visibility_check", sql`${table.visibilityMode} in ('all', 'selected')`),
   ],
 );

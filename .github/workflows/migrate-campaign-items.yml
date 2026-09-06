@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "drizzle/0016_campaign_items.sql"
+      - "drizzle/0019_campaign_item_equipment.sql"
       - "scripts/migrate-campaign-items.mjs"
       - ".github/workflows/migrate-campaign-items.yml"
   workflow_dispatch:

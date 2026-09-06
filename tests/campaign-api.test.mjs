@@ -35,7 +35,7 @@ import {
   listCampaignNpcTemplates,
   updateCampaignNpcTemplate,
 } from "../lib/campaigns/npcs.ts";
-import { createCampaignItem, updateCampaignItem } from "../lib/campaigns/items.ts";
+import { createCampaignItem, listCampaignItemsForManagement, updateCampaignItem } from "../lib/campaigns/items.ts";
 import { campaignInventorySnapshot, campaignInventoryValue } from "../lib/inventory/items.ts";
 import {
   builtInBestiaryCreatureDraft,
@@ -138,6 +138,7 @@ async function fixture() {
       FOREIGN KEY (owner_user_id) REFERENCES user(id) ON DELETE SET NULL
     );
   `);
+  sqlite.exec("ALTER TABLE characters ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''");
   const insertUser = sqlite.prepare(
     "INSERT INTO user (id, name, email) VALUES (?, ?, ?)",
   );
@@ -150,7 +151,7 @@ async function fixture() {
   ]) {
     insertUser.run(id, name, `${id}@example.invalid`);
   }
-  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql", "0016_campaign_items.sql", "0017_action_bundle_7_npc_usability.sql", "0018_action_bundle_13_npc_inventory.sql"]) {
+  for (const migrationName of ["0006_campaign_foundation.sql", "0008_campaign_resources.sql", "0010_campaign_live_sessions.sql", "0011_campaign_npc_templates.sql", "0012_campaign_npc_threat_stats.sql", "0016_campaign_items.sql", "0017_action_bundle_7_npc_usability.sql", "0018_action_bundle_13_npc_inventory.sql", "0019_campaign_item_equipment.sql"]) {
     const migration = await readFile(new URL(`../drizzle/${migrationName}`, import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) {
       if (statement.trim()) sqlite.exec(statement);
@@ -314,6 +315,32 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   await expectServiceError(campaignNpcEncounterSeed(db, internalCampaign(sqlite, otherCampaign.id).id, npc.id), 404);
   await deleteCampaignNpcTemplate(db, owner, campaign.id, duplicate.id);
   assert.equal((await listCampaignNpcTemplates(db, owner, campaign.id)).length, 1);
+});
+
+test("campaign item categories validate and persist WWN equipment properties", async () => {
+  const { db } = await fixture();
+  const campaign = await createCampaign(db, owner, { name: "Equipment Company" }, now);
+  const weapon = await createCampaignItem(db, owner, campaign.id, {
+    name: "Harbor Spear", kind: "weapon", description: "Dockside defense.",
+    properties: { damage: "1d6", shock: "2/AC 13", range: "30/60", attribute: "Str/Dex", skill: "Stab", encumbrance: 1, traits: "T" },
+  }, now);
+  assert.equal(weapon.kind, "weapon");
+  assert.equal(weapon.properties.weapon?.skill, "Stab");
+  const armor = await createCampaignItem(db, owner, campaign.id, {
+    name: "Harbor Buckler", kind: "armor", description: "A compact shield.",
+    properties: { armorClass: 13, encumbrance: 1, shield: "small", restrictions: "", properties: "Ignores the first Shock instance each round." },
+  }, now);
+  assert.equal(armor.properties.armor?.armorClass, 13);
+  assert.equal(armor.properties.armor?.shield, "small");
+  const magic = await createCampaignItem(db, owner, campaign.id, {
+    name: "Lantern of Echoes", kind: "magical", description: "A strange lantern.",
+    properties: { bonuses: "+1 to Notice", abilities: "Reveals hidden writing.", charges: 3, uses: "One charge per scene.", rulesText: "The GM decides what qualifies as hidden writing." },
+  }, now);
+  assert.equal(magic.properties.magical?.charges, 3);
+  await expectServiceError(createCampaignItem(db, owner, campaign.id, { name: "Invalid Weapon", kind: "weapon", description: "" }, now), 422);
+  const persisted = await listCampaignItemsForManagement(db, owner, campaign.id);
+  assert.deepEqual(persisted.items.map(item => item.kind).sort(), ["armor", "magical", "weapon"]);
+  assert.equal(persisted.items.find(item => item.id === weapon.id)?.properties.weapon?.damage, "1d6");
 });
 
 test("CC0 built-in bestiary definitions search and create independent campaign and encounter copies", async () => {

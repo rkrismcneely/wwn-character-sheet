@@ -43,7 +43,7 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Focused tests
-        run: node --test tests/action-bundle-8-live-map-dice.test.mjs tests/campaign-map-interactions.test.mjs tests/shared-session-roll.test.mjs tests/roll-ui.test.mjs
+        run: node --experimental-strip-types --test tests/action-bundle-8-live-map-dice.test.mjs tests/campaign-map-interactions.test.mjs tests/shared-session-roll.test.mjs tests/roll-ui.test.mjs
       - name: Full tests
         run: npm test
       - name: Production build

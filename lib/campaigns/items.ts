@@ -1,5 +1,14 @@
 import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
-import type { InventoryItemKind } from "../inventory/items.ts";
+import type {
+  CampaignArmorProperties,
+  CampaignItemProperties,
+  CampaignMagicalProperties,
+  CampaignWeaponAttribute,
+  CampaignWeaponProperties,
+  CampaignWeaponSkill,
+  CampaignShieldSize,
+  InventoryItemKind,
+} from "../inventory/items.ts";
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 
@@ -11,6 +20,7 @@ export interface CampaignItem {
   name: string;
   kind: InventoryItemKind;
   description: string;
+  properties: CampaignItemProperties;
   visibility: CampaignItemVisibility;
   characterIds: string[];
   createdAt: string;
@@ -23,6 +33,7 @@ export interface AvailableCampaignItem {
   name: string;
   kind: InventoryItemKind;
   description: string;
+  properties: CampaignItemProperties;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +52,7 @@ export interface CampaignItemDraft {
   name?: unknown;
   kind?: unknown;
   description?: unknown;
+  properties?: unknown;
   visibility?: unknown;
   characterIds?: unknown;
 }
@@ -50,6 +62,7 @@ interface CampaignItemRow {
   name: string;
   kind: InventoryItemKind;
   description: string;
+  propertiesJson: string;
   visibility: CampaignItemVisibility;
   createdAt: string;
   updatedAt: string;
@@ -82,8 +95,90 @@ function text(
 }
 
 function kind(value: unknown): InventoryItemKind {
-  if (value === "mundane" || value === "magical") return value;
+  if (value === "mundane" || value === "magical" || value === "weapon" || value === "armor") return value;
   throw new CampaignServiceError("Item type is invalid.", 422);
+}
+
+function integer(value: unknown, label: string, minimum: number, maximum: number): number {
+  if (!Number.isInteger(value) || (value as number) < minimum || (value as number) > maximum) {
+    throw new CampaignServiceError(`${label} is invalid.`, 422);
+  }
+  return value as number;
+}
+
+function choice<T extends string>(value: unknown, allowed: readonly T[], label: string): T {
+  if (typeof value === "string" && allowed.includes(value as T)) return value as T;
+  throw new CampaignServiceError(`${label} is invalid.`, 422);
+}
+
+function optionalText(value: unknown, label: string, maximum: number): string {
+  return text(value, label, maximum, false, true);
+}
+
+function weaponProperties(value: unknown): CampaignWeaponProperties {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new CampaignServiceError("Weapon properties are required.", 422);
+  const candidate = value as Record<string, unknown>;
+  return {
+    damage: text(candidate.damage, "Weapon damage", 80),
+    shock: text(candidate.shock, "Weapon Shock", 80),
+    range: text(candidate.range, "Weapon range", 40),
+    attribute: choice<CampaignWeaponAttribute>(candidate.attribute, ["Str", "Dex", "Str/Dex"], "Weapon attribute"),
+    skill: choice<CampaignWeaponSkill>(candidate.skill, ["Stab", "Shoot", "Punch"], "Weapon skill"),
+    encumbrance: integer(candidate.encumbrance, "Weapon encumbrance", 0, 20),
+    traits: optionalText(candidate.traits, "Weapon traits", 240),
+  };
+}
+
+function armorProperties(value: unknown): CampaignArmorProperties {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new CampaignServiceError("Armour properties are required.", 422);
+  const candidate = value as Record<string, unknown>;
+  return {
+    armorClass: integer(candidate.armorClass, "Armour AC", 0, 100),
+    encumbrance: integer(candidate.encumbrance, "Armour encumbrance", 0, 20),
+    shield: choice<CampaignShieldSize>(candidate.shield, ["none", "small", "large"], "Armour shield status"),
+    restrictions: optionalText(candidate.restrictions, "Armour restrictions", 500),
+    properties: optionalText(candidate.properties, "Armour properties", 500),
+  };
+}
+
+function magicalProperties(value: unknown): CampaignMagicalProperties {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new CampaignServiceError("Magical item properties are required.", 422);
+  const candidate = value as Record<string, unknown>;
+  const charges = candidate.charges === undefined || candidate.charges === null || candidate.charges === ""
+    ? null
+    : integer(candidate.charges, "Magical item charges", 0, 100000);
+  return {
+    bonuses: optionalText(candidate.bonuses, "Magical item bonuses", 500),
+    abilities: optionalText(candidate.abilities, "Magical item abilities", 2000),
+    charges,
+    uses: optionalText(candidate.uses, "Magical item uses", 500),
+    rulesText: optionalText(candidate.rulesText, "Magical item rules", 2000),
+  };
+}
+
+function properties(value: unknown, itemKind: InventoryItemKind): CampaignItemProperties {
+  if (itemKind === "mundane") return {};
+  if (itemKind === "weapon") return { weapon: weaponProperties(value) };
+  if (itemKind === "armor") return { armor: armorProperties(value) };
+  // Keep the original magical-item payload valid. Its free-form description
+  // remains the complete definition when no structured fields were supplied.
+  if (value === undefined || value === null) return {};
+  return { magical: magicalProperties(value) };
+}
+
+function storedProperties(value: string): CampaignItemProperties {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const candidate = parsed as Record<string, unknown>;
+    return {
+      ...(candidate.weapon && typeof candidate.weapon === "object" && !Array.isArray(candidate.weapon) ? { weapon: candidate.weapon as CampaignWeaponProperties } : {}),
+      ...(candidate.armor && typeof candidate.armor === "object" && !Array.isArray(candidate.armor) ? { armor: candidate.armor as CampaignArmorProperties } : {}),
+      ...(candidate.magical && typeof candidate.magical === "object" && !Array.isArray(candidate.magical) ? { magical: candidate.magical as CampaignMagicalProperties } : {}),
+    };
+  } catch {
+    return {};
+  }
 }
 
 function visibility(value: unknown): CampaignItemVisibility {
@@ -139,10 +234,12 @@ async function resolveTargets(
 
 function normalizedDraft(draft: CampaignItemDraft) {
   const itemVisibility = visibility(draft.visibility);
+  const itemKind = kind(draft.kind ?? "mundane");
   return {
     name: text(draft.name, "Item name", 80),
-    kind: kind(draft.kind ?? "mundane"),
+    kind: itemKind,
     description: text(draft.description, "Item description", 2000, false, true),
+    properties: properties(draft.properties, itemKind),
     visibility: itemVisibility,
     characterIds: targetIds(draft.characterIds, itemVisibility),
   };
@@ -171,6 +268,7 @@ function toManagedItem(row: CampaignItemRow, campaignPublicId: string, targets: 
     name: row.name,
     kind: row.kind,
     description: row.description,
+    properties: storedProperties(row.propertiesJson),
     visibility: row.visibility,
     characterIds: row.visibility === "selected" ? targets.get(row.id) ?? [] : [],
     createdAt: row.createdAt,
@@ -186,7 +284,7 @@ export async function listCampaignItemsForManagement(
   const campaign = await ownerCampaign(db, actor, campaignPublicId);
   const [itemResult, characters, targets] = await Promise.all([
     db.prepare(
-      `SELECT id, name, kind, description, visibility_mode AS visibility,
+      `SELECT id, name, kind, description, properties_json AS propertiesJson, visibility_mode AS visibility,
               created_at AS createdAt, updated_at AS updatedAt
        FROM campaign_items WHERE campaign_id = ?
        ORDER BY lower(name), updated_at DESC`,
@@ -224,7 +322,7 @@ export async function listCampaignItemsForCharacter(
     throw new CampaignServiceError("Character not found.", 404);
   }
   const result = await db.prepare(
-    `SELECT ci.id, ci.name, ci.kind, ci.description,
+      `SELECT ci.id, ci.name, ci.kind, ci.description, ci.properties_json AS propertiesJson,
             ci.created_at AS createdAt, ci.updated_at AS updatedAt
      FROM campaign_items ci
      WHERE ci.campaign_id = ?
@@ -243,6 +341,7 @@ export async function listCampaignItemsForCharacter(
     name: row.name,
     kind: row.kind,
     description: row.description,
+    properties: storedProperties(row.propertiesJson),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
@@ -262,9 +361,9 @@ export async function createCampaignItem(
   await db.batch([
     db.prepare(
       `INSERT INTO campaign_items
-        (id, campaign_id, name, kind, description, visibility_mode, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, campaign.id, value.name, value.kind, value.description, value.visibility, now, now),
+        (id, campaign_id, name, kind, description, properties_json, visibility_mode, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, campaign.id, value.name, value.kind, value.description, JSON.stringify(value.properties), value.visibility, now, now),
     ...targets.map(target => db.prepare(
       `INSERT INTO campaign_item_characters (campaign_item_id, character_id) VALUES (?, ?)`,
     ).bind(id, target.id)),
@@ -290,9 +389,9 @@ export async function updateCampaignItem(
   await db.batch([
     db.prepare(
       `UPDATE campaign_items
-       SET name = ?, kind = ?, description = ?, visibility_mode = ?, updated_at = ?
+       SET name = ?, kind = ?, description = ?, properties_json = ?, visibility_mode = ?, updated_at = ?
        WHERE campaign_id = ? AND id = ?`,
-    ).bind(value.name, value.kind, value.description, value.visibility, now, campaign.id, itemId),
+    ).bind(value.name, value.kind, value.description, JSON.stringify(value.properties), value.visibility, now, campaign.id, itemId),
     db.prepare("DELETE FROM campaign_item_characters WHERE campaign_item_id = ?").bind(itemId),
     ...targets.map(target => db.prepare(
       `INSERT INTO campaign_item_characters (campaign_item_id, character_id) VALUES (?, ?)`,

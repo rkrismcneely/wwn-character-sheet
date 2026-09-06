@@ -85,7 +85,7 @@ import { authClient } from "@/lib/auth-client";
 import { SignedInHeader, TalesBrandLink } from "./app-header";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
-import { campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
+import { campaignInventoryArmor, campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventoryValue, campaignInventoryWeapon, inventoryItemDescription, inventoryItemDisplayName } from "@/lib/inventory/items";
 import { CampaignInventoryOptions, StoredItemsSection, useCampaignInventoryItems } from "./inventory-stored-items";
 
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
@@ -993,6 +993,7 @@ export default function Home({
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
   const levelOneStatus = useMemo(() => levelOneCreationStatus(sheet), [sheet]);
   const { items: campaignInventoryItems, error: campaignInventoryError } = useCampaignInventoryItems(cloudId, campaignLinks, canEdit);
+  const campaignArmorItems = campaignInventoryItems.filter(item => item.kind === "armor");
   const buildFieldsEditable = canEdit && (!cloudId || characterEditMode);
   const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
 
@@ -2248,11 +2249,19 @@ export default function Home({
     ? {...dualCasterLimits(effectiveLevel), arts: 0}
     : castingTraditions.length ? casterLimits(effectiveLevel, sheet.classMode === "adventurer") : { max: 0, casts: 0, prepared: 0, arts: 0 };
   const baseAttack = sheet.classOne ? rules.attack : 0;
-  const armorBase = armors.find(armor => armor.name === sheet.armor)?.ac ?? 10;
-  const wornArmor = armors.find(armor => armor.name === sheet.armor) ?? armors[0];
+  const campaignWornArmor = campaignInventoryArmor(sheet.armor);
+  const officialWornArmor = armors.find(armor => armor.name === sheet.armor);
+  const armorBase = campaignWornArmor?.ac ?? officialWornArmor?.ac ?? 10;
+  const wornArmor = campaignWornArmor ?? officialWornArmor ?? armors[0];
+  const campaignShield = campaignInventoryArmor(sheet.shield);
+  const shieldBase = sheet.shield === "Small Shield" ? 13 : sheet.shield === "Large Shield" ? 14
+    : campaignShield?.shield === "small" ? campaignShield.ac
+      : campaignShield?.shield === "large" ? campaignShield.ac
+        : 0;
+  const hasShield = Boolean(shieldBase);
   const castingBlocked = armorRestrictedTraditions.length > 0 && (
     armoredMagicLevel === 0
-      ? wornArmor.name !== "No Armor" || Boolean(sheet.shield)
+      ? wornArmor.name !== "No Armor" || hasShield
       : armoredMagicLevel === 1 && wornArmor.enc > 2
   );
   const castingBlockedReason = castingBlocked
@@ -2260,18 +2269,17 @@ export default function Home({
       ? `${wornArmor.name} has Encumbrance ${wornArmor.enc}; Armored Magic level 1 only permits armor of Encumbrance 2 or less.`
       : `${wornArmor.name !== "No Armor" ? wornArmor.name : sheet.shield} prevents spellcasting without Armored Magic.`
     : "";
-  const shieldBase = sheet.shield === "Small Shield" ? 13 : sheet.shield === "Large Shield" ? 14 : 0;
   const shieldAdjustedBase = shieldBase ? (armorBase >= shieldBase ? armorBase + 1 : shieldBase) : armorBase;
   const imperviousDefense = selectedFocusPicks.some(pick => pick.name === "Impervious Defense");
   const naturalArmorBase = imperviousDefense ? 15 + Math.ceil(effectiveLevel / 2) : 0;
-  const bestArmorBase = Math.max(shieldAdjustedBase, naturalArmorBase + (sheet.shield ? 1 : 0));
-  const vowedArmorBase = selectedClasses.includes("Vowed") && wornArmor.name === "No Armor" && !sheet.shield
+  const bestArmorBase = Math.max(shieldAdjustedBase, naturalArmorBase + (hasShield ? 1 : 0));
+  const vowedArmorBase = selectedClasses.includes("Vowed") && wornArmor.name === "No Armor" && !hasShield
     ? 13 + Math.floor(effectiveLevel / 2)
     : 0;
   const coldFleshArmorBase = sheet.artPicks.some(name => artSelectionName(name) === "Cold Flesh") ? 12 + Math.floor(effectiveLevel / 2) : 0;
   const pavisIndex = sheet.artPicks.findIndex(name => artSelectionName(name) === "Pavis of Elements");
   const pavisActive = pavisIndex >= 0 && Boolean(sheet.artEffort[pavisIndex]);
-  const defensiveBase = Math.max(bestArmorBase, vowedArmorBase, coldFleshArmorBase + (sheet.shield ? 1 : 0));
+  const defensiveBase = Math.max(bestArmorBase, vowedArmorBase, coldFleshArmorBase + (hasShield ? 1 : 0));
   const calculatedAcBeforePavis = defensiveBase + attributeMod("DEX") + (sheet.armorBonus || 0);
   const calculatedAc = pavisActive ? Math.min(18, calculatedAcBeforePavis + 4) : calculatedAcBeforePavis;
   const calculatedInitiative = attributeMod("DEX");
@@ -2375,7 +2383,7 @@ export default function Home({
   const stowedSlots = inventorySlots(sheet.stowed, stowedCapacity);
   const readiedWeapons = readiedSlots
     .map((name, inventoryIndex) => ({ name, inventoryIndex }))
-    .filter(item => inventoryWeapons.some(weapon => weapon.name === item.name));
+    .filter(item => inventoryWeapons.some(weapon => weapon.name === item.name) || Boolean(campaignInventoryWeapon(item.name)));
   const unarmedPrimary = selectedClasses.includes("Vowed") || selectedFocusPicks.some(pick => pick.name === "Unarmed Combatant");
   const displayedWeapons = unarmedPrimary
     ? [{ name: "Unarmed Attack", inventoryIndex: -1 }, ...readiedWeapons]
@@ -2622,7 +2630,8 @@ export default function Home({
   }, [hydrated]);
 
   function weaponCalc(pick: WeaponPick) {
-    const w = weapons.find(x => x.name === pick.name);
+    const campaignWeapon = campaignInventoryWeapon(pick.name);
+    const w = campaignWeapon ?? weapons.find(x => x.name === pick.name);
     if (!w) return null;
     const bestPhysicalModifier = Math.max(attributeMod("STR"), attributeMod("DEX"));
     const attrMod = w.attribute === "Dex" ? attributeMod("DEX") : w.attribute === "Str" ? attributeMod("STR") : bestPhysicalModifier;
@@ -2630,9 +2639,9 @@ export default function Home({
     const isThrownWeapon = w.traits.split(",").map(trait => trait.trim()).includes("T");
     // A versatile thrown weapon is shown in the mode that uses the character's
     // best trained combat skill. This keeps Shock tied to melee use only.
-    const isMelee = isUnarmed || w.range === "-" || (isThrownWeapon && effectiveSkill("Stab") >= effectiveSkill("Shoot"));
+    const isMelee = isUnarmed || (campaignWeapon ? campaignWeapon.skill !== "Shoot" : w.range === "-" || (isThrownWeapon && effectiveSkill("Stab") >= effectiveSkill("Shoot")));
     const isThrown = isThrownWeapon && !isMelee;
-    const skillName = isUnarmed ? "Punch" : isMelee ? "Stab" : "Shoot";
+    const skillName = isUnarmed ? "Punch" : campaignWeapon?.skill ?? (isMelee ? "Stab" : "Shoot");
     const skill = effectiveSkill(skillName);
     const unskilled = skill < 0 && w.name !== "Crossbow" ? -2 : 0;
     const armsmaster = selectedFocusPicks.find(focus => focus.name === "Armsmaster");
@@ -3313,8 +3322,8 @@ export default function Home({
                 <label className="field calculated-field"><span>HP maximum</span><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} /></label>
                 <StepperField label="System Strain" value={sheet.strainCurrent} minimum={0} maximum={attributeScore("CON")} onChange={value => patch("strainCurrent", value)} />
                 <label className="field calculated-field"><span>Strain maximum</span><input type="number" value={attributeScore("CON") || ""} disabled title="System Strain maximum equals Constitution" /></label>
-                <label className="field"><span>Worn armor</span><select value={armors.some(armor => armor.name === sheet.armor) ? sheet.armor : "No Armor"} onChange={e => patch("armor", e.target.value)}>{armors.map(armor => <option key={armor.name} value={armor.name}>{armor.name} (AC {armor.ac})</option>)}</select></label>
-                <label className="field"><span>Shield</span><select value={sheet.shield} onChange={e => patch("shield", e.target.value)}>{shields.map(shield => <option key={shield || "none"} value={shield}>{shield || "No Shield"}</option>)}</select></label>
+                <label className="field"><span>Worn armor</span><select value={officialWornArmor || campaignWornArmor ? sheet.armor : "No Armor"} onChange={e => patch("armor", e.target.value)}>{armors.map(armor => <option key={armor.name} value={armor.name}>{armor.name} (AC {armor.ac})</option>)}{campaignWornArmor && !campaignArmorItems.some(item => campaignInventoryValue(item) === sheet.armor) && <option value={sheet.armor}>{campaignWornArmor.name} (AC {campaignWornArmor.ac}) · Saved snapshot</option>}{campaignArmorItems.filter(item => item.properties?.armor?.shield === "none").map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} (AC {item.properties?.armor?.armorClass}) · Campaign armour</option>)}</select></label>
+                <label className="field"><span>Shield</span><select value={hasShield ? sheet.shield : ""} onChange={e => patch("shield", e.target.value)}>{shields.map(shield => <option key={shield || "none"} value={shield}>{shield || "No Shield"}</option>)}{campaignShield && !campaignArmorItems.some(item => campaignInventoryValue(item) === sheet.shield) && <option value={sheet.shield}>{campaignShield.name} · Saved snapshot</option>}{campaignArmorItems.filter(item => item.properties?.armor?.shield !== "none").map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} ({item.properties?.armor?.shield} shield, AC {item.properties?.armor?.armorClass})</option>)}</select></label>
                 <Field label="Magic / custom AC bonus" value={sheet.armorBonus} onChange={v => patch("armorBonus", Number(v))} />
                 <label className="field calculated-field"><span>Calculated Armor Class</span><input value={calculatedAc} disabled /></label>
                 <div className="field calculated-field initiative-field"><span>Initiative</span><input value={signed(calculatedInitiative)} disabled /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={rollInitiative}>Roll Initiative</button></div>
@@ -3353,9 +3362,10 @@ export default function Home({
                 {displayedWeapons.map(({ name, inventoryIndex }) => {
                   const pick = { name, skill: -1 };
                   const calc = weaponCalc(pick);
+                  const displayName = inventoryItemDisplayName(name);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
-                    <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{name}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(name, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(name, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{displayName}{calc?.virtual && <small> permanent</small>}</strong>
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
@@ -3597,7 +3607,7 @@ export default function Home({
                     <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                   </select>
                   {(isCustom || otherStowedIndex === i) && <input autoFocus={otherStowedIndex === i && !item} aria-label={`Other stowed item ${i + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={e => setStowedItem(i, e.target.value)} />}
-                  {campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventorySnapshot(item)?.kind === "magical" ? "Magical" : "Mundane"}</strong>{campaignInventorySnapshot(item)?.description ? ` · ${campaignInventorySnapshot(item)?.description}` : ""}</small>}
+                  {campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
                 </label>
                 {item && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => moveStowedToStored(i)}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button></span>}
               </div>;
@@ -3969,7 +3979,7 @@ export default function Home({
                       <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                     </select>
                     {(isCustom || editingOther) && <input autoFocus={editingOther && !item} aria-label={`Other companion stowed item ${index + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={e => setCompanionStowedItem(index, e.target.value)} />}
-                    {campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventorySnapshot(item)?.kind === "magical" ? "Magical" : "Mundane"}</strong>{campaignInventorySnapshot(item)?.description ? ` · ${campaignInventorySnapshot(item)?.description}` : ""}</small>}
+                    {campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
                   </label>
                   {item && <button type="button" className="drop-item" onClick={() => dropCompanionItem("stowed", index, item)}>Drop</button>}
                 </div>;

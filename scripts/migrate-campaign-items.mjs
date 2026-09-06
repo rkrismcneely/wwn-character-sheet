@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { DATABASE_ID, DATABASE_NAME } from "./d1-admin.mjs";
 
-const migrationName = "0016_campaign_items.sql";
+const migrationNames = ["0016_campaign_items.sql", "0019_campaign_item_equipment.sql"];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
   ...process.env,
@@ -35,7 +35,9 @@ function applyReviewedMigration() {
   try {
     const migrations = join(root, "migrations");
     mkdirSync(migrations, { recursive: true });
-    copyFileSync(join(process.cwd(), "drizzle", migrationName), join(migrations, migrationName));
+    for (const migrationName of migrationNames) {
+      copyFileSync(join(process.cwd(), "drizzle", migrationName), join(migrations, migrationName));
+    }
     const config = join(root, "wrangler.jsonc");
     writeFileSync(config, JSON.stringify({
       name: "wwn-character-sheet",
@@ -68,11 +70,13 @@ for (const baseline of [
   }
 }
 
-if (!applied.has(migrationName)) applyReviewedMigration();
+if (migrationNames.some(migrationName => !applied.has(migrationName))) applyReviewedMigration();
 
 const finalApplied = new Set(query("SELECT name FROM d1_migrations").map(row => row.name));
-if (!finalApplied.has(migrationName)) {
-  throw new Error(`${migrationName} is not recorded in production D1 migration history.`);
+for (const migrationName of migrationNames) {
+  if (!finalApplied.has(migrationName)) {
+    throw new Error(`${migrationName} is not recorded in production D1 migration history.`);
+  }
 }
 
 const tables = new Set(query("SELECT name FROM sqlite_master WHERE type = 'table'").map(row => row.name));
@@ -81,7 +85,7 @@ for (const table of ["campaign_items", "campaign_item_characters"]) {
 }
 
 const itemColumns = new Set(query("PRAGMA table_info(campaign_items)").map(row => row.name));
-for (const column of ["id", "campaign_id", "name", "kind", "description", "visibility_mode", "created_at", "updated_at"]) {
+for (const column of ["id", "campaign_id", "name", "kind", "description", "properties_json", "visibility_mode", "created_at", "updated_at"]) {
   if (!itemColumns.has(column)) throw new Error(`campaign_items is missing ${column}.`);
 }
 

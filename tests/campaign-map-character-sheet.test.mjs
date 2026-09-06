@@ -14,8 +14,9 @@ test("campaign character sheets expose the shared map modal", async () => {
   assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities"\)/u);
   assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
   assert.match(control, /new MutationObserver/u);
-  assert.match(control, />\s*Map\s*</u);
+  assert.match(control, /mapIsOpen \? "Close Map" : "Map"/u);
   assert.match(control, /campaignMapOpenEvent/u);
+  assert.match(control, /campaignMapStateEvent/u);
   assert.match(events, /twe:campaign-map-open/u);
   assert.match(launcher, /window\.addEventListener\(campaignMapOpenEvent/u);
 });

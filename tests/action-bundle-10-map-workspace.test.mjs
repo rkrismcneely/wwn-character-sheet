@@ -35,7 +35,8 @@ test("Action Bundle 10 uses one authenticated workspace controller across deskto
     read("app/campaigns/campaign-map.css"),
   ]);
 
-  assert.match(launcher, /type MapPresentation = "fullscreen" \| "split" \| "drawer" \| "floating" \| "pip" \| "standalone"/u);
+  assert.match(launcher, /mapWorkspaceReducer/u);
+  assert.match(launcher, /type InPageMapPresentation/u);
   assert.match(launcher, /export function CampaignMapWorkspace/u);
   assert.match(launcher, /useCampaignLiveSession\(campaignId, open\)/u);
   assert.match(launcher, /new BroadcastChannel\(`twe:campaign-map:\$\{campaignId\}`\)/u);
@@ -46,6 +47,8 @@ test("Action Bundle 10 uses one authenticated workspace controller across deskto
   assert.match(launcher, /Split panel/u);
   assert.match(launcher, /Side drawer/u);
   assert.match(launcher, /Floating window/u);
+  assert.match(launcher, /Move to Picture-in-Picture/u);
+  assert.match(launcher, /Open Separate Window/u);
   assert.match(launcher, /mapViewStorageKey/u);
   assert.match(standalone, /initialPresentation="standalone"/u);
   assert.match(standalone, /loadCampaignAccess/u);

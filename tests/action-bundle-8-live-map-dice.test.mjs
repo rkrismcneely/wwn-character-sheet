@@ -14,6 +14,7 @@ test("published campaign rolls are exposed to the map without rerolling", async 
   assert.match(liveSession, /campaignSharedRollEvent = "twe:campaign-shared-roll"/u);
   assert.match(liveSession, /message\.type === "session\.roll"/u);
   assert.match(liveSession, /roll: message\.roll/u);
+  assert.match(mapDice, /useCampaignLiveSession\(campaignId, open\)/u);
   assert.match(mapDice, /const \{ count, sides, results \} = roll\.dice/u);
   assert.match(mapDice, /return results\.map\(value => \(\{ sides, value \}\)\)/u);
   assert.match(mapDice, /overlay\.current\?\.roll\(\{ dice, style \}\)/u);

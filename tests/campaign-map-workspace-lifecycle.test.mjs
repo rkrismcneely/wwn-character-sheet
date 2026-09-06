@@ -45,8 +45,9 @@ test("map controls transfer external views and expose a real open/close toggle",
   assert.match(launcher, /dispatchWorkspace\(\{ type: "move-to-popout" \}\)/u);
   assert.match(launcher, /popup\.focus\(\)/u);
   assert.match(launcher, /presentation === "pip" && <button[\s\S]*?>Return to Page</u);
-  assert.match(launcher, /inPageHost && <button[\s\S]*?>Move to Picture-in-Picture</u);
-  assert.match(launcher, /inPageHost && <button[\s\S]*?>Open Separate Window</u);
+  assert.match(launcher, /inPageHost && <details className="campaign-map-window-menu/u);
+  assert.match(launcher, />Picture-in-Picture<\/button>/u);
+  assert.match(launcher, />Separate Window<\/button>/u);
   assert.match(launcher, /Close Map Window/u);
   assert.doesNotMatch(launcher, /function choosePresentation[\s\S]{0,280}loadMap\(/u);
   assert.match(control, /campaignMapStateEvent/u);

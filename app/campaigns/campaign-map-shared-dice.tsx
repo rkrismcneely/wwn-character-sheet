@@ -5,7 +5,7 @@ import type { CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useDisplayTheme } from "../theme-provider";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "../virtual-dice-overlay";
 import { useDiceStylePreference, useVirtualDicePreference } from "../virtual-dice-preference";
-import { campaignMapChangedEvent, campaignSharedRollEvent } from "./use-live-session";
+import { campaignMapChangedEvent, campaignSharedRollEvent, useCampaignLiveSession } from "./use-live-session";
 
 type InteractionResponse = {
   interactions?: { sharedRollDiceEnabled?: boolean };
@@ -47,6 +47,11 @@ export function CampaignMapSharedDice({
   const { theme } = useDisplayTheme();
   const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
   const { style } = useDiceStylePreference();
+
+  // The map establishes its own live-session connection while open. This keeps
+  // map dice route-independent even when another page panel is not connected to
+  // this campaign (for example, a character linked to multiple active games).
+  useCampaignLiveSession(campaignId, open);
 
   const loadPreference = useCallback(async () => {
     try {

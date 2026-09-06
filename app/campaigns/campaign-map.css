@@ -162,6 +162,11 @@
   stroke: rgba(238, 160, 133, .95);
 }
 
+.campaign-map-token-companion .campaign-map-token-disc {
+  fill: rgba(35, 83, 67, .96);
+  stroke: rgba(151, 224, 190, .96);
+}
+
 .campaign-map-token-initials,
 .campaign-map-token-name {
   pointer-events: none;
@@ -398,6 +403,7 @@
   font-size: .72rem;
 }
 
+.campaign-map-character-tokens span,
 .campaign-map-placed-tokens span {
   display: grid;
 }

@@ -7,6 +7,7 @@ const migrationNames = [
   "0014_campaign_map_foundation.sql",
   "0015_campaign_map_interactions.sql",
   "0020_action_bundle_8_live_map_dice.sql",
+  "0021_action_bundle_9_companion_map_tokens.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -126,6 +127,14 @@ for (const column of [
 const tokenColumns = new Set(query("PRAGMA table_info(campaign_map_tokens)").map(row => row.name));
 for (const column of ["id", "campaign_id", "map_id", "kind", "source_id", "x", "y", "version"]) {
   if (!tokenColumns.has(column)) throw new Error(`campaign_map_tokens is missing ${column}.`);
+}
+const tokenTableSql = String(query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'campaign_map_tokens'")[0]?.sql ?? "");
+if (!tokenTableSql.includes("'companion'")) {
+  throw new Error("campaign_map_tokens does not permit companion token rows.");
+}
+const invalidTokenKinds = query("SELECT COUNT(*) AS count FROM campaign_map_tokens WHERE kind NOT IN ('pc', 'npc', 'companion')")[0]?.count ?? 0;
+if (Number(invalidTokenKinds) !== 0) {
+  throw new Error("campaign_map_tokens contains an unsupported token kind.");
 }
 
 const preferenceColumns = new Set(query("PRAGMA table_info(campaign_map_preferences)").map(row => row.name));

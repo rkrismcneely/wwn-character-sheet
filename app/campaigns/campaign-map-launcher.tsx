@@ -16,6 +16,7 @@ import type {
   CampaignMapSummary,
   CampaignMapToken,
 } from "@/lib/campaigns/map";
+import type { CampaignMapCompanionOption } from "@/lib/campaigns/map-companions";
 import {
   clampTokenSizeCells,
   gridMovementDistanceFeet,
@@ -37,6 +38,7 @@ type MapResponse = {
   maps?: CampaignMapSummary[];
   permissions?: { canManage?: boolean };
   characters?: CampaignMapCharacterOption[];
+  companions?: CampaignMapCompanionOption[];
   encounterAvailable?: boolean;
   error?: string;
 };
@@ -62,6 +64,14 @@ function fullView(map: CampaignMapPayload | null): ViewBox | null {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function tokenKindLabel(kind: CampaignMapToken["kind"]): string {
+  return kind === "pc" ? "PC" : kind === "companion" ? "Companion" : "NPC";
+}
+
+function tokenAriaKind(kind: CampaignMapToken["kind"]): string {
+  return kind === "pc" ? "player character" : kind === "companion" ? "companion" : "NPC";
 }
 
 function tokenInitials(name: string): string {
@@ -123,6 +133,7 @@ export function CampaignMapLauncher({
   const [maps, setMaps] = useState<CampaignMapSummary[]>([]);
   const [canManage, setCanManage] = useState(initialCanManage);
   const [characters, setCharacters] = useState<CampaignMapCharacterOption[]>([]);
+  const [companions, setCompanions] = useState<CampaignMapCompanionOption[]>([]);
   const [encounterAvailable, setEncounterAvailable] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [grid, setGrid] = useState<GridDraft>(defaultGrid());
@@ -159,6 +170,7 @@ export function CampaignMapLauncher({
       canManageRef.current = nextCanManage;
     }
     if (body.characters) setCharacters(body.characters);
+    if (body.companions) setCompanions(body.companions);
     if (typeof body.encounterAvailable === "boolean") setEncounterAvailable(body.encounterAvailable);
     setGrid(gridFor(nextMap));
     setMapNameDraft(nextMap?.name ?? "");
@@ -556,6 +568,7 @@ export function CampaignMapLauncher({
   }
 
   const placedCharacterIds = new Set(map?.tokens.filter(token => token.kind === "pc").map(token => token.sourceId) ?? []);
+  const placedCompanionIds = new Set(map?.tokens.filter(token => token.kind === "companion").map(token => token.sourceId) ?? []);
 
   return <>
     {showFloatingButton && <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>}
@@ -635,7 +648,7 @@ export function CampaignMapLauncher({
                     onPointerUp={handleTokenPointerEnd}
                     onPointerCancel={handleTokenPointerEnd}
                     role="img"
-                    aria-label={`${token.name} ${token.kind === "pc" ? "player character" : "NPC"} token, ${sizeCells} by ${sizeCells} grid cells${token.canMove ? ", draggable" : ""}`}
+                    aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${token.canMove ? ", draggable" : ""}`}
                   >
                     <title>{token.name}</title>
                     <circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
@@ -716,12 +729,15 @@ export function CampaignMapLauncher({
                 {characters.length > 0 && <div className="campaign-map-character-tokens">
                   {characters.map(character => <div key={character.id}><span>{character.name}</span>{placedCharacterIds.has(character.id) ? <small>On map</small> : <button type="button" className="campaign-secondary" disabled={busy || !map.backgroundUrl} onClick={() => void tokenAction({ action: "place_pc", characterId: character.id })}>Place</button>}</div>)}
                 </div>}
+                {companions.length > 0 && <div className="campaign-map-character-tokens campaign-map-companion-tokens">
+                  {companions.map(companion => <div key={companion.id}><span><b>{companion.name}</b><small>{companion.characterName} · {companion.label}</small></span>{placedCompanionIds.has(companion.id) ? <small>On map</small> : <button type="button" className="campaign-secondary" disabled={busy || !map.backgroundUrl} onClick={() => void tokenAction({ action: "place_companion", companionId: companion.id })}>Place</button>}</div>)}
+                </div>}
                 {map.tokens.length ? <div className="campaign-map-placed-tokens">
                   <strong>On this map</strong>
                   {map.tokens.map(token => {
                     const sizeCells = tokenSizes[token.id] ?? 1;
                     return <div key={token.id}>
-                      <span><b>{token.name}</b><small>{token.kind === "pc" ? "PC" : "NPC"} · {sizeCells}×{sizeCells}</small></span>
+                      <span><b>{token.name}</b><small>{tokenKindLabel(token.kind)} · {sizeCells}×{sizeCells}</small></span>
                       <div className="campaign-map-token-row-actions">
                         <button type="button" className="campaign-quiet" disabled={busy || sizeCells <= 1} aria-label={`Make ${token.name} smaller`} onClick={() => void resizeToken(token, sizeCells - 1)}>−</button>
                         <button type="button" className="campaign-quiet" disabled={busy || sizeCells >= 12} aria-label={`Make ${token.name} larger`} onClick={() => void resizeToken(token, sizeCells + 1)}>+</button>

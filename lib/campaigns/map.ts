@@ -5,6 +5,11 @@ import {
 } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 import type { MapBackgroundContentType, MapImageDimensions } from "./map-images.ts";
+import {
+  campaignMapCompanionCharacterId,
+  campaignMapCompanionsFromCharacterData,
+  type CampaignMapCompanionOption,
+} from "./map-companions.ts";
 
 interface CampaignMapRow {
   id: string;
@@ -28,7 +33,7 @@ interface CampaignMapTokenRow {
   id: string;
   campaignId: string;
   mapId: string;
-  kind: "pc" | "npc";
+  kind: "pc" | "npc" | "companion";
   sourceId: string;
   name: string;
   x: number;
@@ -40,7 +45,7 @@ interface CampaignMapTokenRow {
 
 export interface CampaignMapToken {
   id: string;
-  kind: "pc" | "npc";
+  kind: "pc" | "npc" | "companion";
   sourceId: string;
   name: string;
   x: number;
@@ -85,6 +90,7 @@ export interface CampaignMapResponse {
   maps: CampaignMapSummary[];
   permissions: { canManage: boolean };
   characters: CampaignMapCharacterOption[];
+  companions: CampaignMapCompanionOption[];
   encounterAvailable?: boolean;
 }
 
@@ -159,6 +165,34 @@ async function linkedCampaignCharacters(db: D1Database, campaignId: string): Pro
   return result.results;
 }
 
+type CampaignMapCompanionCharacterRow = { id: string; name: string; data: string };
+
+async function linkedCampaignCompanions(db: D1Database, campaignId: string): Promise<CampaignMapCompanionOption[]> {
+  const result = await db.prepare(`SELECT ch.public_id AS id, ch.name, ch.data
+    FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = ?
+    ORDER BY lower(ch.name), ch.public_id`)
+    .bind(campaignId).all<CampaignMapCompanionCharacterRow>();
+  return result.results.flatMap(character =>
+    campaignMapCompanionsFromCharacterData(character.id, character.name, character.data));
+}
+
+async function actorOwnsActiveCompanionSource(
+  db: D1Database,
+  actor: CampaignActor,
+  campaignId: string,
+  sourceId: string,
+): Promise<boolean> {
+  const characterId = campaignMapCompanionCharacterId(sourceId);
+  if (!characterId) return false;
+  const character = await db.prepare(`SELECT ch.public_id AS id, ch.name, ch.data
+    FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
+    WHERE cc.campaign_id = ? AND ch.public_id = ? AND ch.owner_user_id = ?`)
+    .bind(campaignId, characterId, actor.userId).first<CampaignMapCompanionCharacterRow>();
+  return Boolean(character && campaignMapCompanionsFromCharacterData(
+    character.id, character.name, character.data).some(companion => companion.id === sourceId));
+}
+
 async function campaignMapTokens(
   db: D1Database,
   actor: CampaignActor,
@@ -170,6 +204,14 @@ async function campaignMapTokens(
     FROM campaign_map_tokens WHERE map_id = ? ORDER BY created_at ASC, id ASC`)
     .bind(row.id).all<CampaignMapTokenRow>();
   const ownedCharacterIds = access.canManage ? new Set<string>() : await ownCampaignCharacterIds(db, actor, access.campaignInternalId);
+  const ownedCompanionIds = access.canManage
+    ? new Set<string>()
+    : new Set((await db.prepare(`SELECT ch.public_id AS id, ch.name, ch.data
+        FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
+        WHERE cc.campaign_id = ? AND ch.owner_user_id = ?`)
+      .bind(access.campaignInternalId, actor.userId).all<CampaignMapCompanionCharacterRow>()).results
+      .flatMap(character => campaignMapCompanionsFromCharacterData(character.id, character.name, character.data))
+      .map(companion => companion.id));
   return result.results.map(token => ({
     id: token.id,
     kind: token.kind,
@@ -178,7 +220,9 @@ async function campaignMapTokens(
     x: token.x,
     y: token.y,
     version: token.version,
-    canMove: access.canManage || (token.kind === "pc" && ownedCharacterIds.has(token.sourceId)),
+    canMove: access.canManage
+      || (token.kind === "pc" && ownedCharacterIds.has(token.sourceId))
+      || (token.kind === "companion" && ownedCompanionIds.has(token.sourceId)),
   }));
 }
 
@@ -255,6 +299,7 @@ export async function readCampaignMap(
     maps: access.canManage ? (await allCampaignMaps(db, access.campaignInternalId)).map(mapSummary) : [],
     permissions: { canManage: access.canManage },
     characters: access.canManage ? await linkedCampaignCharacters(db, access.campaignInternalId) : [],
+    companions: access.canManage ? await linkedCampaignCompanions(db, access.campaignInternalId) : [],
   };
 }
 
@@ -578,6 +623,29 @@ export async function placeCampaignMapCharacterToken(
   return mapPayload(db, actor, access, row);
 }
 
+export async function placeCampaignMapCompanionToken(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  mapIdValue: unknown,
+  companionIdValue: unknown,
+  now = new Date().toISOString(),
+): Promise<CampaignMapPayload> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  requireMapManagement(access);
+  const row = requireMapBackground(await requireCampaignMap(db, access, mapIdValue));
+  const companionId = identifier(companionIdValue, "Companion");
+  const companion = (await linkedCampaignCompanions(db, access.campaignInternalId))
+    .find(option => option.id === companionId);
+  if (!companion) throw new CampaignServiceError("The active linked companion was not found.", 404);
+  const position = defaultTokenPosition(row, await tokenCount(db, row.id));
+  await db.prepare(`INSERT OR IGNORE INTO campaign_map_tokens
+    (id, campaign_id, map_id, kind, source_id, name, x, y, version, created_at, updated_at)
+    VALUES (?, ?, ?, 'companion', ?, ?, ?, ?, 1, ?, ?)`)
+    .bind(`mpt_${crypto.randomUUID()}`, access.campaignInternalId, row.id, companion.id, companion.name, position.x, position.y, now, now).run();
+  return mapPayload(db, actor, access, row);
+}
+
 export interface CampaignMapEncounterTokenSeed {
   kind: "pc" | "npc";
   sourceId: string;
@@ -644,7 +712,10 @@ export async function moveCampaignMapToken(
       .bind(access.campaignInternalId, token.sourceId, actor.userId).first<{ allowed: number }>();
     canMove = Boolean(own);
   }
-  if (!canMove) throw new CampaignServiceError("You can move only your own campaign character token.", 403);
+  if (!canMove && token.kind === "companion") {
+    canMove = await actorOwnsActiveCompanionSource(db, actor, access.campaignInternalId, token.sourceId);
+  }
+  if (!canMove) throw new CampaignServiceError("You can move only your own campaign character or companion token.", 403);
   const x = finiteNumber(input.x, "Token X position", 0, row.backgroundWidth as number);
   const y = finiteNumber(input.y, "Token Y position", 0, row.backgroundHeight as number);
   const result = await db.prepare(`UPDATE campaign_map_tokens

@@ -43,6 +43,96 @@
   box-shadow: 0 2rem 7rem rgba(0, 0, 0, .6);
 }
 
+/* Every desktop presentation hosts the same CampaignMapLauncher instance.
+   Only its shell changes; map data and permissions never move into a second
+   client-side store. */
+.campaign-map-presentation-split,
+.campaign-map-presentation-drawer,
+.campaign-map-presentation-floating {
+  display: block;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+.campaign-map-presentation-split .campaign-map-dialog,
+.campaign-map-presentation-drawer .campaign-map-dialog,
+.campaign-map-presentation-floating .campaign-map-dialog {
+  position: fixed;
+  pointer-events: auto;
+}
+
+.campaign-map-host-split {
+  inset: 0 0 0 auto;
+  width: clamp(28rem, 44vw, 56rem);
+  min-width: 24rem;
+  max-width: 100vw;
+  height: 100dvh;
+  resize: horizontal;
+  border-radius: 0;
+}
+
+.campaign-map-host-drawer {
+  inset: 0 0 0 auto;
+  width: min(31rem, 94vw);
+  height: 100dvh;
+  border-radius: 0;
+}
+
+.campaign-map-host-floating {
+  right: 1.25rem;
+  bottom: 1.25rem;
+  width: min(70rem, calc(100vw - 2.5rem));
+  height: min(48rem, calc(100dvh - 2.5rem));
+  min-width: 25rem;
+  min-height: 21rem;
+  max-width: calc(100vw - 1rem);
+  max-height: calc(100dvh - 1rem);
+  resize: both;
+}
+
+.campaign-map-host-drawer .campaign-map-workspace.settings-open,
+.campaign-map-host-floating .campaign-map-workspace.settings-open {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(15rem, 42%);
+}
+
+.campaign-map-host-drawer .campaign-map-settings,
+.campaign-map-host-floating .campaign-map-settings {
+  border-top: 1px solid color-mix(in srgb, var(--border, #725f47) 65%, transparent);
+  border-left: 0;
+}
+
+.campaign-map-presentation-standalone {
+  position: static;
+  min-height: 100dvh;
+  padding: 0;
+  background: var(--page, #0b0c0d);
+  backdrop-filter: none;
+}
+
+.campaign-map-host-standalone {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  border: 0;
+  border-radius: 0;
+}
+
+.campaign-map-pip-host {
+  width: 100vw;
+  height: 100vh;
+}
+
+.campaign-map-pip-host .campaign-map-dialog {
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
+}
+
 .campaign-map-toolbar {
   flex: 0 0 auto;
   display: flex;
@@ -52,6 +142,11 @@
   padding: .85rem 1rem;
   border-bottom: 1px solid color-mix(in srgb, var(--border, #725f47) 65%, transparent);
   background: color-mix(in srgb, var(--surface, #17130f) 94%, #000 6%);
+}
+
+.campaign-map-title-block.is-draggable {
+  cursor: move;
+  touch-action: none;
 }
 
 .campaign-map-toolbar h2,
@@ -86,6 +181,16 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: .45rem;
+}
+
+.campaign-map-presentation-picker select {
+  min-height: 2.15rem;
+  border: 1px solid color-mix(in srgb, var(--border, #725f47) 75%, transparent);
+  border-radius: 7px;
+  padding: .42rem .55rem;
+  background: color-mix(in srgb, var(--surface, #17130f) 82%, #000 18%);
+  color: var(--text, #f4ead8);
+  font: inherit;
 }
 
 .campaign-map-error {
@@ -136,6 +241,32 @@
 
 .campaign-map-svg:active {
   cursor: grabbing;
+}
+
+.campaign-map-toolbar .campaign-secondary.is-active {
+  border-color: rgba(236, 187, 79, .95);
+  background: color-mix(in srgb, #8a5e20 34%, var(--surface, #17130f));
+  color: #fff3cf;
+}
+
+.campaign-map-fog-cell {
+  fill: rgba(5, 7, 10, .82);
+  stroke: rgba(20, 20, 22, .92);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-fog-preview {
+  fill: rgba(218, 163, 65, .25);
+  stroke: rgba(255, 224, 145, .98);
+  stroke-width: 2px;
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-fog-preview.is-reveal {
+  fill: rgba(110, 190, 146, .22);
+  stroke: rgba(176, 238, 195, .98);
 }
 
 .campaign-map-token {
@@ -211,6 +342,8 @@
 .campaign-map-settings {
   min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   padding: 1rem;
   border-left: 1px solid color-mix(in srgb, var(--border, #725f47) 65%, transparent);
   background: color-mix(in srgb, var(--surface, #17130f) 97%, #000 3%);
@@ -231,9 +364,23 @@
   border-top: 1px solid color-mix(in srgb, var(--border, #725f47) 45%, transparent);
 }
 
-.campaign-map-settings section:first-of-type {
+.campaign-map-settings .campaign-map-table-controls {
   border-top: 0;
   padding-top: 0;
+}
+
+.campaign-map-settings-heading { order: 0; }
+.campaign-map-table-controls { order: 1; }
+.campaign-map-token-settings { order: 2; }
+.campaign-map-grid-settings { order: 3; }
+.campaign-map-library { order: 4; }
+.campaign-map-background-settings { order: 5; }
+.campaign-map-foundation-note { order: 6; }
+
+.campaign-map-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
 }
 
 .campaign-map-settings p {
@@ -323,7 +470,8 @@
 }
 
 .campaign-map-selected-controls input[type="text"],
-.campaign-map-grid-settings input[type="number"] {
+.campaign-map-grid-settings input[type="number"],
+.campaign-map-grid-settings select {
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--border, #725f47) 75%, transparent);
   border-radius: 7px;
@@ -449,5 +597,29 @@
   .campaign-map-launcher-button {
     right: .8rem;
     bottom: .8rem;
+  }
+  .campaign-map-desktop-action,
+  .campaign-map-presentation-picker { display: none; }
+  .campaign-map-presentation-split,
+  .campaign-map-presentation-drawer,
+  .campaign-map-presentation-floating {
+    display: grid;
+    padding: 0;
+    background: rgba(5, 5, 6, .82);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+  }
+  .campaign-map-host-split,
+  .campaign-map-host-drawer,
+  .campaign-map-host-floating {
+    position: static;
+    width: 100vw;
+    min-width: 0;
+    height: 100dvh;
+    min-height: 0;
+    max-width: none;
+    max-height: none;
+    resize: none;
+    transform: none !important;
   }
 }

@@ -10,6 +10,11 @@ import {
   campaignMapCompanionsFromCharacterData,
   type CampaignMapCompanionOption,
 } from "./map-companions.ts";
+import {
+  isCampaignMapGridType,
+  snapTokenCenterOnGrid,
+  type CampaignMapGridType,
+} from "./map-grid.ts";
 
 interface CampaignMapRow {
   id: string;
@@ -21,6 +26,7 @@ interface CampaignMapRow {
   backgroundWidth: number | null;
   backgroundHeight: number | null;
   gridEnabled: number;
+  gridType: CampaignMapGridType;
   gridSize: number;
   gridOffsetX: number;
   gridOffsetY: number;
@@ -54,6 +60,11 @@ export interface CampaignMapToken {
   canMove: boolean;
 }
 
+export interface CampaignMapFogCell {
+  q: number;
+  r: number;
+}
+
 export interface CampaignMapCharacterOption {
   id: string;
   name: string;
@@ -76,10 +87,12 @@ export interface CampaignMapPayload {
   backgroundHeight: number | null;
   grid: {
     enabled: boolean;
+    type: CampaignMapGridType;
     size: number;
     offsetX: number;
     offsetY: number;
   };
+  fogCells: CampaignMapFogCell[];
   tokens: CampaignMapToken[];
   version: number;
   updatedAt: string;
@@ -122,6 +135,7 @@ function mapSelectSql(where: string): string {
       background_key AS backgroundKey, background_content_type AS backgroundContentType,
       background_width AS backgroundWidth, background_height AS backgroundHeight,
       grid_enabled AS gridEnabled, grid_size AS gridSize,
+      grid_type AS gridType,
       grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY,
       version, created_at AS createdAt, updated_at AS updatedAt
     FROM campaign_maps ${where}`;
@@ -226,6 +240,13 @@ async function campaignMapTokens(
   }));
 }
 
+async function campaignMapFogCells(db: D1Database, row: CampaignMapRow): Promise<CampaignMapFogCell[]> {
+  const result = await db.prepare(`SELECT cell_q AS q, cell_r AS r
+    FROM campaign_map_fog_cells WHERE map_id = ? ORDER BY cell_r, cell_q LIMIT 5000`)
+    .bind(row.id).all<CampaignMapFogCell>();
+  return result.results;
+}
+
 async function mapPayload(
   db: D1Database,
   actor: CampaignActor,
@@ -241,10 +262,12 @@ async function mapPayload(
     backgroundHeight: row.backgroundHeight,
     grid: {
       enabled: Boolean(row.gridEnabled),
+      type: row.gridType,
       size: row.gridSize,
       offsetX: row.gridOffsetX,
       offsetY: row.gridOffsetY,
     },
+    fogCells: await campaignMapFogCells(db, row),
     tokens: await campaignMapTokens(db, actor, access, row),
     version: row.version,
     updatedAt: row.updatedAt,
@@ -351,6 +374,35 @@ function booleanValue(value: unknown, label: string): boolean {
   return value;
 }
 
+function gridType(value: unknown): CampaignMapGridType {
+  if (!isCampaignMapGridType(value)) {
+    throw new CampaignServiceError("Grid type must be square or hex.", 422);
+  }
+  return value;
+}
+
+function fogCells(value: unknown): CampaignMapFogCell[] {
+  if (!Array.isArray(value) || !value.length || value.length > 500) {
+    throw new CampaignServiceError("Choose between 1 and 500 map cells.", 422);
+  }
+  const seen = new Set<string>();
+  return value.map((candidate, index) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      throw new CampaignServiceError(`Map cell ${index + 1} is invalid.`, 422);
+    }
+    const { q, r } = candidate as Record<string, unknown>;
+    if (typeof q !== "number" || typeof r !== "number"
+      || !Number.isSafeInteger(q) || !Number.isSafeInteger(r)
+      || Math.abs(q) > 100000 || Math.abs(r) > 100000) {
+      throw new CampaignServiceError(`Map cell ${index + 1} is invalid.`, 422);
+    }
+    const key = `${q}:${r}`;
+    if (seen.has(key)) throw new CampaignServiceError("Map cells must be unique.", 422);
+    seen.add(key);
+    return { q, r };
+  });
+}
+
 function identifier(value: unknown, label: string): string {
   if (typeof value !== "string") throw new CampaignServiceError(`${label} is required.`, 422);
   const text = value.trim();
@@ -379,7 +431,13 @@ function defaultTokenPosition(row: CampaignMapRow, index: number): { x: number; 
   const columns = Math.max(1, Math.floor(Math.max(step, width - step) / step));
   const x = Math.min(width - step / 2, step / 2 + (index % columns) * step);
   const y = Math.min(height - step / 2, step / 2 + Math.floor(index / columns) * step);
-  return { x: Math.max(step / 2, x), y: Math.max(step / 2, y) };
+  return snapTokenCenterOnGrid(
+    { x: Math.max(step / 2, x), y: Math.max(step / 2, y) },
+    { type: row.gridType, size: row.gridSize, offsetX: row.gridOffsetX, offsetY: row.gridOffsetY },
+    1,
+    width,
+    height,
+  );
 }
 
 async function tokenCount(db: D1Database, mapId: string): Promise<number> {
@@ -515,19 +573,46 @@ export async function updateCampaignMapSettings(
   const row = await requireCampaignMap(db, access, input.mapId);
   const version = expectedVersion(input.version);
   const gridEnabled = booleanValue(input.gridEnabled, "Grid visibility");
+  const nextGridType = gridType(input.gridType);
   const gridSize = finiteNumber(input.gridSize, "Grid size", 8, 512);
   const gridOffsetX = finiteNumber(input.gridOffsetX, "Horizontal grid offset", -100000, 100000);
   const gridOffsetY = finiteNumber(input.gridOffsetY, "Vertical grid offset", -100000, 100000);
   if (version !== row.version) throw conflict();
   const result = await db.prepare(`UPDATE campaign_maps
-      SET grid_enabled = ?, grid_size = ?, grid_offset_x = ?, grid_offset_y = ?,
+      SET grid_enabled = ?, grid_type = ?, grid_size = ?, grid_offset_x = ?, grid_offset_y = ?,
           version = version + 1, updated_at = ?
       WHERE campaign_id = ? AND id = ? AND version = ?`)
-    .bind(gridEnabled ? 1 : 0, gridSize, gridOffsetX, gridOffsetY, now, access.campaignInternalId, row.id, version).run();
+    .bind(gridEnabled ? 1 : 0, nextGridType, gridSize, gridOffsetX, gridOffsetY, now, access.campaignInternalId, row.id, version).run();
   if (result.meta.changes !== 1) throw conflict();
   const updated = await findCampaignMapById(db, access.campaignInternalId, row.id);
   if (!updated) throw new Error("Campaign map disappeared after update.");
   return mapPayload(db, actor, access, updated);
+}
+
+/** Hide or reveal a bounded group of grid cells without changing map pixels. */
+export async function setCampaignMapFogCells(
+  db: D1Database,
+  actor: CampaignActor,
+  publicId: string,
+  input: Record<string, unknown>,
+  now = new Date().toISOString(),
+): Promise<CampaignMapPayload> {
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  requireMapManagement(access);
+  const row = await requireCampaignMap(db, access, input.mapId);
+  const mode = input.mode;
+  if (mode !== "hide" && mode !== "reveal") {
+    throw new CampaignServiceError("Choose whether to hide or reveal map cells.", 422);
+  }
+  const cells = fogCells(input.cells);
+  const statements = cells.map(cell => mode === "hide"
+    ? db.prepare(`INSERT OR IGNORE INTO campaign_map_fog_cells
+        (map_id, campaign_id, cell_q, cell_r, created_at) VALUES (?, ?, ?, ?, ?)`)
+      .bind(row.id, access.campaignInternalId, cell.q, cell.r, now)
+    : db.prepare("DELETE FROM campaign_map_fog_cells WHERE map_id = ? AND cell_q = ? AND cell_r = ?")
+      .bind(row.id, cell.q, cell.r));
+  await db.batch(statements);
+  return mapPayload(db, actor, access, row);
 }
 
 export async function replaceCampaignMapBackground(

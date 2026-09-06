@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import type {
   CampaignMapCharacterOption,
   CampaignMapPayload,
@@ -19,19 +20,77 @@ import type {
 import type { CampaignMapCompanionOption } from "@/lib/campaigns/map-companions";
 import {
   clampTokenSizeCells,
-  gridMovementDistanceFeet,
-  snapTokenCenter,
+  gridCellPath,
+  gridCellsInRectangle,
+  gridMovementDistanceLabel,
+  hexPatternPaths,
+  hexPatternSize,
+  snapTokenCenterOnGrid,
   tokenRadius as gridTokenRadius,
+  type CampaignMapGridCell,
+  type CampaignMapGridType,
 } from "@/lib/campaigns/map-grid";
 import { campaignMapOpenEvent, type CampaignMapOpenDetail } from "./campaign-map-events";
 import { CampaignMapSharedDice } from "./campaign-map-shared-dice";
-import { campaignMapChangedEvent } from "./use-live-session";
+import { campaignMapChangedEvent, useCampaignLiveSession } from "./use-live-session";
 
 type ViewBox = { x: number; y: number; width: number; height: number };
-type GridDraft = { enabled: boolean; size: number; offsetX: number; offsetY: number };
+type GridDraft = { enabled: boolean; type: CampaignMapGridType; size: number; offsetX: number; offsetY: number };
 type MapInteractions = { snapEnabled: boolean; tokenSizes: Record<string, number> };
-type TokenDragMeasurement = { tokenId: string; distanceFeet: number };
+type FogMode = "hide" | "reveal";
+type TokenDragMeasurement = { tokenId: string; distance: string };
 type TokenDragOrigin = { tokenId: string; x: number; y: number };
+type MapPresentation = "fullscreen" | "split" | "drawer" | "floating" | "pip" | "standalone";
+type FloatingPosition = { x: number; y: number };
+
+type DocumentPictureInPictureController = {
+  requestWindow(options?: { width?: number; height?: number }): Promise<Window>;
+};
+
+const mapPresentationStorageKey = "twe:campaign-map:presentation";
+
+function isMapPresentation(value: unknown): value is MapPresentation {
+  return value === "fullscreen" || value === "split" || value === "drawer" || value === "floating";
+}
+
+function preferredMapPresentation(): MapPresentation {
+  if (typeof window === "undefined") return "fullscreen";
+  try {
+    const value = window.localStorage.getItem(mapPresentationStorageKey);
+    return isMapPresentation(value) ? value : "fullscreen";
+  } catch {
+    return "fullscreen";
+  }
+}
+
+function mapViewStorageKey(campaignId: string, mapId: string): string {
+  return `twe:campaign-map:view:${campaignId}:${mapId}`;
+}
+
+function readMapView(campaignId: string, map: CampaignMapPayload | null): ViewBox | null {
+  if (!map?.backgroundWidth || !map.backgroundHeight || typeof window === "undefined") return null;
+  try {
+    const candidate = JSON.parse(window.localStorage.getItem(mapViewStorageKey(campaignId, map.id)) || "null") as Partial<ViewBox> | null;
+    if (!candidate || ![candidate.x, candidate.y, candidate.width, candidate.height].every(Number.isFinite)) return null;
+    if ((candidate.width as number) <= 0 || (candidate.height as number) <= 0) return null;
+    return candidate as ViewBox;
+  } catch {
+    return null;
+  }
+}
+
+function documentPictureInPictureController(): DocumentPictureInPictureController | null {
+  if (typeof window === "undefined") return null;
+  return (window as typeof window & { documentPictureInPicture?: DocumentPictureInPictureController }).documentPictureInPicture ?? null;
+}
+
+function copyMapWorkspaceStyles(target: Document): void {
+  for (const node of document.head.querySelectorAll("link[rel='stylesheet'], style")) {
+    target.head.appendChild(node.cloneNode(true));
+  }
+  target.documentElement.dataset.theme = document.documentElement.dataset.theme;
+  target.body.className = "campaign-map-pip-document";
+}
 
 type MapResponse = {
   map?: CampaignMapPayload | null;
@@ -46,11 +105,12 @@ type MapResponse = {
 type InteractionResponse = {
   interactions?: MapInteractions;
   token?: { id: string; x: number; y: number; version: number };
+  map?: CampaignMapPayload;
   error?: string;
 };
 
 function defaultGrid(): GridDraft {
-  return { enabled: false, size: 64, offsetX: 0, offsetY: 0 };
+  return { enabled: false, type: "square", size: 64, offsetX: 0, offsetY: 0 };
 }
 
 function gridFor(map: CampaignMapPayload | null): GridDraft {
@@ -93,17 +153,27 @@ function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number) 
   return point.matrixTransform(matrix.inverse());
 }
 
-export function CampaignMapLauncher({
-  campaignId,
-  campaignName,
-  canManage: initialCanManage,
-  showFloatingButton = true,
-}: {
+export type CampaignMapWorkspaceProps = {
   campaignId: string;
   campaignName: string;
   canManage: boolean;
   showFloatingButton?: boolean;
-}) {
+  initialOpen?: boolean;
+  initialPresentation?: "standalone";
+};
+
+/**
+ * The one map renderer/controller used in every supported host. Presentation
+ * changes only the surrounding shell; it never forks local map authority.
+ */
+export function CampaignMapWorkspace({
+  campaignId,
+  campaignName,
+  canManage: initialCanManage,
+  showFloatingButton = true,
+  initialOpen = false,
+  initialPresentation,
+}: CampaignMapWorkspaceProps) {
   const patternId = useId().replaceAll(":", "");
   const svgRef = useRef<SVGSVGElement>(null);
   const selectedMapIdRef = useRef<string | null>(null);
@@ -125,7 +195,15 @@ export function CampaignMapLauncher({
     latestX: number;
     latestY: number;
   } | null>(null);
-  const [open, setOpen] = useState(false);
+  const fogDragRef = useRef<{ pointerId: number; start: { x: number; y: number } } | null>(null);
+  const fogPreviewRef = useRef<CampaignMapGridCell[]>([]);
+  const mapSyncChannelRef = useRef<BroadcastChannel | null>(null);
+  const [open, setOpen] = useState(initialOpen);
+  const [presentation, setPresentation] = useState<MapPresentation>(initialPresentation ?? preferredMapPresentation);
+  const [pipDocument, setPipDocument] = useState<Document | null>(null);
+  const pipWindowRef = useRef<Window | null>(null);
+  const [floatingPosition, setFloatingPosition] = useState<FloatingPosition>({ x: 0, y: 0 });
+  const floatingDragRef = useRef<{ pointerId: number; clientX: number; clientY: number; position: FloatingPosition } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -143,9 +221,23 @@ export function CampaignMapLauncher({
   const [view, setView] = useState<ViewBox | null>(null);
   const [tokenDragMeasurement, setTokenDragMeasurement] = useState<TokenDragMeasurement | null>(null);
   const [tokenDragOrigin, setTokenDragOrigin] = useState<TokenDragOrigin | null>(null);
+  const [fogMode, setFogMode] = useState<FogMode | null>(null);
+  const [fogPreview, setFogPreview] = useState<CampaignMapGridCell[]>([]);
+
+  // Each map host owns an authenticated live-session connection. That makes a
+  // modal, a pop-out, and Picture-in-Picture all converge on the same durable
+  // map state without trusting opener state or browser-local data.
+  useCampaignLiveSession(campaignId, open);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !map || !view) return;
+    try {
+      window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view));
+    } catch { /* Local view preference is optional. */ }
+  }, [campaignId, map, open, presentation, view]);
+
+  useEffect(() => {
+    if (!open || (presentation !== "fullscreen" && presentation !== "standalone")) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
@@ -156,7 +248,7 @@ export function CampaignMapLauncher({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, presentation]);
 
   const applyResponse = useCallback((body: MapResponse, preserveView: boolean) => {
     const previousMapId = selectedMapIdRef.current;
@@ -174,8 +266,10 @@ export function CampaignMapLauncher({
     if (typeof body.encounterAvailable === "boolean") setEncounterAvailable(body.encounterAvailable);
     setGrid(gridFor(nextMap));
     setMapNameDraft(nextMap?.name ?? "");
-    setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : fullView(nextMap));
-  }, []);
+    setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight
+      ? current
+      : readMapView(campaignId, nextMap) ?? fullView(nextMap));
+  }, [campaignId]);
 
   const loadInteractions = useCallback(async (mapId: string) => {
     const params = new URLSearchParams({ mapId });
@@ -209,6 +303,32 @@ export function CampaignMapLauncher({
   }, [applyResponse, campaignId, loadInteractions]);
 
   useEffect(() => {
+    if (!open || typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`);
+    mapSyncChannelRef.current = channel;
+    channel.onmessage = event => {
+      const message = event.data as { type?: unknown; campaignId?: unknown } | null;
+      if (message?.type !== "map-changed" || message.campaignId !== campaignId) return;
+      const requestedMapId = canManageRef.current ? selectedMapIdRef.current : null;
+      void loadMap(true, requestedMapId, false);
+    };
+    return () => {
+      if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null;
+      channel.close();
+    };
+  }, [campaignId, loadMap, open]);
+
+  useEffect(() => {
+    if (!initialPresentation || !initialOpen) return;
+    const initialLoad = window.setTimeout(() => { void loadMap(false); }, 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [initialOpen, initialPresentation, loadMap]);
+
+  function publishMapInvalidation() {
+    mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId });
+  }
+
+  useEffect(() => {
     const onOpenMap = (event: Event) => {
       const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail;
       if (detail?.campaignId !== campaignId) return;
@@ -238,6 +358,90 @@ export function CampaignMapLauncher({
     void loadMap(false);
   }
 
+  function rememberPresentation(nextPresentation: Exclude<MapPresentation, "pip" | "standalone">) {
+    setPresentation(nextPresentation);
+    try { window.localStorage.setItem(mapPresentationStorageKey, nextPresentation); } catch { /* Preferences are optional. */ }
+  }
+
+  function choosePresentation(nextPresentation: Exclude<MapPresentation, "pip" | "standalone">) {
+    rememberPresentation(nextPresentation);
+    setOpen(true);
+    setSettingsOpen(false);
+    void loadMap(true);
+  }
+
+  function openMapPopout() {
+    const url = new URL(`/campaigns/${campaignId}/map`, window.location.origin);
+    const popup = window.open(url.toString(), "twe-campaign-map", "popup=yes,width=1180,height=820,resizable=yes,scrollbars=yes");
+    if (!popup) setError("Your browser blocked the map pop-out. Allow pop-ups for Tales Without End and try again.");
+  }
+
+  async function openMapPictureInPicture() {
+    const controller = documentPictureInPictureController();
+    if (!controller) {
+      openMapPopout();
+      return;
+    }
+    try {
+      const pipWindow = await controller.requestWindow({ width: 1060, height: 760 });
+      copyMapWorkspaceStyles(pipWindow.document);
+      pipWindowRef.current = pipWindow;
+      pipWindow.addEventListener("pagehide", () => {
+        pipWindowRef.current = null;
+        setPipDocument(null);
+        setPresentation(preferredMapPresentation());
+        setOpen(false);
+      }, { once: true });
+      setPresentation("pip");
+      setPipDocument(pipWindow.document);
+      setOpen(true);
+      setSettingsOpen(false);
+      void loadMap(true);
+    } catch {
+      // A denied request is normally a browser capability/gesture problem; a
+      // same-origin pop-out preserves the useful multi-view workflow.
+      openMapPopout();
+    }
+  }
+
+  function closeMap() {
+    if (presentation === "pip") {
+      pipWindowRef.current?.close();
+      pipWindowRef.current = null;
+      setPipDocument(null);
+      setPresentation(preferredMapPresentation());
+    }
+    if (presentation === "standalone") {
+      if (window.opener) window.close();
+      else window.location.assign(`/campaigns/${campaignId}`);
+      return;
+    }
+    setOpen(false);
+  }
+
+  function handleFloatingDragStart(event: ReactPointerEvent<HTMLDivElement>) {
+    if (presentation !== "floating" || event.button !== 0) return;
+    floatingDragRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      position: floatingPosition,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleFloatingDragMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = floatingDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setFloatingPosition({ x: drag.position.x + event.clientX - drag.clientX, y: drag.position.y + event.clientY - drag.clientY });
+  }
+
+  function handleFloatingDragEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    if (floatingDragRef.current?.pointerId !== event.pointerId) return;
+    floatingDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
   function resetView() {
     setView(fullView(map));
   }
@@ -256,8 +460,45 @@ export function CampaignMapLauncher({
     zoom(event.deltaY > 0 ? 1.12 : 0.88);
   }
 
+  function selectedFogCells(start: { x: number; y: number }, end: { x: number; y: number }): CampaignMapGridCell[] {
+    if (!map) return [];
+    return gridCellsInRectangle(start, end, map.grid, 500);
+  }
+
+  async function saveFogCells(mode: FogMode, cells: CampaignMapGridCell[]) {
+    if (!map || !cells.length) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "set_fog", mapId: map.id, mode, cells }),
+      });
+      const body = await response.json() as InteractionResponse;
+      if (!response.ok || !body.map) throw new Error(body.error || "Map visibility could not be updated.");
+      setMap(body.map);
+      publishMapInvalidation();
+    } catch (fogError) {
+      setError(fogError instanceof Error ? fogError.message : "Map visibility could not be updated.");
+      void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (!view || event.button !== 0 || tokenDragRef.current) return;
+    if (fogMode && canManage && svgRef.current) {
+      const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
+      if (!point) return;
+      fogDragRef.current = { pointerId: event.pointerId, start: point };
+      const cells = selectedFogCells(point, point);
+      fogPreviewRef.current = cells;
+      setFogPreview(cells);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     dragRef.current = {
       pointerId: event.pointerId,
       clientX: event.clientX,
@@ -268,6 +509,16 @@ export function CampaignMapLauncher({
   }
 
   function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    const fogDrag = fogDragRef.current;
+    if (fogDrag?.pointerId === event.pointerId && svgRef.current) {
+      const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
+      if (point) {
+        const cells = selectedFogCells(fogDrag.start, point);
+        fogPreviewRef.current = cells;
+        setFogPreview(cells);
+      }
+      return;
+    }
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -278,6 +529,18 @@ export function CampaignMapLauncher({
   }
 
   function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+    const fogDrag = fogDragRef.current;
+    if (fogDrag?.pointerId === event.pointerId) {
+      fogDragRef.current = null;
+      const cells = fogPreviewRef.current;
+      const mode = fogMode;
+      setFogPreview([]);
+      fogPreviewRef.current = [];
+      setFogMode(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      if (mode && cells.length) void saveFogCells(mode, cells);
+      return;
+    }
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
@@ -298,7 +561,7 @@ export function CampaignMapLauncher({
       latestX: token.x,
       latestY: token.y,
     };
-    setTokenDragMeasurement({ tokenId: token.id, distanceFeet: 0 });
+    setTokenDragMeasurement({ tokenId: token.id, distance: "0 ft" });
     setTokenDragOrigin({ tokenId: token.id, x: token.x, y: token.y });
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -313,14 +576,21 @@ export function CampaignMapLauncher({
     let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) {
       const sizeCells = tokenSizes[drag.tokenId] ?? 1;
-      x = snapTokenCenter(x, map.grid.offsetX, map.grid.size, sizeCells, map.backgroundWidth);
-      y = snapTokenCenter(y, map.grid.offsetY, map.grid.size, sizeCells, map.backgroundHeight);
+      const snapped = snapTokenCenterOnGrid(
+        { x, y },
+        map.grid,
+        sizeCells,
+        map.backgroundWidth,
+        map.backgroundHeight,
+      );
+      x = snapped.x;
+      y = snapped.y;
     }
     drag.latestX = x;
     drag.latestY = y;
     setTokenDragMeasurement({
       tokenId: drag.tokenId,
-      distanceFeet: gridMovementDistanceFeet(drag.x, drag.y, x, y, map.grid.size),
+      distance: gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid),
     });
     setMap(current => current ? { ...current, tokens: current.tokens.map(token => token.id === drag.tokenId ? { ...token, x, y } : token) } : current);
   }
@@ -338,6 +608,7 @@ export function CampaignMapLauncher({
       const body = await response.json() as MapResponse;
       if (!response.ok || !body.map) throw new Error(body.error || "The token could not be moved.");
       setMap(body.map);
+      publishMapInvalidation();
     } catch (moveError) {
       setError(moveError instanceof Error ? moveError.message : "The token could not be moved.");
       void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false);
@@ -371,6 +642,7 @@ export function CampaignMapLauncher({
       if (!response.ok || !result.map) throw new Error(result.error || "The map token could not be updated.");
       setMap(result.map);
       setTokenSizes(current => Object.fromEntries(Object.entries(current).filter(([tokenId]) => result.map?.tokens.some(token => token.id === tokenId))));
+      publishMapInvalidation();
       return result.map;
     } catch (tokenError) {
       setError(tokenError instanceof Error ? tokenError.message : "The map token could not be updated.");
@@ -402,6 +674,7 @@ export function CampaignMapLauncher({
           ? { ...candidate, x: body.token.x, y: body.token.y, version: body.token.version }
           : candidate),
       } : current);
+      publishMapInvalidation();
     } catch (resizeError) {
       setError(resizeError instanceof Error ? resizeError.message : "The token could not be resized.");
       void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false);
@@ -428,6 +701,7 @@ export function CampaignMapLauncher({
         setSnapToGrid(false);
         setTokenSizes({});
       }
+      publishMapInvalidation();
       return result;
     } catch (mapError) {
       setError(mapError instanceof Error ? mapError.message : "The campaign map could not be updated.");
@@ -449,6 +723,7 @@ export function CampaignMapLauncher({
           mapId: map.id,
           version: map.version,
           gridEnabled: grid.enabled,
+          gridType: grid.type,
           gridSize: Number(grid.size),
           gridOffsetX: Number(grid.offsetX),
           gridOffsetY: Number(grid.offsetY),
@@ -469,6 +744,7 @@ export function CampaignMapLauncher({
       }
       setSnapToGrid(interactionBody.interactions.snapEnabled);
       setTokenSizes(interactionBody.interactions.tokenSizes);
+      publishMapInvalidation();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "The grid settings could not be saved.");
     } finally {
@@ -494,6 +770,7 @@ export function CampaignMapLauncher({
       applyResponse(body, false);
       await loadInteractions(body.map.id);
       setSettingsOpen(true);
+      publishMapInvalidation();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded.");
     } finally {
@@ -520,6 +797,7 @@ export function CampaignMapLauncher({
       const body = await response.json() as MapResponse;
       if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded.");
       applyResponse(body, false);
+      publishMapInvalidation();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded.");
     } finally {
@@ -540,6 +818,7 @@ export function CampaignMapLauncher({
       const body = await response.json() as MapResponse;
       if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be removed.");
       applyResponse(body, false);
+      publishMapInvalidation();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "The map image could not be removed.");
     } finally {
@@ -570,12 +849,21 @@ export function CampaignMapLauncher({
   const placedCharacterIds = new Set(map?.tokens.filter(token => token.kind === "pc").map(token => token.sourceId) ?? []);
   const placedCompanionIds = new Set(map?.tokens.filter(token => token.kind === "companion").map(token => token.sourceId) ?? []);
 
-  return <>
-    {showFloatingButton && <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>}
-    {open && <div className="campaign-map-backdrop" role="presentation">
-      <section className="campaign-map-dialog" role="dialog" aria-modal="true" aria-labelledby="campaign-map-title">
+  const mapSurface = open ? <section
+    className={`campaign-map-dialog campaign-map-host-${presentation}`}
+    role="dialog"
+    aria-modal={presentation === "fullscreen"}
+    aria-labelledby="campaign-map-title"
+    style={presentation === "floating" ? { transform: `translate3d(${floatingPosition.x}px, ${floatingPosition.y}px, 0)` } : undefined}
+  >
         <header className="campaign-map-toolbar">
-          <div>
+          <div
+            className={`campaign-map-title-block${presentation === "floating" ? " is-draggable" : ""}`}
+            onPointerDown={handleFloatingDragStart}
+            onPointerMove={handleFloatingDragMove}
+            onPointerUp={handleFloatingDragEnd}
+            onPointerCancel={handleFloatingDragEnd}
+          >
             <p className="campaign-kicker">CAMPAIGN MAP</p>
             <h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>
             {canManage && map && <small className={map.isActive ? "campaign-map-live-label" : "campaign-map-private-label"}>{map.isActive ? "Visible to players" : "GM preview — players still see the active map"}</small>}
@@ -587,8 +875,23 @@ export function CampaignMapLauncher({
               <button type="button" className="campaign-secondary" onClick={resetView}>Fit Map</button>
             </>}
             {map && <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />}
+            {canManage && map?.backgroundUrl && <>
+              <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide Area</button>
+              <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal Area</button>
+            </>}
             {canManage && <button type="button" className="campaign-secondary" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Map Settings</button>}
-            <button type="button" className="campaign-secondary" onClick={() => setOpen(false)}>Close</button>
+            {presentation !== "standalone" && presentation !== "pip" && <label className="campaign-map-presentation-picker">
+              <span className="sr-only">Map display</span>
+              <select value={presentation} onChange={event => choosePresentation(event.target.value as Exclude<MapPresentation, "pip" | "standalone">)}>
+                <option value="fullscreen">Full screen</option>
+                <option value="split">Split panel</option>
+                <option value="drawer">Side drawer</option>
+                <option value="floating">Floating window</option>
+              </select>
+            </label>}
+            {presentation !== "pip" && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={() => void openMapPictureInPicture()}>Picture-in-Picture</button>}
+            {presentation !== "standalone" && presentation !== "pip" && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={openMapPopout}>Pop Out</button>}
+            <button type="button" className="campaign-secondary" onClick={closeMap}>{presentation === "standalone" ? "Back to Campaign" : "Close"}</button>
           </div>
         </header>
 
@@ -611,13 +914,20 @@ export function CampaignMapLauncher({
               onPointerCancel={handlePointerEnd}
               aria-label="Campaign map. Drag to pan; drag an allowed token to move it; use the mouse wheel or toolbar buttons to zoom."
             >
-              <defs>
-                <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}>
-                  <path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />
-                </pattern>
-              </defs>
+              <defs>{map.grid.type === "hex" ? (() => {
+                const pattern = hexPatternSize(map.grid.size);
+                return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>
+                  {hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}
+                </pattern>;
+              })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}>
+                <path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />
+              </pattern>}</defs>
               <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />
               {map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
+              <g className="campaign-map-fog-layer" pointerEvents="none">
+                {map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}
+                {fogPreview.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className={`campaign-map-fog-preview is-${fogMode ?? "hide"}`} />)}
+              </g>
               <g className="campaign-map-token-layer">
                 {tokenDragOrigin && (() => {
                   const token = map.tokens.find(candidate => candidate.id === tokenDragOrigin.tokenId);
@@ -658,7 +968,7 @@ export function CampaignMapLauncher({
                       textAnchor="middle"
                       y={-(tokenVisualRadius + Math.max(14, tokenVisualRadius * 0.5))}
                       fontSize={Math.max(12, tokenVisualRadius * 0.44)}
-                    >{tokenDragMeasurement.distanceFeet}</text>}
+                    >{tokenDragMeasurement.distance}</text>}
                     <text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text>
                   </g>;
                 })}
@@ -671,6 +981,22 @@ export function CampaignMapLauncher({
               <div><p className="campaign-kicker">GM CONTROLS</p><h3>Map Settings</h3></div>
               <button type="button" className="campaign-quiet" onClick={() => setSettingsOpen(false)}>Hide</button>
             </div>
+
+            {map && <section className="campaign-map-table-controls">
+              <h4>At the Table</h4>
+              <p>Controls used during play stay here. Alignment and map-library work are kept below.</p>
+              {map.isActive
+                ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div>
+                : <button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Show to Players</button>}
+              <div className="campaign-map-table-actions">
+                <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide Area</button>
+                <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal Area</button>
+              </div>
+              <label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label>
+              <label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label>
+              <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Table Controls</button>
+              {fogMode && <small>Drag across the map to {fogMode} whole {grid.type === "hex" ? "hexes" : "cells"}. Up to 500 cells are changed at once.</small>}
+            </section>}
 
             <section className="campaign-map-library">
               <h4>Maps</h4>
@@ -694,15 +1020,12 @@ export function CampaignMapLauncher({
               {map && <div className="campaign-map-selected-controls">
                 <label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft} onChange={event => setMapNameDraft(event.target.value)} /></label>
                 <button type="button" className="campaign-secondary" disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name} onClick={() => void renameMap()}>Save Name</button>
-                {map.isActive
-                  ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div>
-                  : <button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Show to Players</button>}
                 <button type="button" className="campaign-danger" disabled={busy} onClick={() => void deleteMap()}>Delete Map</button>
               </div>}
             </section>
 
             {map && <>
-              <section>
+              <section className="campaign-map-background-settings">
                 <h4>Background</h4>
                 <p>JPG or PNG · up to 15 MB.</p>
                 <label className="campaign-map-upload campaign-secondary">
@@ -712,18 +1035,21 @@ export function CampaignMapLauncher({
                 {map.backgroundUrl && <button type="button" className="campaign-danger" disabled={busy} onClick={() => void removeBackground()}>Remove Map Image</button>}
               </section>
               <section className="campaign-map-grid-settings">
-                <h4>Square Grid</h4>
-                <label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label>
-                <label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label>
-                <small>Snapping works whether or not the grid lines are visible.</small>
-                <label><span>Cell size</span><input type="number" min="8" max="512" step="1" value={grid.size} onChange={event => setGrid(current => ({ ...current, size: Number(event.target.value) }))} /></label>
-                <label><span>Horizontal offset</span><input type="number" step="1" value={grid.offsetX} onChange={event => setGrid(current => ({ ...current, offsetX: Number(event.target.value) }))} /></label>
-                <label><span>Vertical offset</span><input type="number" step="1" value={grid.offsetY} onChange={event => setGrid(current => ({ ...current, offsetY: Number(event.target.value) }))} /></label>
-                <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Grid</button>
+                <h4>Grid & Alignment</h4>
+                <p>Choose the grid that matches this map. Square maps keep five-foot movement; hex maps measure each adjacent hex as 10 km.</p>
+                <label><span>Grid type</span><select value={grid.type} onChange={event => setGrid(current => ({ ...current, type: event.target.value as CampaignMapGridType }))}>
+                  <option value="square">Square · 5 ft cells</option>
+                  <option value="hex">Hex · 10 km per hex</option>
+                </select></label>
+                <small>Snapping works whether or not grid lines are visible. Changing the grid never changes a token until it is moved or resized.</small>
+                <label><span>{grid.type === "hex" ? "Hex height" : "Cell size"}</span><input type="number" min="8" max="512" step="1" value={grid.size} onChange={event => setGrid(current => ({ ...current, size: Number(event.target.value) }))} /></label>
+                <label><span>Horizontal origin</span><input type="number" step="1" value={grid.offsetX} onChange={event => setGrid(current => ({ ...current, offsetX: Number(event.target.value) }))} /></label>
+                <label><span>Vertical origin</span><input type="number" step="1" value={grid.offsetY} onChange={event => setGrid(current => ({ ...current, offsetY: Number(event.target.value) }))} /></label>
+                <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Alignment</button>
               </section>
               <section className="campaign-map-token-settings">
                 <h4>Tokens</h4>
-                <p>Token placements belong to this map. Sizes are measured in whole grid cells, so larger tokens stay aligned with the square grid.</p>
+                <p>Token placements belong to this map. Sizes are measured in whole grid cells, so larger tokens stay aligned with the selected grid.</p>
                 <button type="button" className="campaign-primary" disabled={busy || !map.backgroundUrl || !encounterAvailable} onClick={() => void tokenAction({ action: "place_encounter" })}>Place Active Encounter</button>
                 {!encounterAvailable && <small>Start a live encounter to place all of its current combatants at once.</small>}
                 {characters.length > 0 && <div className="campaign-map-character-tokens">
@@ -748,10 +1074,20 @@ export function CampaignMapLauncher({
                 </div> : <p>No tokens placed on this map yet.</p>}
               </section>
             </>}
-            <p className="campaign-map-foundation-note">Multiple maps, persistent token sizes, hidden-grid snapping, live movement, and drag-distance measuring are active. Drawing, fog, lighting, and map layers remain later phases.</p>
+            <p className="campaign-map-foundation-note">Multiple maps, player visibility, hex or square grids, persistent token sizes, cell-based conceal/reveal, live movement, and drag-distance measuring are active. Drawing, lighting, and map layers remain later phases.</p>
           </aside>}
         </div>
-      </section>
-    </div>}
+      </section> : null;
+
+  return <>
+    {showFloatingButton && <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>}
+    {mapSurface && (pipDocument
+      ? createPortal(<main className="campaign-map-pip-host">{mapSurface}</main>, pipDocument.body)
+      : <div className={`campaign-map-backdrop campaign-map-presentation-${presentation}`} role="presentation">{mapSurface}</div>)}
   </>;
+}
+
+/** Existing pages keep their public launcher API while using MapWorkspace. */
+export function CampaignMapLauncher(props: CampaignMapWorkspaceProps) {
+  return <CampaignMapWorkspace {...props} />;
 }

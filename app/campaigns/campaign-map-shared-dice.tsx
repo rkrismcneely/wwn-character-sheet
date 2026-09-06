@@ -62,7 +62,8 @@ export function CampaignMapSharedDice({
   }, [campaignId, mapId]);
 
   useEffect(() => {
-    void loadPreference();
+    const initialLoad = window.setTimeout(() => void loadPreference(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [loadPreference]);
 
   useEffect(() => {
@@ -90,8 +91,8 @@ export function CampaignMapSharedDice({
       if (detail?.campaignId !== campaignId || !roll || seenRollIds.current.has(roll.id)) return;
       const dice = rollDice(roll);
       if (!dice) return;
+      if (seenRollIds.current.size >= 100) seenRollIds.current.clear();
       seenRollIds.current.add(roll.id);
-      if (seenRollIds.current.size > 100) seenRollIds.current.clear();
       animationQueue.current = animationQueue.current
         .catch(() => undefined)
         .then(async () => {

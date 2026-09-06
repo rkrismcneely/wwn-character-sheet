@@ -104,7 +104,7 @@ test("campaign map tokens are durable per map, permissioned, encounter-placeable
   assert.match(migration, /`map_id` text NOT NULL/u);
   assert.match(migration, /campaign_map_tokens_source_unique` ON `campaign_map_tokens` \(`map_id`, `kind`, `source_id`\)/u);
   assert.match(service, /FROM campaign_map_tokens WHERE map_id = \?/u);
-  assert.match(service, /You can move only your own campaign character token/u);
+  assert.match(service, /You can move only your own campaign character or companion token/u);
   assert.match(service, /WHERE map_id = \? AND id = \? AND version = \?/u);
   assert.match(service, /placeCampaignMapEncounterTokens/u);
   assert.match(tokenRoute, /body\.mapId/u);

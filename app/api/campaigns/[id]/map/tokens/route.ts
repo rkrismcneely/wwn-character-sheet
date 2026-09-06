@@ -6,6 +6,7 @@ import {
   loadCampaignMapAccess,
   moveCampaignMapToken,
   placeCampaignMapCharacterToken,
+  placeCampaignMapCompanionToken,
   placeCampaignMapEncounterTokens,
   removeCampaignMapToken,
   type CampaignMapEncounterTokenSeed,
@@ -64,6 +65,8 @@ export async function POST(request: Request, context: Context): Promise<Response
 
     if (body.action === "place_pc") {
       map = await placeCampaignMapCharacterToken(db, actor, id, body.mapId, body.characterId);
+    } else if (body.action === "place_companion") {
+      map = await placeCampaignMapCompanionToken(db, actor, id, body.mapId, body.companionId);
     } else if (body.action === "place_encounter") {
       if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
       map = await placeCampaignMapEncounterTokens(db, actor, id, body.mapId, await encounterSeeds(db, access.campaignInternalId));

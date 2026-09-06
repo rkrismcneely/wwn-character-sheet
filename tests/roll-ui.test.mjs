@@ -154,8 +154,8 @@ test("Dice Style renderer configs have stable, style-scoped cache and texture id
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.source, "textures/glitter.webp");
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].source, "textures/bronze03.webp");
   assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.composite, "screen");
-  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["starfall-glitter"].composite, "multiply");
-  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].composite, "multiply");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["starfall-glitter"].composite, "screen");
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS["antique-bronze"].composite, "screen");
   assert.match(diceStyleSource, /rendererTextureForKey/);
   assert.match(adapterSource, /installStyleTextureRegistry\(box\)/);
   assert.match(adapterSource, /rendererTextureForKey\(texture\)/);
@@ -177,6 +177,31 @@ test("curated Dice Styles retain readable figure contrast and opposite-luminance
       relativeLuminance(outline) > 0.5,
       `${style} uses an outline with the opposite luminance role from its numerals`,
     );
+  }
+});
+
+test("curated Dice Styles keep bright face palettes outside their intentional dark identities", () => {
+  const intentionalDarkStyles = new Set(["obsidian-gold", "starfield"]);
+  for (const style of DICE_STYLE_IDS) {
+    if (intentionalDarkStyles.has(style)) continue;
+    assert.ok(
+      relativeLuminance(DICE_STYLE_RENDERER_CONFIG[style].background) >= 0.35,
+      `${style} keeps a bright enough face palette after texture shading`,
+    );
+  }
+});
+
+test("light-facing Dice Styles use bright texture compositing without flattening dark or natural patterns", () => {
+  for (const style of [
+    "arcane-glass", "dragon-scale", "ember-forge", "winter-ice", "tidal-water",
+    "forged-steel", "antique-bronze", "starfall-glitter", "lizard-scale",
+    "storm-clouds", "astral-nebula",
+  ]) {
+    assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS[style].composite, "screen", `${style} keeps its brightened texture treatment`);
+  }
+  assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS.starfield.composite, "screen", "starfield keeps bright pinpoints against its night-sky face");
+  for (const style of ["obsidian-gold", "carved-wood", "leopard-pattern", "tiger-stripe", "cheetah-spot"]) {
+    assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS[style].composite, "multiply", `${style} keeps its intentionally dark or natural texture treatment`);
   }
 });
 
@@ -397,7 +422,8 @@ test("curated dice styles keep readable face-label contrast", () => {
 });
 
 test("virtual dice readability uses renderer-native lighting without a runtime Three import", () => {
-  assert.match(adapterSource, /light_intensity: 1\.6/);
+  assert.match(adapterSource, /color_spotlight: 0xffffff/);
+  assert.match(adapterSource, /light_intensity: 2\.8/);
   assert.doesNotMatch(adapterSource, /const threeModuleName = "three"/);
   assert.doesNotMatch(adapterSource, /import\(threeModuleName\)|HemisphereLight|twe-dice-fill-light|scene\.add\(fillLight\)/);
   assert.match(adapterSource, /import\("@drdreo\/dice-box-threejs"\)/);

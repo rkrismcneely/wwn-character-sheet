@@ -78,7 +78,8 @@ export class VirtualDiceRendererAdapter {
         gravity_multiplier: 400,
         // dice-box-threejs already creates both its spotlight and hemisphere
         // fill light from this supported setting; no extra Three.js import is needed.
-        light_intensity: 1.6,
+        color_spotlight: 0xffffff,
+        light_intensity: 2.8,
         baseScale: 70,
         strength: 1,
         iterationLimit: 1400,

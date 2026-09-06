@@ -280,12 +280,11 @@ test("curated dice styles keep readable face-label contrast", () => {
   }
 });
 
-test("virtual dice lighting keeps every resting face legible", () => {
-  assert.match(adapterSource, /const threeModuleName = "three"/);
-  assert.match(adapterSource, /import\(threeModuleName\)/);
-  assert.match(adapterSource, /HemisphereLight/);
-  assert.match(adapterSource, /twe-dice-fill-light/);
-  assert.match(adapterSource, /scene\.add\(fillLight\)/);
+test("virtual dice readability uses renderer-native lighting without a runtime Three import", () => {
+  assert.match(adapterSource, /light_intensity: 1\.6/);
+  assert.doesNotMatch(adapterSource, /const threeModuleName = "three"/);
+  assert.doesNotMatch(adapterSource, /import\(threeModuleName\)|HemisphereLight|twe-dice-fill-light|scene\.add\(fillLight\)/);
+  assert.match(adapterSource, /import\("@drdreo\/dice-box-threejs"\)/);
 });
 
 test("metal-look dice avoid unlit PBR metal while retaining their textures", () => {

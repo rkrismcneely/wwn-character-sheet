@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useReducer,
   useRef,
   useState,
   type ChangeEvent,
@@ -30,7 +31,16 @@ import {
   type CampaignMapGridCell,
   type CampaignMapGridType,
 } from "@/lib/campaigns/map-grid";
-import { campaignMapOpenEvent, type CampaignMapOpenDetail } from "./campaign-map-events";
+import {
+  createMapWorkspaceState,
+  mapWorkspaceReducer,
+  type InPageMapPresentation,
+} from "@/lib/campaigns/map-workspace-lifecycle";
+import {
+  campaignMapOpenEvent,
+  campaignMapStateEvent,
+  type CampaignMapOpenDetail,
+} from "./campaign-map-events";
 import { CampaignMapSharedDice } from "./campaign-map-shared-dice";
 import { campaignMapChangedEvent, useCampaignLiveSession } from "./use-live-session";
 
@@ -40,8 +50,8 @@ type MapInteractions = { snapEnabled: boolean; tokenSizes: Record<string, number
 type FogMode = "hide" | "reveal";
 type TokenDragMeasurement = { tokenId: string; distance: string };
 type TokenDragOrigin = { tokenId: string; x: number; y: number };
-type MapPresentation = "fullscreen" | "split" | "drawer" | "floating" | "pip" | "standalone";
 type FloatingPosition = { x: number; y: number };
+type PipExitIntent = "close" | "return";
 
 type DocumentPictureInPictureController = {
   requestWindow(options?: { width?: number; height?: number }): Promise<Window>;
@@ -49,11 +59,11 @@ type DocumentPictureInPictureController = {
 
 const mapPresentationStorageKey = "twe:campaign-map:presentation";
 
-function isMapPresentation(value: unknown): value is MapPresentation {
+function isMapPresentation(value: unknown): value is InPageMapPresentation {
   return value === "fullscreen" || value === "split" || value === "drawer" || value === "floating";
 }
 
-function preferredMapPresentation(): MapPresentation {
+function preferredMapPresentation(): InPageMapPresentation {
   if (typeof window === "undefined") return "fullscreen";
   try {
     const value = window.localStorage.getItem(mapPresentationStorageKey);
@@ -198,10 +208,16 @@ export function CampaignMapWorkspace({
   const fogDragRef = useRef<{ pointerId: number; start: { x: number; y: number } } | null>(null);
   const fogPreviewRef = useRef<CampaignMapGridCell[]>([]);
   const mapSyncChannelRef = useRef<BroadcastChannel | null>(null);
-  const [open, setOpen] = useState(initialOpen);
-  const [presentation, setPresentation] = useState<MapPresentation>(initialPresentation ?? preferredMapPresentation);
+  const [workspace, dispatchWorkspace] = useReducer(
+    mapWorkspaceReducer,
+    { initialOpen, initialPresentation, preferredPresentation: preferredMapPresentation() },
+    createMapWorkspaceState,
+  );
+  const open = workspace.presentation !== "closed";
+  const presentation = workspace.presentation;
   const [pipDocument, setPipDocument] = useState<Document | null>(null);
   const pipWindowRef = useRef<Window | null>(null);
+  const pipExitIntentRef = useRef<PipExitIntent>("close");
   const [floatingPosition, setFloatingPosition] = useState<FloatingPosition>({ x: 0, y: 0 });
   const floatingDragRef = useRef<{ pointerId: number; clientX: number; clientY: number; position: FloatingPosition } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -224,9 +240,28 @@ export function CampaignMapWorkspace({
   const [fogMode, setFogMode] = useState<FogMode | null>(null);
   const [fogPreview, setFogPreview] = useState<CampaignMapGridCell[]>([]);
 
-  // Each map host owns an authenticated live-session connection. That makes a
-  // modal, a pop-out, and Picture-in-Picture all converge on the same durable
-  // map state without trusting opener state or browser-local data.
+  const closeMap = useCallback(() => {
+    if (presentation === "pip") {
+      pipExitIntentRef.current = "close";
+      pipWindowRef.current?.close();
+      pipWindowRef.current = null;
+      setPipDocument(null);
+      dispatchWorkspace({ type: "close" });
+      setSettingsOpen(false);
+      return;
+    }
+    if (presentation === "standalone") {
+      if (window.opener) window.close();
+      else window.location.assign(`/campaigns/${campaignId}`);
+      return;
+    }
+    dispatchWorkspace({ type: "close" });
+    setSettingsOpen(false);
+  }, [campaignId, presentation]);
+
+  // The active map controller keeps its authenticated live-session connection
+  // while its in-page shell changes. A separate window loads the same
+  // authoritative map independently rather than borrowing opener state.
   useCampaignLiveSession(campaignId, open);
 
   useEffect(() => {
@@ -241,14 +276,20 @@ export function CampaignMapWorkspace({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") closeMap();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, presentation]);
+  }, [closeMap, open, presentation]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(campaignMapStateEvent, {
+      detail: { campaignId, open },
+    }));
+  }, [campaignId, open]);
 
   const applyResponse = useCallback((body: MapResponse, preserveView: boolean) => {
     const previousMapId = selectedMapIdRef.current;
@@ -316,7 +357,7 @@ export function CampaignMapWorkspace({
       if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null;
       channel.close();
     };
-  }, [campaignId, loadMap, open]);
+  }, [campaignId, closeMap, loadMap, open]);
 
   useEffect(() => {
     if (!initialPresentation || !initialOpen) return;
@@ -332,13 +373,18 @@ export function CampaignMapWorkspace({
     const onOpenMap = (event: Event) => {
       const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail;
       if (detail?.campaignId !== campaignId) return;
-      setOpen(true);
+      if (detail.action === "close") {
+        closeMap();
+        return;
+      }
+      if (open) return;
+      dispatchWorkspace({ type: "open" });
       setSettingsOpen(false);
       void loadMap(false);
     };
     window.addEventListener(campaignMapOpenEvent, onOpenMap);
     return () => window.removeEventListener(campaignMapOpenEvent, onOpenMap);
-  }, [campaignId, loadMap]);
+  }, [campaignId, loadMap, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -353,27 +399,35 @@ export function CampaignMapWorkspace({
   }, [campaignId, loadMap, open]);
 
   function showMap() {
-    setOpen(true);
+    if (open) {
+      closeMap();
+      return;
+    }
+    dispatchWorkspace({ type: "open" });
     setSettingsOpen(false);
     void loadMap(false);
   }
 
-  function rememberPresentation(nextPresentation: Exclude<MapPresentation, "pip" | "standalone">) {
-    setPresentation(nextPresentation);
+  function rememberPresentation(nextPresentation: InPageMapPresentation) {
     try { window.localStorage.setItem(mapPresentationStorageKey, nextPresentation); } catch { /* Preferences are optional. */ }
   }
 
-  function choosePresentation(nextPresentation: Exclude<MapPresentation, "pip" | "standalone">) {
+  function choosePresentation(nextPresentation: InPageMapPresentation) {
+    dispatchWorkspace({ type: "choose-in-page-presentation", presentation: nextPresentation });
     rememberPresentation(nextPresentation);
-    setOpen(true);
     setSettingsOpen(false);
-    void loadMap(true);
   }
 
   function openMapPopout() {
     const url = new URL(`/campaigns/${campaignId}/map`, window.location.origin);
     const popup = window.open(url.toString(), "twe-campaign-map", "popup=yes,width=1180,height=820,resizable=yes,scrollbars=yes");
-    if (!popup) setError("Your browser blocked the map pop-out. Allow pop-ups for Tales Without End and try again.");
+    if (!popup) {
+      setError("Your browser blocked the map window. Allow pop-ups for Tales Without End and try again.");
+      return;
+    }
+    popup.focus();
+    dispatchWorkspace({ type: "move-to-popout" });
+    setSettingsOpen(false);
   }
 
   async function openMapPictureInPicture() {
@@ -387,16 +441,16 @@ export function CampaignMapWorkspace({
       copyMapWorkspaceStyles(pipWindow.document);
       pipWindowRef.current = pipWindow;
       pipWindow.addEventListener("pagehide", () => {
+        const returnToPage = pipExitIntentRef.current === "return";
+        pipExitIntentRef.current = "close";
         pipWindowRef.current = null;
         setPipDocument(null);
-        setPresentation(preferredMapPresentation());
-        setOpen(false);
+        dispatchWorkspace({ type: "picture-in-picture-closed", returnToPage });
+        setSettingsOpen(false);
       }, { once: true });
-      setPresentation("pip");
       setPipDocument(pipWindow.document);
-      setOpen(true);
+      dispatchWorkspace({ type: "move-to-picture-in-picture" });
       setSettingsOpen(false);
-      void loadMap(true);
     } catch {
       // A denied request is normally a browser capability/gesture problem; a
       // same-origin pop-out preserves the useful multi-view workflow.
@@ -404,19 +458,10 @@ export function CampaignMapWorkspace({
     }
   }
 
-  function closeMap() {
-    if (presentation === "pip") {
-      pipWindowRef.current?.close();
-      pipWindowRef.current = null;
-      setPipDocument(null);
-      setPresentation(preferredMapPresentation());
-    }
-    if (presentation === "standalone") {
-      if (window.opener) window.close();
-      else window.location.assign(`/campaigns/${campaignId}`);
-      return;
-    }
-    setOpen(false);
+  function returnFromPictureInPicture() {
+    if (presentation !== "pip") return;
+    pipExitIntentRef.current = "return";
+    pipWindowRef.current?.close();
   }
 
   function handleFloatingDragStart(event: ReactPointerEvent<HTMLDivElement>) {
@@ -849,6 +894,8 @@ export function CampaignMapWorkspace({
   const placedCharacterIds = new Set(map?.tokens.filter(token => token.kind === "pc").map(token => token.sourceId) ?? []);
   const placedCompanionIds = new Set(map?.tokens.filter(token => token.kind === "companion").map(token => token.sourceId) ?? []);
 
+  const inPageHost = presentation !== "pip" && presentation !== "standalone" && presentation !== "closed";
+
   const mapSurface = open ? <section
     className={`campaign-map-dialog campaign-map-host-${presentation}`}
     role="dialog"
@@ -880,18 +927,19 @@ export function CampaignMapWorkspace({
               <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal Area</button>
             </>}
             {canManage && <button type="button" className="campaign-secondary" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Map Settings</button>}
-            {presentation !== "standalone" && presentation !== "pip" && <label className="campaign-map-presentation-picker">
+            {inPageHost && <label className="campaign-map-presentation-picker">
               <span className="sr-only">Map display</span>
-              <select value={presentation} onChange={event => choosePresentation(event.target.value as Exclude<MapPresentation, "pip" | "standalone">)}>
+              <select value={workspace.inPagePresentation} onChange={event => choosePresentation(event.target.value as InPageMapPresentation)}>
                 <option value="fullscreen">Full screen</option>
                 <option value="split">Split panel</option>
                 <option value="drawer">Side drawer</option>
                 <option value="floating">Floating window</option>
               </select>
             </label>}
-            {presentation !== "pip" && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={() => void openMapPictureInPicture()}>Picture-in-Picture</button>}
-            {presentation !== "standalone" && presentation !== "pip" && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={openMapPopout}>Pop Out</button>}
-            <button type="button" className="campaign-secondary" onClick={closeMap}>{presentation === "standalone" ? "Back to Campaign" : "Close"}</button>
+            {inPageHost && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={() => void openMapPictureInPicture()}>Move to Picture-in-Picture</button>}
+            {inPageHost && <button type="button" className="campaign-secondary campaign-map-desktop-action" onClick={openMapPopout}>Open Separate Window</button>}
+            {presentation === "pip" && <button type="button" className="campaign-secondary" onClick={returnFromPictureInPicture}>Return to Page</button>}
+            <button type="button" className="campaign-secondary" onClick={closeMap}>{presentation === "standalone" ? "Close Map Window" : "Close Map"}</button>
           </div>
         </header>
 
@@ -1080,7 +1128,7 @@ export function CampaignMapWorkspace({
       </section> : null;
 
   return <>
-    {showFloatingButton && <button type="button" className="campaign-map-launcher-button" onClick={showMap}>Map</button>}
+    {showFloatingButton && <button type="button" className="campaign-map-launcher-button" aria-pressed={open} onClick={showMap}>{open ? "Close Map" : "Map"}</button>}
     {mapSurface && (pipDocument
       ? createPortal(<main className="campaign-map-pip-host">{mapSurface}</main>, pipDocument.body)
       : <div className={`campaign-map-backdrop campaign-map-presentation-${presentation}`} role="presentation">{mapSurface}</div>)}

@@ -20,7 +20,7 @@ test("standalone character pages expose authorized campaign maps in the signed-i
   assert.match(control, /if \(refreshHost\(\)\) observer\.disconnect\(\)/u);
   assert.match(header, /className="app-header-utilities"/u);
   assert.match(control, /<select/u);
-  assert.match(control, />\s*Map\s*</u);
+  assert.match(control, /mapIsOpen \? "Close Map" : "Map"/u);
   assert.match(launcher, /showFloatingButton/u);
 });
 

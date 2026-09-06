@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { campaignMapOpenEvent, type CampaignMapOpenDetail } from "./campaign-map-events";
+import {
+  campaignMapOpenEvent,
+  campaignMapStateEvent,
+  type CampaignMapOpenDetail,
+  type CampaignMapStateDetail,
+} from "./campaign-map-events";
 
 export type CharacterMapCampaign = {
   id: string;
@@ -12,6 +17,7 @@ export type CharacterMapCampaign = {
 export function CampaignCharacterMapControl({ campaigns }: { campaigns: CharacterMapCampaign[] }) {
   const [host, setHost] = useState<Element | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id ?? "");
+  const [openCampaignIds, setOpenCampaignIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const refreshHost = () => {
@@ -37,11 +43,27 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const onMapState = (event: Event) => {
+      const detail = (event as CustomEvent<CampaignMapStateDetail>).detail;
+      if (!detail || !campaigns.some(campaign => campaign.id === detail.campaignId)) return;
+      setOpenCampaignIds(current => {
+        const next = new Set(current);
+        if (detail.open) next.add(detail.campaignId);
+        else next.delete(detail.campaignId);
+        return next;
+      });
+    };
+    window.addEventListener(campaignMapStateEvent, onMapState);
+    return () => window.removeEventListener(campaignMapStateEvent, onMapState);
+  }, [campaigns]);
+
   if (!host || campaigns.length === 0) return null;
 
   const campaignId = campaigns.some(campaign => campaign.id === selectedCampaignId)
     ? selectedCampaignId
     : campaigns[0].id;
+  const mapIsOpen = openCampaignIds.has(campaignId);
 
   return createPortal(
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -63,12 +85,15 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
       <button
         type="button"
         data-readonly-interactive="true"
-        aria-label={campaigns.length > 1 ? `Open ${campaigns.find(campaign => campaign.id === campaignId)?.name ?? "campaign"} map` : "Open campaign map"}
+        aria-label={campaigns.length > 1
+          ? `${mapIsOpen ? "Close" : "Open"} ${campaigns.find(campaign => campaign.id === campaignId)?.name ?? "campaign"} map`
+          : `${mapIsOpen ? "Close" : "Open"} campaign map`}
+        aria-pressed={mapIsOpen}
         onClick={() => window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {
-          detail: { campaignId },
+          detail: { campaignId, action: mapIsOpen ? "close" : "open" },
         }))}
       >
-        Map
+        {mapIsOpen ? "Close Map" : "Map"}
       </button>
     </span>,
     host,

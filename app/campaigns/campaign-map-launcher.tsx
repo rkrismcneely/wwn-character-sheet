@@ -23,6 +23,7 @@ import {
   tokenRadius as gridTokenRadius,
 } from "@/lib/campaigns/map-grid";
 import { campaignMapOpenEvent, type CampaignMapOpenDetail } from "./campaign-map-events";
+import { CampaignMapSharedDice } from "./campaign-map-shared-dice";
 import { campaignMapChangedEvent } from "./use-live-session";
 
 type ViewBox = { x: number; y: number; width: number; height: number };
@@ -572,6 +573,7 @@ export function CampaignMapLauncher({
               <button type="button" className="campaign-quiet" onClick={() => zoom(0.82)} aria-label="Zoom in">+</button>
               <button type="button" className="campaign-secondary" onClick={resetView}>Fit Map</button>
             </>}
+            {map && <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />}
             {canManage && <button type="button" className="campaign-secondary" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Map Settings</button>}
             <button type="button" className="campaign-secondary" onClick={() => setOpen(false)}>Close</button>
           </div>

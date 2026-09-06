@@ -1391,6 +1391,24 @@ main,
    the desktop sheet into a full-bleed layout. */
 .folio{max-width:min(1450px,100%)}
 
+/* When a desktop side drawer is open, the character sheet is a separate
+   readable work area. Center it in the space that remains instead of leaving
+   it centered against the full viewport and letting the drawer cover it. */
+@media (min-width:821px){
+  html[data-campaign-map-drawer="right"] .site-main > main > .folio{
+    width:min(1450px,calc(100vw - var(--campaign-map-drawer-space) - 48px));
+    margin-left:max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2));
+    margin-right:calc(var(--campaign-map-drawer-space) + max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2)));
+    transition:width .18s ease,margin .18s ease;
+  }
+  html[data-campaign-map-drawer="left"] .site-main > main > .folio{
+    width:min(1450px,calc(100vw - var(--campaign-map-drawer-space) - 48px));
+    margin-left:calc(var(--campaign-map-drawer-space) + max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2)));
+    margin-right:max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2));
+    transition:width .18s ease,margin .18s ease;
+  }
+}
+
 /* Attribute controls need a wider track than the three-column layout can
    provide inside the narrower desktop folio column.  Switch by the card's
    actual available width, rather than by the overall browser width. */

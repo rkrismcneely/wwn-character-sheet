@@ -1,7 +1,9 @@
 export type CampaignMapDrawerDock = "left" | "right";
 
 export const campaignMapDrawerMinWidth = 320;
-export const campaignMapDrawerMaxWidth = 720;
+// The viewport is the only upper bound. This keeps the drawer usable on a
+// large monitor without imposing an arbitrary application-level cap.
+export const campaignMapDrawerMaxWidth = Number.POSITIVE_INFINITY;
 export const campaignMapDrawerDefaultWidth = 400;
 
 export function clampCampaignMapDrawerWidth(width: number, viewportWidth: number): number {

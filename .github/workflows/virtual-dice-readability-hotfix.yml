@@ -6,6 +6,7 @@ on:
       - fix/virtual-dice-readability
     paths:
       - scripts/virtual-dice-readability-hotfix.mjs
+      - scripts/virtual-dice-readability-typefix.mjs
       - .github/workflows/virtual-dice-readability-hotfix.yml
   workflow_dispatch:
 
@@ -27,7 +28,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply focused readability hotfix
-        run: node scripts/virtual-dice-readability-hotfix.mjs
+        run: |
+          node scripts/virtual-dice-readability-hotfix.mjs
+          node scripts/virtual-dice-readability-typefix.mjs
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

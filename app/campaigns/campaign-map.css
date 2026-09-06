@@ -762,7 +762,8 @@
     bottom: .8rem;
   }
   .campaign-map-desktop-action,
-  .campaign-map-presentation-picker { display: none; }
+  .campaign-map-presentation-picker,
+  .campaign-map-dock-control { display: none; }
   .campaign-map-presentation-split,
   .campaign-map-presentation-drawer,
   .campaign-map-presentation-floating {

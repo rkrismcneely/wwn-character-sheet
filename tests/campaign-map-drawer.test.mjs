@@ -50,5 +50,6 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(css, /campaign-map-drawer-right/u);
   assert.match(css, /campaign-map-drawer-resize-handle/u);
   assert.match(css, /empty\s+outer\s+gutter/u);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dock-control\s*\{\s*display: none/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?campaign-map-drawer-resize-handle\s*\{\s*display: none/u);
 });

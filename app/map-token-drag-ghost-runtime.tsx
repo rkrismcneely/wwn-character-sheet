@@ -36,11 +36,11 @@ export function MapTokenDragGhostRuntime() {
       activePointerId = event.pointerId;
       originalTransform = token.getAttribute("transform");
 
-      // The map's pointer-down handler updates React state for the distance
-      // label/origin. An unmanaged SVG clone inserted synchronously gets
-      // removed by that render. Wait one animation frame so React finishes
-      // that commit, then leave the passive clone behind while the real token
-      // continues on the optimized direct-DOM drag path.
+      // The token's React handler stops propagation, so this listener must run
+      // in the capture phase. Wait one animation frame after capture so React
+      // can commit its drag-origin/distance state before we add the unmanaged
+      // SVG clone. The real token then moves imperatively while this clone
+      // remains at the authoritative starting transform.
       frame = window.requestAnimationFrame(() => {
         frame = null;
         if (!source?.isConnected || activePointerId === null) return;
@@ -63,14 +63,14 @@ export function MapTokenDragGhostRuntime() {
       if (activePointerId === event.pointerId) clearGhost();
     };
 
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointerup", onPointerEnd);
-    window.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("pointerup", onPointerEnd, true);
+    window.addEventListener("pointercancel", onPointerEnd, true);
     window.addEventListener("blur", clearGhost);
     return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("pointerup", onPointerEnd);
-      window.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("pointerup", onPointerEnd, true);
+      window.removeEventListener("pointercancel", onPointerEnd, true);
       window.removeEventListener("blur", clearGhost);
       clearGhost();
     };

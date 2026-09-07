@@ -468,6 +468,29 @@ html[data-theme="dark"] .campaign-encounter-npc-inventory strong{
 }
 @media(max-width:900px){.campaign-encounter-order li{grid-template-columns:16px minmax(105px,160px) minmax(180px,1fr) 48px minmax(90px,auto) 32px 28px}}
 @media(max-width:760px){.campaign-encounter-npc{grid-template-columns:repeat(4,minmax(0,1fr))}.campaign-encounter-npc label:first-child,.campaign-encounter-npc>button{grid-column:1/-1}}
+
+/* The desktop split workspace can leave a GM Console pane narrower than the
+   viewport breakpoint. Give NPC combat summaries the same readable stacked
+   treatment there without changing the normal full-width desktop layout. */
+@media (min-width:821px){
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row>.campaign-encounter-npc-combat{
+    grid-column:2/-2;
+    grid-row:2;
+    flex-wrap:wrap;
+    gap:6px 10px;
+  }
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row>.campaign-encounter-npc-combat .campaign-encounter-attack{
+    flex-basis:100%;
+  }
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row>.campaign-encounter-friendly-actions{
+    grid-column:2;
+    grid-row:3;
+  }
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row>.campaign-encounter-npc-details{
+    grid-column:2/-2;
+    grid-row:4;
+  }
+}
 @media(max-width:640px){.campaign-encounter-order li{grid-template-columns:16px minmax(80px,1fr) 48px 72px 32px 28px}.campaign-encounter-friendly-actions{grid-column:1/-1;grid-row:3}.campaign-encounter-npc-row>.campaign-encounter-npc-details{grid-column:2/-2;grid-row:4}.campaign-encounter-hp-control input{width:48px}}
 html[data-theme="dark"] .campaign-friendly-badge{border-color:#806b3c;background:#30291c;color:#f0dfbd}
 .campaign-item-visibility>label{display:flex;align-items:center;gap:8px}

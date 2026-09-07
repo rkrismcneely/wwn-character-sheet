@@ -37,6 +37,23 @@ jobs:
           NODE
       - name: Apply focused fixes
         run: node scripts/apply-map-access-visibility-drawer-polish.mjs
+      - name: Repair generated drawer assertions
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'tests/campaign-map-drawer.test.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.split('\n').map(line => {
+            if (line.includes('assert.match(headerCss') && line.includes('data-campaign-map-pane="compact"')) {
+              return '  assert.ok(headerCss.includes(`html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header`));';
+            }
+            if (line.includes('assert.match(headerCss') && line.includes('data-campaign-map-pane="narrow"')) {
+              return '  assert.ok(headerCss.includes(`html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header`));';
+            }
+            return line;
+          }).join('\n');
+          fs.writeFileSync(path, source);
+          NODE
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

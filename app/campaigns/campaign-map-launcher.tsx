@@ -240,8 +240,10 @@ export function CampaignMapWorkspace({
     latestX: number;
     latestY: number;
   } | null>(null);
-  const fogDragRef = useRef<{ pointerId: number; start: { x: number; y: number } } | null>(null);
+  const fogDragRef = useRef<{ pointerId: number; start: { x: number; y: number }; latest: { x: number; y: number } } | null>(null);
   const fogPreviewRef = useRef<CampaignMapGridCell[]>([]);
+  const fogPreviewLayerRef = useRef<SVGGElement>(null);
+  const fogPreviewFrameRef = useRef<number | null>(null);
   const mapSyncChannelRef = useRef<BroadcastChannel | null>(null);
   const [workspace, dispatchWorkspace] = useReducer(
     mapWorkspaceReducer,
@@ -282,7 +284,6 @@ export function CampaignMapWorkspace({
   const [tokenDragMeasurement, setTokenDragMeasurement] = useState<TokenDragMeasurement | null>(null);
   const [tokenDragOrigin, setTokenDragOrigin] = useState<TokenDragOrigin | null>(null);
   const [fogMode, setFogMode] = useState<FogMode | null>(null);
-  const [fogPreview, setFogPreview] = useState<CampaignMapGridCell[]>([]);
 
   const closeMap = useCallback(() => {
     if (presentation === "pip") {
@@ -620,6 +621,41 @@ export function CampaignMapWorkspace({
     return gridCellsInRectangle(start, end, map.grid, 500);
   }
 
+  function renderFogPreview(cells: CampaignMapGridCell[], mode: FogMode) {
+    const layer = fogPreviewLayerRef.current;
+    if (!layer || !map) return;
+    const ownerDocument = layer.ownerDocument;
+    const fragment = ownerDocument.createDocumentFragment();
+    for (const cell of cells) {
+      const path = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", gridCellPath(cell, map.grid));
+      path.setAttribute("class", `campaign-map-fog-preview is-${mode}`);
+      fragment.appendChild(path);
+    }
+    layer.replaceChildren(fragment);
+  }
+
+  function clearFogPreview() {
+    if (fogPreviewFrameRef.current !== null) {
+      window.cancelAnimationFrame(fogPreviewFrameRef.current);
+      fogPreviewFrameRef.current = null;
+    }
+    fogPreviewRef.current = [];
+    fogPreviewLayerRef.current?.replaceChildren();
+  }
+
+  function scheduleFogPreview(mode: FogMode) {
+    if (fogPreviewFrameRef.current !== null) return;
+    fogPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      fogPreviewFrameRef.current = null;
+      const drag = fogDragRef.current;
+      if (!drag) return;
+      const cells = selectedFogCells(drag.start, drag.latest);
+      fogPreviewRef.current = cells;
+      renderFogPreview(cells, mode);
+    });
+  }
+
   async function saveFogCells(mode: FogMode, cells: CampaignMapGridCell[]) {
     if (!map || !cells.length) return;
     setBusy(true);
@@ -647,10 +683,10 @@ export function CampaignMapWorkspace({
     if (fogMode && canManage && svgRef.current) {
       const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
       if (!point) return;
-      fogDragRef.current = { pointerId: event.pointerId, start: point };
+      fogDragRef.current = { pointerId: event.pointerId, start: point, latest: point };
       const cells = selectedFogCells(point, point);
       fogPreviewRef.current = cells;
-      setFogPreview(cells);
+      renderFogPreview(cells, fogMode);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
@@ -668,10 +704,9 @@ export function CampaignMapWorkspace({
     const fogDrag = fogDragRef.current;
     if (fogDrag?.pointerId === event.pointerId && svgRef.current) {
       const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
-      if (point) {
-        const cells = selectedFogCells(fogDrag.start, point);
-        fogPreviewRef.current = cells;
-        setFogPreview(cells);
+      if (point && fogMode) {
+        fogDrag.latest = point;
+        scheduleFogPreview(fogMode);
       }
       return;
     }
@@ -689,11 +724,11 @@ export function CampaignMapWorkspace({
   function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
     const fogDrag = fogDragRef.current;
     if (fogDrag?.pointerId === event.pointerId) {
-      fogDragRef.current = null;
-      const cells = fogPreviewRef.current;
+      const endPoint = svgRef.current ? clientPointToSvg(svgRef.current, event.clientX, event.clientY) : null;
+      const cells = selectedFogCells(fogDrag.start, endPoint ?? fogDrag.latest);
       const mode = fogMode;
-      setFogPreview([]);
-      fogPreviewRef.current = [];
+      fogDragRef.current = null;
+      clearFogPreview();
       setFogMode(null);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       if (mode && cells.length) void saveFogCells(mode, cells);
@@ -1068,8 +1103,8 @@ export function CampaignMapWorkspace({
               <span className="campaign-map-control-label">Table</span>
               <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />
               {canManage && map.backgroundUrl && <>
-                <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide</button>
-                <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal</button>
+                <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); clearFogPreview(); }}>Hide</button>
+                <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); clearFogPreview(); }}>Reveal</button>
               </>}
               {canManage && <button type="button" className={`campaign-secondary${settingsOpen ? " is-active" : ""}`} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Settings</button>}
             </div>}
@@ -1107,7 +1142,7 @@ export function CampaignMapWorkspace({
               {map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
               <g className="campaign-map-fog-layer" pointerEvents="none">
                 {map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}
-                {fogPreview.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className={`campaign-map-fog-preview is-${fogMode ?? "hide"}`} />)}
+                <g ref={fogPreviewLayerRef} />
               </g>
               <g className="campaign-map-token-layer">
                 {tokenDragOrigin && (() => {
@@ -1167,8 +1202,8 @@ export function CampaignMapWorkspace({
               <h4>At the Table</h4>
               <p>Controls used during play stay here. Alignment and map-library work are kept below.</p>
               <div className="campaign-map-table-actions">
-                <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide Area</button>
-                <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal Area</button>
+                <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); clearFogPreview(); }}>Hide Area</button>
+                <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); clearFogPreview(); }}>Reveal Area</button>
               </div>
               <label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label>
               <label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label>

@@ -192,6 +192,10 @@ function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number) 
   return point.matrixTransform(matrix.inverse());
 }
 
+function sameView(a: ViewBox | null, b: ViewBox | null): boolean {
+  return Boolean(a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
+}
+
 export type CampaignMapWorkspaceProps = {
   campaignId: string;
   campaignName: string;
@@ -215,6 +219,7 @@ export function CampaignMapWorkspace({
 }: CampaignMapWorkspaceProps) {
   const patternId = useId().replaceAll(":", "");
   const svgRef = useRef<SVGSVGElement>(null);
+  const drawerElementRef = useRef<HTMLElement>(null);
   const selectedMapIdRef = useRef<string | null>(null);
   const canManageRef = useRef(initialCanManage);
   const dragRef = useRef<{
@@ -222,6 +227,7 @@ export function CampaignMapWorkspace({
     clientX: number;
     clientY: number;
     view: ViewBox;
+    latestView: ViewBox;
   } | null>(null);
   const tokenDragRef = useRef<{
     pointerId: number;
@@ -251,6 +257,7 @@ export function CampaignMapWorkspace({
     pointerId: number;
     clientX: number;
     width: number;
+    latestWidth: number;
     source: "divider" | "collapse";
     didDrag: boolean;
   } | null>(null);
@@ -532,6 +539,7 @@ export function CampaignMapWorkspace({
       pointerId: event.pointerId,
       clientX: event.clientX,
       width: drawerWidth,
+      latestWidth: drawerWidth,
       source,
       didDrag: false,
     };
@@ -553,19 +561,27 @@ export function CampaignMapWorkspace({
     if (!resize || resize.pointerId !== event.pointerId) return;
     if (!resize.didDrag && Math.abs(event.clientX - resize.clientX) < 3) return;
     resize.didDrag = true;
-    setDrawerWidth(resizedCampaignMapDrawerWidth({
+    const nextWidth = resizedCampaignMapDrawerWidth({
       dock: drawerDock,
       startWidth: resize.width,
       startClientX: resize.clientX,
       clientX: event.clientX,
       viewportWidth: window.innerWidth,
-    }));
+    });
+    resize.latestWidth = nextWidth;
+    drawerElementRef.current?.style.setProperty("--campaign-map-drawer-width", `${nextWidth}px`);
+    const documentElement = document.documentElement;
+    documentElement.style.setProperty("--campaign-map-drawer-space", `${nextWidth}px`);
+    const remainingWidth = Math.max(0, window.innerWidth - nextWidth);
+    const nextPane = remainingWidth < 760 ? "narrow" : remainingWidth < 1120 ? "compact" : "wide";
+    if (documentElement.dataset.campaignMapPane !== nextPane) documentElement.dataset.campaignMapPane = nextPane;
   }
 
   function handleDrawerResizeEnd(event: ReactPointerEvent<HTMLElement>) {
     const resize = drawerResizeRef.current;
     if (!resize || resize.pointerId !== event.pointerId) return;
     drawerResizeRef.current = null;
+    if (resize.didDrag) setDrawerWidth(current => current === resize.latestWidth ? current : resize.latestWidth);
     if (resize.source === "collapse" && resize.didDrag) {
       suppressDrawerCollapseClickRef.current = true;
       window.setTimeout(() => { suppressDrawerCollapseClickRef.current = false; }, 0);
@@ -643,6 +659,7 @@ export function CampaignMapWorkspace({
       clientX: event.clientX,
       clientY: event.clientY,
       view,
+      latestView: view,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -664,7 +681,9 @@ export function CampaignMapWorkspace({
     if (!rect.width || !rect.height) return;
     const dx = (event.clientX - drag.clientX) * (drag.view.width / rect.width);
     const dy = (event.clientY - drag.clientY) * (drag.view.height / rect.height);
-    setView({ ...drag.view, x: drag.view.x - dx, y: drag.view.y - dy });
+    const nextView = { ...drag.view, x: drag.view.x - dx, y: drag.view.y - dy };
+    drag.latestView = nextView;
+    event.currentTarget.setAttribute("viewBox", `${nextView.x} ${nextView.y} ${nextView.width} ${nextView.height}`);
   }
 
   function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
@@ -680,7 +699,12 @@ export function CampaignMapWorkspace({
       if (mode && cells.length) void saveFogCells(mode, cells);
       return;
     }
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+    const drag = dragRef.current;
+    if (drag?.pointerId === event.pointerId) {
+      dragRef.current = null;
+      const finalView = drag.latestView;
+      setView(current => sameView(current, finalView) ? current : finalView);
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
@@ -991,6 +1015,7 @@ export function CampaignMapWorkspace({
   const inPageHost = presentation !== "pip" && presentation !== "standalone" && presentation !== "closed";
 
   const mapSurface = open ? <section
+    ref={drawerElementRef}
     className={`campaign-map-dialog campaign-map-host-${presentation}${presentation === "drawer" ? ` campaign-map-drawer-${drawerDock}` : ""}`}
     role="dialog"
     aria-modal={presentation === "fullscreen"}
@@ -1009,9 +1034,7 @@ export function CampaignMapWorkspace({
         />}
         <header className="campaign-map-toolbar">
           <div className="campaign-map-toolbar-primary">
-            <div
-              className="campaign-map-title-block"
-            >
+            <div className="campaign-map-title-block">
               <p className="campaign-kicker">CAMPAIGN MAP</p>
               <h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>
               {canManage && map && <small className={map.isActive ? "campaign-map-live-label" : "campaign-map-private-label"}>{map.isActive ? "Visible to players" : "GM preview — players still see the active map"}</small>}

@@ -80,14 +80,12 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
   flex:0 0 auto;
 }
 
-/* Every desktop map presentation uses one toolbar row whenever there is room.
-   Flatten the primary/actions wrappers so title, presentation selector, drawer
-   dock controls, zoom controls, close action, and any real table actions all
-   consume horizontal space before wrapping. */
+/* Full-screen, standalone, and PiP presentations can wrap naturally when the
+   host really is too narrow. Their internal wrapper rows are flattened so all
+   controls still share horizontal space first. */
 .campaign-map-host-fullscreen .campaign-map-toolbar,
 .campaign-map-pip-host .campaign-map-toolbar,
-.campaign-map-host-standalone .campaign-map-toolbar,
-.campaign-map-host-drawer .campaign-map-toolbar {
+.campaign-map-host-standalone .campaign-map-toolbar {
   display:flex;
   align-items:center;
   justify-content:flex-start;
@@ -101,42 +99,90 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
 .campaign-map-pip-host .campaign-map-toolbar-primary,
 .campaign-map-pip-host .campaign-map-toolbar-actions,
 .campaign-map-host-standalone .campaign-map-toolbar-primary,
-.campaign-map-host-standalone .campaign-map-toolbar-actions,
-.campaign-map-host-drawer .campaign-map-toolbar-primary,
-.campaign-map-host-drawer .campaign-map-toolbar-actions {
+.campaign-map-host-standalone .campaign-map-toolbar-actions {
   display:contents;
 }
 
 .campaign-map-host-fullscreen .campaign-map-title-block,
 .campaign-map-pip-host .campaign-map-title-block,
-.campaign-map-host-standalone .campaign-map-title-block,
-.campaign-map-host-drawer .campaign-map-title-block {
+.campaign-map-host-standalone .campaign-map-title-block {
   flex:1 1 12rem;
   min-width:9rem;
   max-width:none;
 }
 
-/* Undo the original drawer-specific full-width/column rules. A wide drawer like
-   the one in the reported desktop layout has ample room for these controls in
-   one row; only genuine lack of width should make them wrap. */
-.campaign-map-host-drawer .campaign-map-mode-controls,
-.campaign-map-host-drawer .campaign-map-toolbar-actions {
-  width:auto;
+/* The side drawer is intentionally a single toolbar row. The route stylesheet
+   contains older drawer-specific column rules, so these selectors include the
+   toolbar ancestor and win regardless of stylesheet injection order. If the
+   drawer is made exceptionally narrow, the toolbar scrolls horizontally rather
+   than creating a second vertical row. */
+.campaign-map-host-drawer .campaign-map-toolbar {
+  display:flex;
+  align-items:center;
   justify-content:flex-start;
+  flex-wrap:nowrap;
+  gap:.4rem;
+  padding:.5rem .65rem;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-primary,
+.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-actions {
+  display:contents;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-title-block {
+  order:1;
+  flex:1 1 0;
+  min-width:7rem;
+  max-width:none;
+  overflow:hidden;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-title-block h2 {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-mode-controls {
+  order:2;
+  flex:0 0 auto;
+  width:auto;
+  margin-left:0;
+  justify-content:flex-start;
+  flex-wrap:nowrap;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-presentation-picker,
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-dock-control,
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-control-group,
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-toolbar-actions {
+  flex:0 0 auto;
+  width:auto;
+  max-width:none;
+  flex-wrap:nowrap;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-control-group[aria-label="Map view controls"] {
+  order:3;
+}
+
+.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-control-group[aria-label="Table controls"] {
+  order:4;
 }
 
 .campaign-map-host-fullscreen .campaign-map-control-group[aria-label="Map view controls"],
 .campaign-map-pip-host .campaign-map-control-group[aria-label="Map view controls"],
-.campaign-map-host-standalone .campaign-map-control-group[aria-label="Map view controls"],
-.campaign-map-host-drawer .campaign-map-control-group[aria-label="Map view controls"] {
+.campaign-map-host-standalone .campaign-map-control-group[aria-label="Map view controls"] {
   flex:0 0 auto;
   order:2;
 }
 
 .campaign-map-host-fullscreen .campaign-map-mode-controls,
 .campaign-map-pip-host .campaign-map-mode-controls,
-.campaign-map-host-standalone .campaign-map-mode-controls,
-.campaign-map-host-drawer .campaign-map-mode-controls {
+.campaign-map-host-standalone .campaign-map-mode-controls {
   flex:0 0 auto;
   order:3;
   margin-left:auto;
@@ -162,20 +208,7 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
 
 .campaign-map-host-fullscreen .campaign-map-control-group[aria-label="Table controls"],
 .campaign-map-pip-host .campaign-map-control-group[aria-label="Table controls"],
-.campaign-map-host-standalone .campaign-map-control-group[aria-label="Table controls"],
-.campaign-map-host-drawer .campaign-map-control-group[aria-label="Table controls"] {
+.campaign-map-host-standalone .campaign-map-control-group[aria-label="Table controls"] {
   flex:0 0 auto;
   order:4;
-}
-
-/* On genuinely narrow drawers, keep the horizontal ordering but allow natural
-   wrapping rather than forcing the old three-row column layout. */
-@media (max-width:760px) {
-  .campaign-map-host-drawer .campaign-map-title-block {
-    flex:1 1 100%;
-  }
-
-  .campaign-map-host-drawer .campaign-map-mode-controls {
-    margin-left:0;
-  }
 }

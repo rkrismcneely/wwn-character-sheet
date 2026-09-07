@@ -18,6 +18,7 @@ import "./map-layout-polish.css";
 import "./character-responsive-polish.css";
 import { ThemeProvider } from "./theme-provider";
 import { SiteFooter } from "./site-footer";
+import { MapUiRuntime } from "./map-ui-runtime";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {
@@ -56,6 +57,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <ThemeProvider>
+          <MapUiRuntime />
           <div className="site-shell">
             <div className="site-main">{children}</div>
             <SiteFooter />

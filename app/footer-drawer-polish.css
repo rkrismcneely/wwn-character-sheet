@@ -1,0 +1,19 @@
+/* Keep the shared footer sized to the actual page pane while a desktop map
+   side drawer is open. The base footer padding is viewport-relative, which
+   over-compresses its legal copy after the site shell itself has been narrowed. */
+@media (min-width:821px){
+  html[data-campaign-map-drawer] .site-footer{
+    padding-inline:max(24px,calc((100% - 1320px)/2));
+  }
+
+  html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .site-footer{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+  }
+
+  html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .site-footer span{
+    max-width:100%;
+    text-align:left;
+  }
+}

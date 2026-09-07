@@ -18,6 +18,7 @@ import "./map-layout-polish.css";
 import "./map-tab-dock-polish.css";
 import "./character-responsive-polish.css";
 import "./character-compact-field-polish.css";
+import "./footer-drawer-polish.css";
 import { ThemeProvider } from "./theme-provider";
 import { SiteFooter } from "./site-footer";
 import { MapUiRuntime } from "./map-ui-runtime";

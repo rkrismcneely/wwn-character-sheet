@@ -310,16 +310,26 @@ export function CampaignMapWorkspace({
 
   useEffect(() => {
     const documentElement = document.documentElement;
-    if (!open || presentation !== "drawer") {
+    const clearDrawerState = () => {
       delete documentElement.dataset.campaignMapDrawer;
+      delete documentElement.dataset.campaignMapPane;
       documentElement.style.removeProperty("--campaign-map-drawer-space");
+    };
+    if (!open || presentation !== "drawer") {
+      clearDrawerState();
       return;
     }
-    documentElement.dataset.campaignMapDrawer = drawerDock;
-    documentElement.style.setProperty("--campaign-map-drawer-space", `${drawerWidth}px`);
+    const syncDrawerState = () => {
+      const remainingWidth = Math.max(0, window.innerWidth - drawerWidth);
+      documentElement.dataset.campaignMapDrawer = drawerDock;
+      documentElement.dataset.campaignMapPane = remainingWidth < 760 ? "narrow" : remainingWidth < 1120 ? "compact" : "wide";
+      documentElement.style.setProperty("--campaign-map-drawer-space", `${drawerWidth}px`);
+    };
+    syncDrawerState();
+    window.addEventListener("resize", syncDrawerState);
     return () => {
-      if (documentElement.dataset.campaignMapDrawer === drawerDock) delete documentElement.dataset.campaignMapDrawer;
-      documentElement.style.removeProperty("--campaign-map-drawer-space");
+      window.removeEventListener("resize", syncDrawerState);
+      if (documentElement.dataset.campaignMapDrawer === drawerDock) clearDrawerState();
     };
   }, [drawerDock, drawerWidth, open, presentation]);
 
@@ -1101,9 +1111,6 @@ export function CampaignMapWorkspace({
             {map && <section className="campaign-map-table-controls">
               <h4>At the Table</h4>
               <p>Controls used during play stay here. Alignment and map-library work are kept below.</p>
-              {map.isActive
-                ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div>
-                : <button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Show to Players</button>}
               <div className="campaign-map-table-actions">
                 <button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { setFogMode(current => current === "hide" ? null : "hide"); setFogPreview([]); }}>Hide Area</button>
                 <button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { setFogMode(current => current === "reveal" ? null : "reveal"); setFogPreview([]); }}>Reveal Area</button>
@@ -1134,6 +1141,16 @@ export function CampaignMapWorkspace({
                 </button>)}
               </div>}
               {map && <div className="campaign-map-selected-controls">
+                <div className="campaign-map-player-visibility" aria-label="Player visibility">
+                  <strong className="campaign-map-setting-label">Player Visibility</strong>
+                  {map.isActive
+                    ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div>
+                    : <>
+                      <div className="campaign-map-hidden-status"><strong>GM Only</strong><span>Players continue to see the map currently marked Visible to Players.</span></div>
+                      <button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Make Visible to Players</button>
+                    </>}
+                  <small>Only one campaign map is visible to players at a time.</small>
+                </div>
                 <label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft} onChange={event => setMapNameDraft(event.target.value)} /></label>
                 <button type="button" className="campaign-secondary" disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name} onClick={() => void renameMap()}>Save Name</button>
                 <button type="button" className="campaign-danger" disabled={busy} onClick={() => void deleteMap()}>Delete Map</button>
@@ -1201,7 +1218,7 @@ export function CampaignMapWorkspace({
     aria-label="Collapse map"
     aria-expanded="true"
     onClick={closeMap}
-  >Open Map</button> : null;
+  >Close Map</button> : null;
 
   return <>
     {showFloatingButton && !open && <button type="button" className={`campaign-map-collapsed-drawer campaign-map-collapsed-drawer-${drawerDock}`} aria-pressed={open} onClick={showMap}>Open Map</button>}

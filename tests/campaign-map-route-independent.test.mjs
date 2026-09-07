@@ -12,7 +12,8 @@ test("standalone character pages expose authorized campaign maps in the signed-i
 
   assert.match(page, /CampaignCharacterMapControl/u);
   assert.match(page, /payload\.campaigns/u);
-  assert.match(page, /showFloatingButton=\{false\}/u);
+  assert.match(page, /showFloatingButton=\{campaigns\.length === 1\}/u);
+  assert.match(page, /listAuthorizedCharacterCampaigns\(db, actor, publicId\)/u);
   assert.match(control, /campaigns: CharacterMapCampaign\[\]/u);
   assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities"\)/u);
   assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);

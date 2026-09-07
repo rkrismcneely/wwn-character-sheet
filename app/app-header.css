@@ -389,3 +389,58 @@ html[data-theme="dark"] .twe-brand strong{
     letter-spacing:.02em;
   }
 }
+
+/* Side-drawer pane-width layout. The browser can remain desktop-wide while
+   the folio itself becomes tablet-width, so viewport media queries alone are
+   insufficient. CampaignMapWorkspace publishes the remaining-pane bucket. */
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:"brand nav" "utilities utilities";
+  align-items:center;
+  gap:8px 12px;
+  padding:9px 14px;
+}
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .twe-brand { grid-area:brand; }
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > nav {
+  grid-area:nav;
+  flex-wrap:nowrap;
+  justify-content:flex-end;
+}
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .app-header-utilities {
+  grid-area:utilities;
+  width:100%;
+  margin-left:0;
+  justify-content:flex-end;
+}
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header-utilities .status {
+  width:100%;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header {
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"brand" "utilities" "nav";
+  align-items:stretch;
+  gap:8px;
+  padding:9px 12px;
+}
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .twe-brand { grid-area:brand; }
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .app-header-utilities {
+  grid-area:utilities;
+  width:100%;
+  margin-left:0;
+  justify-content:flex-start;
+}
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav {
+  grid-area:nav;
+  width:100%;
+  justify-content:flex-start;
+}
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header nav,
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header-utilities,
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header-utilities .status {
+  flex-wrap:wrap;
+}

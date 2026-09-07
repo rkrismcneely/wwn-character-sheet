@@ -76,7 +76,7 @@ export default async function CharacterPage(context: RouteContext) {
         campaignId={campaign.id}
         campaignName={campaign.name}
         canManage={false}
-        showFloatingButton={false}
+        showFloatingButton={campaigns.length === 1}
       />)}
     </>}
   </>;

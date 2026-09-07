@@ -33,7 +33,12 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
   const socket = useRef<WebSocket | null>(null);
   const retry = useRef(0);
   const retryTimer = useRef<number | null>(null);
+  const activeCampaignId = useRef<string | null>(campaignId);
   const refreshInFlight = useRef<{ campaignId: string; promise: Promise<CampaignLiveSessionState> } | null>(null);
+
+  useEffect(() => {
+    activeCampaignId.current = campaignId;
+  }, [campaignId]);
 
   const load = useCallback(async () => {
     if (!campaignId) {
@@ -54,7 +59,7 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
     refreshInFlight.current = { campaignId: requestedCampaignId, promise };
     try {
       const liveSession = await promise;
-      setState(liveSession);
+      if (activeCampaignId.current === requestedCampaignId) setState(liveSession);
       return liveSession;
     } finally {
       if (refreshInFlight.current?.promise === promise) refreshInFlight.current = null;

@@ -5,6 +5,7 @@ import type { CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useDisplayTheme } from "../theme-provider";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "../virtual-dice-overlay";
 import { useDiceStylePreference, useVirtualDicePreference } from "../virtual-dice-preference";
+import { readRollHistory } from "../roll-history";
 import { campaignMapChangedEvent, campaignSharedRollEvent, useCampaignLiveSession } from "./use-live-session";
 
 type InteractionResponse = {
@@ -24,6 +25,10 @@ function rollDice(roll: CampaignSharedRoll) {
   if (!Number.isSafeInteger(sides) || sides < 2) return null;
   if (results.some(value => !Number.isSafeInteger(value) || value < 1 || value > sides)) return null;
   return results.map(value => ({ sides, value }));
+}
+
+function locallyAnimatedRoll(rollId: string): boolean {
+  return readRollHistory().some(entry => entry.id === rollId);
 }
 
 export function CampaignMapSharedDice({
@@ -94,6 +99,16 @@ export function CampaignMapSharedDice({
       const detail = (event as CustomEvent<SharedRollEventDetail>).detail;
       const roll = detail?.roll;
       if (detail?.campaignId !== campaignId || !roll || seenRollIds.current.has(roll.id)) return;
+
+      // A character-sheet roll is animated before it is published to the live
+      // session, and is written to this tab's roll history before the publish
+      // event comes back through the map. Treat that ID as already animated so
+      // opening the map cannot replay the exact same local roll a second time.
+      if (locallyAnimatedRoll(roll.id)) {
+        seenRollIds.current.add(roll.id);
+        return;
+      }
+
       const dice = rollDice(roll);
       if (!dice) return;
       if (seenRollIds.current.size >= 100) seenRollIds.current.clear();

@@ -24,11 +24,11 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
       // CharacterSheet starts on the legacy topbar while Better Auth hydrates,
       // then replaces it with the shared signed-in header. Prefer that durable
       // host whenever it exists, while retaining the legacy host as a fallback.
-      const nextHost = document.querySelector(".app-header .app-header-utilities")
-        ?? document.querySelector(".topbar .status");
+      const durableHost = document.querySelector(".app-header .app-header-utilities");
+      const nextHost = durableHost ?? document.querySelector(".topbar .status");
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setHost(currentHost => currentHost === nextHost ? currentHost : nextHost);
-      return Boolean(document.querySelector(".app-header .app-header-utilities"));
+      return Boolean(durableHost);
     };
 
     if (refreshHost()) return;
@@ -44,10 +44,13 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
   }, []);
 
   useEffect(() => {
+    const campaignIds = new Set(campaigns.map(campaign => campaign.id));
     const onMapState = (event: Event) => {
       const detail = (event as CustomEvent<CampaignMapStateDetail>).detail;
-      if (!detail || !campaigns.some(campaign => campaign.id === detail.campaignId)) return;
+      if (!detail || !campaignIds.has(detail.campaignId)) return;
       setOpenCampaignIds(current => {
+        const alreadyOpen = current.has(detail.campaignId);
+        if (alreadyOpen === detail.open) return current;
         const next = new Set(current);
         if (detail.open) next.add(detail.campaignId);
         else next.delete(detail.campaignId);
@@ -60,9 +63,8 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
 
   if (!host || campaigns.length === 0) return null;
 
-  const campaignId = campaigns.some(campaign => campaign.id === selectedCampaignId)
-    ? selectedCampaignId
-    : campaigns[0].id;
+  const selectedCampaign = campaigns.find(campaign => campaign.id === selectedCampaignId) ?? campaigns[0];
+  const campaignId = selectedCampaign.id;
   const mapIsOpen = openCampaignIds.has(campaignId);
 
   return createPortal(
@@ -86,7 +88,7 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
         type="button"
         data-readonly-interactive="true"
         aria-label={campaigns.length > 1
-          ? `${mapIsOpen ? "Close" : "Open"} ${campaigns.find(campaign => campaign.id === campaignId)?.name ?? "campaign"} map`
+          ? `${mapIsOpen ? "Close" : "Open"} ${selectedCampaign.name} map`
           : `${mapIsOpen ? "Close" : "Open"} campaign map`}
         aria-pressed={mapIsOpen}
         onClick={() => window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {

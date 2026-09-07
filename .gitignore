@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# generated Vinext build/cache output
+/.vinext/
+
 # misc
 .DS_Store
 *.pem

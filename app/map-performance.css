@@ -1,0 +1,21 @@
+/* Performance-focused overrides for the campaign map workspace.
+   Keep structural styling in campaigns/campaign-map.css; these rules only
+   remove animation/work that is counterproductive during direct manipulation. */
+
+.campaign-map-host-drawer {
+  /* Width is driven continuously by pointer movement. Animating each new width
+     makes the drawer chase the cursor and forces extra intermediate layouts. */
+  transition: left .24s ease, right .24s ease;
+}
+
+.campaign-map-host-drawer .campaign-map-stage {
+  /* The stage is the expensive visual region. Isolate paint invalidation from
+     toolbar/settings chrome while the drawer changes size. */
+  contain: paint;
+}
+
+.campaign-map-host-drawer .campaign-map-svg {
+  /* SVG remains responsive to the drawer without promoting unrelated page
+     content into the same paint invalidation region. */
+  display: block;
+}

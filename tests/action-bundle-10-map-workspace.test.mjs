@@ -59,3 +59,16 @@ test("Action Bundle 10 uses one authenticated workspace controller with simplifi
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dialog\s*\{\s*width: 100%;\s*max-width: 100%;/u);
   assert.match(css, /max-width: calc\(100vw - 2rem\)/u);
 });
+
+
+test("map settings expose the selected map's player visibility explicitly", async () => {
+  const launcher = await read("app/campaigns/campaign-map-launcher.tsx");
+  const route = await read("app/api/campaigns/[id]/map/route.ts");
+
+  assert.match(launcher, /campaign-map-player-visibility/u);
+  assert.match(launcher, />Player Visibility<\/strong>/u);
+  assert.match(launcher, />Make Visible to Players<\/button>/u);
+  assert.match(launcher, /Only one campaign map is visible to players at a time/u);
+  assert.match(route, /body\.action === "activate"/u);
+  assert.match(route, /activateCampaignMap/u);
+});

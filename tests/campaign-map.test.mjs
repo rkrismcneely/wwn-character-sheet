@@ -73,7 +73,7 @@ test("campaign map foundation supports a private GM map library with one player-
   assert.match(backgroundRoute, /x-content-type-options/u);
   assert.match(launcher, /Upload New Map/u);
   assert.match(launcher, /Visible to Players/u);
-  assert.match(launcher, /Show to Players/u);
+  assert.match(launcher, /Make Visible to Players/u);
   assert.match(launcher, /GM preview/u);
   assert.match(launcher, /Save Name/u);
   assert.match(launcher, /Delete Map/u);

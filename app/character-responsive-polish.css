@@ -14,18 +14,18 @@
   container: skills-panel / inline-size;
 }
 
-/* Let skill rank controls surrender width before the skill name or Roll button.
-   Native selects may visually clip "Untrained" at the narrow end, but numeric
-   ranks retain enough room for their full signed value. */
+/* Keep the full rank label readable whenever the panel can reasonably support
+   it. The select track still yields a little width on genuinely narrow panes,
+   but no longer starts from a size that clips "Untrained" during normal use. */
 .skills label {
-  grid-template-columns: minmax(0, 1fr) minmax(42px, 84px);
+  grid-template-columns: minmax(0, 1fr) minmax(82px, 92px);
 }
 
 .skills select {
   width: 100%;
-  min-width: 42px;
-  max-width: 84px;
-  padding-inline: 4px 14px;
+  min-width: 82px;
+  max-width: 92px;
+  padding-inline: 4px 16px;
 }
 
 .skill-row {
@@ -34,6 +34,29 @@
 
 .skill-row .roll-affordance {
   flex: 0 0 auto;
+}
+
+/* Put flexible space in the editable score control instead of between the
+   attribute abbreviation and modifier. This keeps STR/DEX/etc. and +0/+1
+   visually anchored with much more even breathing room across card widths. */
+.attributes label {
+  grid-template-columns: auto minmax(48px, 1fr) minmax(26px, auto);
+  column-gap: 6px;
+  padding-inline: 6px;
+}
+
+.attributes span {
+  min-width: 24px;
+}
+
+.attributes select {
+  width: 100%;
+  min-width: 0;
+}
+
+.attributes b {
+  min-width: 26px;
+  text-align: right;
 }
 
 /* Coin purse degradation is based on the actual identity-panel width rather
@@ -118,9 +141,9 @@
   }
 
   .attributes label {
-    grid-template-columns: minmax(18px, 1fr) minmax(42px, 50px) minmax(26px, 31px);
-    gap: 2px;
-    padding: 4px;
+    grid-template-columns: auto minmax(44px, 1fr) minmax(24px, auto);
+    gap: 4px;
+    padding: 5px;
   }
 
   .attributes select {
@@ -129,6 +152,7 @@
   }
 
   .attributes b {
+    min-width: 24px;
     font-size: 13px;
   }
 

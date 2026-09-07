@@ -799,6 +799,7 @@
     display: block;
     right: .8rem;
     bottom: .8rem;
+    z-index: 520;
   }
   .campaign-map-collapsed-drawer { display: none; }
   .campaign-map-drawer-collapse { display: none; }

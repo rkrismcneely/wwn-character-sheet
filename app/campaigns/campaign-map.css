@@ -62,26 +62,6 @@
   text-orientation: mixed;
 }
 
-.campaign-map-drawer-grip {
-  width: .95rem;
-  height: .34rem;
-  flex: 0 0 auto;
-  color: color-mix(in srgb, var(--text, #f4ead8) 62%, var(--border, #725f47) 38%);
-  background:
-    radial-gradient(circle at 20% 50%, currentColor 0 1.35px, transparent 1.6px),
-    radial-gradient(circle at 50% 50%, currentColor 0 1.35px, transparent 1.6px),
-    radial-gradient(circle at 80% 50%, currentColor 0 1.35px, transparent 1.6px);
-  opacity: .65;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .55));
-  transition: opacity .16s ease, color .16s ease;
-}
-
-.campaign-map-drawer-collapse:hover .campaign-map-drawer-grip,
-.campaign-map-drawer-collapse:focus-visible .campaign-map-drawer-grip,
-.campaign-map-drawer-collapse:active .campaign-map-drawer-grip {
-  color: var(--accent, #d5a65b);
-  opacity: 1;
-}
 
 .campaign-map-drawer-collapse-left {
   left: var(--campaign-map-drawer-space);

@@ -1256,9 +1256,7 @@ export function CampaignMapWorkspace({
     onPointerCancel={handleDrawerResizeEnd}
     onClick={handleDrawerCollapseClick}
   >
-    <span className="campaign-map-drawer-grip" aria-hidden="true" />
     <span className="campaign-map-drawer-collapse-label">Close Map</span>
-    <span className="campaign-map-drawer-grip" aria-hidden="true" />
   </button> : null;
 
   return <>

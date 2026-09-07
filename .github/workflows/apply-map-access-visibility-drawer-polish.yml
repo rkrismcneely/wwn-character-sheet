@@ -1,0 +1,63 @@
+name: Apply Map Access Visibility Drawer Polish
+
+on:
+  push:
+    branches:
+      - fix/map-access-visibility-drawer-polish
+    paths:
+      - scripts/apply-map-access-visibility-drawer-polish.mjs
+      - .github/workflows/apply-map-access-visibility-drawer-polish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  transform-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/map-access-visibility-drawer-polish
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Prepare transform literal
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'scripts/apply-map-access-visibility-drawer-polish.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replaceAll('${drawerWidth}', '\\${drawerWidth}');
+          fs.writeFileSync(path, source);
+          NODE
+      - name: Apply focused fixes
+        run: node scripts/apply-map-access-visibility-drawer-polish.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused map tests
+        run: node --experimental-strip-types --test tests/campaign-map-route-independent.test.mjs tests/campaign-map-drawer.test.mjs tests/action-bundle-10-map-workspace.test.mjs tests/campaign-map-character-sheet.test.mjs
+      - name: Full repository tests
+        run: npm test
+      - name: Build production artifact
+        run: npm run build
+      - name: Validate Worker artifact
+        run: npm run validate:artifact
+      - name: Commit validated implementation
+        run: |
+          git checkout -- scripts/apply-map-access-visibility-drawer-polish.mjs
+          if git diff --quiet; then
+            echo "No implementation changes produced."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/character/'[publicId]'/page.tsx app/campaigns/campaign-map-launcher.tsx app/campaigns/campaign-map.css app/app-header.css tests/campaign-map-route-independent.test.mjs tests/campaign-map-drawer.test.mjs tests/action-bundle-10-map-workspace.test.mjs
+          git commit -m "Polish campaign map access visibility and drawer layout"
+          git push origin HEAD:fix/map-access-visibility-drawer-polish

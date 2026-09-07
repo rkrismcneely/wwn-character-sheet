@@ -1,0 +1,54 @@
+name: Apply Map Close Handle Resize
+
+on:
+  push:
+    branches:
+      - fix/map-close-handle-resize
+    paths:
+      - scripts/apply-map-close-handle-resize.mjs
+      - .github/workflows/apply-map-close-handle-resize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  transform-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/map-close-handle-resize
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Apply focused resize-handle change
+        run: node scripts/apply-map-close-handle-resize.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused drawer tests
+        run: node --experimental-strip-types --test tests/campaign-map-drawer.test.mjs tests/campaign-map-route-independent.test.mjs
+      - name: Full repository tests
+        run: npm test
+      - name: Build production artifact
+        run: npm run build
+      - name: Validate Worker artifact
+        run: npm run validate:artifact
+      - name: Commit validated implementation
+        run: |
+          git checkout -- scripts/apply-map-close-handle-resize.mjs
+          if git diff --quiet; then
+            echo "No implementation changes produced."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/campaigns/campaign-map-launcher.tsx app/campaigns/campaign-map.css tests/campaign-map-drawer.test.mjs
+          git commit -m "Make Close Map tab resize the side drawer"
+          git push origin HEAD:fix/map-close-handle-resize

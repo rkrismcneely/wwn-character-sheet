@@ -1,0 +1,14 @@
+/* Keep the collapsed Open Map rail on the same edge as the drawer it will open.
+   The runtime copies the persisted/active dock into a root data attribute so the
+   pre-hydration rail cannot briefly advertise the opposite side. */
+html[data-campaign-map-preferred-dock="left"] .campaign-map-collapsed-drawer {
+  left: 0;
+  right: auto;
+  border-radius: 0 .55rem .55rem 0;
+}
+
+html[data-campaign-map-preferred-dock="right"] .campaign-map-collapsed-drawer {
+  right: 0;
+  left: auto;
+  border-radius: .55rem 0 0 .55rem;
+}

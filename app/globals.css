@@ -10,7 +10,7 @@ button,input,select,textarea{font:inherit;color:inherit}.topbar{min-height:68px;
 @media print{.topbar,.tabs,.rule-warning,button{display:none!important}.folio{margin:0;box-shadow:none;border:0}.hero{padding:16px}.page-grid{padding:12px}.sheet-section{break-inside:avoid}body{background:white}}
 
 .site-footer{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:20px max(24px,calc((100vw - 1320px)/2));background:#1c1915;color:#bdae94;border-top:1px solid #6f5939;font:11px/1.45 var(--font-ui)}
-.site-shell{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.site-shell{width:100%;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;transition:width .24s ease,margin-left .24s ease,margin-right .24s ease;will-change:width,margin-left,margin-right}
 .site-main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .site-footer strong{color:#e5d1a8;font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:.04em;white-space:nowrap}
 .site-footer span{text-align:right}
@@ -1391,21 +1391,18 @@ main,
    the desktop sheet into a full-bleed layout. */
 .folio{max-width:min(1450px,100%)}
 
-/* When a desktop side drawer is open, the character sheet is a separate
-   readable work area. Center it in the space that remains instead of leaving
-   it centered against the full viewport and letting the drawer cover it. */
+/* A desktop side drawer is a true split workspace. The shared shell, including
+   the header, page content, and footer, becomes the browser-sized pane left
+   after the map takes its docked share. This lets every page center itself in
+   the remaining pane instead of leaving a full-width page behind the map. */
 @media (min-width:821px){
-  html[data-campaign-map-drawer="right"] .site-main > main > .folio{
-    width:min(1450px,calc(100vw - var(--campaign-map-drawer-space) - 48px));
-    margin-left:max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2));
-    margin-right:calc(var(--campaign-map-drawer-space) + max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2)));
-    transition:width .18s ease,margin .18s ease;
+  html[data-campaign-map-drawer="right"] .site-shell{
+    width:calc(100% - var(--campaign-map-drawer-space));
+    margin-right:var(--campaign-map-drawer-space);
   }
-  html[data-campaign-map-drawer="left"] .site-main > main > .folio{
-    width:min(1450px,calc(100vw - var(--campaign-map-drawer-space) - 48px));
-    margin-left:calc(var(--campaign-map-drawer-space) + max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2)));
-    margin-right:max(24px,calc((100vw - var(--campaign-map-drawer-space) - 1450px)/2));
-    transition:width .18s ease,margin .18s ease;
+  html[data-campaign-map-drawer="left"] .site-shell{
+    width:calc(100% - var(--campaign-map-drawer-space));
+    margin-left:var(--campaign-map-drawer-space);
   }
 }
 

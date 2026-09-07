@@ -1,4 +1,5 @@
 .campaign-map-collapsed-drawer,
+.campaign-map-drawer-collapse,
 .campaign-map-mobile-launcher-button {
   position: fixed;
   z-index: 190;
@@ -29,6 +30,42 @@
 
 .campaign-map-collapsed-drawer-right {
   right: 0;
+}
+
+/* The open drawer uses the same narrow vertical affordance as the collapsed
+   rail. It sits on the map's outer edge so collapsing it does not require
+   reaching back into the toolbar. */
+.campaign-map-drawer-collapse {
+  position: fixed;
+  z-index: 510;
+  top: 50%;
+  width: 2.9rem;
+  min-height: 7.5rem;
+  padding: .7rem .35rem;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font: 600 .78rem/1 var(--font-ui, sans-serif);
+  letter-spacing: .08em;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translateY(-50%);
+  transition: left .24s ease, right .24s ease, transform .16s ease, border-color .16s ease;
+}
+
+.campaign-map-drawer-collapse-left {
+  left: calc(var(--campaign-map-drawer-space) - 1.45rem);
+  border-radius: .55rem 0 0 .55rem;
+}
+
+.campaign-map-drawer-collapse-right {
+  right: calc(var(--campaign-map-drawer-space) - 1.45rem);
+  border-radius: 0 .55rem .55rem 0;
+}
+
+.campaign-map-drawer-collapse:hover,
+.campaign-map-drawer-collapse:focus-visible {
+  border-color: rgba(232, 192, 110, .95);
+  transform: translateY(calc(-50% - 1px));
 }
 
 .campaign-map-mobile-launcher-button {
@@ -114,6 +151,7 @@
   max-width: calc(100vw - 2rem);
   height: 100dvh;
   border-radius: 0;
+  transition: width .24s ease, left .24s ease, right .24s ease;
 }
 
 .campaign-map-host-drawer.campaign-map-drawer-left {
@@ -763,6 +801,7 @@
     bottom: .8rem;
   }
   .campaign-map-collapsed-drawer { display: none; }
+  .campaign-map-drawer-collapse { display: none; }
   .campaign-map-presentation-picker,
   .campaign-map-dock-control { display: none; }
   .campaign-map-presentation-drawer {

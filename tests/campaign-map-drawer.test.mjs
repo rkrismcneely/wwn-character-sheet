@@ -46,6 +46,8 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(launcher, /campaign-map-control-label">Map/u);
   assert.match(launcher, /campaign-map-control-label">Table/u);
   assert.match(launcher, /<option value="pip">Picture-in-Picture<\/option>/u);
+  assert.match(launcher, /campaign-map-drawer-collapse/u);
+  assert.match(launcher, /aria-label="Collapse map"/u);
   assert.doesNotMatch(launcher, /<summary>Window<\/summary>|Separate Window|Split panel|Floating window/u);
   assert.match(css, /campaign-map-drawer-left/u);
   assert.match(css, /campaign-map-drawer-right/u);
@@ -56,6 +58,9 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(css, /\.campaign-map-toolbar \.campaign-kicker[\s\S]*?color: #d5a65b/u);
   assert.match(css, /empty\s+outer\s+gutter/u);
   assert.match(css, /campaign-map-collapsed-drawer/u);
+  assert.match(css, /campaign-map-drawer-collapse-left/u);
+  assert.match(css, /campaign-map-drawer-collapse-right/u);
+  assert.match(css, /campaign-map-drawer-collapse[\s\S]*?transition: left \.24s ease, right \.24s ease/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dock-control\s*\{\s*display: none/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?campaign-map-drawer-resize-handle\s*\{\s*display: none/u);
 
@@ -63,4 +68,6 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(globals, /data-campaign-map-drawer="right"/u);
   assert.match(globals, /data-campaign-map-drawer="left"/u);
   assert.match(globals, /var\(--campaign-map-drawer-space\)/u);
+  assert.match(globals, /data-campaign-map-drawer="right"[\s\S]*?\.site-shell[\s\S]*?width:calc\(100% - var\(--campaign-map-drawer-space\)\)/u);
+  assert.match(globals, /site-shell\{width:100%;[\s\S]*?transition:width \.24s ease,margin-left \.24s ease,margin-right \.24s ease/u);
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-providers";
@@ -31,7 +32,7 @@ export function DiscordSignInButton({ className }: { className?: string }) {
   if (!available) return null;
   return <span className="discord-signin-control provider-signin-control">
     <button type="button" className={`${className ?? ""} provider-signin-button provider-discord-button`} disabled={busy} onClick={() => void signIn()}>
-      <img className="provider-signin-icon provider-discord-icon" src="/assets/discord-symbol.svg" alt="" aria-hidden="true" />
+      <Image className="provider-signin-icon provider-discord-icon" src="/assets/discord-symbol.svg" alt="" aria-hidden="true" width={18} height={18} />
       <span>Continue with Discord</span>
     </button>
     {message && <span className="signin-status" role="alert">{message}</span>}

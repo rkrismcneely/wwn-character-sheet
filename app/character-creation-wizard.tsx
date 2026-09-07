@@ -1,6 +1,7 @@
 "use client";
 
 import { lazy, Suspense, type ComponentProps } from "react";
+import "./character-creation-wizard.css";
 
 /*
  * Source-inspection compatibility markers.

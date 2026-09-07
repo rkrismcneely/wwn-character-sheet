@@ -100,6 +100,15 @@ export function CampaignMapSharedDice({
       const roll = detail?.roll;
       if (detail?.campaignId !== campaignId || !roll || seenRollIds.current.has(roll.id)) return;
 
+      // NPC rolls initiated from the GM Console are already animated by the
+      // console before they are published. The authoritative public NPC roll
+      // uses the reserved "npc" identity, so the GM's map must not replay it.
+      // Player-facing maps still animate that published roll normally.
+      if (canManage && roll.character.id === "npc") {
+        seenRollIds.current.add(roll.id);
+        return;
+      }
+
       // A character-sheet roll is animated before it is published to the live
       // session, and is written to this tab's roll history before the publish
       // event comes back through the map. Treat that ID as already animated so
@@ -125,7 +134,7 @@ export function CampaignMapSharedDice({
     };
     window.addEventListener(campaignSharedRollEvent, onSharedRoll);
     return () => window.removeEventListener(campaignSharedRollEvent, onSharedRoll);
-  }, [campaignId, open, reducedMotion, sharedRollDiceEnabled, style, virtualDiceEnabled]);
+  }, [campaignId, canManage, open, reducedMotion, sharedRollDiceEnabled, style, virtualDiceEnabled]);
 
   useEffect(() => () => overlay.current?.cancel(), []);
 

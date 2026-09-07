@@ -6,12 +6,12 @@ const mapDrawerDockStorageKey = "twe:campaign-map:drawer-dock";
 
 function syncMapUi(): void {
   const root = document.documentElement;
-  const drawer = document.querySelector(".campaign-map-host-drawer") as HTMLElement | null;
+  const drawer = document.querySelector(".campaign-map-host-drawer") as unknown as HTMLElement | null;
   if (drawer?.classList.contains("campaign-map-drawer-left")) root.dataset.campaignMapPreferredDock = "left";
   else if (drawer?.classList.contains("campaign-map-drawer-right")) root.dataset.campaignMapPreferredDock = "right";
 
   for (const node of document.querySelectorAll(".campaign-map-presentation-picker select")) {
-    const select = node as HTMLSelectElement;
+    const select = node as unknown as HTMLSelectElement;
     const popOut = Array.from(select.options).find(option => option.value === "pip");
     if (popOut && popOut.textContent !== "Pop Out") popOut.textContent = "Pop Out";
   }

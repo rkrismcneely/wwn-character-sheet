@@ -2,50 +2,80 @@
    These rules deliberately affect presentation only; map authority and actions
    remain in their existing components. */
 
-/* When a side drawer leaves the character folio in the compact desktop range,
-   do not squeeze the signed-in navigation into a narrow column beside the
-   wordmark. Give the controls the full second row instead so they stay
-   horizontal and use the available pane width. */
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header {
-  grid-template-columns:auto minmax(0,1fr);
-  grid-template-areas:"brand utilities" "nav nav";
+/* While the side drawer is open, the character header must size itself to the
+   remaining folio pane, not to the full browser viewport. The canonical header
+   padding is viewport-based, which becomes far too large once the map consumes
+   half the screen and was the real cause of the cramped vertical button tower. */
+html[data-campaign-map-drawer] .app-header {
+  padding-inline:12px;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .app-header-utilities {
+/* In the compact pane range, let the three real header groups share one flex
+   row first and only wrap when their actual combined widths no longer fit. */
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header {
+  display:flex;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px 10px;
+}
+
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .twe-brand {
+  flex:0 0 auto;
+  margin-right:auto;
+}
+
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .app-header-utilities,
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > nav {
   width:auto;
   min-width:0;
   margin-left:0;
+  flex:0 0 auto;
   justify-content:flex-end;
+  flex-wrap:nowrap;
 }
 
 html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header-utilities .status {
   width:auto;
-  max-width:100%;
+  max-width:none;
   justify-content:flex-end;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > nav {
-  width:100%;
-  min-width:0;
-  justify-content:flex-end;
+/* In the narrow pane range the groups may wrap to additional rows, but each
+   row still gets the full usable pane width and controls stay in horizontal
+   reading order instead of collapsing into a one-button-wide tower. */
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header {
+  display:flex;
+  flex-direction:row;
   flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  padding-inline:10px;
 }
 
-/* The narrow bucket may need three rows, but each row should still use the
-   whole pane before individual controls wrap. This prevents the vertical
-   button tower visible while the map drawer is being enlarged. */
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .twe-brand {
+  flex:1 1 100%;
+}
+
 html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .app-header-utilities,
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav {
-  min-width:0;
-}
-
 html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav {
   display:flex;
   width:100%;
+  min-width:0;
+  margin-left:0;
   flex-direction:row;
-  justify-content:flex-start;
   align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+}
+
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header-utilities .status {
+  width:100%;
+  max-width:none;
+  justify-content:flex-start;
   flex-wrap:wrap;
 }
 
@@ -53,41 +83,55 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
   flex:0 0 auto;
 }
 
-/* Full-screen and Picture-in-Picture maps use one compact toolbar row whenever
-   space allows. The existing zoom cluster therefore sits alongside the title,
-   view-mode selector and close action instead of consuming its own row. */
+/* Full-screen, standalone, and Picture-in-Picture map chrome should behave as
+   one toolbar. Flatten the two internal wrapper rows so title, map controls,
+   presentation controls, close action, and any real table actions all compete
+   for the same horizontal row before anything wraps. */
 .campaign-map-host-fullscreen .campaign-map-toolbar,
 .campaign-map-pip-host .campaign-map-toolbar,
 .campaign-map-host-standalone .campaign-map-toolbar {
   display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
+  align-items:center;
+  justify-content:flex-start;
   flex-wrap:wrap;
-  gap:.55rem .85rem;
-  padding-block:.65rem;
+  gap:.45rem .65rem;
+  padding-block:.55rem;
 }
 
 .campaign-map-host-fullscreen .campaign-map-toolbar-primary,
-.campaign-map-pip-host .campaign-map-toolbar-primary,
-.campaign-map-host-standalone .campaign-map-toolbar-primary {
-  flex:1 1 34rem;
-  min-width:0;
-  align-items:center;
-}
-
 .campaign-map-host-fullscreen .campaign-map-toolbar-actions,
+.campaign-map-pip-host .campaign-map-toolbar-primary,
 .campaign-map-pip-host .campaign-map-toolbar-actions,
+.campaign-map-host-standalone .campaign-map-toolbar-primary,
 .campaign-map-host-standalone .campaign-map-toolbar-actions {
-  flex:0 1 auto;
-  min-width:0;
-  justify-content:flex-end;
-  align-self:center;
+  display:contents;
 }
 
-/* "Table" was only a grouping label; once the controls share the top row it
-   adds a redundant boxed chip. Keep any real GM/dice buttons, but remove the
-   label and decorative container chrome. If there are no buttons, the group
-   becomes visually inert and consumes no meaningful height. */
+.campaign-map-host-fullscreen .campaign-map-title-block,
+.campaign-map-pip-host .campaign-map-title-block,
+.campaign-map-host-standalone .campaign-map-title-block {
+  flex:1 1 18rem;
+  min-width:12rem;
+}
+
+.campaign-map-host-fullscreen .campaign-map-control-group[aria-label="Map view controls"],
+.campaign-map-pip-host .campaign-map-control-group[aria-label="Map view controls"],
+.campaign-map-host-standalone .campaign-map-control-group[aria-label="Map view controls"] {
+  flex:0 0 auto;
+  order:2;
+}
+
+.campaign-map-host-fullscreen .campaign-map-mode-controls,
+.campaign-map-pip-host .campaign-map-mode-controls,
+.campaign-map-host-standalone .campaign-map-mode-controls {
+  flex:0 0 auto;
+  order:3;
+  margin-left:auto;
+  justify-content:flex-end;
+}
+
+/* "Table" is only a grouping label. Remove its decorative box and label
+   completely; if the group has no real buttons it disappears entirely. */
 .campaign-map-control-group[aria-label="Table controls"] {
   min-height:0;
   padding:0;
@@ -103,8 +147,15 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
   display:none;
 }
 
-/* Keep the side-drawer toolbar behavior unchanged except for letting its
-   action groups use the full drawer width cleanly. */
+.campaign-map-host-fullscreen .campaign-map-control-group[aria-label="Table controls"],
+.campaign-map-pip-host .campaign-map-control-group[aria-label="Table controls"],
+.campaign-map-host-standalone .campaign-map-control-group[aria-label="Table controls"] {
+  flex:0 0 auto;
+  order:4;
+}
+
+/* Keep the side-drawer map toolbar itself unchanged; only the character header
+   beside it is being corrected above. */
 .campaign-map-host-drawer .campaign-map-toolbar-actions {
   width:100%;
 }

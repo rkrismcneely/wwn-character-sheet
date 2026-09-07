@@ -14,9 +14,10 @@ import "./globals.css";
 import "./app-header.css";
 import "./character-creation-review.css";
 import "./map-performance.css";
+import "./map-layout-polish.css";
 import { ThemeProvider } from "./theme-provider";
 import { SiteFooter } from "./site-footer";
-import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
+import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),

@@ -33,17 +33,32 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
   const socket = useRef<WebSocket | null>(null);
   const retry = useRef(0);
   const retryTimer = useRef<number | null>(null);
+  const refreshInFlight = useRef<{ campaignId: string; promise: Promise<CampaignLiveSessionState> } | null>(null);
 
   const load = useCallback(async () => {
     if (!campaignId) {
       setState(emptyLiveSessionState);
       return emptyLiveSessionState;
     }
-    const response = await fetch(`/api/campaigns/${campaignId}/session`, { cache: "no-store" });
-    const body = await response.json() as { liveSession?: CampaignLiveSessionState; error?: string };
-    if (!response.ok || !body.liveSession) throw new Error(body.error || "The live session is unavailable.");
-    setState(body.liveSession);
-    return body.liveSession;
+    if (refreshInFlight.current?.campaignId === campaignId) {
+      return refreshInFlight.current.promise;
+    }
+
+    const requestedCampaignId = campaignId;
+    const promise = (async () => {
+      const response = await fetch(`/api/campaigns/${requestedCampaignId}/session`, { cache: "no-store" });
+      const body = await response.json() as { liveSession?: CampaignLiveSessionState; error?: string };
+      if (!response.ok || !body.liveSession) throw new Error(body.error || "The live session is unavailable.");
+      return body.liveSession;
+    })();
+    refreshInFlight.current = { campaignId: requestedCampaignId, promise };
+    try {
+      const liveSession = await promise;
+      setState(liveSession);
+      return liveSession;
+    } finally {
+      if (refreshInFlight.current?.promise === promise) refreshInFlight.current = null;
+    }
   }, [campaignId]);
 
   useEffect(() => {

@@ -247,7 +247,14 @@ export function CampaignMapWorkspace({
   const [pipDocument, setPipDocument] = useState<Document | null>(null);
   const pipWindowRef = useRef<Window | null>(null);
   const pipExitIntentRef = useRef<PipExitIntent>("close");
-  const drawerResizeRef = useRef<{ pointerId: number; clientX: number; width: number } | null>(null);
+  const drawerResizeRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    width: number;
+    source: "divider" | "collapse";
+    didDrag: boolean;
+  } | null>(null);
+  const suppressDrawerCollapseClickRef = useRef(false);
   const [drawerDock, setDrawerDock] = useState<CampaignMapDrawerDock>(preferredDrawerDock);
   const [drawerWidth, setDrawerWidth] = useState(preferredDrawerWidth);
   const [loading, setLoading] = useState(false);
@@ -516,9 +523,19 @@ export function CampaignMapWorkspace({
     pipWindowRef.current?.close();
   }
 
-  function handleDrawerResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
+  function handleDrawerResizeStart(
+    event: ReactPointerEvent<HTMLElement>,
+    source: "divider" | "collapse" = "divider",
+  ) {
     if (presentation !== "drawer" || event.button !== 0) return;
-    drawerResizeRef.current = { pointerId: event.pointerId, clientX: event.clientX, width: drawerWidth };
+    drawerResizeRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      width: drawerWidth,
+      source,
+      didDrag: false,
+    };
+    if (source === "collapse") suppressDrawerCollapseClickRef.current = false;
     event.currentTarget.setPointerCapture(event.pointerId);
     event.preventDefault();
   }
@@ -531,9 +548,11 @@ export function CampaignMapWorkspace({
     if (value === "fullscreen" || value === "drawer") choosePresentation(value);
   }
 
-  function handleDrawerResizeMove(event: ReactPointerEvent<HTMLDivElement>) {
+  function handleDrawerResizeMove(event: ReactPointerEvent<HTMLElement>) {
     const resize = drawerResizeRef.current;
     if (!resize || resize.pointerId !== event.pointerId) return;
+    if (!resize.didDrag && Math.abs(event.clientX - resize.clientX) < 3) return;
+    resize.didDrag = true;
     setDrawerWidth(resizedCampaignMapDrawerWidth({
       dock: drawerDock,
       startWidth: resize.width,
@@ -543,10 +562,23 @@ export function CampaignMapWorkspace({
     }));
   }
 
-  function handleDrawerResizeEnd(event: ReactPointerEvent<HTMLDivElement>) {
-    if (drawerResizeRef.current?.pointerId !== event.pointerId) return;
+  function handleDrawerResizeEnd(event: ReactPointerEvent<HTMLElement>) {
+    const resize = drawerResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
     drawerResizeRef.current = null;
+    if (resize.source === "collapse" && resize.didDrag) {
+      suppressDrawerCollapseClickRef.current = true;
+      window.setTimeout(() => { suppressDrawerCollapseClickRef.current = false; }, 0);
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function handleDrawerCollapseClick() {
+    if (suppressDrawerCollapseClickRef.current) {
+      suppressDrawerCollapseClickRef.current = false;
+      return;
+    }
+    closeMap();
   }
 
   function resetView() {
@@ -1215,10 +1247,19 @@ export function CampaignMapWorkspace({
   const drawerCollapseControl = open && presentation === "drawer" ? <button
     type="button"
     className={`campaign-map-drawer-collapse campaign-map-drawer-collapse-${drawerDock}`}
-    aria-label="Collapse map"
+    aria-label="Close map; drag horizontally to resize side drawer"
     aria-expanded="true"
-    onClick={closeMap}
-  >Close Map</button> : null;
+    title="Click to close. Drag horizontally to resize the map drawer."
+    onPointerDown={event => handleDrawerResizeStart(event, "collapse")}
+    onPointerMove={handleDrawerResizeMove}
+    onPointerUp={handleDrawerResizeEnd}
+    onPointerCancel={handleDrawerResizeEnd}
+    onClick={handleDrawerCollapseClick}
+  >
+    <span className="campaign-map-drawer-grip" aria-hidden="true" />
+    <span className="campaign-map-drawer-collapse-label">Close Map</span>
+    <span className="campaign-map-drawer-grip" aria-hidden="true" />
+  </button> : null;
 
   return <>
     {showFloatingButton && !open && <button type="button" className={`campaign-map-collapsed-drawer campaign-map-collapsed-drawer-${drawerDock}`} aria-pressed={open} onClick={showMap}>Open Map</button>}

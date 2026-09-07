@@ -63,6 +63,7 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(css, /campaign-map-drawer-collapse-right/u);
   assert.match(css, /campaign-map-drawer-collapse[\s\S]*?transition: left \.24s ease, right \.24s ease/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dock-control\s*\{\s*display: none/u);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-mobile-launcher-button[\s\S]*?z-index: 520/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?campaign-map-drawer-resize-handle\s*\{\s*display: none/u);
   assert.match(campaignCss, /html\[data-campaign-map-drawer\][\s\S]*?campaign-encounter-npc-row>\.campaign-encounter-npc-combat[\s\S]*?grid-column:2\/-2/u);
   assert.match(campaignCss, /html\[data-campaign-map-drawer\][\s\S]*?campaign-encounter-friendly-actions[\s\S]*?grid-row:3/u);

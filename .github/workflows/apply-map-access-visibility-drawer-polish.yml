@@ -37,19 +37,6 @@ jobs:
           NODE
       - name: Apply focused fixes
         run: node scripts/apply-map-access-visibility-drawer-polish.mjs
-      - name: Diagnose map UI follow-up test source
-        run: |
-          echo '--- git status ---'
-          git status --short
-          echo '--- tracked map-ui-followups ---'
-          git ls-files tests/map-ui-followups.test.mjs || true
-          echo '--- filesystem entry ---'
-          ls -la tests/map-ui-followups.test.mjs || true
-          echo '--- stale assertion locations ---'
-          grep -R -n --exclude-dir=node_modules 'paneWidth = Math.max\|drawer pane state adjusts the app header using remaining sheet width' . || true
-          echo '--- test head ---'
-          if [ -f tests/map-ui-followups.test.mjs ]; then sed -n '1,180p' tests/map-ui-followups.test.mjs; fi
-          exit 1
       - name: Repair generated drawer assertions
         run: |
           node <<'NODE'

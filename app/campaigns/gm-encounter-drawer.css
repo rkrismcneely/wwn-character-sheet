@@ -1,17 +1,97 @@
-/* GM encounter rows should keep their normal desktop arrangement for as long as
-   the actual console panel has room. Container queries key this behavior to the
-   usable encounter width rather than merely to the presence of the map drawer. */
+/* GM encounter rows must respond to the width of the actual console pane, not
+   merely to the existence of a side drawer. campaign-ui.css still contains an
+   older drawer-presence fallback, so this route-scoped stylesheet explicitly
+   restores the canonical desktop geometry while the pane has room, then moves
+   combat information onto additional rows only when the row's real minimum
+   footprint can no longer fit comfortably. */
 
 .gm-console-panel {
   container-type: inline-size;
   container-name: gm-encounter-pane;
 }
 
-@container gm-encounter-pane (max-width: 650px) {
+/* Normal layout: keep the creature summary between the name and Initiative,
+   exactly as it appears with no map open. The desktop row's practical minimum
+   is roughly 670px once its fixed controls and gaps are included, so 700px
+   leaves a small safety margin before degradation begins. */
+@container gm-encounter-pane (min-width: 701px) {
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row {
+    grid-template-columns:
+      18px
+      minmax(128px, 220px)
+      minmax(250px, 1fr)
+      52px
+      minmax(96px, auto)
+      34px
+      28px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-npc-combat {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 14px;
+    min-width: 0;
+    padding: 0;
+    border-top: 0;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-combat > .campaign-encounter-stat {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-combat > .campaign-encounter-attack {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-initiative {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-hp {
+    grid-column: 5;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-ac {
+    grid-column: 6;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-remove {
+    grid-column: 7;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-friendly-actions {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-npc-details {
+    grid-column: 3 / 7;
+    grid-row: 2;
+    min-width: 0;
+    margin: 0;
+  }
+}
+
+/* First degradation step: keep name + Initiative + HP + AC + remove on the
+   first row and give the full combat summary the second row. Individual combat
+   stats still sit on one line whenever they fit. */
+@container gm-encounter-pane (max-width: 700px) {
   html[data-campaign-map-drawer] .campaign-encounter-npc-row {
     grid-template-columns:
       16px
-      minmax(130px, 1fr)
+      minmax(120px, 1fr)
       48px
       minmax(82px, auto)
       36px
@@ -58,11 +138,8 @@
   }
 
   html[data-campaign-map-drawer] .campaign-encounter-npc-combat > .campaign-encounter-attack {
-    flex: 1 1 280px;
-  }
-
-  html[data-campaign-map-drawer] .campaign-encounter-npc-combat > .campaign-encounter-attack b {
-    max-width: 100%;
+    flex: 1 1 240px;
+    min-width: 0;
   }
 
   html[data-campaign-map-drawer] .campaign-encounter-npc-row > .campaign-encounter-friendly-actions {
@@ -78,7 +155,9 @@
   }
 }
 
-@container gm-encounter-pane (max-width: 520px) {
+/* Second degradation step: only when the combat line itself no longer has
+   enough room does the attack summary claim a full row within the combat area. */
+@container gm-encounter-pane (max-width: 540px) {
   html[data-campaign-map-drawer] .campaign-encounter-npc-combat > .campaign-encounter-attack {
     flex-basis: 100%;
   }

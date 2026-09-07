@@ -33,9 +33,7 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
   const socket = useRef<WebSocket | null>(null);
   const retry = useRef(0);
   const retryTimer = useRef<number | null>(null);
-  const activeCampaignId = useRef(campaignId);
   const refreshInFlight = useRef<{ campaignId: string; promise: Promise<CampaignLiveSessionState> } | null>(null);
-  activeCampaignId.current = campaignId;
 
   const load = useCallback(async () => {
     if (!campaignId) {
@@ -51,12 +49,13 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
       const response = await fetch(`/api/campaigns/${requestedCampaignId}/session`, { cache: "no-store" });
       const body = await response.json() as { liveSession?: CampaignLiveSessionState; error?: string };
       if (!response.ok || !body.liveSession) throw new Error(body.error || "The live session is unavailable.");
-      if (activeCampaignId.current === requestedCampaignId) setState(body.liveSession);
       return body.liveSession;
     })();
     refreshInFlight.current = { campaignId: requestedCampaignId, promise };
     try {
-      return await promise;
+      const liveSession = await promise;
+      setState(liveSession);
+      return liveSession;
     } finally {
       if (refreshInFlight.current?.promise === promise) refreshInFlight.current = null;
     }

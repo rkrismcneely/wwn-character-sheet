@@ -1,0 +1,86 @@
+/* GM Console encounter rows need to respond to the width of the split workspace,
+   not only to browser-width media queries. The campaign map drawer can leave a
+   comfortable-but-compact GM pane while the viewport itself is still desktop-wide. */
+
+@media (min-width: 641px) {
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row {
+    grid-template-columns:
+      16px
+      minmax(130px, 1fr)
+      48px
+      minmax(82px, auto)
+      36px
+      28px;
+    gap: 7px;
+    align-items: start;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-initiative {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-hp {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-ac {
+    grid-column: 5;
+    grid-row: 1;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-remove {
+    grid-column: 6;
+    grid-row: 1;
+  }
+
+  /* Give the actual creature combat summary its own full-width reading row.
+     Each stat keeps its natural width, while the attack summary receives the
+     flexible space. This prevents Saves/Attack/Shock/Move/Morale from being
+     crushed into the narrow desktop combat track shown when the drawer opens. */
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-npc-combat {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    min-width: 0;
+    padding-top: 7px;
+    border-top: 1px solid rgba(182, 154, 104, .55);
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-combat > .campaign-encounter-stat {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-combat > .campaign-encounter-attack {
+    flex: 1 1 280px;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-combat > .campaign-encounter-attack b {
+    max-width: 100%;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-friendly-actions {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-self: start;
+  }
+
+  html[data-campaign-map-drawer] .gm-console-panel .campaign-encounter-npc-row > .campaign-encounter-npc-details {
+    grid-column: 2 / -1;
+    grid-row: 4;
+    min-width: 0;
+  }
+}
+
+/* Once the remaining pane itself is especially narrow, let the combat summary
+   use two balanced lanes rather than forcing a long attack line to dominate. */
+@media (min-width: 641px) {
+  html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .gm-console-panel .campaign-encounter-npc-combat > .campaign-encounter-attack {
+    flex-basis: 100%;
+  }
+}

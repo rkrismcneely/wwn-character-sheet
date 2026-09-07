@@ -80,12 +80,13 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
   flex:0 0 auto;
 }
 
-/* Full-screen, standalone, and PiP presentations can wrap naturally when the
-   host really is too narrow. Their internal wrapper rows are flattened so all
-   controls still share horizontal space first. */
+/* All desktop map presentations prefer one horizontal toolbar row. Internal
+   wrapper rows are flattened so title and controls share the same flex line;
+   wrapping happens only when their real minimum widths no longer fit. */
 .campaign-map-host-fullscreen .campaign-map-toolbar,
 .campaign-map-pip-host .campaign-map-toolbar,
-.campaign-map-host-standalone .campaign-map-toolbar {
+.campaign-map-host-standalone .campaign-map-toolbar,
+.campaign-map-host-drawer .campaign-map-toolbar {
   display:flex;
   align-items:center;
   justify-content:flex-start;
@@ -99,7 +100,9 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
 .campaign-map-pip-host .campaign-map-toolbar-primary,
 .campaign-map-pip-host .campaign-map-toolbar-actions,
 .campaign-map-host-standalone .campaign-map-toolbar-primary,
-.campaign-map-host-standalone .campaign-map-toolbar-actions {
+.campaign-map-host-standalone .campaign-map-toolbar-actions,
+.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-primary,
+.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-actions {
   display:contents;
 }
 
@@ -111,30 +114,18 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
   max-width:none;
 }
 
-/* The side drawer is intentionally a single toolbar row. The route stylesheet
-   contains older drawer-specific column rules, so these selectors include the
-   toolbar ancestor and win regardless of stylesheet injection order. If the
-   drawer is made exceptionally narrow, the toolbar scrolls horizontally rather
-   than creating a second vertical row. */
+/* The side drawer keeps the same one-row-first behavior, but unlike the prior
+   forced single-row version it may naturally wrap onto a second or third row
+   once the drawer is genuinely too narrow for the controls. */
 .campaign-map-host-drawer .campaign-map-toolbar {
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
-  flex-wrap:nowrap;
   gap:.4rem;
   padding:.5rem .65rem;
-  overflow-x:auto;
-  overflow-y:hidden;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-primary,
-.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-actions {
-  display:contents;
+  overflow:visible;
 }
 
 .campaign-map-host-drawer .campaign-map-toolbar .campaign-map-title-block {
   order:1;
-  flex:1 1 0;
+  flex:1 1 7rem;
   min-width:7rem;
   max-width:none;
   overflow:hidden;

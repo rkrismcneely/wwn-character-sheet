@@ -4,7 +4,6 @@ import "@fontsource/cormorant-garamond/600.css";
 import "@fontsource/cormorant-garamond/700.css";
 import "@fontsource/eb-garamond/400.css";
 import "@fontsource/eb-garamond/400-italic.css";
-import "@fontsource/eb-garamond/500.css";
 import "@fontsource/eb-garamond/600.css";
 import "@fontsource/jost/400.css";
 import "@fontsource/jost/500.css";
@@ -23,50 +22,32 @@ import { ThemeProvider } from "./theme-provider";
 import { SiteFooter } from "./site-footer";
 import { MapUiRuntime } from "./map-ui-runtime";
 import { MapTokenDragGhostRuntime } from "./map-token-drag-ghost-runtime";
-import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(CANONICAL_ORIGIN),
   title: "Tales Without End - An Interactive Worlds Without Number Character Folio",
-  description: "Create, manage, and share Worlds Without Number characters in a polished interactive folio.",
-  alternates: { canonical: "/" },
+  description: "A complete editable character folio for Worlds Without Number.",
+  icons: { icon: "/assets/tales-without-end-logo.svg" },
   openGraph: {
-    title: "Tales Without End",
-    description: "Create, manage, and share Worlds Without Number characters in a polished interactive folio.",
-    type: "website",
-    url: "/",
-  },
-  other: {
-    "codex-preview": "development",
-  },
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    title: "Tales Without End - An Interactive Worlds Without Number Character Folio",
+    description: "A complete editable character folio for Worlds Without Number.",
+    images: [{ url: "/assets/tales-without-end-social-card.png", width: 1200, height: 630 }],
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const themeScript = `(function(){try{var saved=localStorage.getItem('twe-theme');var theme=saved==='dark'||saved==='light'?saved:(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;}catch(e){document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}})();`;
+
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try { const theme = localStorage.getItem("wwn-display-theme"); document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light"; document.documentElement.style.colorScheme = document.documentElement.dataset.theme; } catch { document.documentElement.dataset.theme = "light"; }`,
-          }}
-        />
-      </head>
-      <body className="antialiased">
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body>
         <ThemeProvider>
-          <MapUiRuntime />
-          <MapTokenDragGhostRuntime />
           <div className="site-shell">
-            <div className="site-main">{children}</div>
+            <main className="site-shell-main">{children}</main>
             <SiteFooter />
           </div>
+          <MapUiRuntime />
+          <MapTokenDragGhostRuntime />
         </ThemeProvider>
       </body>
     </html>

@@ -37,13 +37,13 @@ jobs:
           NODE
       - name: Apply focused fixes
         run: node scripts/apply-map-access-visibility-drawer-polish.mjs
-      - name: Repair generated drawer assertions
+      - name: Repair generated map assertions
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const path = 'tests/campaign-map-drawer.test.mjs';
-          let source = fs.readFileSync(path, 'utf8');
-          source = source.split('\n').map(line => {
+          const drawerPath = 'tests/campaign-map-drawer.test.mjs';
+          let drawerSource = fs.readFileSync(drawerPath, 'utf8');
+          drawerSource = drawerSource.split('\n').map(line => {
             if (line.includes('assert.match(headerCss') && line.includes('data-campaign-map-pane="compact"')) {
               return '  assert.ok(headerCss.includes(`html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header`));';
             }
@@ -52,7 +52,12 @@ jobs:
             }
             return line;
           }).join('\n');
-          fs.writeFileSync(path, source);
+          fs.writeFileSync(drawerPath, drawerSource);
+
+          const foundationPath = 'tests/campaign-map.test.mjs';
+          let foundationSource = fs.readFileSync(foundationPath, 'utf8');
+          foundationSource = foundationSource.replace('/Show to Players/u', '/Make Visible to Players/u');
+          fs.writeFileSync(foundationPath, foundationSource);
           NODE
       - name: Typecheck
         run: npm run typecheck
@@ -75,6 +80,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/character/'[publicId]'/page.tsx app/campaigns/campaign-map-launcher.tsx app/campaigns/campaign-map.css app/app-header.css tests/campaign-map-route-independent.test.mjs tests/campaign-map-drawer.test.mjs tests/action-bundle-10-map-workspace.test.mjs
+          git add app/character/'[publicId]'/page.tsx app/campaigns/campaign-map-launcher.tsx app/campaigns/campaign-map.css app/app-header.css tests/campaign-map-route-independent.test.mjs tests/campaign-map-drawer.test.mjs tests/action-bundle-10-map-workspace.test.mjs tests/campaign-map.test.mjs
           git commit -m "Polish campaign map access visibility and drawer layout"
           git push origin HEAD:fix/map-access-visibility-drawer-polish

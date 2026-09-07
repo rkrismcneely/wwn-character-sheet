@@ -49,8 +49,12 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(launcher, /campaign-map-control-label">Table/u);
   assert.match(launcher, /<option value="pip">Picture-in-Picture<\/option>/u);
   assert.match(launcher, /campaign-map-drawer-collapse/u);
-  assert.match(launcher, /aria-label="Collapse map"/u);
-  assert.match(launcher, />Close Map<\/button> : null/u);
+  assert.match(launcher, /aria-label="Close map; drag horizontally to resize side drawer"/u);
+  assert.match(launcher, /source: "divider" \| "collapse"/u);
+  assert.match(launcher, /suppressDrawerCollapseClickRef/u);
+  assert.match(launcher, /onPointerDown=\{event => handleDrawerResizeStart\(event, "collapse"\)\}/u);
+  assert.match(launcher, /campaign-map-drawer-grip/u);
+  assert.match(launcher, /campaign-map-drawer-collapse-label">Close Map<\/span>/u);
   assert.match(launcher, /dataset\.campaignMapPane/u);
   assert.match(launcher, /remainingWidth < 760 \? "narrow" : remainingWidth < 1120 \? "compact" : "wide"/u);
   assert.doesNotMatch(launcher, /<summary>Window<\/summary>|Separate Window|Split panel|Floating window/u);
@@ -65,6 +69,9 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(css, /campaign-map-collapsed-drawer/u);
   assert.match(css, /campaign-map-drawer-collapse-left[\s\S]*?left: var\(--campaign-map-drawer-space\)[\s\S]*?border-left: 0/u);
   assert.match(css, /campaign-map-drawer-collapse-right[\s\S]*?right: var\(--campaign-map-drawer-space\)[\s\S]*?border-right: 0/u);
+  assert.match(css, /campaign-map-drawer-collapse[\s\S]*?cursor: ew-resize[\s\S]*?touch-action: none/u);
+  assert.match(css, /campaign-map-drawer-collapse-label[\s\S]*?writing-mode: vertical-rl/u);
+  assert.match(css, /campaign-map-drawer-grip[\s\S]*?radial-gradient\(circle at 20% 50%[\s\S]*?radial-gradient\(circle at 80% 50%/u);
   assert.match(css, /campaign-map-drawer-collapse[\s\S]*?transition: left \.24s ease, right \.24s ease/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-dock-control\s*\{\s*display: none/u);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.campaign-map-mobile-launcher-button[\s\S]*?z-index: 520/u);

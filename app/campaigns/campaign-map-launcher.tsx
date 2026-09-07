@@ -989,7 +989,7 @@ export function CampaignMapWorkspace({
                 <button type="button" className={`campaign-quiet${drawerDock === "right" ? " is-active" : ""}`} aria-pressed={drawerDock === "right"} onClick={() => chooseDrawerDock("right")}>Right</button>
               </div>}
               {presentation === "pip" && <button type="button" className="campaign-secondary" onClick={returnFromPictureInPicture}>Return to Page</button>}
-              <button type="button" className="campaign-secondary campaign-map-close-button" onClick={closeMap}>{presentation === "standalone" ? "Close Map Window" : "Close Map"}</button>
+              {presentation !== "drawer" && <button type="button" className="campaign-secondary campaign-map-close-button" onClick={closeMap}>{presentation === "standalone" ? "Close Map Window" : "Close Map"}</button>}
             </div>
           </div>
           <div className="campaign-map-toolbar-actions">
@@ -1195,12 +1195,20 @@ export function CampaignMapWorkspace({
         </div>
       </section> : null;
 
+  const drawerCollapseControl = open && presentation === "drawer" ? <button
+    type="button"
+    className={`campaign-map-drawer-collapse campaign-map-drawer-collapse-${drawerDock}`}
+    aria-label="Collapse map"
+    aria-expanded="true"
+    onClick={closeMap}
+  >Open Map</button> : null;
+
   return <>
     {showFloatingButton && !open && <button type="button" className={`campaign-map-collapsed-drawer campaign-map-collapsed-drawer-${drawerDock}`} aria-pressed={open} onClick={showMap}>Open Map</button>}
     {showFloatingButton && <button type="button" className="campaign-map-mobile-launcher-button" aria-pressed={open} onClick={showMap}>{open ? "Close Map" : "Map"}</button>}
     {mapSurface && (pipDocument
       ? createPortal(<main className="campaign-map-pip-host">{mapSurface}</main>, pipDocument.body)
-      : <div className={`campaign-map-backdrop campaign-map-presentation-${presentation}`} role="presentation">{mapSurface}</div>)}
+      : <div className={`campaign-map-backdrop campaign-map-presentation-${presentation}`} role="presentation">{drawerCollapseControl}{mapSurface}</div>)}
   </>;
 }
 

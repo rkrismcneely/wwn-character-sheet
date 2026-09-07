@@ -6,6 +6,7 @@ import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
 import { CampaignServiceError, getCampaignD1, loadCampaignAccess } from "@/lib/campaigns/service";
 import "../../campaign-ui.css";
 import "../../campaign-map.css";
+import "../../gm-encounter-drawer.css";
 
 export const metadata = { title: "GM Console | Tales Without End", robots: { index: false, follow: false } };
 

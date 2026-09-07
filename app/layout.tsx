@@ -14,6 +14,7 @@ import "./globals.css";
 import "./app-header.css";
 import "./character-creation-review.css";
 import "./map-performance.css";
+import "./map-layout-polish.css";
 import { ThemeProvider } from "./theme-provider";
 import { SiteFooter } from "./site-footer";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";

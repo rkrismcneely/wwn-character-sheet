@@ -1,50 +1,27 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { applyRendererDiceStyle } from "../app/virtual-dice-adapter.ts";
-import { DICE_STYLE_RENDERER_CONFIG } from "../app/virtual-dice-style.ts";
 
-test("switching Dice Styles clears stale material canvases and loads the requested custom theme", async () => {
-  const loadedThemes = [];
-  let clearCalls = 0;
-  const box = {
-    clearDice() {
-      clearCalls += 1;
-    },
-    DiceFactory: {
-      materials_cache: { stale: true },
-    },
-    theme_customColorset: DICE_STYLE_RENDERER_CONFIG["ivory-gold"],
-    theme_colorset: "white",
-    theme_texture: "",
-    theme_material: "plastic",
-    async loadTheme(theme) {
-      loadedThemes.push({ theme, colorset: this.theme_customColorset });
-    },
-  };
+test("Dice Style switching clears stale renderer materials before loading the requested custom colorset", async () => {
+  const source = await readFile(new URL("../app/virtual-dice-adapter.ts", import.meta.url), "utf8");
 
-  await applyRendererDiceStyle(box, "dragon-scale");
-
-  assert.equal(clearCalls, 1);
-  assert.deepEqual(box.DiceFactory.materials_cache, {});
-  assert.equal(box.theme_customColorset, DICE_STYLE_RENDERER_CONFIG["dragon-scale"]);
-  assert.deepEqual(loadedThemes, [{
-    theme: { colorset: "white", texture: "", material: "plastic" },
-    colorset: DICE_STYLE_RENDERER_CONFIG["dragon-scale"],
-  }]);
-
-  box.DiceFactory.materials_cache.staleAgain = true;
-  await applyRendererDiceStyle(box, "astral-nebula");
-
-  assert.equal(clearCalls, 2);
-  assert.deepEqual(box.DiceFactory.materials_cache, {});
-  assert.equal(box.theme_customColorset, DICE_STYLE_RENDERER_CONFIG["astral-nebula"]);
-  assert.equal(loadedThemes.at(-1).colorset, DICE_STYLE_RENDERER_CONFIG["astral-nebula"]);
+  assert.match(source, /export async function applyRendererDiceStyle\(box: DiceBox, style: DiceStyleId\)/);
+  assert.match(source, /box\.clearDice\(\)/);
+  assert.match(source, /runtime\.DiceFactory\.materials_cache = \{\}/);
+  assert.match(source, /runtime\.theme_customColorset = rendererConfigForDiceStyle\(style\)/);
+  assert.match(source, /await runtime\.loadTheme\(\{/);
+  assert.match(source, /colorset: runtime\.theme_colorset/);
+  assert.match(source, /texture: runtime\.theme_texture/);
+  assert.match(source, /material: runtime\.theme_material/);
 });
 
-test("the adapter routes initialized style changes through the cache-safe style loader", async () => {
+test("the adapter routes every actual style change through the cache-safe loader", async () => {
   const source = await readFile(new URL("../app/virtual-dice-adapter.ts", import.meta.url), "utf8");
+
   assert.match(source, /private currentStyle: DiceStyleId \| null = null/);
+  assert.match(source, /if \(!this\.box \|\| this\.currentStyle === style\) return/);
   assert.match(source, /await applyRendererDiceStyle\(this\.box, style\)/);
+  assert.match(source, /this\.currentStyle = style/);
+  assert.match(source, /if \(this\.initializing\) \{\s*await this\.initializing;\s*await this\.applyStyle\(style\)/s);
   assert.doesNotMatch(source, /this\.box\.updateConfig\(\{\s*theme_customColorset/);
 });

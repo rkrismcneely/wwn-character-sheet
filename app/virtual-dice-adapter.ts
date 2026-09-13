@@ -5,6 +5,7 @@ import {
   rendererConfigForDiceStyle,
   rendererTextureForKey,
   type DiceStyleId,
+  type DiceStyleRendererConfig,
 } from "./virtual-dice-style";
 
 export type VirtualDiceTheme = "light" | "dark";
@@ -18,8 +19,23 @@ type DiceBoxModule = typeof import("@drdreo/dice-box-threejs");
 type DiceTextureRegistry = {
   getTexture: (texture: unknown) => unknown;
 };
+type DiceFactoryStyleCache = {
+  materials_cache: Record<string, unknown>;
+};
 type DiceBoxWithTextureRegistry = DiceBox & {
   DiceColors: DiceTextureRegistry;
+};
+type DiceBoxStyleRuntime = DiceBoxWithTextureRegistry & {
+  DiceFactory: DiceFactoryStyleCache;
+  theme_customColorset: DiceStyleRendererConfig | null;
+  theme_colorset?: string;
+  theme_texture?: string;
+  theme_material?: string;
+  loadTheme: (theme: {
+    colorset?: string;
+    texture?: string;
+    material?: string;
+  }) => Promise<void>;
 };
 
 let diceBoxModule: Promise<DiceBoxModule> | null = null;
@@ -45,9 +61,29 @@ function installStyleTextureRegistry(box: DiceBox) {
   };
 }
 
+/**
+ * Apply a new custom Dice Style without reusing the renderer's material-canvas
+ * cache from a previous style. The pinned dice-box renderer's public
+ * updateConfig path is unreliable for repeated custom texture changes, so this
+ * uses the same loadTheme routine that initialization uses after replacing the
+ * custom colorset and clearing only the renderer's derived material cache.
+ */
+export async function applyRendererDiceStyle(box: DiceBox, style: DiceStyleId) {
+  const runtime = box as DiceBoxStyleRuntime;
+  box.clearDice();
+  runtime.DiceFactory.materials_cache = {};
+  runtime.theme_customColorset = rendererConfigForDiceStyle(style);
+  await runtime.loadTheme({
+    colorset: runtime.theme_colorset,
+    texture: runtime.theme_texture,
+    material: runtime.theme_material,
+  });
+}
+
 export class VirtualDiceRendererAdapter {
   private box: DiceBox | null = null;
   private initializing: Promise<void> | null = null;
+  private currentStyle: DiceStyleId | null = null;
   private active = false;
   private contextLost = false;
   private readonly container: HTMLElement;
@@ -56,13 +92,20 @@ export class VirtualDiceRendererAdapter {
     this.container = container;
   }
 
+  private async applyStyle(style: DiceStyleId) {
+    if (!this.box || this.currentStyle === style) return;
+    await applyRendererDiceStyle(this.box, style);
+    this.currentStyle = style;
+  }
+
   private async initialize(style: DiceStyleId) {
     if (this.box?.initialized) {
-      await this.box.updateConfig({ theme_customColorset: rendererConfigForDiceStyle(style) });
+      await this.applyStyle(style);
       return;
     }
     if (this.initializing) {
       await this.initializing;
+      await this.applyStyle(style);
       return;
     }
 
@@ -88,6 +131,7 @@ export class VirtualDiceRendererAdapter {
       installStyleTextureRegistry(box);
       await box.initialize();
       this.box = box;
+      this.currentStyle = style;
       const canvas = this.container.querySelector("canvas");
       canvas?.addEventListener("webglcontextlost", () => {
         this.contextLost = true;
@@ -134,6 +178,7 @@ export class VirtualDiceRendererAdapter {
   destroy() {
     this.cancel();
     this.box = null;
+    this.currentStyle = null;
     this.container.replaceChildren();
   }
 }

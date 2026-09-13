@@ -5,7 +5,6 @@ import {
   rendererConfigForDiceStyle,
   rendererTextureForKey,
   type DiceStyleId,
-  type DiceStyleRendererConfig,
 } from "./virtual-dice-style";
 
 export type VirtualDiceTheme = "light" | "dark";
@@ -19,23 +18,14 @@ type DiceBoxModule = typeof import("@drdreo/dice-box-threejs");
 type DiceTextureRegistry = {
   getTexture: (texture: unknown) => unknown;
 };
-type DiceFactoryStyleCache = {
-  materials_cache: Record<string, unknown>;
-};
 type DiceBoxWithTextureRegistry = DiceBox & {
   DiceColors: DiceTextureRegistry;
 };
-type DiceBoxStyleRuntime = DiceBoxWithTextureRegistry & {
-  DiceFactory: DiceFactoryStyleCache;
-  theme_customColorset: DiceStyleRendererConfig | null;
-  theme_colorset?: string;
-  theme_texture?: string;
-  theme_material?: string;
-  loadTheme: (theme: {
-    colorset?: string;
-    texture?: string;
-    material?: string;
-  }) => Promise<void>;
+type DiceBoxDisposableRuntime = DiceBox & {
+  renderer?: {
+    dispose?: () => void;
+    domElement?: HTMLCanvasElement;
+  };
 };
 
 let diceBoxModule: Promise<DiceBoxModule> | null = null;
@@ -61,23 +51,11 @@ function installStyleTextureRegistry(box: DiceBox) {
   };
 }
 
-/**
- * Apply a new custom Dice Style without reusing the renderer's material-canvas
- * cache from a previous style. The pinned dice-box renderer's public
- * updateConfig path is unreliable for repeated custom texture changes, so this
- * uses the same loadTheme routine that initialization uses after replacing the
- * custom colorset and clearing only the renderer's derived material cache.
- */
-export async function applyRendererDiceStyle(box: DiceBox, style: DiceStyleId) {
-  const runtime = box as DiceBoxStyleRuntime;
+function disposeDiceBox(box: DiceBox) {
   box.clearDice();
-  runtime.DiceFactory.materials_cache = {};
-  runtime.theme_customColorset = rendererConfigForDiceStyle(style);
-  await runtime.loadTheme({
-    colorset: runtime.theme_colorset,
-    texture: runtime.theme_texture,
-    material: runtime.theme_material,
-  });
+  const runtime = box as DiceBoxDisposableRuntime;
+  runtime.renderer?.dispose?.();
+  runtime.renderer?.domElement?.remove();
 }
 
 export class VirtualDiceRendererAdapter {
@@ -92,24 +70,31 @@ export class VirtualDiceRendererAdapter {
     this.container = container;
   }
 
-  private async applyStyle(style: DiceStyleId) {
-    if (!this.box || this.currentStyle === style) return;
-    await applyRendererDiceStyle(this.box, style);
-    this.currentStyle = style;
+  private discardCurrentBox() {
+    if (!this.box) return;
+    const oldBox = this.box;
+    this.box = null;
+    this.currentStyle = null;
+    disposeDiceBox(oldBox);
   }
 
   private async initialize(style: DiceStyleId) {
-    if (this.box?.initialized) {
-      await this.applyStyle(style);
-      return;
-    }
+    if (this.box?.initialized && this.currentStyle === style) return;
+
     if (this.initializing) {
       await this.initializing;
-      await this.applyStyle(style);
-      return;
+      if (this.box?.initialized && this.currentStyle === style) return;
     }
 
-    this.initializing = (async () => {
+    // dice-box-threejs retains several independent colorset, texture, and
+    // material caches. Reusing one DiceBox across custom style changes can let
+    // visual state from the previous set bleed into the next one. Style changes
+    // are rare, so use a fresh renderer instance instead of trying to invalidate
+    // private caches individually. Rolls that keep the same style still reuse the
+    // existing initialized box.
+    if (this.box) this.discardCurrentBox();
+
+    const initialization = (async () => {
       const { DiceBox } = await loadDiceBoxModule();
       const config: Partial<DiceConfig> = {
         assetPath: "/assets/virtual-dice/",
@@ -129,20 +114,31 @@ export class VirtualDiceRendererAdapter {
       };
       const box = new DiceBox(this.container, config);
       installStyleTextureRegistry(box);
-      await box.initialize();
+      try {
+        await box.initialize();
+      } catch (error) {
+        disposeDiceBox(box);
+        throw error;
+      }
+
       this.box = box;
       this.currentStyle = style;
-      const canvas = this.container.querySelector("canvas");
+      const canvas = (box as DiceBoxDisposableRuntime).renderer?.domElement
+        ?? this.container.querySelector("canvas");
       canvas?.addEventListener("webglcontextlost", () => {
+        // Ignore a context event from a renderer that has already been replaced
+        // by a later Dice Style.
+        if (this.box !== box) return;
         this.contextLost = true;
-        this.box?.clearDice();
+        box.clearDice();
       }, { passive: true });
     })();
 
+    this.initializing = initialization;
     try {
-      await this.initializing;
+      await initialization;
     } finally {
-      this.initializing = null;
+      if (this.initializing === initialization) this.initializing = null;
     }
   }
 
@@ -158,7 +154,8 @@ export class VirtualDiceRendererAdapter {
       await this.initialize(request.style);
       if (!this.box) throw new Error("The virtual dice renderer did not initialize.");
       const box = this.box;
-      const canvas = this.container.querySelector("canvas");
+      const canvas = (box as DiceBoxDisposableRuntime).renderer?.domElement
+        ?? this.container.querySelector("canvas");
       const contextFailure = new Promise<never>((_, reject) => {
         const onContextLost = () => reject(new Error("The WebGL dice context was lost."));
         canvas?.addEventListener("webglcontextlost", onContextLost, { once: true, passive: true });
@@ -177,8 +174,7 @@ export class VirtualDiceRendererAdapter {
 
   destroy() {
     this.cancel();
-    this.box = null;
-    this.currentStyle = null;
+    this.discardCurrentBox();
     this.container.replaceChildren();
   }
 }

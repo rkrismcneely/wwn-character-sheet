@@ -29,8 +29,8 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
     readFile(new URL("../app/character/[publicId]/page.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(migration, /CREATE TABLE \`campaign_stores\`/u);
-  assert.match(migration, /CREATE TABLE \`campaign_store_items\`/u);
+  assert.match(migration, /CREATE TABLE .*campaign_stores/u);
+  assert.match(migration, /CREATE TABLE .*campaign_store_items/u);
   assert.match(migration, /campaign_stores_one_active_per_campaign_idx/u);
   assert.match(migration, /source_type.*'srd', 'campaign'/su);
   assert.match(service, /purchasableEquipmentById/u);

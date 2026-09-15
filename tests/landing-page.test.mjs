@@ -71,7 +71,8 @@ test("homepage provider controls use local official marks without changing auth 
   const discord = await source("components/discord-sign-in-button.tsx");
   const css = await source("app/landing-density.css");
   assert.match(google, /provider-google-button/u);
-  assert.match(google, /\/assets\/google-g-mark\.png/u);
+  assert.match(google, /<img[\s\S]*src="\/assets\/google-g-mark\.png"[\s\S]*width=\{18\}[\s\S]*height=\{18\}/u);
+  assert.doesNotMatch(google, /from "next\/image"/u);
   assert.match(discord, /provider-discord-button/u);
   assert.match(discord, /\/assets\/discord-symbol\.svg/u);
   assert.match(css, /#747775/u);

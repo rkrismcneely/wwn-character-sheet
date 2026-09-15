@@ -39,7 +39,7 @@ function kindLabel(kind: CampaignStoreItemKind): string {
 }
 
 function stockLabel(quantity: number | null): string {
-  return quantity === null ? "Unlimited stock" : quantity === 1 ? "1 in stock" : \`\${quantity} in stock\`;
+  return quantity === null ? "Unlimited stock" : quantity === 1 ? "1 in stock" : `${quantity} in stock`;
 }
 
 function ManagedStoreItem({
@@ -121,7 +121,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores\`, { cache: "no-store" });
+      const response = await fetch(`/api/campaigns/${campaignId}/stores`, { cache: "no-store" });
       const body = await response.json() as CampaignStoreManagementPayload & { error?: string };
       if (!response.ok || !Array.isArray(body.stores) || !Array.isArray(body.catalog) || !Array.isArray(body.campaignItems)) {
         throw new Error(body.error || "Campaign stores are unavailable.");
@@ -148,7 +148,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores\`, {
+      const response = await fetch(`/api/campaigns/${campaignId}/stores`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: storeName, description: storeDescription }),
@@ -170,7 +170,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/\${selectedStore.id}\`, {
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: storeName, description: storeDescription }),
@@ -192,7 +192,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/\${selectedStore.id}\`, {
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ active }),
@@ -210,11 +210,11 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   }
 
   async function removeStore() {
-    if (!selectedStore || !window.confirm(\`Delete “\${selectedStore.name}” and all of its stocked items? This cannot be undone.\`)) return;
+    if (!selectedStore || !window.confirm(`Delete “${selectedStore.name}” and all of its stocked items? This cannot be undone.`)) return;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/\${selectedStore.id}\`, { method: "DELETE" });
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}`, { method: "DELETE" });
       if (!response.ok) {
         const body = await response.json() as { error?: string };
         throw new Error(body.error || "Campaign store could not be deleted.");
@@ -239,7 +239,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/\${selectedStore.id}/items\`, {
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}/items`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -268,7 +268,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/\${selectedStore.id}/items/\${item.id}\`, {
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}/items/${item.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(value),
@@ -286,11 +286,11 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   }
 
   async function removeItem(item: CampaignStoreItem) {
-    if (!selectedStore || !window.confirm(\`Remove “\${item.name}” from this store?\`)) return;
+    if (!selectedStore || !window.confirm(`Remove “${item.name}” from this store?`)) return;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/\${selectedStore.id}/items/\${item.id}\`, { method: "DELETE" });
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}/items/${item.id}`, { method: "DELETE" });
       if (!response.ok) {
         const body = await response.json() as { error?: string };
         throw new Error(body.error || "Store item could not be removed.");
@@ -326,7 +326,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     {!loading && <div className="campaign-store-management-layout">
       <aside className="campaign-store-list-panel" aria-label="Campaign stores">
         {!stores.length && !creating && <p className="campaign-empty-copy">No stores have been created.</p>}
-        {stores.map(store => <button type="button" key={store.id} className={\`campaign-store-picker\${selectedStore?.id === store.id && !creating ? " is-selected" : ""}\`} onClick={() => chooseStore(store)}>
+        {stores.map(store => <button type="button" key={store.id} className={`campaign-store-picker${selectedStore?.id === store.id && !creating ? " is-selected" : ""}`} onClick={() => chooseStore(store)}>
           <span><strong>{store.name}</strong><small>{store.items.length} {store.items.length === 1 ? "item" : "items"} · {store.isActive ? "Visible to party" : "GM only"}</small></span>
           {store.isActive && <b>Open</b>}
         </button>)}

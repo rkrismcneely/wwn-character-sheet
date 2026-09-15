@@ -58,13 +58,6 @@ function ManagedStoreItem({
   const [unlimited, setUnlimited] = useState(item.quantity === null);
   const [note, setNote] = useState(item.note);
 
-  useEffect(() => {
-    setCost(item.cost);
-    setQuantity(item.quantity === null ? "1" : String(item.quantity));
-    setUnlimited(item.quantity === null);
-    setNote(item.note);
-  }, [item]);
-
   return <article className="campaign-store-managed-item">
     <div className="campaign-store-managed-item-heading">
       <div>
@@ -117,31 +110,32 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setError("");
   }
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/campaigns/${campaignId}/stores`, { cache: "no-store" });
-      const body = await response.json() as CampaignStoreManagementPayload & { error?: string };
-      if (!response.ok || !Array.isArray(body.stores) || !Array.isArray(body.catalog) || !Array.isArray(body.campaignItems)) {
-        throw new Error(body.error || "Campaign stores are unavailable.");
-      }
-      setStores(body.stores);
-      setCatalog(body.catalog);
-      setCampaignItems(body.campaignItems);
-      const preferred = body.stores.find(store => store.isActive) ?? body.stores[0] ?? null;
-      setSelectedStoreId(preferred?.id ?? "");
-      setStoreName(preferred?.name ?? "");
-      setStoreDescription(preferred?.description ?? "");
-      setCreating(body.stores.length === 0);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Campaign stores are unavailable.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { void load(); }, [campaignId]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/campaigns/${campaignId}/stores`, { cache: "no-store" })
+      .then(async response => {
+        const body = await response.json() as CampaignStoreManagementPayload & { error?: string };
+        if (!response.ok || !Array.isArray(body.stores) || !Array.isArray(body.catalog) || !Array.isArray(body.campaignItems)) {
+          throw new Error(body.error || "Campaign stores are unavailable.");
+        }
+        if (cancelled) return;
+        setStores(body.stores);
+        setCatalog(body.catalog);
+        setCampaignItems(body.campaignItems);
+        const preferred = body.stores.find(store => store.isActive) ?? body.stores[0] ?? null;
+        setSelectedStoreId(preferred?.id ?? "");
+        setStoreName(preferred?.name ?? "");
+        setStoreDescription(preferred?.description ?? "");
+        setCreating(body.stores.length === 0);
+      })
+      .catch(loadError => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Campaign stores are unavailable.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [campaignId]);
 
   async function createStore(event: FormEvent) {
     event.preventDefault();

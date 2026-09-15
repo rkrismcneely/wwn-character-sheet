@@ -48,7 +48,7 @@ test("recording another cast respects preparation, restrictions, and the daily l
 
 test("spellbook UI uses Cast, count, and Undo controls backed by cast counts", async () => {
   const source = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
-  assert.match(source, /spellCastingUse\(sheet\.spellPicks/u);
+  assert.match(source, /spellCastingUse\(\s*sheet\.spellPicks/u);
   assert.match(source, /spellCastCount\(pick\)/u);
   assert.match(source, /className="spell-cast-button"/u);
   assert.match(source, />Cast<\/button>/u);

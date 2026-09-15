@@ -154,6 +154,14 @@ function identifier(value: unknown, label: string): string {
   return result;
 }
 
+function storeSourceItemId(value: unknown, sourceType: CampaignStoreSourceType): string {
+  // SRD catalog keys intentionally contain punctuation (for example, weapon:Hammer, Great).
+  // The authoritative catalog lookup below validates them; campaign item IDs stay strict.
+  return sourceType === "srd"
+    ? plainText(value, "Source item", 240)
+    : identifier(value, "Source item");
+}
+
 function quantity(value: unknown): number | null {
   if (value === undefined || value === null || value === "") return null;
   if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > 1_000_000) {
@@ -476,7 +484,7 @@ export async function createCampaignStoreItem(
   const sourceType = draft.sourceType === "srd" || draft.sourceType === "campaign"
     ? draft.sourceType
     : (() => { throw new CampaignServiceError("Item source is invalid.", 422); })();
-  const sourceItemId = identifier(draft.sourceItemId, "Source item");
+  const sourceItemId = storeSourceItemId(draft.sourceItemId, sourceType);
   const stockQuantity = quantity(draft.quantity);
   const note = plainText(draft.note, "Shop note", 1000, false, true);
 

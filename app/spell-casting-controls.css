@@ -84,6 +84,6 @@ html[data-theme="dark"] .spell-cast-count {
 /* Give the Spellbook a little more horizontal room on desktop; mobile remains single-column. */
 @media (min-width: 1051px) {
   .magic-layout {
-    grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr);
   }
 }

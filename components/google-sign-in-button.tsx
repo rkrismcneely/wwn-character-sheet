@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
@@ -57,7 +56,17 @@ export function GoogleSignInButton({
   return (
     <span className="google-signin-control provider-signin-control">
       <button type="button" className={`${className ?? ""} provider-signin-button provider-google-button`} onClick={() => void signIn()}>
-        <Image className="provider-signin-icon provider-google-icon" src="/assets/google-g-mark.png" alt="" aria-hidden="true" width={18} height={18} />
+        {/* Keep this tiny local badge on its direct static URL. The framework image
+            pipeline has broken this PNG in the production Worker before. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          className="provider-signin-icon provider-google-icon"
+          src="/assets/google-g-mark.png"
+          alt=""
+          aria-hidden="true"
+          width={18}
+          height={18}
+        />
         <span>{children}</span>
       </button>
       {message && <span className="signin-status" role="status">{message}</span>}

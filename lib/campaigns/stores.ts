@@ -570,7 +570,7 @@ export async function updateCampaignStoreItem(
   ).bind(id, store.id).first<StoreItemRow>();
   if (!existing) throw new CampaignServiceError("Store item not found.", 404);
   const cost = plainText(draft.cost ?? existing.cost, "Item cost", 80);
-  const stockQuantity = quantity(draft.quantity ?? existing.quantity);
+  const stockQuantity = quantity(draft.quantity === undefined ? existing.quantity : draft.quantity);
   const note = plainText(draft.note ?? existing.note, "Shop note", 1000, false, true);
   await db.prepare(
     \`UPDATE campaign_store_items

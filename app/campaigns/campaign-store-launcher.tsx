@@ -27,7 +27,7 @@ function kindLabel(kind: CampaignStoreItemKind): string {
 function stockLabel(item: CampaignStoreItem): string {
   if (item.quantity === null) return "Unlimited stock";
   if (item.quantity === 0) return "Out of stock";
-  return \`\${item.quantity} in stock\`;
+  return `${item.quantity} in stock`;
 }
 
 function StoreItemCard({ item }: { item: CampaignStoreItem }) {
@@ -71,7 +71,7 @@ export function CampaignStoreLauncher({
     setError("");
     try {
       const params = new URLSearchParams({ characterId });
-      const response = await fetch(\`/api/campaigns/\${campaignId}/stores/active?\${params.toString()}\`, {
+      const response = await fetch(`/api/campaigns/${campaignId}/stores/active?${params.toString()}`, {
         cache: "no-store",
       });
       const body = await response.json() as ActiveStoreResponse;
@@ -139,7 +139,7 @@ export function CampaignStoreLauncher({
       }
       const width = Math.min(460, Math.max(320, window.innerWidth - 32));
       root.dataset.campaignStoreDrawer = "right";
-      root.style.setProperty("--campaign-store-drawer-space", \`\${width}px\`);
+      root.style.setProperty("--campaign-store-drawer-space", `${width}px`);
     };
     sync();
     window.addEventListener("resize", sync);

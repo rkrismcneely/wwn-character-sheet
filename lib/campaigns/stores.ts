@@ -135,13 +135,13 @@ function plainText(
   allowLineBreaks = false,
 ): string {
   if ((value === undefined || value === null || value === "") && !required) return "";
-  if (typeof value !== "string") throw new CampaignServiceError(\`\${label} is required.\`, 422);
+  if (typeof value !== "string") throw new CampaignServiceError(`${label} is required.`, 422);
   const result = value.trim();
   const controls = allowLineBreaks
     ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u
     : /[\u0000-\u001f\u007f]/u;
   if ((!result && required) || result.length > maximum || controls.test(result)) {
-    throw new CampaignServiceError(\`\${label} is invalid.\`, 422);
+    throw new CampaignServiceError(`${label} is invalid.`, 422);
   }
   return result;
 }
@@ -149,7 +149,7 @@ function plainText(
 function identifier(value: unknown, label: string): string {
   const result = plainText(value, label, 100);
   if (!/^[A-Za-z0-9_-]+$/u.test(result)) {
-    throw new CampaignServiceError(\`\${label} is invalid.\`, 422);
+    throw new CampaignServiceError(`${label} is invalid.`, 422);
   }
   return result;
 }
@@ -176,15 +176,15 @@ function storedProperties(value: string): CampaignItemProperties {
 function propertyDetails(kind: InventoryItemKind, properties: CampaignItemProperties): string {
   if (kind === "weapon" && properties.weapon) {
     const weapon = properties.weapon;
-    return \`\${weapon.damage} damage · Shock \${weapon.shock} · \${weapon.skill}/\${weapon.attribute} · Range \${weapon.range} · Enc \${weapon.encumbrance}\${weapon.traits ? \` · \${weapon.traits}\` : ""}\`;
+    return `${weapon.damage} damage · Shock ${weapon.shock} · ${weapon.skill}/${weapon.attribute} · Range ${weapon.range} · Enc ${weapon.encumbrance}${weapon.traits ? ` · ${weapon.traits}` : ""}`;
   }
   if (kind === "armor" && properties.armor) {
     const armor = properties.armor;
-    return \`AC \${armor.armorClass} · Enc \${armor.encumbrance}\${armor.shield === "none" ? "" : \` · \${armor.shield} shield\`}\${armor.properties ? \` · \${armor.properties}\` : ""}\`;
+    return `AC ${armor.armorClass} · Enc ${armor.encumbrance}${armor.shield === "none" ? "" : ` · ${armor.shield} shield`}${armor.properties ? ` · ${armor.properties}` : ""}`;
   }
   if (kind === "magical" && properties.magical) {
     const magical = properties.magical;
-    return [magical.bonuses, magical.abilities, magical.charges === null ? "" : \`\${magical.charges} charges\`, magical.uses, magical.rulesText].filter(Boolean).join(" · ");
+    return [magical.bonuses, magical.abilities, magical.charges === null ? "" : `${magical.charges} charges`, magical.uses, magical.rulesText].filter(Boolean).join(" · ");
   }
   return "";
 }
@@ -247,10 +247,10 @@ async function viewerCampaign(
     throw new CampaignServiceError("Campaign not found.", 404);
   }
   const character = await db.prepare(
-    \`SELECT ch.id, ch.owner_user_id AS ownerUserId
+    `SELECT ch.id, ch.owner_user_id AS ownerUserId
      FROM campaign_characters cc
      INNER JOIN characters ch ON ch.id = cc.character_id
-     WHERE cc.campaign_id = ? AND ch.public_id = ?\`,
+     WHERE cc.campaign_id = ? AND ch.public_id = ?`,
   ).bind(campaign.id, characterPublicId).first<LinkedCharacterRow>();
   if (!character) throw new CampaignServiceError("Character not found.", 404);
   if (
@@ -268,13 +268,13 @@ async function itemMap(
   campaignId: string,
 ): Promise<Map<string, CampaignStoreItem[]>> {
   const result = await db.prepare(
-    \`SELECT id, store_id AS storeId, source_type AS sourceType,
+    `SELECT id, store_id AS storeId, source_type AS sourceType,
             source_item_id AS sourceItemId, name, kind, description, details,
             properties_json AS propertiesJson, cost, quantity, shop_note AS note,
             created_at AS createdAt, updated_at AS updatedAt
      FROM campaign_store_items
      WHERE store_id IN (SELECT id FROM campaign_stores WHERE campaign_id = ?)
-     ORDER BY lower(name), created_at\`,
+     ORDER BY lower(name), created_at`,
   ).bind(campaignId).all<StoreItemRow>();
   const resultMap = new Map<string, CampaignStoreItem[]>();
   for (const row of result.results) {
@@ -291,11 +291,11 @@ async function storesForCampaign(
 ): Promise<CampaignStore[]> {
   const [stores, items] = await Promise.all([
     db.prepare(
-      \`SELECT id, name, description, is_active AS isActive,
+      `SELECT id, name, description, is_active AS isActive,
               created_at AS createdAt, updated_at AS updatedAt
        FROM campaign_stores
        WHERE campaign_id = ?
-       ORDER BY is_active DESC, lower(name), created_at\`,
+       ORDER BY is_active DESC, lower(name), created_at`,
     ).bind(campaignId).all<StoreRow>(),
     itemMap(db, campaignId),
   ]);
@@ -309,9 +309,9 @@ async function storeForManagement(
 ): Promise<StoreRow> {
   const id = identifier(storeId, "Store");
   const store = await db.prepare(
-    \`SELECT id, name, description, is_active AS isActive,
+    `SELECT id, name, description, is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt
-     FROM campaign_stores WHERE id = ? AND campaign_id = ?\`,
+     FROM campaign_stores WHERE id = ? AND campaign_id = ?`,
   ).bind(id, campaignId).first<StoreRow>();
   if (!store) throw new CampaignServiceError("Store not found.", 404);
   return store;
@@ -332,9 +332,9 @@ async function campaignItems(
   campaignId: string,
 ): Promise<CampaignStoreCustomItem[]> {
   const result = await db.prepare(
-    \`SELECT id, name, kind, description, properties_json AS propertiesJson
+    `SELECT id, name, kind, description, properties_json AS propertiesJson
      FROM campaign_items WHERE campaign_id = ?
-     ORDER BY lower(name), updated_at DESC\`,
+     ORDER BY lower(name), updated_at DESC`,
   ).bind(campaignId).all<CampaignItemSourceRow>();
   return result.results.map(item => {
     const properties = storedProperties(item.propertiesJson);
@@ -371,11 +371,11 @@ export async function createCampaignStore(
   const campaign = await managerCampaign(db, actor, campaignPublicId, true);
   const name = plainText(draft.name, "Store name", 80);
   const description = plainText(draft.description, "Store description", 2000, false, true);
-  const id = \`cstore_\${crypto.randomUUID().replaceAll("-", "")}\`;
+  const id = `cstore_${crypto.randomUUID().replaceAll("-", "")}`;
   await db.prepare(
-    \`INSERT INTO campaign_stores
+    `INSERT INTO campaign_stores
       (id, campaign_id, name, description, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 0, ?, ?)\`,
+     VALUES (?, ?, ?, ?, 0, ?, ?)`,
   ).bind(id, campaign.id, name, description, now, now).run();
   return { id, campaignId: campaign.publicId, name, description, isActive: false, items: [], createdAt: now, updatedAt: now };
 }
@@ -393,8 +393,8 @@ export async function updateCampaignStore(
   const name = plainText(draft.name, "Store name", 80);
   const description = plainText(draft.description, "Store description", 2000, false, true);
   await db.prepare(
-    \`UPDATE campaign_stores SET name = ?, description = ?, updated_at = ?
-     WHERE id = ? AND campaign_id = ?\`,
+    `UPDATE campaign_stores SET name = ?, description = ?, updated_at = ?
+     WHERE id = ? AND campaign_id = ?`,
   ).bind(name, description, now, existing.id, campaign.id).run();
   const items = (await itemMap(db, campaign.id)).get(existing.id) ?? [];
   return {
@@ -423,18 +423,18 @@ export async function setCampaignStoreActive(
   if (active) {
     await db.batch([
       db.prepare(
-        \`UPDATE campaign_stores SET is_active = 0, updated_at = ?
-         WHERE campaign_id = ? AND is_active = 1\`,
+        `UPDATE campaign_stores SET is_active = 0, updated_at = ?
+         WHERE campaign_id = ? AND is_active = 1`,
       ).bind(now, campaign.id),
       db.prepare(
-        \`UPDATE campaign_stores SET is_active = 1, updated_at = ?
-         WHERE id = ? AND campaign_id = ?\`,
+        `UPDATE campaign_stores SET is_active = 1, updated_at = ?
+         WHERE id = ? AND campaign_id = ?`,
       ).bind(now, existing.id, campaign.id),
     ]);
   } else {
     await db.prepare(
-      \`UPDATE campaign_stores SET is_active = 0, updated_at = ?
-       WHERE id = ? AND campaign_id = ?\`,
+      `UPDATE campaign_stores SET is_active = 0, updated_at = ?
+       WHERE id = ? AND campaign_id = ?`,
     ).bind(now, existing.id, campaign.id).run();
   }
   const items = (await itemMap(db, campaign.id)).get(existing.id) ?? [];
@@ -503,8 +503,8 @@ export async function createCampaignStoreItem(
     };
   } else {
     const item = await db.prepare(
-      \`SELECT id, name, kind, description, properties_json AS propertiesJson
-       FROM campaign_items WHERE campaign_id = ? AND id = ?\`,
+      `SELECT id, name, kind, description, properties_json AS propertiesJson
+       FROM campaign_items WHERE campaign_id = ? AND id = ?`,
     ).bind(campaign.id, sourceItemId).first<CampaignItemSourceRow>();
     if (!item) throw new CampaignServiceError("Campaign item not found.", 422);
     const properties = storedProperties(item.propertiesJson);
@@ -520,12 +520,12 @@ export async function createCampaignStoreItem(
   }
 
   const cost = plainText(draft.cost ?? source.defaultCost, "Item cost", 80);
-  const id = \`cstoreitem_\${crypto.randomUUID().replaceAll("-", "")}\`;
+  const id = `cstoreitem_${crypto.randomUUID().replaceAll("-", "")}`;
   await db.prepare(
-    \`INSERT INTO campaign_store_items
+    `INSERT INTO campaign_store_items
       (id, store_id, source_type, source_item_id, name, kind, description, details,
        properties_json, cost, quantity, shop_note, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     id, store.id, sourceType, source.id, source.name, source.kind,
     source.description, source.details, JSON.stringify(source.properties),
@@ -562,20 +562,20 @@ export async function updateCampaignStoreItem(
   const store = await storeForManagement(db, campaign.id, storeId);
   const id = identifier(itemId, "Store item");
   const existing = await db.prepare(
-    \`SELECT id, store_id AS storeId, source_type AS sourceType,
+    `SELECT id, store_id AS storeId, source_type AS sourceType,
             source_item_id AS sourceItemId, name, kind, description, details,
             properties_json AS propertiesJson, cost, quantity, shop_note AS note,
             created_at AS createdAt, updated_at AS updatedAt
-     FROM campaign_store_items WHERE id = ? AND store_id = ?\`,
+     FROM campaign_store_items WHERE id = ? AND store_id = ?`,
   ).bind(id, store.id).first<StoreItemRow>();
   if (!existing) throw new CampaignServiceError("Store item not found.", 404);
   const cost = plainText(draft.cost ?? existing.cost, "Item cost", 80);
   const stockQuantity = quantity(draft.quantity === undefined ? existing.quantity : draft.quantity);
   const note = plainText(draft.note ?? existing.note, "Shop note", 1000, false, true);
   await db.prepare(
-    \`UPDATE campaign_store_items
+    `UPDATE campaign_store_items
      SET cost = ?, quantity = ?, shop_note = ?, updated_at = ?
-     WHERE id = ? AND store_id = ?\`,
+     WHERE id = ? AND store_id = ?`,
   ).bind(cost, stockQuantity, note, now, id, store.id).run();
   return {
     ...toStoreItem(existing),
@@ -615,9 +615,9 @@ export async function readActiveCampaignStore(
 ): Promise<CampaignStore | null> {
   const campaign = await viewerCampaign(db, actor, campaignPublicId, characterId);
   const store = await db.prepare(
-    \`SELECT id, name, description, is_active AS isActive,
+    `SELECT id, name, description, is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt
-     FROM campaign_stores WHERE campaign_id = ? AND is_active = 1\`,
+     FROM campaign_stores WHERE campaign_id = ? AND is_active = 1`,
   ).bind(campaign.id).first<StoreRow>();
   if (!store) return null;
   const items = (await itemMap(db, campaign.id)).get(store.id) ?? [];

@@ -39,8 +39,8 @@ jobs:
             echo "The campaign-item migration workflow owns this release."
             exit 0
           fi
-          if [ "\${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "\${GITHUB_SHA}" | grep -Eq "^drizzle/0024_campaign_stores\.sql$|^scripts/migrate-campaign-stores\.mjs$|^\.github/workflows/migrate-campaign-stores\.yml$"; then
-            echo "skip=true" >> "\${GITHUB_OUTPUT}"
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0024_campaign_stores\.sql$|^scripts/migrate-campaign-stores\.mjs$|^\.github/workflows/migrate-campaign-stores\.yml$"; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The campaign-store migration workflow owns this release."
             exit 0
           fi

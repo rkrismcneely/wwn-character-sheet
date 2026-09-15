@@ -26,10 +26,11 @@ import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "@/app/virtual
 import { useDisplayTheme } from "@/app/theme-provider";
 import { RulesAssistant } from "@/app/rules-assistant";
 import { CampaignItemLibrary } from "./campaign-item-library";
+import { CampaignStoreLibrary } from "./campaign-store-library";
 import type { CampaignItem, CampaignItemManagementPayload } from "@/lib/campaigns/items";
 import { campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
 
-type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "party";
+type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "stores" | "party";
 
 type NpcDraft = {
   name: string; hpMax: number; armorClass: number;
@@ -490,7 +491,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       </div>
     </section>}
     {(error || rollError) && <div className="campaign-error" role="status">{error || rollError}</div>}
-    <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "items", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => { if (item === "party" && tab !== "party") { setPartyStatusLoading(true); setPartyStatusError(""); } setTab(item); }}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "items", "stores", "party"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => { if (item === "party" && tab !== "party") { setPartyStatusLoading(true); setPartyStatusError(""); } setTab(item); }}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
     <section className="campaign-panel gm-console-panel">
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
@@ -498,6 +499,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       {tab === "bestiary" && <BuiltInBestiary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
       {tab === "items" && <CampaignItemLibrary campaignId={campaignId} />}
+      {tab === "stores" && <CampaignStoreLibrary campaignId={campaignId} />}
       {tab === "party" && <section className="gm-console-section gm-party-status" aria-labelledby="gm-party-status-title"><div className="campaign-section-heading"><div><p className="campaign-kicker">CURRENT CHARACTER STATUS</p><h2 id="gm-party-status-title">Party</h2></div></div>{partyStatusLoading && <p className="campaign-empty-copy">Loading linked party…</p>}{partyStatusError && <p className="campaign-error" role="status">{partyStatusError}</p>}{!partyStatusLoading && !partyStatusError && !partyStatus.length && <p className="campaign-empty-copy">No characters are linked to this campaign.</p>}{partyStatus.length > 0 && <div className="gm-party-status-grid">{partyStatus.map(character => <GmPartyStatus key={character.id} campaignId={campaignId} character={character} />)}</div>}</section>}
     </section>
     <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />

@@ -5,12 +5,15 @@ import CharacterSheet, {
   type InitialCharacterPayload,
 } from "@/app/character-sheet";
 import { CampaignCharacterMapControl } from "@/app/campaigns/campaign-character-map-control";
+import { CampaignCharacterStoreControl } from "@/app/campaigns/campaign-character-store-control";
 import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
+import { CampaignStoreLauncher } from "@/app/campaigns/campaign-store-launcher";
 import { getSessionActor } from "@/lib/auth-session";
 import { readCampaignLinkedCharacter } from "@/lib/campaigns/characters";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import "../../../campaign-ui.css";
 import "../../../campaign-map.css";
+import "../../../campaign-store.css";
 
 type RouteContext = {
   params: Promise<{ id: string; characterId: string }>;
@@ -50,6 +53,8 @@ export default async function CampaignCharacterPage(context: RouteContext) {
       campaignContext={payload.campaignContext}
     />
     <CampaignCharacterMapControl campaigns={[{ id, name: payload.campaignContext.name }]} />
+    <CampaignCharacterStoreControl campaigns={[{ id, name: payload.campaignContext.name }]} />
     <CampaignMapLauncher campaignId={id} campaignName={payload.campaignContext.name} canManage={false} />
+    <CampaignStoreLauncher campaignId={id} campaignName={payload.campaignContext.name} characterId={characterId} />
   </>;
 }

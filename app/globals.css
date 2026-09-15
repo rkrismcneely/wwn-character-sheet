@@ -2993,3 +2993,14 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
 .campaign-encounter-friendly { display:flex; align-items:center; gap:.35rem; }
 .campaign-encounter-friendly-toggle { white-space:nowrap; }
 @media (max-width: 720px) { .gm-npc-magic-row, .gm-npc-magic-custom { grid-template-columns:1fr; } }
+
+
+/* The Store drawer shares the character-sheet workspace without navigating
+   away from the folio. Map and Store launchers close each other before either
+   applies its pane state. */
+@media (min-width:821px){
+  html[data-campaign-store-drawer="right"] .site-shell{
+    width:calc(100% - var(--campaign-store-drawer-space));
+    margin-right:var(--campaign-store-drawer-space);
+  }
+}

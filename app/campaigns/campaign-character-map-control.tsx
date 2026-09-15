@@ -8,6 +8,7 @@ import {
   type CampaignMapOpenDetail,
   type CampaignMapStateDetail,
 } from "./campaign-map-events";
+import { campaignStoreOpenEvent, type CampaignStoreOpenDetail } from "./campaign-store-events";
 
 export type CharacterMapCampaign = {
   id: string;
@@ -26,7 +27,6 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
       // host whenever it exists, while retaining the legacy host as a fallback.
       const durableHost = document.querySelector(".app-header .app-header-utilities");
       const nextHost = durableHost ?? document.querySelector(".topbar .status");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHost(currentHost => currentHost === nextHost ? currentHost : nextHost);
       return Boolean(durableHost);
     };
@@ -91,9 +91,14 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
           ? `${mapIsOpen ? "Close" : "Open"} ${selectedCampaign.name} map`
           : `${mapIsOpen ? "Close" : "Open"} campaign map`}
         aria-pressed={mapIsOpen}
-        onClick={() => window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {
-          detail: { campaignId, action: mapIsOpen ? "close" : "open" },
-        }))}
+        onClick={() => {
+          if (!mapIsOpen) window.dispatchEvent(new CustomEvent<CampaignStoreOpenDetail>(campaignStoreOpenEvent, {
+            detail: { campaignId, action: "close" },
+          }));
+          window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {
+            detail: { campaignId, action: mapIsOpen ? "close" : "open" },
+          }));
+        }}
       >
         {mapIsOpen ? "Close Map" : "Map"}
       </button>

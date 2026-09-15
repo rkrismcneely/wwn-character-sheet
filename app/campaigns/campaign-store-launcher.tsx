@@ -42,7 +42,7 @@ function StoreItemCard({ item }: { item: CampaignStoreItem }) {
     {item.description && <p className="campaign-store-description">{item.description}</p>}
     {item.details && <p className="campaign-store-details">{item.details}</p>}
     {item.note && <p className="campaign-store-note">{item.note}</p>}
-    <small className={item.quantity === 0 ? "campaign-store-stock sold-out" : "campaign-store-stock"}>{stockLabel(item)}</small>
+    <small className={item.quantity === 0 ? "campaign-store-item-stock sold-out" : "campaign-store-item-stock"}>{stockLabel(item)}</small>
   </article>;
 }
 

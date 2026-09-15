@@ -36,7 +36,7 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
   assert.match(service, /purchasableEquipmentById/u);
   assert.match(service, /canManageCampaignContent/u);
   assert.match(service, /readActiveCampaignStore/u);
-  assert.match(service, /does not consult the source campaign item's normal visibility setting/u);
+  assert.match(service, /normal campaign-item selected-character restrictions do not apply/u);
   assert.match(service, /FROM campaign_store_items/u);
   assert.match(service, /sourceType === "campaign"/u);
   assert.match(listRoute, /listCampaignStoresForManagement/u);

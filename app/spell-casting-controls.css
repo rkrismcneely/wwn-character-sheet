@@ -1,0 +1,82 @@
+.spell-row {
+  grid-template-columns: 30px 87px minmax(0, 1fr) 72px minmax(160px, auto);
+}
+
+.spell-cast-control {
+  display: grid;
+  grid-template-columns: auto minmax(34px, auto) auto;
+  align-items: center;
+  justify-content: end;
+  gap: 5px;
+  min-width: 0;
+  font: 600 10px/1 var(--font-ui);
+}
+
+.spell-cast-control button {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid #9b7a45;
+  border-radius: 3px;
+  background: linear-gradient(#fff8e8, #ead7b2);
+  color: #5d3d15;
+  cursor: pointer;
+  font: 700 10px/1 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.spell-cast-control .spell-cast-button {
+  background: linear-gradient(#a96f27, #855116);
+  border-color: #744510;
+  color: #fff7e8;
+}
+
+.spell-cast-control button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.spell-cast-count {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 1px solid #c4ad82;
+  border-radius: 3px;
+  background: var(--paper2);
+  color: var(--ink);
+  font: 700 13px/1 var(--font-numeric);
+  white-space: nowrap;
+}
+
+.spell-cast-control.casting-blocked .spell-cast-button {
+  filter: grayscale(1);
+}
+
+html[data-theme="dark"] .spell-cast-control button {
+  background: #34291d;
+  border-color: #8d6c39;
+  color: #f5dfb5;
+}
+
+html[data-theme="dark"] .spell-cast-control .spell-cast-button {
+  background: linear-gradient(#c48632, #8d571c);
+  border-color: #d2a153;
+  color: #fff4dc;
+}
+
+html[data-theme="dark"] .spell-cast-count {
+  border-color: #665537;
+}
+
+@media (max-width: 720px) {
+  .spell-row {
+    grid-template-columns: 30px 75px minmax(0, 1fr) 55px;
+  }
+
+  .spell-row .spell-cast-control {
+    grid-column: 3 / -1;
+    justify-content: start;
+  }
+}

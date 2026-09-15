@@ -87,6 +87,7 @@ import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "@/lib/auth-constants";
 import type { CharacterVisibility } from "@/lib/characters/authorization";
 import { campaignInventoryArmor, campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventoryValue, campaignInventoryWeapon, inventoryItemDescription, inventoryItemDisplayName } from "@/lib/inventory/items";
 import { CampaignInventoryOptions, StoredItemsSection, useCampaignInventoryItems } from "./inventory-stored-items";
+import { canRecordSpellCast, spellCastCost, spellCastCount, spellCastingUse } from "./spell-casting";
 
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
 type AttributeMethod = "rolled" | "array";
@@ -673,8 +674,8 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
       ? incoming.spellPicks.map((pick) => ({
           name: pick.name || "",
           prepared: Boolean(pick.prepared),
-          cast: Boolean(pick.cast),
-          casts: Math.max(0, Number(pick.casts) || 0),
+          cast: false,
+          casts: spellCastCount(pick),
         }))
       : initial.spellPicks,
     artEffort: Array.isArray(incoming.artEffort)
@@ -1629,9 +1630,7 @@ export default function Home({
   function takeRest() {
     const healing = Math.max(0, Math.min(sheet.level || 0, calculatedHpMax - sheet.hpCurrent));
     const strainRecovery = sheet.strainCurrent > 0 ? 1 : 0;
-    const castings = isInvoker
-      ? sheet.spellPicks.reduce((total, pick) => total + (pick.casts || 0), 0)
-      : sheet.spellPicks.filter(pick => pick.cast).length;
+    const castings = sheet.spellPicks.reduce((total, pick) => total + spellCastCount(pick), 0);
     const effort = sheet.artEffort.filter(Boolean).length;
     const details = [
       healing ? `heal ${healing} HP` : "restore no HP",
@@ -2374,9 +2373,11 @@ export default function Home({
     Luck: `16 − level ${sheet.level}`,
   };
   const preparedCount = sheet.spellPicks.filter(s => s.name && s.prepared).length;
-  const castsUsed = isInvoker
-    ? sheet.spellPicks.reduce((total, pick) => total + (pick.name && pick.prepared ? (pick.casts || 0) * (availableSpells.find(spell => spell.name === pick.name)?.level || 0) : 0), 0)
-    : sheet.spellPicks.filter(s => s.name && s.cast).length;
+  const castsUsed = spellCastingUse(
+    sheet.spellPicks,
+    isInvoker,
+    name => availableSpells.find(spell => spell.name === name)?.level || 0,
+  );
   const readiedCapacity = attributeScore("STR") ? Math.floor(attributeScore("STR") / 2) : 0;
   const stowedCapacity = attributeScore("STR") || 0;
   const readiedSlots = inventorySlots(sheet.readied, readiedCapacity);
@@ -3481,11 +3482,20 @@ export default function Home({
           {selectedClasses.includes("Wise") && <Section title="Wise Concept" buildControlled><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{skills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
           {hasBeastmaster && <Section title="Beastmaster Companion Bond" buildControlled><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>changeBeastmasterBond(e.target.value as Sheet["beastmasterBond"])}><option value="">Choose a companion bond…</option><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p>{!sheet.beastmasterBond && <p className="creation-choice-note">Choose the Beastmaster’s companion bond before finishing character creation.</p>}</Section>}
           {castingTraditions.length > 0 && <Section title="Spellbook" aside={<span className="caption">{knownSpellAllowance} known-spell selections at level {sheet.level} · spell levels 1–{limits.max} · prepare up to {limits.prepared}</span>}>
-            <p className="section-intro">{isInvoker ? `Invoker spells spend points equal to spell level. You have ${limits.casts} spell points each day and may cast a prepared spell repeatedly.` : "Choose each known spell from the complete SRD list. Prepared spells are bright; unprepared spells remain in your spellbook but are muted."}</p>
+            <p className="section-intro">{isInvoker ? `Invoker spells spend points equal to spell level. You have ${limits.casts} spell points each day and may cast a prepared spell repeatedly.` : "Choose each known spell from the complete SRD list. Prepared spells are bright; unprepared spells remain muted. Press Cast each time a spell is used; Undo removes one casting if play is retconned or the button is pressed accidentally."}</p>
             <div className="spell-list">
               {sheet.spellPicks.map((pick, i) => {
                 const spell = availableSpells.find(s => s.name === pick.name);
                 const unavailable = spell && spell.level > limits.max;
+                const castCount = spellCastCount(pick);
+                const castCost = spellCastCost(isInvoker, spell?.level || 0);
+                const canCast = Boolean(spell) && canRecordSpellCast({
+                  prepared: pick.prepared,
+                  castingBlocked,
+                  used: castsUsed,
+                  limit: limits.casts,
+                  cost: castCost,
+                });
                 return <div className={`spell-row ${pick.prepared ? "prepared":"unprepared"} ${unavailable ? "locked":""} ${dragging?.kind==="spell"&&dragging.index===i ? "dragging":""}`} key={i} data-drag-kind="spell" data-drag-index={i}
                   onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const from=Number(e.dataTransfer.getData("text/plain"));if(Number.isInteger(from))moveItem("spell",from,i);setDragging(null)}}>
                   <button className="drag-handle" aria-label={`Reorder ${pick.name || `spell row ${i+1}`}`} title="Drag to reorder"
@@ -3506,9 +3516,11 @@ export default function Home({
                   </select>
                   {spell ? <Tip title={`Level ${spell.level}`}><RulesTooltip name={`${spell.name} · ${spell.tradition}`} text={spell.text}/></Tip> :
                     <span className="slot-number" aria-label={`Spell selection ${i + 1}`}>{i + 1}</span>}
-                  {isInvoker
-                    ? <label className={`cast-check ${castingBlocked ? "casting-blocked" : ""}`} title={castingBlockedReason}><input type="number" min={0} max={spell ? Math.floor(limits.casts / spell.level) : 0} value={pick.casts || 0} disabled={castingBlocked || !pick.prepared} aria-label={`${pick.name || "Spell"} casts today`} onChange={e => patch("spellPicks", sheet.spellPicks.map((x,j) => j === i ? { ...x, casts: Math.max(0, Number(e.target.value) || 0), cast: false } : x))}/><span>Times cast</span></label>
-                    : <label className={`cast-check ${castingBlocked ? "casting-blocked" : ""}`} title={castingBlockedReason}><input type="checkbox" checked={pick.cast} disabled={castingBlocked || (!pick.prepared && !pick.cast) || (!pick.cast && castsUsed >= limits.casts)} onChange={e => patch("spellPicks", sheet.spellPicks.map((x,j) => j === i ? { ...x, cast: e.target.checked } : x))}/><span>Cast</span></label>}
+                  <div className={`spell-cast-control ${castingBlocked ? "casting-blocked" : ""}`} title={castingBlocked ? castingBlockedReason : undefined}>
+                    <button type="button" className="spell-cast-button" disabled={!canCast} onClick={() => patch("spellPicks", sheet.spellPicks.map((x,j) => j === i ? { ...x, casts: castCount + 1, cast: false } : x))}>Cast</button>
+                    <span className="spell-cast-count" aria-label={`${pick.name || "Spell"} cast ${castCount} ${castCount === 1 ? "time" : "times"} today`} aria-live="polite">×{castCount}</span>
+                    <button type="button" className="spell-cast-undo" disabled={castCount <= 0} onClick={() => patch("spellPicks", sheet.spellPicks.map((x,j) => j === i ? { ...x, casts: Math.max(0, castCount - 1), cast: false } : x))}>Undo</button>
+                  </div>
                 </div>
               })}
             </div>

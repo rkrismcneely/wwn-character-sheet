@@ -27,7 +27,6 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
       // host whenever it exists, while retaining the legacy host as a fallback.
       const durableHost = document.querySelector(".app-header .app-header-utilities");
       const nextHost = durableHost ?? document.querySelector(".topbar .status");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHost(currentHost => currentHost === nextHost ? currentHost : nextHost);
       return Boolean(durableHost);
     };

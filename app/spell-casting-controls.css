@@ -54,6 +54,22 @@
   filter: grayscale(1);
 }
 
+html[data-theme="dark"] .spell-cast-control button {
+  background: #34291d;
+  border-color: #8d6c39;
+  color: #f5dfb5;
+}
+
+html[data-theme="dark"] .spell-cast-control .spell-cast-button {
+  background: linear-gradient(#c48632, #8d571c);
+  border-color: #d2a153;
+  color: #fff4dc;
+}
+
+html[data-theme="dark"] .spell-cast-count {
+  border-color: #665537;
+}
+
 @media (max-width: 720px) {
   .spell-row {
     grid-template-columns: 30px 75px minmax(0, 1fr) 55px;

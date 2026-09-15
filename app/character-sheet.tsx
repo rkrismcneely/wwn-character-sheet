@@ -793,6 +793,12 @@ const weaponTraitDescriptions: Record<string, string> = {
   T: "Throwable: Can be thrown to its listed range without Shock; throwing while in melee gives -4 to hit.",
 };
 
+function WeaponRangeValue({ range }: { range: string }) {
+  const parts = range.split("/");
+  if (parts.length < 2) return <>{range}</>;
+  return <><span className="weapon-range-part">{parts[0]}/</span><wbr /><span className="weapon-range-part">{parts.slice(1).join("/")}</span></>;
+}
+
 function WeaponTraitCodes({ traits }: { traits: string }) {
   const codes = traits.split(",").map(trait => trait.trim()).filter(Boolean);
   if (!codes.length) return <small>None</small>;
@@ -3366,7 +3372,7 @@ export default function Home({
                   const displayName = inventoryItemDisplayName(name);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
                     <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{displayName}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b>{calc.range}</b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
@@ -3909,7 +3915,7 @@ export default function Home({
                       <strong className="weapon-name" title={`${weapon.name}: ${weapon.damage} damage, ${weapon.shock} Shock, range ${weapon.range}, traits ${weapon.traits || "none"}.`}>{weapon.name}</strong>
                       <div><span>Hit Bonus</span><b>{profile.attack}</b></div>
                       <div><span>Damage</span><b>{profile.damage}</b></div>
-                      <div><span>Range</span><b>{weapon.range}</b></div>
+                      <div><span>Range</span><b><WeaponRangeValue range={weapon.range} /></b></div>
                       {!familiar && <div className="weapon-details"><span>{profile.ability} · {profile.skill} · Shock Damage / AC</span><b>{profile.shock}</b><span>Weapon Trait Codes</span><WeaponTraitCodes traits={weapon.traits} /></div>}
                     </div>
                   );})}

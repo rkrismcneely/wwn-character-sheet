@@ -50,7 +50,7 @@ test("spellbook UI uses Cast, count, and Undo controls backed by cast counts", a
   const source = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
   assert.match(source, /spellCastingUse\(\s*sheet\.spellPicks/u);
   assert.match(source, /spellCastCount\(pick\)/u);
-  assert.match(source, /<Tip title="\\?" ariaLabel=/u);
+  assert.ok(source.includes('<Tip title="?" ariaLabel='));
   assert.match(source, /className="spell-cast-button"/u);
   assert.match(source, />Cast<\/button>/u);
   assert.match(source, /className="spell-cast-count"/u);

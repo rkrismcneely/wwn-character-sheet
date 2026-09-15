@@ -77,8 +77,8 @@
 .campaign-store-description,.campaign-store-details,.campaign-store-note{margin:9px 0 0;color:#eee0c7;font:14px/1.45 var(--font-body);overflow-wrap:anywhere}
 .campaign-store-details{color:#cfba94;font:12px/1.45 var(--font-ui)}
 .campaign-store-note{padding:8px 9px;border-left:3px solid #b9863f;background:rgba(172,120,41,.13);color:#f1dbb0;font:12px/1.4 var(--font-ui)}
-.campaign-store-stock{display:inline-block;margin-top:11px;color:#b9d69d;font:700 9px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase}
-.campaign-store-stock.sold-out{color:#e0a498}
+.campaign-store-item-stock{display:inline-block;margin-top:11px;color:#b9d69d;font:700 9px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase}
+.campaign-store-item-stock.sold-out{color:#e0a498}
 .campaign-store-empty{margin:auto;padding:24px;color:#d4c1a2;text-align:center;font:14px/1.5 var(--font-ui)}
 .campaign-store-empty h3{margin:0;color:#f8e9c6;font:600 24px/1 var(--font-display)}
 .campaign-store-empty p{margin:8px 0 0}

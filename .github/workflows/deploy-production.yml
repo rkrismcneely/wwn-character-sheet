@@ -39,6 +39,11 @@ jobs:
             echo "The campaign-item migration workflow owns this release."
             exit 0
           fi
+          if [ "\${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "\${GITHUB_SHA}" | grep -Eq "^drizzle/0024_campaign_stores\.sql$|^scripts/migrate-campaign-stores\.mjs$|^\.github/workflows/migrate-campaign-stores\.yml$"; then
+            echo "skip=true" >> "\${GITHUB_OUTPUT}"
+            echo "The campaign-store migration workflow owns this release."
+            exit 0
+          fi
           if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0018_action_bundle_13_npc_inventory\.sql$|^scripts/migrate-action-bundle-13-npc-inventory\.mjs$|^\.github/workflows/migrate-action-bundle-13-npc-inventory\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The Action Bundle 13 NPC inventory migration workflow owns this release."

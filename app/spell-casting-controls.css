@@ -1,5 +1,5 @@
 .spell-row {
-  grid-template-columns: 30px 87px minmax(0, 1fr) 72px minmax(160px, auto);
+  grid-template-columns: 30px 87px minmax(0, 1fr) 36px minmax(160px, auto);
 }
 
 .spell-cast-control {
@@ -72,7 +72,7 @@ html[data-theme="dark"] .spell-cast-count {
 
 @media (max-width: 720px) {
   .spell-row {
-    grid-template-columns: 30px 75px minmax(0, 1fr) 55px;
+    grid-template-columns: 30px 75px minmax(0, 1fr) 36px;
   }
 
   .spell-row .spell-cast-control {

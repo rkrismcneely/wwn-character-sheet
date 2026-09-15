@@ -760,8 +760,8 @@ function createBlankSheet(): Sheet {
   };
 }
 
-function Tip({ title, children }: { title: string; children: React.ReactNode }) {
-  return <span className="tip" tabIndex={0}>{title}<span className="tipbox">{children}</span></span>;
+function Tip({ title, ariaLabel, children }: { title: string; ariaLabel?: string; children: React.ReactNode }) {
+  return <span className="tip" tabIndex={0} aria-label={ariaLabel}>{title}<span className="tipbox">{children}</span></span>;
 }
 
 function RulesTooltip({ name, text, extra }: { name: string; text: string; extra?: string }) {
@@ -3514,7 +3514,7 @@ export default function Home({
                       return <option key={`${s.tradition}-${s.name}`} value={s.name} disabled={!eligibility.eligible}>L{s.level} · {s.tradition} · {s.name}{eligibility.eligible ? "" : " — already known"}</option>;
                     }))}
                   </select>
-                  {spell ? <Tip title={`Level ${spell.level}`}><RulesTooltip name={`${spell.name} · ${spell.tradition}`} text={spell.text}/></Tip> :
+                  {spell ? <Tip title="?" ariaLabel={`Spell level ${spell.level}`}><RulesTooltip name={`${spell.name} · ${spell.tradition}`} text={spell.text} extra={`Spell level ${spell.level}.`}/></Tip> :
                     <span className="slot-number" aria-label={`Spell selection ${i + 1}`}>{i + 1}</span>}
                   <div className={`spell-cast-control ${castingBlocked ? "casting-blocked" : ""}`} title={castingBlocked ? castingBlockedReason : undefined}>
                     <button type="button" className="spell-cast-button" disabled={!canCast} onClick={() => patch("spellPicks", sheet.spellPicks.map((x,j) => j === i ? { ...x, casts: castCount + 1, cast: false } : x))}>Cast</button>

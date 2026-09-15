@@ -82,8 +82,8 @@ export function CampaignCharacterStoreControl({
         type="button"
         data-readonly-interactive="true"
         aria-label={campaigns.length > 1
-          ? \`\${storeIsOpen ? "Close" : "Open"} \${selectedCampaign.name} store\`
-          : \`\${storeIsOpen ? "Close" : "Open"} campaign store\`}
+          ? `${storeIsOpen ? "Close" : "Open"} ${selectedCampaign.name} store`
+          : `${storeIsOpen ? "Close" : "Open"} campaign store`}
         aria-pressed={storeIsOpen}
         onClick={() => window.dispatchEvent(new CustomEvent<CampaignStoreOpenDetail>(campaignStoreOpenEvent, {
           detail: { campaignId, action: storeIsOpen ? "close" : "open" },

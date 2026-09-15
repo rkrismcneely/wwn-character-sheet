@@ -8,6 +8,7 @@ import {
   type CampaignMapOpenDetail,
   type CampaignMapStateDetail,
 } from "./campaign-map-events";
+import { campaignStoreOpenEvent, type CampaignStoreOpenDetail } from "./campaign-store-events";
 
 export type CharacterMapCampaign = {
   id: string;
@@ -91,9 +92,14 @@ export function CampaignCharacterMapControl({ campaigns }: { campaigns: Characte
           ? `${mapIsOpen ? "Close" : "Open"} ${selectedCampaign.name} map`
           : `${mapIsOpen ? "Close" : "Open"} campaign map`}
         aria-pressed={mapIsOpen}
-        onClick={() => window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {
-          detail: { campaignId, action: mapIsOpen ? "close" : "open" },
-        }))}
+        onClick={() => {
+          if (!mapIsOpen) window.dispatchEvent(new CustomEvent<CampaignStoreOpenDetail>(campaignStoreOpenEvent, {
+            detail: { campaignId, action: "close" },
+          }));
+          window.dispatchEvent(new CustomEvent<CampaignMapOpenDetail>(campaignMapOpenEvent, {
+            detail: { campaignId, action: mapIsOpen ? "close" : "open" },
+          }));
+        }}
       >
         {mapIsOpen ? "Close Map" : "Map"}
       </button>

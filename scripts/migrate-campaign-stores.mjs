@@ -31,7 +31,7 @@ function query(sql) {
 }
 
 function applyReviewedMigration() {
-  const root = mkdtempSync(join(process.cwd(), ".campaign-items-migration-"));
+  const root = mkdtempSync(join(process.cwd(), ".campaign-stores-migration-"));
   try {
     const migrations = join(root, "migrations");
     mkdirSync(migrations, { recursive: true });
@@ -66,7 +66,7 @@ for (const baseline of [
   "0015_campaign_map_interactions.sql",
 ]) {
   if (!applied.has(baseline)) {
-    throw new Error(`Production is missing baseline migration ${baseline}; campaign-item migration was not applied.`);
+    throw new Error(`Production is missing baseline migration ${baseline}; campaign-store migration was not applied.`);
   }
 }
 

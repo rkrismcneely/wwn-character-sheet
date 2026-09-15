@@ -752,7 +752,7 @@ html[data-theme="dark"] .attribute-advancement-note{color:#ad9f88}
 .attribute-advancement{grid-template-columns:minmax(0,1fr);gap:5px}
 .two-col>*{min-width:0}
 .two-col .field>input,.two-col .field>select{width:100%}
-.level-control-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font:inherit;text-transform:none;letter-spacing:normal;color:inherit}.level-control-row .level-select{width:112px;flex:0 0 112px;font:inherit}.level-up-inline-button{align-self:stretch;border:1px solid #8e6b35;background:linear-gradient(#fff8e8,#ead7b2);color:#5d3d15;padding:7px 10px;cursor:pointer;font:700 11px Arial,sans-serif;white-space:nowrap}
+.level-control-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font:inherit;text-transform:none;letter-spacing:normal;color:inherit}.level-control-row .level-select{width:112px;flex:0 0 112px;font:inherit}.field > span.level-control-row{font:16px/normal var(--font-body);font-weight:400;text-transform:none;letter-spacing:normal;color:var(--ink)}.field > span.level-control-row .level-select{font:16px/normal var(--font-body);font-weight:400}.level-up-inline-button{align-self:stretch;border:1px solid #8e6b35;background:linear-gradient(#fff8e8,#ead7b2);color:#5d3d15;padding:7px 10px;cursor:pointer;font:700 11px Arial,sans-serif;white-space:nowrap}
 .stepper-control{display:grid!important;grid-template-columns:minmax(0,1fr) 24px;align-items:stretch;gap:3px}
 .stepper-control>input{width:100%;font:16px Georgia,"Times New Roman",serif;color:var(--ink);-moz-appearance:textfield}
 .stepper-control>input::-webkit-inner-spin-button,.stepper-control>input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}

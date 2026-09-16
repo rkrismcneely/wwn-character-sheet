@@ -47,8 +47,16 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
   assert.match(activeRoute, /searchParams\.get\("characterId"\)/u);
   assert.match(storeRoute, /setCampaignStoreActive/u);
   assert.match(itemRoute, /updateCampaignStoreItem/u);
-  assert.match(library, /SRD item/u);
-  assert.match(library, /Campaign custom item/u);
+  assert.match(library, /Built-in Catalog/u);
+  assert.match(library, /Campaign Custom Item/u);
+  assert.match(library, /All categories/u);
+  assert.match(library, /All sources/u);
+  assert.match(library, /Select all shown/u);
+  assert.match(library, /Hide items already in this store/u);
+  assert.match(library, /View description &amp; stats/u);
+  assert.match(library, /selectedCatalogIds/u);
+  assert.match(library, /addCatalogSelection/u);
+  assert.match(library, /postStoreItem/u);
   assert.match(library, /Make Visible to Party/u);
   assert.match(library, /normal item visibility is restricted/u);
   assert.match(launcher, /stores\/active/u);
@@ -76,4 +84,7 @@ test("campaign store migration gets the dedicated production release guard", asy
   assert.match(deployment, /campaign-store migration workflow owns this release/u);
   assert.match(css, /campaign-store-drawer/u);
   assert.match(css, /campaign-store-management-layout/u);
+  assert.match(css, /campaign-store-catalog-browser/u);
+  assert.match(css, /campaign-store-catalog-card/u);
+  assert.match(css, /campaign-store-bulk-add/u);
 });

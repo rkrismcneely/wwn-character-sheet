@@ -16,12 +16,39 @@ import {
   getD1,
 } from "@/app/api/characters/db";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
-import { listAuthorizedCharacterCampaigns } from "@/lib/campaigns/characters";
+import {
+  listAuthorizedCharacterCampaigns,
+  type CharacterCampaignLink,
+} from "@/lib/campaigns/characters";
+import type { CampaignActor } from "@/lib/campaigns/types";
 import "../../campaigns/campaign-ui.css";
 import "../../campaigns/campaign-map.css";
 import "../../campaigns/campaign-store.css";
 
 type RouteContext = { params: Promise<{ publicId: string }> };
+
+async function listCharacterCampaignControls(
+  db: D1Database,
+  actor: CampaignActor | null,
+  publicId: string,
+): Promise<CharacterCampaignLink[]> {
+  if (actor?.role !== "admin") {
+    return listAuthorizedCharacterCampaigns(db, actor, publicId);
+  }
+
+  // Site admins can already read campaign-linked characters and active stores.
+  // Keep that admin access additive on the normal character route too, so Map
+  // and Store controls do not disappear merely because the viewer is an admin.
+  const result = await db.prepare(
+    `SELECT DISTINCT c.public_id AS id, c.name
+     FROM characters ch
+     INNER JOIN campaign_characters cc ON cc.character_id = ch.id
+     INNER JOIN campaigns c ON c.id = cc.campaign_id
+     WHERE ch.public_id = ?
+     ORDER BY lower(c.name), c.updated_at DESC`,
+  ).bind(publicId).all<CharacterCampaignLink>();
+  return result.results.map(({ id, name }) => ({ id, name }));
+}
 
 async function loadCharacter(publicId: string): Promise<InitialCharacterPayload | null> {
   if (!isPlausiblePublicCharacterId(publicId)) return null;
@@ -32,7 +59,7 @@ async function loadCharacter(publicId: string): Promise<InitialCharacterPayload 
   if (!row || !canReadRow(actor, row)) return null;
   return {
     ...characterApiPayload(row, actor),
-    campaigns: await listAuthorizedCharacterCampaigns(db, actor, publicId),
+    campaigns: await listCharacterCampaignControls(db, actor, publicId),
   } as InitialCharacterPayload;
 }
 

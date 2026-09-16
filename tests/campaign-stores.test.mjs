@@ -33,13 +33,13 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
   assert.match(migration, /CREATE TABLE .*campaign_store_items/u);
   assert.match(migration, /campaign_stores_one_active_per_campaign_idx/u);
   assert.match(migration, /source_type.*'srd', 'campaign'/su);
-  assert.match(service, /purchasableEquipmentById/u);
+  assert.match(service, /storeCatalogById/u);
   assert.match(service, /canManageCampaignContent/u);
   assert.match(service, /readActiveCampaignStore/u);
   assert.match(service, /normal campaign-item selected-character restrictions do not apply/u);
   assert.match(service, /FROM campaign_store_items/u);
   assert.match(service, /sourceType === "campaign"/u);
-  assert.match(service, /SRD catalog keys intentionally contain punctuation/u);
+  assert.match(service, /Built-in catalog keys intentionally contain punctuation/u);
   assert.match(service, /sourceType === "srd"\s*\? plainText\(value, "Source item", 240\)/u);
   assert.match(service, /: identifier\(value, "Source item"\)/u);
   assert.match(listRoute, /listCampaignStoresForManagement/u);

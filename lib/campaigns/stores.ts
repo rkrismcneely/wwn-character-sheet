@@ -3,11 +3,12 @@ import {
   canViewCampaign,
 } from "./authorization.ts";
 import {
-  formatEquipmentCost,
-  purchasableEquipment,
-  purchasableEquipmentById,
-  type EquipmentKind,
-} from "../../app/equipment-data.ts";
+  storeCatalog,
+  storeCatalogById,
+  type StoreCatalogCategory,
+  type StoreCatalogKind,
+  type StoreCatalogSource,
+} from "../../app/store-catalog-data.ts";
 import type { CampaignItemProperties, InventoryItemKind } from "../inventory/items.ts";
 import {
   CampaignServiceError,
@@ -17,7 +18,7 @@ import {
 import type { CampaignActor } from "./types.ts";
 
 export type CampaignStoreSourceType = "srd" | "campaign";
-export type CampaignStoreItemKind = InventoryItemKind | Exclude<EquipmentKind, "weapon" | "armor">;
+export type CampaignStoreItemKind = StoreCatalogKind;
 
 export interface CampaignStoreItem {
   id: string;
@@ -51,8 +52,14 @@ export interface CampaignStoreCatalogItem {
   id: string;
   name: string;
   kind: CampaignStoreItemKind;
+  category: StoreCatalogCategory;
+  subcategory: string;
   details: string;
   defaultCost: string;
+  source: StoreCatalogSource;
+  sourceLabel: string;
+  license: string;
+  priceBasis: string;
 }
 
 export interface CampaignStoreCustomItem {
@@ -155,7 +162,8 @@ function identifier(value: unknown, label: string): string {
 }
 
 function storeSourceItemId(value: unknown, sourceType: CampaignStoreSourceType): string {
-  // SRD catalog keys intentionally contain punctuation (for example, weapon:Hammer, Great).
+  // Built-in catalog keys intentionally contain punctuation (for example,
+  // weapon:Hammer, Great and the imported store-only source prefixes).
   // The authoritative catalog lookup below validates them; campaign item IDs stay strict.
   return sourceType === "srd"
     ? plainText(value, "Source item", 240)
@@ -192,7 +200,13 @@ function propertyDetails(kind: InventoryItemKind, properties: CampaignItemProper
   }
   if (kind === "magical" && properties.magical) {
     const magical = properties.magical;
-    return [magical.bonuses, magical.abilities, magical.charges === null ? "" : `${magical.charges} charges`, magical.uses, magical.rulesText].filter(Boolean).join(" · ");
+    return [
+      magical.bonuses,
+      magical.abilities,
+      magical.charges === null ? "" : `${magical.charges} charges`,
+      magical.uses,
+      magical.rulesText,
+    ].filter(Boolean).join(" · ");
   }
   return "";
 }
@@ -326,12 +340,18 @@ async function storeForManagement(
 }
 
 function catalog(): CampaignStoreCatalogItem[] {
-  return purchasableEquipment.map(item => ({
+  return storeCatalog.map(item => ({
     id: item.id,
     name: item.name,
     kind: item.kind,
+    category: item.category,
+    subcategory: item.subcategory,
     details: item.details,
-    defaultCost: formatEquipmentCost(item.costCopper),
+    defaultCost: item.defaultCost,
+    source: item.source,
+    sourceLabel: item.sourceLabel,
+    license: item.license,
+    priceBasis: item.priceBasis,
   }));
 }
 
@@ -385,7 +405,16 @@ export async function createCampaignStore(
       (id, campaign_id, name, description, is_active, created_at, updated_at)
      VALUES (?, ?, ?, ?, 0, ?, ?)`,
   ).bind(id, campaign.id, name, description, now, now).run();
-  return { id, campaignId: campaign.publicId, name, description, isActive: false, items: [], createdAt: now, updatedAt: now };
+  return {
+    id,
+    campaignId: campaign.publicId,
+    name,
+    description,
+    isActive: false,
+    items: [],
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export async function updateCampaignStore(
@@ -498,16 +527,16 @@ export async function createCampaignStoreItem(
     defaultCost: string;
   };
   if (sourceType === "srd") {
-    const item = purchasableEquipmentById.get(sourceItemId);
+    const item = storeCatalogById.get(sourceItemId);
     if (!item) throw new CampaignServiceError("SRD item not found.", 422);
     source = {
       id: item.id,
       name: item.name,
       kind: item.kind,
-      description: "",
+      description: item.details,
       details: item.details,
       properties: {},
-      defaultCost: formatEquipmentCost(item.costCopper),
+      defaultCost: item.defaultCost,
     };
   } else {
     const item = await db.prepare(
@@ -535,9 +564,20 @@ export async function createCampaignStoreItem(
        properties_json, cost, quantity, shop_note, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
-    id, store.id, sourceType, source.id, source.name, source.kind,
-    source.description, source.details, JSON.stringify(source.properties),
-    cost, stockQuantity, note, now, now,
+    id,
+    store.id,
+    sourceType,
+    source.id,
+    source.name,
+    source.kind,
+    source.description,
+    source.details,
+    JSON.stringify(source.properties),
+    cost,
+    stockQuantity,
+    note,
+    now,
+    now,
   ).run();
   return {
     id,

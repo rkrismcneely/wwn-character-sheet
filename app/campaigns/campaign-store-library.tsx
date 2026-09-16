@@ -8,8 +8,9 @@ import type {
   CampaignStoreManagementPayload,
 } from "@/lib/campaigns/stores";
 
-type AddItemDraft = {
-  sourceType: "srd" | "campaign";
+type AddSourceMode = "catalog" | "campaign";
+
+type CustomItemDraft = {
   sourceItemId: string;
   cost: string;
   quantity: string;
@@ -17,9 +18,8 @@ type AddItemDraft = {
   note: string;
 };
 
-function blankItem(): AddItemDraft {
+function blankCustomItem(): CustomItemDraft {
   return {
-    sourceType: "srd",
     sourceItemId: "",
     cost: "",
     quantity: "1",
@@ -57,14 +57,18 @@ function ManagedStoreItem({
   const [quantity, setQuantity] = useState(item.quantity === null ? "1" : String(item.quantity));
   const [unlimited, setUnlimited] = useState(item.quantity === null);
   const [note, setNote] = useState(item.note);
+  const hasDetails = Boolean(item.description || item.details);
 
   return <article className="campaign-store-managed-item">
     <div className="campaign-store-managed-item-heading">
       <div>
-        <p className="campaign-kicker">{kindLabel(item.kind).toUpperCase()} · {item.sourceType === "srd" ? "SRD" : "CAMPAIGN ITEM"}</p>
+        <p className="campaign-kicker">{kindLabel(item.kind).toUpperCase()} · {item.sourceType === "srd" ? "CATALOG" : "CAMPAIGN ITEM"}</p>
         <h4>{item.name}</h4>
-        {item.description && <p>{item.description}</p>}
-        {item.details && <small>{item.details}</small>}
+        {hasDetails && <details className="campaign-store-managed-details">
+          <summary>Description &amp; stats</summary>
+          {item.description && <p>{item.description}</p>}
+          {item.details && item.details !== item.description && <small>{item.details}</small>}
+        </details>}
       </div>
       <button type="button" className="campaign-danger" disabled={busy} onClick={() => onDelete(item)}>Remove</button>
     </div>
@@ -89,7 +93,17 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [storeName, setStoreName] = useState("");
   const [storeDescription, setStoreDescription] = useState("");
   const [creating, setCreating] = useState(false);
-  const [addDraft, setAddDraft] = useState<AddItemDraft>(blankItem);
+  const [addSourceMode, setAddSourceMode] = useState<AddSourceMode>("catalog");
+  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogSource, setCatalogSource] = useState("");
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [hideStocked, setHideStocked] = useState(true);
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
+  const [bulkQuantity, setBulkQuantity] = useState("1");
+  const [bulkUnlimited, setBulkUnlimited] = useState(true);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [customDraft, setCustomDraft] = useState<CustomItemDraft>(blankCustomItem);
+  const [stockQuery, setStockQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -98,16 +112,77 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     () => stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null,
     [selectedStoreId, stores],
   );
-  const choices = addDraft.sourceType === "srd" ? catalog : campaignItems;
-  const selectedSource = choices.find(item => item.id === addDraft.sourceItemId);
+
+  const categories = useMemo(
+    () => Array.from(new Set(catalog.map(item => item.category))),
+    [catalog],
+  );
+  const sources = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const item of catalog) labels.set(item.source, item.sourceLabel);
+    return Array.from(labels, ([value, label]) => ({ value, label }));
+  }, [catalog]);
+  const stockedCatalogIds = useMemo(
+    () => new Set((selectedStore?.items ?? []).filter(item => item.sourceType === "srd" && item.sourceItemId).map(item => item.sourceItemId as string)),
+    [selectedStore],
+  );
+  const filteredCatalog = useMemo(() => {
+    const needle = catalogQuery.trim().toLocaleLowerCase();
+    return catalog.filter(item => {
+      if (catalogCategory && item.category !== catalogCategory) return false;
+      if (catalogSource && item.source !== catalogSource) return false;
+      if (hideStocked && stockedCatalogIds.has(item.id)) return false;
+      if (!needle) return true;
+      return [
+        item.name,
+        item.kind,
+        item.category,
+        item.subcategory,
+        item.details,
+        item.defaultCost,
+        item.sourceLabel,
+      ].join(" ").toLocaleLowerCase().includes(needle);
+    });
+  }, [catalog, catalogCategory, catalogQuery, catalogSource, hideStocked, stockedCatalogIds]);
+  const selectedCatalog = useMemo(
+    () => selectedCatalogIds.map(id => catalog.find(item => item.id === id)).filter((item): item is CampaignStoreManagementPayload["catalog"][number] => Boolean(item)),
+    [catalog, selectedCatalogIds],
+  );
+  const selectedCustomSource = campaignItems.find(item => item.id === customDraft.sourceItemId);
+  const filteredStock = useMemo(() => {
+    const needle = stockQuery.trim().toLocaleLowerCase();
+    if (!needle) return selectedStore?.items ?? [];
+    return (selectedStore?.items ?? []).filter(item => [item.name, item.kind, item.description, item.details, item.note, item.cost]
+      .join(" ").toLocaleLowerCase().includes(needle));
+  }, [selectedStore, stockQuery]);
+
+  function resetAddControls() {
+    setAddSourceMode("catalog");
+    setCatalogCategory("");
+    setCatalogSource("");
+    setCatalogQuery("");
+    setSelectedCatalogIds([]);
+    setBulkQuantity("1");
+    setBulkUnlimited(true);
+    setBulkProgress(0);
+    setCustomDraft(blankCustomItem());
+    setStockQuery("");
+  }
 
   function chooseStore(store: CampaignStore) {
     setCreating(false);
     setSelectedStoreId(store.id);
     setStoreName(store.name);
     setStoreDescription(store.description);
-    setAddDraft(blankItem());
+    resetAddControls();
     setError("");
+  }
+
+  function toggleCatalogItem(id: string) {
+    if (stockedCatalogIds.has(id)) return;
+    setSelectedCatalogIds(current => current.includes(id)
+      ? current.filter(currentId => currentId !== id)
+      : [...current, id]);
   }
 
   useEffect(() => {
@@ -220,6 +295,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       setStoreName(next?.name ?? "");
       setStoreDescription(next?.description ?? "");
       setCreating(remaining.length === 0);
+      resetAddControls();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Campaign store could not be deleted.");
     } finally {
@@ -227,7 +303,52 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     }
   }
 
-  async function addItem(event: FormEvent) {
+  async function postStoreItem(sourceItemId: string, cost: string, quantity: number | null, note = "") {
+    if (!selectedStore) throw new Error("Choose a store first.");
+    const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}/items`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sourceType: "srd", sourceItemId, cost, quantity, note }),
+    });
+    const body = await response.json() as { item?: CampaignStoreItem; error?: string };
+    if (!response.ok || !body.item) throw new Error(body.error || "Store item could not be added.");
+    return body.item;
+  }
+
+  async function addCatalogSelection() {
+    if (!selectedStore || !selectedCatalog.length) return;
+    setBusy(true);
+    setBulkProgress(0);
+    setError("");
+    const added: CampaignStoreItem[] = [];
+    try {
+      const quantity = bulkUnlimited ? null : Number(bulkQuantity);
+      for (const choice of selectedCatalog) {
+        if (stockedCatalogIds.has(choice.id)) continue;
+        added.push(await postStoreItem(choice.id, choice.defaultCost, quantity));
+        setBulkProgress(added.length);
+      }
+      if (added.length) {
+        setStores(current => current.map(store => store.id === selectedStore.id
+          ? { ...store, items: [...store.items, ...added].sort((left, right) => left.name.localeCompare(right.name)) }
+          : store));
+      }
+      setSelectedCatalogIds([]);
+    } catch (bulkError) {
+      if (added.length) {
+        setStores(current => current.map(store => store.id === selectedStore.id
+          ? { ...store, items: [...store.items, ...added].sort((left, right) => left.name.localeCompare(right.name)) }
+          : store));
+      }
+      const message = bulkError instanceof Error ? bulkError.message : "Catalog items could not be added.";
+      setError(added.length ? `${message} ${added.length} item${added.length === 1 ? " was" : "s were"} added before the error.` : message);
+    } finally {
+      setBusy(false);
+      setBulkProgress(0);
+    }
+  }
+
+  async function addCustomItem(event: FormEvent) {
     event.preventDefault();
     if (!selectedStore) return;
     setBusy(true);
@@ -237,11 +358,11 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          sourceType: addDraft.sourceType,
-          sourceItemId: addDraft.sourceItemId,
-          cost: addDraft.cost,
-          quantity: addDraft.unlimited ? null : Number(addDraft.quantity),
-          note: addDraft.note,
+          sourceType: "campaign",
+          sourceItemId: customDraft.sourceItemId,
+          cost: customDraft.cost,
+          quantity: customDraft.unlimited ? null : Number(customDraft.quantity),
+          note: customDraft.note,
         }),
       });
       const body = await response.json() as { item?: CampaignStoreItem; error?: string };
@@ -249,7 +370,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       setStores(current => current.map(store => store.id === selectedStore.id
         ? { ...store, items: [...store.items, body.item as CampaignStoreItem].sort((left, right) => left.name.localeCompare(right.name)) }
         : store));
-      setAddDraft(blankItem());
+      setCustomDraft(blankCustomItem());
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "Store item could not be added.");
     } finally {
@@ -311,7 +432,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         setSelectedStoreId("");
         setStoreName("");
         setStoreDescription("");
-        setAddDraft(blankItem());
+        resetAddControls();
         setError("");
       }}>New Store</button>
     </div>
@@ -340,21 +461,80 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             <button type="submit" className="campaign-secondary" disabled={busy || !storeName.trim()}>Save Store Details</button>
           </form>
           <section className="campaign-store-stock">
-            <div className="campaign-store-stock-heading"><div><p className="campaign-kicker">INVENTORY</p><h3>Stock</h3><p>SRD entries keep an equipment snapshot and default cost. Campaign items are added as independent snapshots, so this store can show them to everyone in the party.</p></div><small>{selectedStore.items.length} stocked · {stockLabel(selectedStore.items.reduce<number | null>((total, item) => total === null || item.quantity === null ? null : total + item.quantity, 0))}</small></div>
-            <form className="campaign-store-add-item" onSubmit={addItem}>
-              <label><span>Source</span><select value={addDraft.sourceType} onChange={event => setAddDraft(current => ({ ...current, sourceType: event.target.value as "srd" | "campaign", sourceItemId: "", cost: "" }))}><option value="srd">SRD item</option><option value="campaign">Campaign custom item</option></select></label>
-              <label className="campaign-store-add-source"><span>Item</span><select required value={addDraft.sourceItemId} onChange={event => {
-                const choice = choices.find(item => item.id === event.target.value);
-                setAddDraft(current => ({ ...current, sourceItemId: event.target.value, cost: current.sourceType === "srd" ? (choice && "defaultCost" in choice ? choice.defaultCost : "") : current.cost }));
-              }}><option value="">Choose an item…</option>{choices.map(item => <option key={item.id} value={item.id}>{item.name} · {kindLabel(item.kind)}</option>)}</select>{addDraft.sourceType === "campaign" && !campaignItems.length && <small>Create a custom item in the Items tab first.</small>}{selectedSource && <small>{selectedSource.details || ("description" in selectedSource ? selectedSource.description : "")}</small>}</label>
-              <label><span>Cost</span><input required maxLength={80} value={addDraft.cost} onChange={event => setAddDraft(current => ({ ...current, cost: event.target.value }))} placeholder={addDraft.sourceType === "srd" ? "Choose an SRD item" : "For example, 20 sp"} /></label>
-              <label><span>Stock</span><input required disabled={addDraft.unlimited} type="number" min={0} max={1000000} value={addDraft.quantity} onChange={event => setAddDraft(current => ({ ...current, quantity: event.target.value }))} /></label>
-              <label className="campaign-store-unlimited"><input type="checkbox" checked={addDraft.unlimited} onChange={event => setAddDraft(current => ({ ...current, unlimited: event.target.checked }))} /> Unlimited stock</label>
-              <label className="campaign-store-item-note"><span>Shop note</span><input maxLength={1000} value={addDraft.note} onChange={event => setAddDraft(current => ({ ...current, note: event.target.value }))} placeholder="Optional note visible to the party" /></label>
-              <button type="submit" className="campaign-primary" disabled={busy || !addDraft.sourceItemId || !addDraft.cost.trim() || (!addDraft.unlimited && (!addDraft.quantity || Number(addDraft.quantity) < 0))}>Add to Store</button>
-            </form>
+            <div className="campaign-store-stock-heading"><div><p className="campaign-kicker">INVENTORY</p><h3>Store Inventory</h3><p>Browse the built-in catalog by category or source, inspect an item before stocking it, and select many items to add at once.</p></div><small>{selectedStore.items.length} stocked · {stockLabel(selectedStore.items.reduce<number | null>((total, item) => total === null || item.quantity === null ? null : total + item.quantity, 0))}</small></div>
+
+            <div className="campaign-store-add-tabs" role="tablist" aria-label="Inventory source">
+              <button type="button" role="tab" aria-selected={addSourceMode === "catalog"} className={addSourceMode === "catalog" ? "is-active" : ""} onClick={() => setAddSourceMode("catalog")}>Built-in Catalog</button>
+              <button type="button" role="tab" aria-selected={addSourceMode === "campaign"} className={addSourceMode === "campaign" ? "is-active" : ""} onClick={() => setAddSourceMode("campaign")}>Campaign Custom Item</button>
+            </div>
+
+            {addSourceMode === "catalog" && <section className="campaign-store-catalog-browser" aria-label="Built-in store catalog">
+              <div className="campaign-store-catalog-filters">
+                <label><span>Category</span><select value={catalogCategory} onChange={event => setCatalogCategory(event.target.value)}><option value="">All categories</option>{categories.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
+                <label><span>Source</span><select value={catalogSource} onChange={event => setCatalogSource(event.target.value)}><option value="">All sources</option>{sources.map(source => <option key={source.value} value={source.value}>{source.label}</option>)}</select></label>
+                <label className="campaign-store-catalog-search"><span>Search</span><input type="search" value={catalogQuery} onChange={event => setCatalogQuery(event.target.value)} placeholder="Name, description, stats…" /></label>
+                <label className="campaign-store-hide-stocked"><input type="checkbox" checked={hideStocked} onChange={event => setHideStocked(event.target.checked)} /> Hide items already in this store</label>
+              </div>
+
+              <div className="campaign-store-catalog-toolbar">
+                <span>{filteredCatalog.length} matching · <strong>{selectedCatalogIds.length} selected</strong></span>
+                <div>
+                  <button type="button" className="campaign-quiet" disabled={!filteredCatalog.some(item => !stockedCatalogIds.has(item.id))} onClick={() => {
+                    const visibleIds = filteredCatalog.filter(item => !stockedCatalogIds.has(item.id)).map(item => item.id);
+                    setSelectedCatalogIds(current => Array.from(new Set([...current, ...visibleIds])));
+                  }}>Select all shown</button>
+                  <button type="button" className="campaign-quiet" disabled={!selectedCatalogIds.length} onClick={() => setSelectedCatalogIds([])}>Clear selection</button>
+                </div>
+              </div>
+
+              <div className="campaign-store-catalog-list">
+                {!filteredCatalog.length && <p className="campaign-empty-copy">No catalog items match these filters.</p>}
+                {filteredCatalog.map(item => {
+                  const stocked = stockedCatalogIds.has(item.id);
+                  const selected = selectedCatalogIds.includes(item.id);
+                  return <article key={item.id} className={`campaign-store-catalog-card${selected ? " is-selected" : ""}${stocked ? " is-stocked" : ""}`}>
+                    <div className="campaign-store-catalog-card-heading">
+                      <label>
+                        <input type="checkbox" checked={selected} disabled={stocked || busy} onChange={() => toggleCatalogItem(item.id)} />
+                        <span><strong>{item.name}</strong><small>{item.category}{item.subcategory ? ` · ${item.subcategory}` : ""} · {kindLabel(item.kind)}</small></span>
+                      </label>
+                      <div><strong>{item.defaultCost}</strong>{stocked && <small>Already stocked</small>}</div>
+                    </div>
+                    <div className="campaign-store-catalog-badges"><span>{item.sourceLabel}</span><span>{item.license}</span></div>
+                    <details className="campaign-store-catalog-details">
+                      <summary>View description &amp; stats</summary>
+                      <p>{item.details || "No additional description or statistics are available for this catalog entry."}</p>
+                      <dl><div><dt>Price basis</dt><dd>{item.priceBasis}</dd></div><div><dt>Default price</dt><dd>{item.defaultCost}</dd></div></dl>
+                    </details>
+                  </article>;
+                })}
+              </div>
+
+              <div className="campaign-store-bulk-add">
+                <div><p><strong>{selectedCatalogIds.length}</strong> selected item{selectedCatalogIds.length === 1 ? "" : "s"}</p><small>Each item keeps its own default catalog price. You can edit prices individually after adding.</small></div>
+                <label><span>Stock each</span><input required disabled={bulkUnlimited} type="number" min={0} max={1000000} value={bulkQuantity} onChange={event => setBulkQuantity(event.target.value)} /></label>
+                <label className="campaign-store-unlimited"><input type="checkbox" checked={bulkUnlimited} onChange={event => setBulkUnlimited(event.target.checked)} /> Unlimited stock</label>
+                <button type="button" className="campaign-primary" disabled={busy || !selectedCatalogIds.length || (!bulkUnlimited && (!bulkQuantity || Number(bulkQuantity) < 0))} onClick={() => void addCatalogSelection()}>{busy && selectedCatalogIds.length ? `Adding ${bulkProgress}/${selectedCatalogIds.length}…` : `Add ${selectedCatalogIds.length || "Selected"} to Store`}</button>
+              </div>
+            </section>}
+
+            {addSourceMode === "campaign" && <form className="campaign-store-add-item" onSubmit={addCustomItem}>
+              <label className="campaign-store-add-source"><span>Campaign item</span><select required value={customDraft.sourceItemId} onChange={event => setCustomDraft(current => ({ ...current, sourceItemId: event.target.value }))}><option value="">Choose a custom item…</option>{campaignItems.map(item => <option key={item.id} value={item.id}>{item.name} · {kindLabel(item.kind)}</option>)}</select>{!campaignItems.length && <small>Create a custom item in the Items tab first.</small>}</label>
+              <label><span>Cost</span><input required maxLength={80} value={customDraft.cost} onChange={event => setCustomDraft(current => ({ ...current, cost: event.target.value }))} placeholder="For example, 20 sp" /></label>
+              <label><span>Stock</span><input required disabled={customDraft.unlimited} type="number" min={0} max={1000000} value={customDraft.quantity} onChange={event => setCustomDraft(current => ({ ...current, quantity: event.target.value }))} /></label>
+              <label className="campaign-store-unlimited"><input type="checkbox" checked={customDraft.unlimited} onChange={event => setCustomDraft(current => ({ ...current, unlimited: event.target.checked }))} /> Unlimited stock</label>
+              <label className="campaign-store-item-note"><span>Shop note</span><input maxLength={1000} value={customDraft.note} onChange={event => setCustomDraft(current => ({ ...current, note: event.target.value }))} placeholder="Optional note visible to the party" /></label>
+              {selectedCustomSource && <details className="campaign-store-custom-preview" open><summary>Description &amp; stats</summary>{selectedCustomSource.description && <p>{selectedCustomSource.description}</p>}{selectedCustomSource.details && <small>{selectedCustomSource.details}</small>}</details>}
+              <button type="submit" className="campaign-primary" disabled={busy || !customDraft.sourceItemId || !customDraft.cost.trim() || (!customDraft.unlimited && (!customDraft.quantity || Number(customDraft.quantity) < 0))}>Add to Store</button>
+            </form>}
+
+            <div className="campaign-store-current-stock-heading">
+              <div><p className="campaign-kicker">CURRENT STOCK</p><h3>{selectedStore.items.length} stocked items</h3></div>
+              <input type="search" value={stockQuery} onChange={event => setStockQuery(event.target.value)} placeholder="Filter current stock…" aria-label="Filter current store stock" />
+            </div>
             {!selectedStore.items.length && <p className="campaign-empty-copy">This store has no stocked items yet.</p>}
-            <div className="campaign-store-managed-list">{selectedStore.items.map(item => <ManagedStoreItem key={item.id} item={item} busy={busy} onSave={(item, value) => void saveItem(item, value)} onDelete={item => void removeItem(item)} />)}</div>
+            {selectedStore.items.length > 0 && !filteredStock.length && <p className="campaign-empty-copy">No stocked items match that filter.</p>}
+            <div className="campaign-store-managed-list">{filteredStock.map(item => <ManagedStoreItem key={item.id} item={item} busy={busy} onSave={(item, value) => void saveItem(item, value)} onDelete={item => void removeItem(item)} />)}</div>
           </section>
         </>}
       </div>

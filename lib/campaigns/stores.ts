@@ -642,7 +642,7 @@ export async function deleteCampaignStoreItem(
   itemId: unknown,
 ): Promise<void> {
   const campaign = await managerCampaign(db, actor, campaignPublicId, true);
-  const store = await storeForManagement(db, actor, campaignPublicId, storeId);
+  const store = await storeForManagement(db, campaign.id, storeId);
   const id = identifier(itemId, "Store item");
   const result = await db.prepare(
     "DELETE FROM campaign_store_items WHERE id = ? AND store_id = ?",

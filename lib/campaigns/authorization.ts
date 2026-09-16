@@ -61,14 +61,17 @@ export function canManageCampaignSettings(
   return isCampaignOwner(actor, campaign);
 }
 
-/** Campaign description and resource content is managed by the owner or a GM member. */
+/**
+ * Campaign description and resource content is managed by the owner or a GM
+ * member. Site-admin status is additive: an admin who is actually a campaign
+ * GM keeps the same GM permissions instead of being forced into read-only mode.
+ */
 export function canManageCampaignContent(
   actor: CampaignActor | null,
   campaign: CampaignAccessRecord,
   membership: CampaignMembershipRecord | null,
 ): boolean {
   if (isCampaignOwner(actor, campaign)) return true;
-  if (actor?.role === "admin") return false;
   return canInviteCampaignMembers(actor, campaign, membership);
 }
 

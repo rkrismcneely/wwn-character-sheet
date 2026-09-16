@@ -1,4 +1,5 @@
 import { getSessionActor } from "@/lib/auth-session";
+import { withAdditiveAdminCampaignPermissions } from "@/lib/campaigns/admin-payload";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import {
   deleteCampaign,
@@ -18,11 +19,11 @@ export async function GET(request: Request, context: Context): Promise<Response>
       return Response.json({ error: "Sign in is required." }, { status: 401 });
     }
     const { id } = await context.params;
-    const campaign = await readCampaign(
+    const campaign = withAdditiveAdminCampaignPermissions(actor, await readCampaign(
       await getCampaignD1(),
       actor,
       id,
-    );
+    ));
     return Response.json({ campaign });
   } catch (error) {
     return campaignErrorResponse(error, "The campaign could not be opened.");
@@ -44,7 +45,7 @@ export async function PATCH(
       description?: unknown;
       version?: unknown;
     };
-    const campaign = body && Object.prototype.hasOwnProperty.call(body, "description")
+    const updatedCampaign = body && Object.prototype.hasOwnProperty.call(body, "description")
       ? await updateCampaignDescription(
         await getCampaignD1(),
         actor,
@@ -57,6 +58,7 @@ export async function PATCH(
         id,
         { name: body?.name, version: body?.version },
       );
+    const campaign = withAdditiveAdminCampaignPermissions(actor, updatedCampaign);
     return Response.json({ campaign });
   } catch (error) {
     if (error instanceof RequestBodyError) {

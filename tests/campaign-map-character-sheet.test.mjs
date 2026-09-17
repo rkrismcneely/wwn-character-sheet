@@ -32,7 +32,7 @@ test("campaign character sheets expose the shared map modal from the side pull t
   assert.match(launcher, /campaignMapDockEvent/u);
   assert.match(storeLauncher, /preferredStoreDrawerDock/u);
   assert.match(storeLauncher, /campaignMapDockEvent/u);
-  assert.match(storeLauncher, /data\.campaignStoreDrawer = drawerDock/u);
+  assert.match(storeLauncher, /root\.dataset\.campaignStoreDrawer = drawerDock/u);
   assert.match(storeLauncher, /campaign-store-drawer-\$\{drawerDock\}/u);
   assert.match(storeCss, /\.campaign-store-drawer-left/u);
   assert.match(storeCss, /\.campaign-store-drawer-right/u);

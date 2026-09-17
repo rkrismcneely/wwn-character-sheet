@@ -197,7 +197,18 @@ export function CampaignStoreLauncher({
   }, [query, store]);
 
   if (!open) return null;
+  const drawerCollapseControl = <button
+    type="button"
+    className={`campaign-store-drawer-collapse campaign-store-drawer-collapse-${drawerDock}`}
+    aria-label="Close Store"
+    aria-expanded="true"
+    title="Close Store"
+    onClick={close}
+  >
+    <span className="campaign-store-drawer-collapse-label">Close Store</span>
+  </button>;
   return <div className="campaign-store-backdrop" role="presentation">
+    {drawerCollapseControl}
     <aside className={`campaign-store-drawer campaign-store-drawer-${drawerDock}`} role="dialog" aria-modal="false" aria-labelledby="campaign-store-title">
       <header className="campaign-store-header">
         <div>

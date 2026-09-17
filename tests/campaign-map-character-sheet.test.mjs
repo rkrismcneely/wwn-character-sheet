@@ -3,12 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("campaign character sheets expose the shared map modal from the side pull tabs", async () => {
-  const [page, sideTools, sideToolsCss, events, launcher] = await Promise.all([
+  const [page, sideTools, sideToolsCss, events, launcher, storeLauncher, storeCss, globals] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/characters/[characterId]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-character-side-tools.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-character-side-tools.css", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-events.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-store-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-store.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /CampaignCharacterSideTools campaigns=\{campaigns\}/u);
@@ -27,6 +30,13 @@ test("campaign character sheets expose the shared map modal from the side pull t
   assert.match(launcher, /window\.addEventListener\(campaignMapOpenEvent/u);
   assert.match(launcher, /localStorage\.setItem\(mapDrawerDockStorageKey, nextDock\)/u);
   assert.match(launcher, /campaignMapDockEvent/u);
+  assert.match(storeLauncher, /preferredStoreDrawerDock/u);
+  assert.match(storeLauncher, /campaignMapDockEvent/u);
+  assert.match(storeLauncher, /data\.campaignStoreDrawer = drawerDock/u);
+  assert.match(storeLauncher, /campaign-store-drawer-\$\{drawerDock\}/u);
+  assert.match(storeCss, /\.campaign-store-drawer-left/u);
+  assert.match(storeCss, /\.campaign-store-drawer-right/u);
+  assert.match(globals, /data-campaign-store-drawer="left"/u);
 });
 
 test("live map changes refresh without replacing the visible map with the loading state", async () => {

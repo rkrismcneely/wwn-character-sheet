@@ -40,14 +40,20 @@ test("archived campaigns do not regain character-link writes", () => {
   assert.equal(value.permissions.adminReadOnly, false);
 });
 
-test("admin character pages include linked campaign Map and Store controls", async () => {
+test("admin character pages include linked campaign Map and Store side controls", async () => {
   const page = await readFile(new URL("../app/character/[publicId]/page.tsx", import.meta.url), "utf8");
+  const sideTools = await readFile(new URL("../app/campaigns/campaign-character-side-tools.tsx", import.meta.url), "utf8");
   const campaignRoute = await readFile(new URL("../app/api/campaigns/[id]/route.ts", import.meta.url), "utf8");
   const campaignListRoute = await readFile(new URL("../app/api/campaigns/route.ts", import.meta.url), "utf8");
   assert.match(page, /actor\?\.role !== "admin"/u);
   assert.match(page, /SELECT DISTINCT c\.public_id AS id, c\.name/u);
-  assert.match(page, /CampaignCharacterStoreControl/u);
+  assert.match(page, /CampaignCharacterSideTools/u);
+  assert.doesNotMatch(page, /CampaignCharacterMapControl/u);
+  assert.doesNotMatch(page, /CampaignCharacterStoreControl/u);
+  assert.match(page, /showFloatingButton=\{false\}/u);
   assert.match(page, /CampaignStoreLauncher/u);
+  assert.match(sideTools, /Open Map/u);
+  assert.match(sideTools, /Open Store/u);
   assert.match(campaignRoute, /withAdditiveAdminCampaignPermissions/u);
   assert.match(campaignListRoute, /withAdditiveAdminCampaignPermissions/u);
 });

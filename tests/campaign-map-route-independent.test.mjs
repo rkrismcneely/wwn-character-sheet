@@ -2,26 +2,24 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("standalone character pages expose authorized campaign maps in the signed-in header", async () => {
-  const [page, control, launcher, header] = await Promise.all([
+test("standalone character pages expose authorized campaign maps from the side pull tabs", async () => {
+  const [page, sideTools, launcher] = await Promise.all([
     readFile(new URL("../app/character/[publicId]/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/campaigns/campaign-character-map-control.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-character-side-tools.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/app-header.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /CampaignCharacterMapControl/u);
+  assert.match(page, /CampaignCharacterSideTools/u);
+  assert.doesNotMatch(page, /CampaignCharacterMapControl/u);
+  assert.doesNotMatch(page, /CampaignCharacterStoreControl/u);
   assert.match(page, /payload\.campaigns/u);
-  assert.match(page, /showFloatingButton=\{campaigns\.length === 1\}/u);
+  assert.match(page, /showFloatingButton=\{false\}/u);
   assert.match(page, /listAuthorizedCharacterCampaigns\(db, actor, publicId\)/u);
-  assert.match(control, /campaigns: CharacterMapCampaign\[\]/u);
-  assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities"\)/u);
-  assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
-  assert.match(control, /new MutationObserver/u);
-  assert.match(control, /if \(refreshHost\(\)\) observer\.disconnect\(\)/u);
-  assert.match(header, /className="app-header-utilities"/u);
-  assert.match(control, /<select/u);
-  assert.match(control, /mapIsOpen \? "Close Map" : "Map"/u);
+  assert.match(sideTools, /campaignMapOpenEvent/u);
+  assert.match(sideTools, /campaignMapStateEvent/u);
+  assert.match(sideTools, /Open Map/u);
+  assert.match(sideTools, /Open Store/u);
+  assert.match(sideTools, /campaigns\.length > 1/u);
   assert.match(launcher, /showFloatingButton/u);
 });
 

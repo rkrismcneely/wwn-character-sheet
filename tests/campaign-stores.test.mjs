@@ -62,8 +62,9 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
   assert.match(launcher, /stores\/active/u);
   assert.match(launcher, /campaignStoreOpenEvent/u);
   assert.match(launcher, /campaignMapOpenEvent/u);
-  assert.match(sideTools, /Open Store/u);
+  assert.match(sideTools, />\s*Store\s*<\/button>/u);
   assert.match(sideTools, /campaignStoreOpenEvent/u);
+  assert.match(sideTools, /if \(mapIsOpen \|\| storeIsOpen\) return null/u);
   assert.match(linkedPage, /CampaignCharacterSideTools/u);
   assert.doesNotMatch(linkedPage, /CampaignCharacterStoreControl/u);
   assert.doesNotMatch(linkedPage, /CampaignCharacterMapControl/u);

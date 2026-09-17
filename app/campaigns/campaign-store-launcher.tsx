@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CampaignStore, CampaignStoreItem, CampaignStoreItemKind } from "@/lib/campaigns/stores";
-import { campaignMapOpenEvent } from "./campaign-map-events";
+import { campaignMapDockEvent, campaignMapOpenEvent } from "./campaign-map-events";
 import {
   campaignStoreOpenEvent,
   campaignStoreStateEvent,
@@ -13,6 +13,19 @@ type ActiveStoreResponse = {
   store?: CampaignStore | null;
   error?: string;
 };
+
+type CampaignStoreDrawerDock = "left" | "right";
+
+const mapDrawerDockStorageKey = "twe:campaign-map:drawer-dock";
+
+function preferredStoreDrawerDock(): CampaignStoreDrawerDock {
+  if (typeof window === "undefined") return "right";
+  try {
+    return window.localStorage.getItem(mapDrawerDockStorageKey) === "left" ? "left" : "right";
+  } catch {
+    return "right";
+  }
+}
 
 function kindLabel(kind: CampaignStoreItemKind): string {
   if (kind === "armor") return "Armour";
@@ -61,6 +74,7 @@ export function CampaignStoreLauncher({
   characterId: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [drawerDock, setDrawerDock] = useState<CampaignStoreDrawerDock>(preferredStoreDrawerDock);
   const [store, setStore] = useState<CampaignStore | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -88,6 +102,27 @@ export function CampaignStoreLauncher({
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
+  }, []);
+
+  useEffect(() => {
+    const syncDock = (nextDock?: CampaignStoreDrawerDock) => {
+      setDrawerDock(nextDock ?? preferredStoreDrawerDock());
+    };
+    const onDockChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ dock?: CampaignStoreDrawerDock }>).detail;
+      if (detail?.dock === "left" || detail?.dock === "right") {
+        syncDock(detail.dock);
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === mapDrawerDockStorageKey) syncDock();
+    };
+    window.addEventListener(campaignMapDockEvent, onDockChange);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(campaignMapDockEvent, onDockChange);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -127,10 +162,9 @@ export function CampaignStoreLauncher({
     if (!open) return;
     const root = document.documentElement;
     const clear = () => {
-      if (root.dataset.campaignStoreDrawer === "right") {
-        delete root.dataset.campaignStoreDrawer;
-        root.style.removeProperty("--campaign-store-drawer-space");
-      }
+      delete root.dataset.campaignStoreDrawer;
+      root.style.removeProperty("--campaign-store-drawer-space");
+      delete root.dataset.campaignStorePane;
     };
     const sync = () => {
       if (!window.matchMedia("(min-width: 821px)").matches) {
@@ -138,7 +172,8 @@ export function CampaignStoreLauncher({
         return;
       }
       const width = Math.min(460, Math.max(320, window.innerWidth - 32));
-      root.dataset.campaignStoreDrawer = "right";
+      root.dataset.campaignStoreDrawer = drawerDock;
+      root.dataset.campaignStorePane = window.innerWidth - width < 1080 ? "compact" : "wide";
       root.style.setProperty("--campaign-store-drawer-space", `${width}px`);
     };
     sync();
@@ -147,7 +182,7 @@ export function CampaignStoreLauncher({
       window.removeEventListener("resize", sync);
       clear();
     };
-  }, [open]);
+  }, [drawerDock, open]);
 
   const items = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -162,7 +197,7 @@ export function CampaignStoreLauncher({
 
   if (!open) return null;
   return <div className="campaign-store-backdrop" role="presentation">
-    <aside className="campaign-store-drawer" role="dialog" aria-modal="false" aria-labelledby="campaign-store-title">
+    <aside className={`campaign-store-drawer campaign-store-drawer-${drawerDock}`} role="dialog" aria-modal="false" aria-labelledby="campaign-store-title">
       <header className="campaign-store-header">
         <div>
           <p className="campaign-kicker">CAMPAIGN STORE</p>

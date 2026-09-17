@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("campaign character sheets expose the shared map modal from the side pull tabs", async () => {
-  const [page, sideTools, events, launcher] = await Promise.all([
+  const [page, sideTools, sideToolsCss, events, launcher] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/characters/[characterId]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-character-side-tools.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-character-side-tools.css", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-events.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
   ]);
@@ -17,8 +18,15 @@ test("campaign character sheets expose the shared map modal from the side pull t
   assert.match(sideTools, /mapIsOpen \? "Close Map" : "Open Map"/u);
   assert.match(sideTools, /campaignMapOpenEvent/u);
   assert.match(sideTools, /campaignMapStateEvent/u);
+  assert.match(sideTools, /campaignMapDockEvent/u);
+  assert.match(sideTools, /campaign-character-side-tools-\$\{drawerDock\}/u);
+  assert.match(sideToolsCss, /\.campaign-character-side-tools-left/u);
+  assert.match(sideToolsCss, /\.campaign-character-side-tools-right/u);
   assert.match(events, /twe:campaign-map-open/u);
+  assert.match(events, /twe:campaign-map-dock/u);
   assert.match(launcher, /window\.addEventListener\(campaignMapOpenEvent/u);
+  assert.match(launcher, /localStorage\.setItem\(mapDrawerDockStorageKey, nextDock\)/u);
+  assert.match(launcher, /campaignMapDockEvent/u);
 });
 
 test("live map changes refresh without replacing the visible map with the loading state", async () => {

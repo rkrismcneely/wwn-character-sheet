@@ -173,7 +173,8 @@ export function CampaignStoreLauncher({
       }
       const width = Math.min(460, Math.max(320, window.innerWidth - 32));
       root.dataset.campaignStoreDrawer = drawerDock;
-      root.dataset.campaignStorePane = window.innerWidth - width < 1080 ? "compact" : "wide";
+      const remainingWidth = Math.max(0, window.innerWidth - width);
+      root.dataset.campaignStorePane = remainingWidth < 760 ? "narrow" : remainingWidth < 1120 ? "compact" : "wide";
       root.style.setProperty("--campaign-store-drawer-space", `${width}px`);
     };
     sync();

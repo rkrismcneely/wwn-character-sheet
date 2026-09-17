@@ -2,21 +2,21 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("campaign character sheets expose the shared map modal", async () => {
-  const [page, control, events, launcher] = await Promise.all([
+test("campaign character sheets expose the shared map drawer from the side pullout tabs", async () => {
+  const [page, sideTabs, events, launcher] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/characters/[characterId]/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/campaigns/campaign-character-map-control.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-character-side-tabs.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-events.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /CampaignCharacterMapControl campaigns=/u);
-  assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities"\)/u);
-  assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
-  assert.match(control, /new MutationObserver/u);
-  assert.match(control, /mapIsOpen \? "Close Map" : "Map"/u);
-  assert.match(control, /campaignMapOpenEvent/u);
-  assert.match(control, /campaignMapStateEvent/u);
+  assert.match(page, /CampaignCharacterSideTabs campaigns=\{campaign\}/u);
+  assert.match(page, /showFloatingButton=\{false\}/u);
+  assert.doesNotMatch(page, /CampaignCharacterMapControl/u);
+  assert.match(sideTabs, /campaignMapOpenEvent/u);
+  assert.match(sideTabs, /campaignMapStateEvent/u);
+  assert.match(sideTabs, />\s*Map\s*</u);
+  assert.match(sideTabs, />\s*Store\s*</u);
   assert.match(events, /twe:campaign-map-open/u);
   assert.match(launcher, /window\.addEventListener\(campaignMapOpenEvent/u);
 });

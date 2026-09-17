@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import CharacterSheet, { type InitialCharacterPayload } from "../../character-sheet";
-import { CampaignCharacterMapControl } from "@/app/campaigns/campaign-character-map-control";
-import { CampaignCharacterStoreControl } from "@/app/campaigns/campaign-character-store-control";
+import { CampaignCharacterSideTabs } from "@/app/campaigns/campaign-character-side-tabs";
 import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
 import { CampaignStoreLauncher } from "@/app/campaigns/campaign-store-launcher";
 import { getSessionActor } from "@/lib/auth-session";
@@ -24,6 +23,7 @@ import type { CampaignActor } from "@/lib/campaigns/types";
 import "../../campaigns/campaign-ui.css";
 import "../../campaigns/campaign-map.css";
 import "../../campaigns/campaign-store.css";
+import "../../campaigns/campaign-character-side-tabs.css";
 
 type RouteContext = { params: Promise<{ publicId: string }> };
 
@@ -100,14 +100,13 @@ export default async function CharacterPage(context: RouteContext) {
   return <>
     <CharacterSheet initialCharacter={payload} />
     {campaigns.length > 0 && <>
-      <CampaignCharacterMapControl campaigns={campaigns} />
-      <CampaignCharacterStoreControl campaigns={campaigns} />
+      <CampaignCharacterSideTabs campaigns={campaigns} />
       {campaigns.map(campaign => <CampaignMapLauncher
         key={campaign.id}
         campaignId={campaign.id}
         campaignName={campaign.name}
         canManage={false}
-        showFloatingButton={campaigns.length === 1}
+        showFloatingButton={false}
       />)}
       {campaigns.map(campaign => <CampaignStoreLauncher key={`store-${campaign.id}`} campaignId={campaign.id} campaignName={campaign.name} characterId={publicId} />)}
     </>}

@@ -38,9 +38,10 @@
 .campaign-map-drawer-collapse {
   position: fixed;
   z-index: 510;
-  top: 50%;
+  /* Keep the open handle in the Map slot of the closed side rail. */
+  top:calc(50% - var(--campaign-side-tab-center-offset,3.975rem));
   width: 2.9rem;
-  min-height: 7.5rem;
+  min-height:var(--campaign-side-tab-height,7.5rem);
   padding: .7rem .35rem;
   display: flex;
   flex-direction: column;

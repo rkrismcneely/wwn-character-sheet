@@ -14,7 +14,7 @@ test("campaign character sheets expose the shared map modal from the side pull t
   assert.doesNotMatch(page, /CampaignCharacterMapControl/u);
   assert.doesNotMatch(page, /CampaignCharacterStoreControl/u);
   assert.match(page, /showFloatingButton=\{false\}/u);
-  assert.match(sideTools, /mapIsOpen \? "Close Map" : "Map"/u);
+  assert.match(sideTools, /mapIsOpen \? "Close Map" : "Open Map"/u);
   assert.match(sideTools, /campaignMapOpenEvent/u);
   assert.match(sideTools, /campaignMapStateEvent/u);
   assert.match(events, /twe:campaign-map-open/u);

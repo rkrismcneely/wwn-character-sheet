@@ -12,7 +12,7 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
     itemRoute,
     library,
     launcher,
-    control,
+    sideTabs,
     linkedPage,
     standalonePage,
   ] = await Promise.all([
@@ -24,7 +24,7 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
     readFile(new URL("../app/api/campaigns/[id]/stores/[storeId]/items/[itemId]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-store-library.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-store-launcher.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/campaigns/campaign-character-store-control.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-character-side-tabs.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/[id]/characters/[characterId]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/character/[publicId]/page.tsx", import.meta.url), "utf8"),
   ]);
@@ -62,11 +62,14 @@ test("campaign stores preserve a server-authoritative party-visible item snapsho
   assert.match(launcher, /stores\/active/u);
   assert.match(launcher, /campaignStoreOpenEvent/u);
   assert.match(launcher, /campaignMapOpenEvent/u);
-  assert.match(control, /Store/u);
-  assert.match(linkedPage, /CampaignCharacterStoreControl/u);
+  assert.match(sideTabs, /campaignStoreOpenEvent/u);
+  assert.match(sideTabs, />\s*Store\s*</u);
+  assert.match(linkedPage, /CampaignCharacterSideTabs/u);
   assert.match(linkedPage, /CampaignStoreLauncher/u);
-  assert.match(standalonePage, /CampaignCharacterStoreControl/u);
+  assert.doesNotMatch(linkedPage, /CampaignCharacterStoreControl/u);
+  assert.match(standalonePage, /CampaignCharacterSideTabs/u);
   assert.match(standalonePage, /CampaignStoreLauncher/u);
+  assert.doesNotMatch(standalonePage, /CampaignCharacterStoreControl/u);
 });
 
 test("campaign store migration gets the dedicated production release guard", async () => {

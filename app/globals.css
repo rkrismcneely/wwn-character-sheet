@@ -3003,4 +3003,8 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
     width:calc(100% - var(--campaign-store-drawer-space));
     margin-right:var(--campaign-store-drawer-space);
   }
+  html[data-campaign-store-drawer="left"] .site-shell{
+    width:calc(100% - var(--campaign-store-drawer-space));
+    margin-left:var(--campaign-store-drawer-space);
+  }
 }

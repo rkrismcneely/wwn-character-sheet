@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  campaignMapDockEvent,
   campaignMapOpenEvent,
   campaignMapStateEvent,
   type CampaignMapOpenDetail,
@@ -19,6 +20,19 @@ export type CharacterSideToolCampaign = {
   name: string;
 };
 
+type CharacterSideToolDock = "left" | "right";
+
+const mapDrawerDockStorageKey = "twe:campaign-map:drawer-dock";
+
+function preferredSideToolDock(): CharacterSideToolDock {
+  if (typeof window === "undefined") return "right";
+  try {
+    return window.localStorage.getItem(mapDrawerDockStorageKey) === "left" ? "left" : "right";
+  } catch {
+    return "right";
+  }
+}
+
 /**
  * Character-sheet launcher rail for campaign table tools. This intentionally
  * lives at the viewport edge rather than in the global header, matching the
@@ -26,8 +40,20 @@ export type CharacterSideToolCampaign = {
  */
 export function CampaignCharacterSideTools({ campaigns }: { campaigns: CharacterSideToolCampaign[] }) {
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id ?? "");
+  const [drawerDock, setDrawerDock] = useState<CharacterSideToolDock>("right");
   const [mapOpenIds, setMapOpenIds] = useState<Set<string>>(() => new Set());
   const [storeOpenIds, setStoreOpenIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    const syncDrawerDock = () => setDrawerDock(preferredSideToolDock());
+    syncDrawerDock();
+    window.addEventListener(campaignMapDockEvent, syncDrawerDock);
+    window.addEventListener("storage", syncDrawerDock);
+    return () => {
+      window.removeEventListener(campaignMapDockEvent, syncDrawerDock);
+      window.removeEventListener("storage", syncDrawerDock);
+    };
+  }, []);
 
   useEffect(() => {
     const campaignIds = new Set(campaigns.map(campaign => campaign.id));
@@ -87,7 +113,7 @@ export function CampaignCharacterSideTools({ campaigns }: { campaigns: Character
     }));
   };
 
-  return <div className="campaign-character-side-tools" aria-label="Campaign tools">
+  return <div className={`campaign-character-side-tools campaign-character-side-tools-${drawerDock}`} aria-label="Campaign tools">
     {campaigns.length > 1 && <select
       className="campaign-character-side-tools-campaign"
       aria-label="Campaign for side tools"

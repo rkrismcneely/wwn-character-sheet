@@ -4,13 +4,16 @@
 
 /* While the side drawer is open, the character header must size itself to the
    remaining folio pane, not to the full browser viewport. */
-html[data-campaign-map-drawer] .app-header {
-  padding-inline:12px;
+html[data-campaign-map-drawer] .app-header,
+html[data-campaign-store-drawer] .app-header {
+  /* Match the centered folio edge inside the remaining workspace. */
+  padding-inline:max(12px,calc((100% - 1450px)/2));
 }
 
 /* In the compact pane range, let the three real header groups share one flex
    row first and only wrap when their actual combined widths no longer fit. */
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header {
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header {
   display:flex;
   flex-direction:row;
   flex-wrap:wrap;
@@ -19,13 +22,16 @@ html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header {
   gap:8px 10px;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .twe-brand {
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header > .twe-brand {
   flex:0 0 auto;
   margin-right:auto;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .app-header-utilities,
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > nav {
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header > .app-header-utilities,
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header > nav {
   width:auto;
   min-width:0;
   margin-left:0;
@@ -34,7 +40,8 @@ html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > n
   flex-wrap:nowrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header-utilities .status {
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header-utilities .status {
   width:auto;
   max-width:none;
   justify-content:flex-end;
@@ -43,7 +50,8 @@ html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header-uti
 
 /* In the narrow pane range the groups may wrap to additional rows, but each
    row still gets the full usable pane width and controls stay horizontal. */
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header {
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header {
   display:flex;
   flex-direction:row;
   flex-wrap:wrap;
@@ -53,12 +61,15 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header {
   padding-inline:10px;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .twe-brand {
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > .twe-brand {
   flex:1 1 100%;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .app-header-utilities,
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav {
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > .app-header-utilities,
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > nav {
   display:flex;
   width:100%;
   min-width:0;
@@ -69,14 +80,16 @@ html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > na
   flex-wrap:wrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header-utilities .status {
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header-utilities .status {
   width:100%;
   max-width:none;
   justify-content:flex-start;
   flex-wrap:wrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav > * {
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > nav > * {
   flex:0 0 auto;
 }
 

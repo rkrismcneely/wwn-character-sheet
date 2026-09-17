@@ -44,6 +44,7 @@ import {
   type CampaignMapDrawerDock,
 } from "@/lib/campaigns/map-drawer";
 import {
+  campaignMapDockEvent,
   campaignMapOpenEvent,
   campaignMapStateEvent,
   type CampaignMapOpenDetail,
@@ -300,7 +301,11 @@ export function CampaignMapWorkspace({
   function showMap() { if (open) { closeMap(); return; } dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }
   function rememberPresentation(nextPresentation: InPageMapPresentation) { try { window.localStorage.setItem(mapPresentationStorageKey, nextPresentation); } catch {} }
   function choosePresentation(nextPresentation: InPageMapPresentation) { dispatchWorkspace({ type: "choose-in-page-presentation", presentation: nextPresentation }); rememberPresentation(nextPresentation); setSettingsOpen(false); }
-  function chooseDrawerDock(nextDock: CampaignMapDrawerDock) { setDrawerDock(nextDock); }
+  function chooseDrawerDock(nextDock: CampaignMapDrawerDock) {
+    setDrawerDock(nextDock);
+    try { window.localStorage.setItem(mapDrawerDockStorageKey, nextDock); } catch {}
+    window.dispatchEvent(new CustomEvent(campaignMapDockEvent, { detail: { dock: nextDock } }));
+  }
   async function openMapPictureInPicture() { const controller = documentPictureInPictureController(); if (!controller) { setError("Picture-in-Picture is not available in this browser. Keep the map in the page and choose Side drawer instead."); return; } try { const pipWindow = await controller.requestWindow({ width: 1060, height: 760 }); copyMapWorkspaceStyles(pipWindow.document); pipWindowRef.current = pipWindow; pipWindow.addEventListener("pagehide", () => { const returnToPage = pipExitIntentRef.current === "return"; pipExitIntentRef.current = "close"; pipWindowRef.current = null; setPipDocument(null); dispatchWorkspace({ type: "picture-in-picture-closed", returnToPage }); setSettingsOpen(false); }, { once: true }); setPipDocument(pipWindow.document); dispatchWorkspace({ type: "move-to-picture-in-picture" }); setSettingsOpen(false); } catch { setError("Picture-in-Picture could not be opened. Keep the map in the page and choose Side drawer instead."); } }
   function returnFromPictureInPicture() { if (presentation !== "pip") return; pipExitIntentRef.current = "return"; pipWindowRef.current?.close(); }
 

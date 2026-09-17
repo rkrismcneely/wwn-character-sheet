@@ -12,7 +12,7 @@ html[data-campaign-store-drawer] .app-header {
 
 /* In the compact pane range, let the three real header groups share one flex
    row first and only wrap when their actual combined widths no longer fit. */
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header {,
 html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header {
   display:flex;
   flex-direction:row;
@@ -22,15 +22,15 @@ html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header
   gap:8px 10px;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .twe-brand {,
 html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header > .twe-brand {
   flex:0 0 auto;
   margin-right:auto;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > .app-header-utilities,,
 html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header > .app-header-utilities,
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header > nav {,
 html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header > nav {
   width:auto;
   min-width:0;
@@ -40,7 +40,7 @@ html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header
   flex-wrap:nowrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="compact"],
+html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header-utilities .status {,
 html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header-utilities .status {
   width:auto;
   max-width:none;
@@ -50,7 +50,7 @@ html[data-campaign-store-drawer][data-campaign-store-pane="compact"] .app-header
 
 /* In the narrow pane range the groups may wrap to additional rows, but each
    row still gets the full usable pane width and controls stay horizontal. */
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header {,
 html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header {
   display:flex;
   flex-direction:row;
@@ -61,14 +61,14 @@ html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header 
   padding-inline:10px;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .twe-brand {,
 html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > .twe-brand {
   flex:1 1 100%;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > .app-header-utilities,,
 html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > .app-header-utilities,
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav {,
 html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > nav {
   display:flex;
   width:100%;
@@ -80,7 +80,7 @@ html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header 
   flex-wrap:wrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header-utilities .status {,
 html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header-utilities .status {
   width:100%;
   max-width:none;
@@ -88,7 +88,7 @@ html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header-
   flex-wrap:wrap;
 }
 
-html[data-campaign-map-drawer][data-campaign-map-pane="narrow"],
+html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header > nav > * {,
 html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header > nav > * {
   flex:0 0 auto;
 }

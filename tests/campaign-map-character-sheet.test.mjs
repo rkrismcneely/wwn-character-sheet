@@ -40,6 +40,9 @@ test("campaign character sheets expose the shared map modal from the side pull t
   assert.match(storeCss, /\.campaign-store-drawer-right/u);
   assert.match(storeCss, /\.campaign-store-drawer-collapse-left/u);
   assert.match(storeCss, /\.campaign-store-drawer-collapse-right/u);
+  assert.match(sideToolsCss, /--campaign-side-tab-center-offset:3\.975rem/u);
+  assert.match(launcher, /top:calc\(50% - var\(--campaign-side-tab-center-offset/u);
+  assert.match(storeLauncher, /top:calc\(50% \+ var\(--campaign-side-tab-center-offset/u);
   assert.match(globals, /data-campaign-store-drawer="left"/u);
 });
 

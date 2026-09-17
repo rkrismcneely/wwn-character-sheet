@@ -17,8 +17,9 @@ test("standalone character pages expose authorized campaign maps from the side p
   assert.match(page, /listAuthorizedCharacterCampaigns\(db, actor, publicId\)/u);
   assert.match(sideTools, /campaignMapOpenEvent/u);
   assert.match(sideTools, /campaignMapStateEvent/u);
-  assert.match(sideTools, /Open Map/u);
-  assert.match(sideTools, /Open Store/u);
+  assert.match(sideTools, /twe:campaign-map:drawer-dock/u);
+  assert.match(sideTools, />\s*Map\s*<\/button>/u);
+  assert.match(sideTools, />\s*Store\s*<\/button>/u);
   assert.match(sideTools, /campaigns\.length > 1/u);
   assert.match(launcher, /showFloatingButton/u);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   campaignMapOpenEvent,
   campaignMapStateEvent,
@@ -24,7 +24,6 @@ type DrawerDock = "left" | "right";
 const drawerDockStorageKey = "twe:campaign-map:drawer-dock";
 
 function readDrawerDock(): DrawerDock {
-  if (typeof window === "undefined") return "right";
   try {
     return window.localStorage.getItem(drawerDockStorageKey) === "left" ? "left" : "right";
   } catch {
@@ -33,16 +32,21 @@ function readDrawerDock(): DrawerDock {
 }
 
 export function CampaignCharacterSideTabs({ campaigns }: { campaigns: CharacterCampaignSideTab[] }) {
+  const railRef = useRef<HTMLDivElement>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id ?? "");
   const [openMapCampaignIds, setOpenMapCampaignIds] = useState<Set<string>>(() => new Set());
   const [openStoreCampaignIds, setOpenStoreCampaignIds] = useState<Set<string>>(() => new Set());
-  const [dock, setDock] = useState<DrawerDock>("right");
 
   useEffect(() => {
-    setDock(readDrawerDock());
-  }, []);
+    const syncDock = () => {
+      const rail = railRef.current;
+      if (!rail) return;
+      const dock = readDrawerDock();
+      rail.classList.toggle("is-left", dock === "left");
+      rail.classList.toggle("is-right", dock === "right");
+    };
+    syncDock();
 
-  useEffect(() => {
     const campaignIds = new Set(campaigns.map(campaign => campaign.id));
     const updateSet = (
       setter: Dispatch<SetStateAction<Set<string>>>,
@@ -64,7 +68,7 @@ export function CampaignCharacterSideTabs({ campaigns }: { campaigns: CharacterC
       const detail = (event as CustomEvent<CampaignMapStateDetail>).detail;
       if (!detail) return;
       updateSet(setOpenMapCampaignIds, detail.campaignId, detail.open);
-      if (!detail.open) setDock(readDrawerDock());
+      if (!detail.open) syncDock();
     };
     const onStoreState = (event: Event) => {
       const detail = (event as CustomEvent<CampaignStoreStateDetail>).detail;
@@ -109,7 +113,7 @@ export function CampaignCharacterSideTabs({ campaigns }: { campaigns: CharacterC
     }));
   };
 
-  return <div className={`campaign-character-side-tabs is-${dock}`} data-campaign-character-side-tabs>
+  return <div ref={railRef} className="campaign-character-side-tabs is-right" data-campaign-character-side-tabs>
     {campaigns.length > 1 && <select
       className="campaign-character-side-tabs-campaign"
       aria-label="Campaign for Map and Store"

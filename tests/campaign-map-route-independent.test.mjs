@@ -2,26 +2,26 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("standalone character pages expose authorized campaign maps in the signed-in header", async () => {
-  const [page, control, launcher, header] = await Promise.all([
+test("standalone character pages expose authorized campaign maps from the shared side pullout tabs", async () => {
+  const [page, sideTabs, launcher] = await Promise.all([
     readFile(new URL("../app/character/[publicId]/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/campaigns/campaign-character-map-control.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-character-side-tabs.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/app-header.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /CampaignCharacterMapControl/u);
+  assert.match(page, /CampaignCharacterSideTabs/u);
   assert.match(page, /payload\.campaigns/u);
-  assert.match(page, /showFloatingButton=\{campaigns\.length === 1\}/u);
+  assert.match(page, /showFloatingButton=\{false\}/u);
   assert.match(page, /listAuthorizedCharacterCampaigns\(db, actor, publicId\)/u);
-  assert.match(control, /campaigns: CharacterMapCampaign\[\]/u);
-  assert.match(control, /document\.querySelector\("\.app-header \.app-header-utilities"\)/u);
-  assert.match(control, /document\.querySelector\("\.topbar \.status"\)/u);
-  assert.match(control, /new MutationObserver/u);
-  assert.match(control, /if \(refreshHost\(\)\) observer\.disconnect\(\)/u);
-  assert.match(header, /className="app-header-utilities"/u);
-  assert.match(control, /<select/u);
-  assert.match(control, /mapIsOpen \? "Close Map" : "Map"/u);
+  assert.doesNotMatch(page, /CampaignCharacterMapControl/u);
+  assert.match(sideTabs, /campaigns: CharacterCampaignSideTab\[\]/u);
+  assert.match(sideTabs, /campaignMapOpenEvent/u);
+  assert.match(sideTabs, /campaignStoreOpenEvent/u);
+  assert.match(sideTabs, />\s*Map\s*</u);
+  assert.match(sideTabs, />\s*Store\s*</u);
+  assert.match(sideTabs, /drawerDockStorageKey/u);
+  assert.match(sideTabs, /is-left/u);
+  assert.match(sideTabs, /is-right/u);
   assert.match(launcher, /showFloatingButton/u);
 });
 

@@ -7,9 +7,10 @@
 .campaign-store-drawer-collapse{
   position:fixed;
   z-index:530;
-  top:50%;
+  /* Keep the open handle in the Store slot of the closed side rail. */
+  top:calc(50% + var(--campaign-side-tab-center-offset,3.975rem));
   width:2.9rem;
-  min-height:7.5rem;
+  min-height:var(--campaign-side-tab-height,7.5rem);
   padding:.7rem .35rem;
   display:flex;
   flex-direction:column;
@@ -22,6 +23,8 @@
   font:600 .78rem/1 var(--font-ui,sans-serif);
   letter-spacing:.08em;
   cursor:pointer;
+  touch-action:none;
+  user-select:none;
   pointer-events:auto;
   transform:translateY(-50%);
   transition:left .24s ease,right .24s ease,transform .16s ease,border-color .16s ease;

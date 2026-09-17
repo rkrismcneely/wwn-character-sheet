@@ -52,8 +52,10 @@ test("admin character pages include linked campaign Map and Store side controls"
   assert.doesNotMatch(page, /CampaignCharacterStoreControl/u);
   assert.match(page, /showFloatingButton=\{false\}/u);
   assert.match(page, /CampaignStoreLauncher/u);
-  assert.match(sideTools, /Open Map/u);
-  assert.match(sideTools, /Open Store/u);
+  assert.match(sideTools, /twe:campaign-map:drawer-dock/u);
+  assert.match(sideTools, />\s*Map\s*<\/button>/u);
+  assert.match(sideTools, />\s*Store\s*<\/button>/u);
+  assert.match(sideTools, /if \(mapIsOpen \|\| storeIsOpen\) return null/u);
   assert.match(campaignRoute, /withAdditiveAdminCampaignPermissions/u);
   assert.match(campaignListRoute, /withAdditiveAdminCampaignPermissions/u);
 });

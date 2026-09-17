@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import {
   campaignMapOpenEvent,
   campaignMapStateEvent,
@@ -45,7 +45,7 @@ export function CampaignCharacterSideTabs({ campaigns }: { campaigns: CharacterC
   useEffect(() => {
     const campaignIds = new Set(campaigns.map(campaign => campaign.id));
     const updateSet = (
-      setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+      setter: Dispatch<SetStateAction<Set<string>>>,
       campaignId: string,
       open: boolean,
     ) => {

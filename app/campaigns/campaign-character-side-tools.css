@@ -1,10 +1,17 @@
+:root{
+  --campaign-side-tab-height:7.5rem;
+  --campaign-side-tab-gap:.45rem;
+  /* Two stacked tabs use this center offset for their individual slots. */
+  --campaign-side-tab-center-offset:3.975rem;
+}
+
 .campaign-character-side-tools{
   position:fixed;
   z-index:195;
   top:50%;
   display:flex;
   flex-direction:column;
-  gap:.45rem;
+  gap:var(--campaign-side-tab-gap);
   transform:translateY(-50%);
   pointer-events:none;
 }
@@ -31,7 +38,7 @@
 
 .campaign-character-side-tool{
   width:2.9rem;
-  min-height:7.5rem;
+  min-height:var(--campaign-side-tab-height);
   padding:.7rem .35rem;
   writing-mode:vertical-rl;
   text-orientation:mixed;

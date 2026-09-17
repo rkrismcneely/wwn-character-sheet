@@ -3,12 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("campaign character sheets expose the shared map modal from the side pull tabs", async () => {
-  const [page, sideTools, sideToolsCss, events, launcher, storeLauncher, storeCss, globals] = await Promise.all([
+  const [page, sideTools, sideToolsCss, events, launcher, mapCss, storeLauncher, storeCss, globals] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/characters/[characterId]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-character-side-tools.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-character-side-tools.css", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-events.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-store-launcher.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-store.css", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -40,6 +41,9 @@ test("campaign character sheets expose the shared map modal from the side pull t
   assert.match(storeCss, /\.campaign-store-drawer-right/u);
   assert.match(storeCss, /\.campaign-store-drawer-collapse-left/u);
   assert.match(storeCss, /\.campaign-store-drawer-collapse-right/u);
+  assert.match(sideToolsCss, /--campaign-side-tab-center-offset:3\.975rem/u);
+  assert.match(mapCss, /top:calc\(50% - var\(--campaign-side-tab-center-offset/u);
+  assert.match(storeCss, /top:calc\(50% \+ var\(--campaign-side-tab-center-offset/u);
   assert.match(globals, /data-campaign-store-drawer="left"/u);
 });
 

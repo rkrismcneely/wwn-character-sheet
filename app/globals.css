@@ -110,7 +110,7 @@ body{background:radial-gradient(circle at 50% 0,#70614b 0,#4a4032 42%,#2b251e 10
 .brand strong{font-family:Georgia,"Times New Roman",serif;font-variant:small-caps;letter-spacing:.19em;color:#e7cf9c}
 .sigil{border-color:#b99a61;outline-color:#5d5038;color:#ddbd7e;box-shadow:none}
 .status button,.quiet{border-color:#806b48;background:#28231c;color:#e5d5b5;box-shadow:inset 0 0 0 1px #cdb17c18}
-.folio{background-color:var(--paper);background-image:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72)),url("/assets/amber-ledger-parchment-bg.png");background-size:cover;background-position:center top;border:1px solid #574b37;outline:3px double #9d865d;outline-offset:-11px;box-shadow:0 24px 70px #0e0b08b8,inset 0 0 48px #73572b1c}
+.folio{background-color:var(--paper);background-image:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72)),url("/assets/tales-without-end-light-background-20260920.png");background-size:cover;background-position:center top;border:1px solid #574b37;outline:3px double #9d865d;outline-offset:-11px;box-shadow:0 24px 70px #0e0b08b8,inset 0 0 48px #73572b1c}
 .sheet-navigation{background:rgba(225,207,167,.82);border-bottom:3px double #806c4b;color:#4c4234;backdrop-filter:blur(2px)}
 .sheet-navigation button{border:1px solid #76603c;outline:0;background:rgba(250,243,221,.78);color:#543b1c;box-shadow:inset 0 0 0 2px #fff8e0}
 .hero{background:linear-gradient(90deg,rgba(249,242,220,.88),rgba(249,242,220,.6) 60%,rgba(232,215,175,.42));border-bottom:3px double #6e5d41}
@@ -145,7 +145,7 @@ input:focus,select:focus,textarea:focus{outline-color:#a46b23;box-shadow:0 0 0 2
 .magic-summary div{background:#24211c;border:1px solid #65563e;border-bottom:2px solid #a76c26;box-shadow:none}
 .quiet.rest-button{color:#f4e7cc;background:#3a3328;border-color:#917748;text-shadow:none}
 .library-backdrop{background:rgba(22,19,15,.84);backdrop-filter:blur(6px)}
-.library-panel{background-color:var(--paper);background-image:linear-gradient(rgba(247,238,214,.76),rgba(247,238,214,.76)),url("/assets/amber-ledger-parchment-bg.png");background-size:cover;background-position:center;border:1px solid #574b37;outline:3px double #9d865d;outline-offset:-11px;box-shadow:0 28px 90px #000b}
+.library-panel{background-color:var(--paper);background-image:linear-gradient(rgba(247,238,214,.76),rgba(247,238,214,.76)),url("/assets/tales-without-end-light-background-20260920.png");background-size:cover;background-position:center;border:1px solid #574b37;outline:3px double #9d865d;outline-offset:-11px;box-shadow:0 28px 90px #000b}
 .library-header{background:rgba(239,226,193,.68);border-bottom:3px double #786747}
 .library-header h1{font-variant:small-caps;letter-spacing:.045em}
 .library-actions{background:#24211c;border-bottom:1px solid #806a45}
@@ -165,7 +165,7 @@ body{
   background-color:#29231c;
   background-image:
     linear-gradient(rgba(36,30,23,.26),rgba(36,30,23,.55)),
-    url("/assets/wwn-ledger-background-v2.png");
+    url("/assets/tales-without-end-light-background-20260920.png");
   background-size:cover;
   background-position:center top;
   background-attachment:fixed;
@@ -174,7 +174,7 @@ body{
   background-color:#f4ead0;
   background-image:
     linear-gradient(rgba(250,245,229,.7),rgba(250,245,229,.7)),
-    url("/assets/wwn-ledger-background-v2.png");
+    url("/assets/tales-without-end-light-background-20260920.png");
   background-size:100% auto;
   background-position:center top;
   background-repeat:repeat-y;

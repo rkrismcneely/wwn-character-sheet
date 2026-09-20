@@ -60,7 +60,7 @@
   color:#f4ead8;
   background:
     linear-gradient(rgba(25,20,14,.92),rgba(20,16,12,.97)),
-    url("/assets/amber-ledger-parchment-bg.png") center/cover;
+    var(--twe-page-background) center/cover;
   border:0;
 }
 .campaign-store-drawer-right{

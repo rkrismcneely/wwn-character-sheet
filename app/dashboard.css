@@ -1,7 +1,7 @@
 .dashboard-shell{
   min-height:100%;
   color:#2e2418;
-  background:linear-gradient(rgba(36,30,23,.36),rgba(36,30,23,.58)),url("/assets/wwn-ledger-background-v2.png") center top/cover fixed;
+  background:linear-gradient(rgba(36,30,23,.36),rgba(36,30,23,.58)),var(--twe-page-background) center top/cover fixed;
   padding-bottom:34px;
 }
 .dashboard-heading,.dashboard-layout{width:min(1320px,calc(100% - 48px));margin-inline:auto}

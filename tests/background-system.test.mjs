@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const source = async path => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+async function cssSources(directory = "app") {
+  const directoryUrl = new URL(`../${directory}/`, import.meta.url);
+  const entries = await readdir(directoryUrl, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async entry => {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return cssSources(path);
+    return entry.isFile() && entry.name.endsWith(".css") ? [await source(path)] : [];
+  }));
+  return nested.flat();
+}
 
 test("the background system owns every site shell without temporary overrides", async () => {
   const globals = await source("app/globals.css");
@@ -22,11 +33,12 @@ test("the background system owns every site shell without temporary overrides", 
     "library-panel",
     "campaign-store-drawer",
   ]) {
-    assert.match(globals, new RegExp(`\\.${shell.replace("-", "\\-")}`, "u"), shell);
+    assert.match(globals, new RegExp(`\\.${shell}`, "u"), shell);
   }
 
+  const allCss = (await cssSources()).join("\n");
   assert.doesNotMatch(globals, /Use the current parchment map|Ensure every page shell|!important;[\s\S]{0,120}tales-without-end-light-background/u);
-  assert.doesNotMatch(globals, /amber-ledger-parchment-bg\.png|wwn-ledger-background-v2\.png/u);
+  assert.doesNotMatch(allCss, /amber-ledger-parchment-bg\.png|wwn-ledger-background-v2\.png/u);
 });
 
 test("the canonical light background asset is present", async () => {

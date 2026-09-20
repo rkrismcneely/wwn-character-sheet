@@ -2,7 +2,7 @@
   min-height:100%;
   padding-bottom:36px;
   color:#2e2418;
-  background:linear-gradient(rgba(36,30,23,.35),rgba(36,30,23,.62)),url("/assets/wwn-ledger-background-v2.png") center top/cover fixed;
+  background:linear-gradient(rgba(36,30,23,.35),rgba(36,30,23,.62)),var(--twe-page-background) center top/cover fixed;
 }
 .campaign-header{
   min-height:68px;

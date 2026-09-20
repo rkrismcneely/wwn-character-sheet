@@ -3010,26 +3010,19 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
 }
 
 
-/* Use the current parchment map on all major page surfaces. */
-body,
-.campaign-shell,
-.account-shell,
-.landing-codex{
-  background-image:linear-gradient(rgba(36,30,23,.26),rgba(36,30,23,.55)),url("/assets/tales-without-end-light-background-20260920.png") !important;
-  background-position:center top !important;
-  background-size:cover !important;
-  background-attachment:fixed !important;
+/* Background system: shared light and dark page/surface artwork. */
+:root{
+  --twe-background-light:url("/assets/tales-without-end-light-background-20260920.png");
+  --twe-background-dark:url("/assets/amber-codex-observatory.png");
+  --twe-page-background:var(--twe-background-light);
+  --twe-page-overlay:linear-gradient(rgba(36,30,23,.26),rgba(36,30,23,.55));
+  --twe-surface-overlay:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72));
 }
-.folio,
-.library-panel,
-.campaign-store-drawer{
-  background-image:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72)),url("/assets/tales-without-end-light-background-20260920.png") !important;
-  background-position:center top !important;
-  background-size:cover !important;
+html[data-theme="dark"]{
+  --twe-page-background:var(--twe-background-dark);
+  --twe-page-overlay:linear-gradient(rgba(5,7,8,.58),rgba(5,6,7,.8));
+  --twe-surface-overlay:linear-gradient(rgba(20,18,14,.82),rgba(15,14,11,.9));
 }
-
-
-/* Ensure every page shell uses the current parchment map background. */
 body,
 .dashboard-shell,
 .campaign-shell,
@@ -3037,15 +3030,27 @@ body,
 .gm-console-shell,
 .landing-shell,
 .landing-codex{
-  background-image:linear-gradient(rgba(36,30,23,.26),rgba(36,30,23,.55)),url("/assets/tales-without-end-light-background-20260920.png") !important;
-  background-position:center top !important;
-  background-size:cover !important;
-  background-attachment:fixed !important;
+  background-image:var(--twe-page-overlay),var(--twe-page-background);
+  background-position:center top;
+  background-size:cover;
+  background-attachment:fixed;
 }
 .folio,
 .library-panel,
 .campaign-store-drawer{
-  background-image:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72)),url("/assets/tales-without-end-light-background-20260920.png") !important;
-  background-position:center top !important;
-  background-size:cover !important;
+  background-image:var(--twe-surface-overlay),var(--twe-page-background);
+  background-position:center top;
+  background-size:cover;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .dashboard-shell,
+html[data-theme="dark"] .campaign-shell,
+html[data-theme="dark"] .account-shell,
+html[data-theme="dark"] .gm-console-shell,
+html[data-theme="dark"] .landing-shell,
+html[data-theme="dark"] .landing-codex,
+html[data-theme="dark"] .folio,
+html[data-theme="dark"] .library-panel,
+html[data-theme="dark"] .campaign-store-drawer{
+  background-image:var(--twe-page-overlay),var(--twe-page-background);
 }

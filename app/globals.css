@@ -3008,3 +3008,22 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
     margin-left:var(--campaign-store-drawer-space);
   }
 }
+
+
+/* Use the current parchment map on all major page surfaces. */
+body,
+.campaign-shell,
+.account-shell,
+.landing-codex{
+  background-image:linear-gradient(rgba(36,30,23,.26),rgba(36,30,23,.55)),url("/assets/tales-without-end-light-background-20260920.png") !important;
+  background-position:center top !important;
+  background-size:cover !important;
+  background-attachment:fixed !important;
+}
+.folio,
+.library-panel,
+.campaign-store-drawer{
+  background-image:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72)),url("/assets/tales-without-end-light-background-20260920.png") !important;
+  background-position:center top !important;
+  background-size:cover !important;
+}

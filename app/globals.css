@@ -3027,3 +3027,25 @@ body,
   background-position:center top !important;
   background-size:cover !important;
 }
+
+
+/* Ensure every page shell uses the current parchment map background. */
+body,
+.dashboard-shell,
+.campaign-shell,
+.account-shell,
+.gm-console-shell,
+.landing-shell,
+.landing-codex{
+  background-image:linear-gradient(rgba(36,30,23,.26),rgba(36,30,23,.55)),url("/assets/tales-without-end-light-background-20260920.png") !important;
+  background-position:center top !important;
+  background-size:cover !important;
+  background-attachment:fixed !important;
+}
+.folio,
+.library-panel,
+.campaign-store-drawer{
+  background-image:linear-gradient(rgba(247,238,214,.72),rgba(247,238,214,.72)),url("/assets/tales-without-end-light-background-20260920.png") !important;
+  background-position:center top !important;
+  background-size:cover !important;
+}

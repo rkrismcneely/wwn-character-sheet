@@ -87,7 +87,6 @@ import {
   extractBeastmasterDamageExpression,
   formatBeastmasterHitBonus,
   formatBeastmasterHitDice,
-  parseBeastmasterHitBonus,
   parseBeastmasterHitDice,
 } from "./beastmaster-companion";
 import { authClient } from "@/lib/auth-client";

@@ -343,7 +343,7 @@ test("campaign item categories validate and persist WWN equipment properties", a
   assert.equal(persisted.items.find(item => item.id === weapon.id)?.properties.weapon?.damage, "1d6");
 });
 
-test("CC0 built-in bestiary definitions search and create independent campaign and encounter copies", async () => {
+test("built-in bestiary definitions search and create independent campaign and encounter copies", async () => {
   const apex = getBuiltInBestiaryCreature("apex-predator");
   assert.ok(apex);
   assert.equal(apex.name, "Apex Predator");
@@ -358,7 +358,7 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
   assert.equal(Object.isFrozen(apex.sourceStats), true);
   assert.ok(searchBuiltInBestiaryCreatures("apex").some(creature => creature.id === "apex-predator"));
   const catalog = searchBuiltInBestiaryCreatures("");
-  assert.equal(catalog.length, 76);
+  assert.equal(catalog.length, 84);
   assert.deepEqual(catalog.map(creature => creature.name), [...catalog.map(creature => creature.name)].sort((left, right) => left.localeCompare(right)));
   assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("amorphous").map(creature => creature.id), ["slime-or-ooze"]);
@@ -375,14 +375,14 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
     ["apex-predator", "Apex Predator", 6, 2, 27, 13, 6, "1d8", "2/13", "40'", 8, 6, 2, 12],
     ["herd-beast", "Herd Beast", 2, 1, 9, 11, 2, "1d4", "None", "40'", 7, 6, 1, 14],
     ["vicious-large-herbivore", "Vicious Large Herbivore", 4, 1, 18, 13, 5, "1d10", "1/13", "40'", 9, 6, 1, 13],
-    ["elephantine-grazer", "Elephantine Grazer", 6, 1, 27, 13, 5, "2d8", "None", "40'", 7, 6, 1, 12],
-    ["automaton-humanlike", "Automaton, Humanlike", 2, 1, 9, 13, 2, "Weapon", "Weapon", "30'", 12, 3, 1, 14],
-    ["automaton-laborer", "Automaton, Laborer", 2, 1, 9, 15, 2, "1d6", "1/13", "30'", 12, 3, 1, 14],
-    ["automaton-military", "Automaton, Military", 4, 1, 18, 18, 5, "1d10+2", "4/15", "30'", 12, 3, 1, 13],
+    ["elephantine-grazer", "Elephantine Herbivore", 6, 1, 27, 13, 5, "2d8", "None", "40'", 7, 6, 1, 12],
+    ["automaton-humanlike", "Humanlike Automaton", 2, 1, 9, 13, 2, "Weapon", "Weapon", "30'", 12, 3, 1, 14],
+    ["automaton-laborer", "Laborer Automaton", 2, 1, 9, 15, 2, "1d6", "1/13", "30'", 12, 3, 1, 14],
+    ["automaton-military", "Military Automaton", 4, 1, 18, 18, 5, "1d10+2", "4/15", "30'", 12, 3, 1, 13],
     ["slime-or-ooze", "Slime or Ooze", 6, 2, 27, 10, 6, "1d8", "1/-", "20'", 12, 5, 1, 12],
-    ["small-vicious-predator", "Predator, Small Vicious", 1, 1, 5, 14, 1, "1d4", "1/13", "30'", 7, 5, 1, 15],
-    ["large-vicious-predator", "Predator, Large Vicious", 6, 2, 27, 13, 7, "2d6", "2/15", "40'", 9, 5, 2, 13],
-    ["hulking-predator", "Predator, Hulking", 10, 2, 45, 15, 12, "2d6+3", "6/15", "30'", 10, 4, 1, 10],
+    ["small-vicious-predator", "Small Vicious Predator", 1, 1, 5, 14, 1, "1d4", "1/13", "30'", 7, 5, 1, 15],
+    ["large-vicious-predator", "Large Vicious Predator", 6, 2, 27, 13, 7, "2d6", "2/15", "40'", 9, 5, 2, 13],
+    ["hulking-predator", "Hulking Predator", 10, 2, 45, 15, 12, "2d6+3", "6/15", "30'", 10, 4, 1, 10],
     ["unnatural-swarm", "Unnatural Swarm", 4, 3, 18, 10, 6, "1d6", "1/-", "30'", 10, 5, 1, 13],
     ["terrible-warbeast", "Terrible Warbeast", 8, 2, 36, 15, 10, "2d6+4", "7/15", "40'", 9, 4, 2, 11],
     ["legendary-god-titan", "Legendary God-Titan", 20, 3, 90, 22, 20, "2d10+5", "10/-", "40'", 10, 3, 3, 2],
@@ -403,8 +403,8 @@ test("CC0 built-in bestiary definitions search and create independent campaign a
     ["skilled-sorcerer", "Skilled Sorcerer", 5, 1, 23, 10, 1, "Weapon", "Weapon", "30'", 9, 4, 2, 13],
     ["master-wizard", "Master Wizard", 8, 1, 36, 13, 1, "Weapon", "Weapon", "30'", 9, 3, 2, 11],
     ["famous-arch-mage", "Famous Arch-Mage", 10, 1, 45, 13, 2, "Weapon", "Weapon", "30'", 9, 2, 3, 10],
-    ["automaton-warbot", "Automaton, Warbot", 10, 3, 45, 20, 12, "1d12+5", "7/-", "40'", 12, 2, 2, 10],
-    ["predator-hellbeast", "Predator, Hellbeast", 10, 4, 45, 18, 12, "1d10+5", "6/-", "60'", 11, 4, 3, 10],
+    ["automaton-warbot", "Warbot Automaton", 10, 3, 45, 20, 12, "1d12+5", "7/-", "40'", 12, 2, 2, 10],
+    ["predator-hellbeast", "Hellbeast Predator", 10, 4, 45, 18, 12, "1d10+5", "6/-", "60'", 11, 4, 3, 10],
   ];
   for (const [id, name, hitDice, attacksPerMainAction, hpMax, armorClass, attackBonus, damage, shock, move, morale, instinct, skill, save] of canonicalSrdEntries) {
     const creature = getBuiltInBestiaryCreature(id);

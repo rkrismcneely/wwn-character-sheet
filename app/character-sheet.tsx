@@ -2,7 +2,9 @@
 
 /* eslint-disable @next/next/no-img-element -- portraits can be local blobs or user-uploaded URLs */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { viewportTooltipPosition } from "./tooltip-position";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
 import { artSlots, casterLimits, classRules, dualCasterLimits, forcedArtsForTraditions, fullClasses, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
 import { backgroundNames, backgrounds } from "./background-data";
@@ -778,7 +780,117 @@ function createBlankSheet(): Sheet {
 }
 
 function Tip({ title, ariaLabel, children }: { title: string; ariaLabel?: string; children: React.ReactNode }) {
-  return <span className="tip" tabIndex={0} aria-label={ariaLabel}>{title}<span className="tipbox">{children}</span></span>;
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const closeTimer = useRef<number | null>(null);
+  const tooltipId = useId();
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+
+  const showTooltip = useCallback(() => {
+    clearCloseTimer();
+    setOpen(true);
+  }, [clearCloseTimer]);
+
+  const scheduleClose = useCallback(() => {
+    clearCloseTimer();
+    closeTimer.current = window.setTimeout(() => {
+      setOpen(false);
+      setPosition(null);
+    }, 100);
+  }, [clearCloseTimer]);
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    const tooltip = tooltipRef.current;
+    if (!trigger || !tooltip) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const next = viewportTooltipPosition({
+      trigger: {
+        top: triggerRect.top,
+        bottom: triggerRect.bottom,
+        right: triggerRect.right,
+      },
+      tooltip: {
+        width: tooltipRect.width,
+        height: tooltipRect.height,
+      },
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
+
+    setPosition({
+      left: next.left,
+      top: next.top,
+      maxHeight: next.maxHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const initialFrame = window.requestAnimationFrame(updatePosition);
+    const onViewportChange = () => updatePosition();
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+    return () => {
+      window.cancelAnimationFrame(initialFrame);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => () => clearCloseTimer(), [clearCloseTimer]);
+
+  return <>
+    <span
+      ref={triggerRef}
+      className="tip"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      aria-describedby={open ? tooltipId : undefined}
+      onMouseEnter={showTooltip}
+      onMouseLeave={scheduleClose}
+      onFocus={showTooltip}
+      onBlur={scheduleClose}
+      onKeyDown={event => {
+        if (event.key === "Escape") {
+          clearCloseTimer();
+          setOpen(false);
+          setPosition(null);
+        }
+      }}
+    >
+      {title}
+    </span>
+    {open && typeof document !== "undefined" && createPortal(
+      <span
+        ref={tooltipRef}
+        id={tooltipId}
+        role="tooltip"
+        className="tipbox tipbox-portal"
+        style={{
+          left: position?.left ?? 0,
+          top: position?.top ?? 0,
+          maxHeight: position ? position.maxHeight : undefined,
+          visibility: position ? "visible" : "hidden",
+        }}
+        onMouseEnter={clearCloseTimer}
+        onMouseLeave={scheduleClose}
+      >
+        {children}
+      </span>,
+      document.body,
+    )}
+  </>;
 }
 
 function RulesTooltip({ name, text, extra }: { name: string; text: string; extra?: string }) {

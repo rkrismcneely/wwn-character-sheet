@@ -50,7 +50,7 @@ test("WWN threat estimates expose scores, ratio, and bands without making a part
 });
 
 test("all immutable Bestiary entries have explicit valid threat inputs", () => {
-  assert.equal(builtInBestiaryCreatures.length, 84);
+  assert.equal(builtInBestiaryCreatures.length, 88);
   assert.ok(builtInBestiaryCreatures.every(creature => Number.isFinite(creature.sourceStats.hitDice) && creature.sourceStats.hitDice >= 0));
   assert.ok(builtInBestiaryCreatures.every(creature => Number.isSafeInteger(creature.sourceStats.attacksPerMainAction) && creature.sourceStats.attacksPerMainAction > 0));
   assert.ok(builtInBestiaryCreatures.every(Object.isFrozen));

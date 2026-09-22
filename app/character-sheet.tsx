@@ -73,7 +73,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   beastmasterArtAvailableForBond,
   beastmasterCompanionRules,
@@ -123,6 +123,7 @@ type Companion = {
   stowed: string[];
   familiarBenefits: string[];
   familiarBackground?: string;
+  familiarAdditionalShape?: string;
   /** The primary Spirit Familiar Focus row that owns this companion. */
   focusSlot?: number;
   summoned?: boolean;
@@ -136,6 +137,20 @@ type LibraryCharacter = {
   permissions: { canEdit: boolean; adminReadOnly: boolean };
 };
 type LibraryScope = "mine" | "public" | "all";
+
+const spiritFamiliarBenefits = [
+  "Hit points equal three times your level",
+  "Attack at half your level for 1d8 damage",
+  "+1 skill bonus for one background",
+  "One additional shape",
+  "Hover or fly at normal speed",
+  "Speak any language you know",
+] as const;
+const spiritFamiliarTripleHpBenefit = spiritFamiliarBenefits[0];
+const spiritFamiliarAttackBenefit = spiritFamiliarBenefits[1];
+const spiritFamiliarSkillBenefit = spiritFamiliarBenefits[2];
+const spiritFamiliarShapeBenefit = spiritFamiliarBenefits[3];
+const spiritFamiliarFlightBenefit = spiritFamiliarBenefits[4];
 
 const skills = ["Administer","Connect","Convince","Craft","Exert","Heal","Know","Lead","Magic","Notice","Perform","Pray","Punch","Ride","Sail","Shoot","Sneak","Stab","Survive","Trade","Work"];
 const combatSkills = ["Punch", "Shoot", "Stab"] as const;
@@ -649,6 +664,7 @@ function newCompanion(kind: CompanionKind, index: number, level: number, focusSl
     stowed: [],
     familiarBenefits: [],
     familiarBackground: "",
+    familiarAdditionalShape: "",
     focusSlot,
     summoned: true,
     effortRefreshUsed: false,
@@ -2133,6 +2149,9 @@ export default function Home({
     const existingSpiritRepeat = name === "Spirit Familiar" && currentPick?.name === name && slotIndex !== firstSpiritIndex;
     if (addingSpiritRepeat || existingSpiritRepeat) {
       const firstSpirit = firstSpiritIndex >= 0 ? sheet.focusPicks[firstSpiritIndex] : undefined;
+      if (existingSpiritRepeat && Number(currentPick?.level) < 2) {
+        return { eligible: false, reason: "Only Spirit Familiar level 2 can be repeated." };
+      }
       if (effectiveLevel < 2 || (firstSpirit?.level || 1) < 2) {
         return { eligible: false, reason: "Spirit Familiar level 2 must be taken before its level-2 benefits can be repeated." };
       }

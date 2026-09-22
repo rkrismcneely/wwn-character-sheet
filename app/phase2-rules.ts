@@ -109,7 +109,7 @@ export function artEffortCommitmentCount(value: unknown) {
 }
 
 export function artEffortTotal(values: readonly unknown[]) {
-  return values.reduce(
+  return values.reduce<number>(
     (total, value) => total + artEffortCommitmentCount(value),
     0,
   );

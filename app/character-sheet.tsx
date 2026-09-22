@@ -78,6 +78,8 @@ import { armorRestrictsMagic, artEffortCommitmentCount, artEffortTotal, deriveSk
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
+  beastmasterCatalogCreature,
+  beastmasterCatalogCreatures,
   beastmasterCompanionRules,
   chosenFriendBenefitArts,
   feralToughnessBaseArmorClass,
@@ -105,6 +107,8 @@ type Companion = {
   id: string;
   kind: CompanionKind;
   name: string;
+  /** Optional selected Bestiary profile; custom companions leave this blank. */
+  bestiaryId?: string;
   archetype: string;
   description: string;
   hitDice: string;
@@ -645,6 +649,7 @@ function newCompanion(kind: CompanionKind, index: number, level: number, focusSl
     id: `${kind}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
     kind,
     name: "",
+    bestiaryId: "",
     archetype: familiar || beastmaster ? "" : "Student",
     description: "",
     hitDice: familiar ? `${Math.max(1, level)} HD` : beastmaster ? "1 HD" : "1 HD",
@@ -729,6 +734,7 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
                 : "Student",
           readied: Array.isArray(companion.readied) ? companion.readied : [],
           stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
+          bestiaryId: typeof companion.bestiaryId === "string" ? companion.bestiaryId : "",
         }))
       : [],
     archivedCompanions: Array.isArray(incoming.archivedCompanions)
@@ -753,6 +759,7 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
                 : "Student",
           readied: Array.isArray(companion.readied) ? companion.readied : [],
           stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
+          bestiaryId: typeof companion.bestiaryId === "string" ? companion.bestiaryId : "",
         }))
       : [],
   } as Sheet;
@@ -1516,6 +1523,43 @@ export default function Home({
         ...current,
         companions: current.companions.map(companion => companion.id === id ? { ...companion, [key]: value } : companion),
       }));
+  const chooseBeastmasterCatalogProfile = (id: string, bestiaryId: string) => {
+    if (!canEdit) return;
+    if (!bestiaryId) {
+      patchCompanion(id, "bestiaryId", "");
+      return;
+    }
+    const creature = beastmasterCatalogCreature(bestiaryId);
+    if (!creature) return;
+    const attack = creature.attacks[0];
+    const profileNotes = [
+      `Bestiary profile: ${creature.name}.`,
+      creature.notes,
+      ...(creature.abilities ?? []).map(ability => `${ability.name}: ${ability.summary}`),
+    ].filter(Boolean).join("\n");
+    setSheet(current => ({
+      ...current,
+      companions: current.companions.map(companion => companion.id !== id ? companion : {
+        ...companion,
+        bestiaryId: creature.id,
+        description: creature.description,
+        hitDice: creature.sourceStats.hitDiceDisplay ?? `${creature.sourceStats.hitDice} HD`,
+        hpCurrent: creature.hpMax,
+        hpMax: creature.hpMax,
+        ac: creature.armorClass,
+        move: creature.sourceStats.move,
+        attackBonus: formatBeastmasterHitBonus(attack?.attackBonus ?? null),
+        damage: attack ? `${attack.name}: ${attack.damage}${attack.shock ? ` · Shock ${attack.shock}` : ""}` : "—",
+        physicalSave: creature.physicalSave,
+        evasionSave: creature.evasionSave,
+        mentalSave: creature.mentalSave,
+        morale: String(creature.sourceStats.morale),
+        instinct: String(creature.sourceStats.instinct),
+        skillBonus: formatBeastmasterHitBonus(creature.sourceStats.skill),
+        notes: profileNotes,
+      }),
+    }));
+  };
   const changeBeastmasterBond = (bond: Sheet["beastmasterBond"]) => {
     if (!buildFieldsEditable) return;
     const redundant = chosenFriendBenefitArts as readonly string[];
@@ -3929,6 +3973,13 @@ export default function Home({
               hitDice: companion.hitDice,
               attackBonus: companion.attackBonus,
             });
+            const eligibleCatalogProfiles = beastmasterCatalogCreatures(effectiveLevel);
+            const selectedCatalogProfile = beastmasterCatalogCreature(companion.bestiaryId);
+            const catalogGroups = new Map<string, typeof eligibleCatalogProfiles>();
+            for (const profile of eligibleCatalogProfiles) {
+              const label = `${profile.category || "Other"} · ${profile.family || "Other"}`;
+              catalogGroups.set(label, [...(catalogGroups.get(label) || []), profile]);
+            }
             return <div className="companion-grid">
               <Section
                 title={chosenFriendCompanion ? "Chosen Friend" : "Beastmaster Companion"}
@@ -3936,8 +3987,10 @@ export default function Home({
               >
                 <div className="two-col">
                   <Field label="Name" value={companion.name} onChange={value => patchCompanion(companion.id, "name", value)} />
-                  <Field label="Creature / Appearance" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
+                  <label className="field"><span>Bestiary profile</span><select value={companion.bestiaryId || ""} onChange={event => chooseBeastmasterCatalogProfile(companion.id, event.target.value)}><option value="">Custom creature…</option>{selectedCatalogProfile && !eligibleCatalogProfiles.some(profile => profile.id === selectedCatalogProfile.id) && <optgroup label="Current profile — above current HD limit"><option value={selectedCatalogProfile.id}>{selectedCatalogProfile.name} · {formatBeastmasterHitDice(selectedCatalogProfile.sourceStats.hitDice)}</option></optgroup>}{[...catalogGroups.entries()].map(([label, profiles]) => <optgroup key={label} label={label}>{profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name} · {formatBeastmasterHitDice(profile.sourceStats.hitDice)}</option>)}</optgroup>)}</select></label>
                 </div>
+                <Field label="Appearance / details" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
+                {selectedCatalogProfile && <p className="section-intro">Base statistics copied from <strong>{selectedCatalogProfile.name}</strong>. You can still adjust this individual companion’s fields for your campaign.</p>}
                 {!companion.name.trim() && <p className="creation-choice-note">A Beastmaster companion must have a name before Beastmaster arts can control it.</p>}
                 <div className="archetype-summary">
                   <div><strong>Companion limits</strong><p>Its base Hit Dice cannot exceed your level + 1 ({companionRules.maximumBaseHitDice} HD), it remains an independently acting allied creature, and it still checks Instinct and Morale normally.</p></div>
@@ -3961,7 +4014,7 @@ export default function Home({
                   <label className="field"><span>Save</span><input type="number" min={1} value={companion.physicalSave || ""} onChange={e => patchCompanion(companion.id, "physicalSave", Math.max(1, Number(e.target.value) || 1))} /></label>
                   <label className="field"><span>Strength score</span><input type="number" min={0} max={30} value={companion.strength || ""} onChange={e => patchCompanion(companion.id, "strength", Math.max(0, Number(e.target.value) || 0))} /></label>
                 </div>
-                <p className="section-intro">Enter the creature’s ordinary stat block as its base statistics. Shared Vitality changes effective HD and hit bonus after those normal statistics are known; adjust maximum HP to match the creature’s resulting effective HD.</p>
+                <p className="section-intro">Choose an eligible Bestiary profile to copy its ordinary stat block, or keep a custom creature. Shared Vitality changes effective HD and hit bonus after those base statistics are known; adjust maximum HP to match the creature’s resulting effective HD.</p>
                 {chosenFriendCompanion && companion.hpCurrent <= 0 && companion.hpMax > 0 && <button type="button" className="text-button" onClick={() => patchCompanion(companion.id, "hpCurrent", companion.hpMax)}>Restore at next dawn</button>}
               </Section>
               <Section title="Companion Notes" className="companion-notes"><textarea className="tall" value={companion.notes} onChange={e => patchCompanion(companion.id, "notes", e.target.value)} /></Section>

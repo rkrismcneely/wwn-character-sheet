@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   advancementClassPerDieBonus,
+  advancementFocusOptionLabel,
   advancementPlan,
   advancementSkillCreditBySkill,
   attributeBoostLimitAtLevel,
@@ -35,6 +36,30 @@ const base = (overrides = {}) => ({
   attributeBoosts: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 },
   focusPicks: [], artPicks: [], spellPicks: [], skillPurchases: {},
   ...overrides,
+});
+
+test("advancement Focus labels describe the action at every future Focus opportunity", () => {
+  assert.equal(
+    advancementFocusOptionLabel(base({ focusPicks: [] }), "Alert"),
+    "Alert — new Level 1",
+  );
+  assert.equal(
+    advancementFocusOptionLabel(base({ focusPicks: [{ name: "Alert", level: 1 }] }), "Alert"),
+    "Alert — upgrade to Level 2",
+  );
+  assert.equal(
+    advancementFocusOptionLabel(base({ focusPicks: [{ name: "Spirit Familiar", level: 1 }] }), "Spirit Familiar"),
+    "Spirit Familiar — upgrade to Level 2",
+  );
+  for (const level of [1, 4, 6, 9]) {
+    assert.equal(
+      advancementFocusOptionLabel(base({
+        level,
+        focusPicks: [{ name: "Spirit Familiar", level: 2 }],
+      }), "Spirit Familiar"),
+      "Spirit Familiar — add another Level 2",
+    );
+  }
 });
 
 test("advancement matrix exposes every legal one-level transition", () => {
@@ -404,7 +429,8 @@ test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async ()
   assert.match(sheet, /hover\/fly/u);
   assert.match(sheet, /companions: current\.companions\.map\(resetFamiliarRefresh\)/u);
   assert.match(sheet, /archivedCompanions: current\.archivedCompanions\.map\(resetFamiliarRefresh\)/u);
-  assert.match(wizard, /Spirit Familiar level 2/u);
+  assert.match(wizard, /advancementFocusOptionLabel\(sheet as AdvancementCharacter, focus\.name\)/u);
+  assert.match(wizard, /<strong>\{selectedFocusActionLabel\}<\/strong>/u);
   assert.match(wizard, /Each level-2 purchase unlocks two more benefit boxes/u);
 });
 

@@ -107,6 +107,8 @@ type InventoryOwner = { kind: "pc" } | { kind: "companion"; id: string };
 type Companion = {
   id: string;
   kind: CompanionKind;
+  /** Whether this record currently represents a creature bound with Bind Companion. */
+  bound: boolean;
   name: string;
   /** Optional selected Bestiary profile; custom companions leave this blank. */
   bestiaryId?: string;
@@ -649,6 +651,7 @@ function newCompanion(kind: CompanionKind, index: number, level: number, focusSl
   return {
     id: `${kind}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
     kind,
+    bound: !beastmaster,
     name: "",
     bestiaryId: "",
     archetype: familiar || beastmaster ? "" : "Student",
@@ -736,6 +739,9 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
           readied: Array.isArray(companion.readied) ? companion.readied : [],
           stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
           bestiaryId: typeof companion.bestiaryId === "string" ? companion.bestiaryId : "",
+          bound: companion.kind === "beastmaster"
+            ? typeof companion.bound === "boolean" ? companion.bound : true
+            : true,
         }))
       : [],
     archivedCompanions: Array.isArray(incoming.archivedCompanions)
@@ -761,6 +767,9 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
           readied: Array.isArray(companion.readied) ? companion.readied : [],
           stowed: Array.isArray(companion.stowed) ? companion.stowed : [],
           bestiaryId: typeof companion.bestiaryId === "string" ? companion.bestiaryId : "",
+          bound: companion.kind === "beastmaster"
+            ? typeof companion.bound === "boolean" ? companion.bound : true
+            : true,
         }))
       : [],
   } as Sheet;
@@ -1540,7 +1549,7 @@ export default function Home({
     ].filter(Boolean).join("\n");
     setSheet(current => ({
       ...current,
-      companions: current.companions.map(companion => companion.id !== id ? companion : {
+      companions: current.companions.map(companion => companion.id !== id || !companion.bound ? companion : {
         ...companion,
         bestiaryId: creature.id,
         description: creature.description,
@@ -2523,7 +2532,7 @@ export default function Home({
   }
   const dieHardBonus = hasDieHard ? effectiveLevel * 2 : 0;
   const feralToughnessCompanion = hasFeralToughness
-    ? sheet.companions.find(companion => companion.kind === "beastmaster")
+    ? sheet.companions.find(companion => companion.kind === "beastmaster" && companion.bound)
     : undefined;
   const feralToughnessHitDice = Math.max(0, parseBeastmasterHitDice(feralToughnessCompanion?.hitDice) ?? 0);
   const baseCalculatedHpMax = hpRollsComplete ? calculatedHp : sheet.hpMax;
@@ -3969,6 +3978,15 @@ export default function Home({
           if (!companion) return null;
           if (companion.kind === "beastmaster") {
             const chosenFriendCompanion = sheet.beastmasterBond === "chosen-friend";
+            if (!companion.bound) return <div className="companion-grid">
+              <Section
+                title={chosenFriendCompanion ? "Chosen Friend" : "Beastmaster Companion"}
+                aside={<span className="caption">No companion currently bound</span>}
+              >
+                <p className="section-intro">No creature is currently recorded as bound. After using Bind Companion in play—normally a day’s work with a suitable animal in the area, or a Main Action on an encountered animal that may resist with a Mental save—record that companion here.</p>
+                <button type="button" className="text-button" onClick={() => patchCompanion(companion.id, "bound", true)}>Record a bound companion</button>
+              </Section>
+            </div>;
             const hasSharedVitalityArt = sheet.artPicks.some(selection => artSelectionName(selection) === "Shared Vitality");
             const mindCallIndex = sheet.artPicks.findIndex(selection => artSelectionName(selection) === "Mind Call");
             const hasMindCallArt = mindCallIndex >= 0;
@@ -3999,6 +4017,8 @@ export default function Home({
                   <label className="field"><span>Bestiary profile</span><select value={companion.bestiaryId || ""} onChange={event => chooseBeastmasterCatalogProfile(companion.id, event.target.value)}><option value="">Custom creature…</option>{[...catalogGroups.entries()].map(([label, profiles]) => <optgroup key={label} label={label}>{profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name} · {formatBeastmasterHitDice(profile.sourceStats.hitDice)}</option>)}</optgroup>)}</select></label>
                 </div>
                 <Field label="Appearance / details" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
+                <button type="button" className="text-button" onClick={() => patchCompanion(companion.id, "bound", false)}>Release companion</button>
+                <p className="section-intro">Use this only after releasing the companion as a Main Action in play. Its previous details remain on the sheet until you record another bound creature.</p>
                 {selectedCatalogProfile && <p className="section-intro">Base statistics copied from <strong>{selectedCatalogProfile.name}</strong>. You can still adjust this individual companion’s fields for your campaign.</p>}
                 {!companion.name.trim() && <p className="creation-choice-note">Give this companion a name so its bonded creature is easy to identify during play.</p>}
                 <div className="archetype-summary">

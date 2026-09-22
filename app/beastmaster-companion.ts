@@ -16,7 +16,6 @@ export const beastmasterCatalogCreatureIds = [
   "burrowing-herbivore",
   "small-omnivore",
   "small-pack-predator",
-  "small-solitary-predator",
   "small-vicious-predator",
   "totw-stirge",
   "herd-beast",

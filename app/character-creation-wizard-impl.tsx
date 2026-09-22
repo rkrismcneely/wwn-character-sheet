@@ -540,7 +540,7 @@ export function GuidedCreationWizard({
               new mechanics.
             </p>
           </StepTitle>
-          <div className="creation-fields two-columns">
+          <div className="creation-fields two-columns creation-class-fields">
             <label>
               <span>Character name</span>
               <input

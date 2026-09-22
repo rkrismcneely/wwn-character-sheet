@@ -221,7 +221,6 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /No companion currently bound/u);
   assert.match(sheet, /Record a bound companion/u);
   assert.match(sheet, /Release companion/u);
-  assert.match(sheet, /releasing the companion as a Main Action/u);
   assert.match(sheet, /Roll Attack/u);
   assert.match(sheet, /Roll Damage/u);
   assert.match(sheet, /companion-roll-control/u);
@@ -232,7 +231,8 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Instinct/u);
   assert.match(sheet, /Lifelong bond · Shared Vitality \+ Mind Call/u);
   assert.match(sheet, /Restore at next dawn/u);
-  assert.match(sheet, /Give this companion a name so its bonded creature is easy to identify during play/u);
+  assert.doesNotMatch(sheet, /Binding a companion/u);
+  assert.doesNotMatch(sheet, /Choose a Bestiary profile to copy its ordinary stat block/u);
   assert.match(sheet, /artSelectionName\(name\) === "Feral Toughness"/u);
   assert.match(sheet, /feralToughnessBaseArmorClass\(effectiveLevel\)/u);
   assert.match(sheet, /feralToughnessArmorBase/u);

@@ -1206,7 +1206,11 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
   }
 
   state.focusPicks.forEach((pick, index) => {
-    if (pick.name && pick.level !== 1)
+    if (
+      pick.name &&
+      pick.level !== 1 &&
+      !(pick.name === "Spirit Familiar" && pick.level === 2)
+    )
       issues.push({
         step: "foci",
         message: "Level 1 characters can take only level-1 Focus benefits.",

@@ -138,6 +138,44 @@ test("guided creation language UI makes Common automatic and supports saved cust
   assert.match(sheet, /languages: \["Common"\]/u);
 });
 
+test("guided creation can spend both starting Focus picks on Spirit Familiar 2", async () => {
+  const character = withFreePick({
+    ...baseCharacter(),
+    focusPicks: [{ name: "Spirit Familiar", level: 2 }],
+  });
+  const status = levelOneCreationStatus(character);
+
+  assert.equal(status.allowedFocusPicks, 2);
+  assert.equal(status.focusPicksUsed, 2);
+  assert.equal(status.stepStatus.foci.complete, true);
+  assert.doesNotMatch(
+    status.stepStatus.foci.issues.join(" "),
+    /only level-1 Focus benefits/u,
+  );
+
+  const illegalOtherLevelTwo = levelOneCreationStatus(withFreePick({
+    ...baseCharacter(),
+    focusPicks: [{ name: "Alert", level: 2 }],
+  }));
+  assert.match(
+    illegalOtherLevelTwo.stepStatus.foci.issues.join(" "),
+    /only level-1 Focus benefits/u,
+  );
+
+  const wizard = await readFile(
+    new URL("../app/character-creation-wizard-impl.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    wizard,
+    /pick\.name !== "Spirit Familiar"[\s\S]*status\.focusPicksUsed \+ 1 > status\.allowedFocusPicks/u,
+  );
+  assert.match(
+    wizard,
+    /pick\.name === "Spirit Familiar"[\s\S]*\? "Level 2"[\s\S]*: "Level 2 · advancement only"/u,
+  );
+});
+
 test("level-one guided creation validates ordinary martial and expert/warrior paths", () => {
   const martial = withFreePick(baseCharacter());
   const martialStatus = levelOneCreationStatus(martial);
@@ -643,31 +681,33 @@ test("class structure and repeatable Focus targets keep normal eligibility rules
   assert.equal(spiritStatus.focusEligibility("Spirit Familiar", 1).eligible, false);
   assert.match(spiritStatus.focusEligibility("Spirit Familiar", 1).reason, /level 2 can be repeated/i);
 
-  const illegalLevelTwo = withFreePick({
+  const legalSpiritFamiliarLevelTwo = withFreePick({
     ...baseCharacter(),
-    classOne: "Expert",
-    focusPicks: [
-      { name: "Spirit Familiar", level: 2 },
-      { name: "Alert", level: 1 },
-    ],
+    focusPicks: [{ name: "Spirit Familiar", level: 2 }],
+  });
+  assert.doesNotMatch(
+    levelOneCreationStatus(legalSpiritFamiliarLevelTwo).stepStatus.foci.issues.join(" "),
+    /Level 1 characters can take only level-1 Focus benefits/i,
+  );
+
+  const illegalOtherLevelTwo = withFreePick({
+    ...baseCharacter(),
+    focusPicks: [{ name: "Alert", level: 2 }],
   });
   assert.match(
-    levelOneCreationStatus(illegalLevelTwo).stepStatus.foci.issues.join(" "),
+    levelOneCreationStatus(illegalOtherLevelTwo).stepStatus.foci.issues.join(" "),
     /Level 1 characters can take only level-1 Focus benefits/i,
   );
 });
 
-test("guided creation never offers level-two Focus selection at level one", async () => {
+test("guided creation offers level two only for Spirit Familiar when two picks are available", async () => {
   const wizard = await readFile(
     new URL("../app/character-creation-wizard-impl.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(wizard, /<option value=\{2\} disabled>/u);
-  assert.match(wizard, /Level 2 · advancement only/u);
-  assert.doesNotMatch(
-    wizard,
-    /sheet\.level !== 1[\s\S]{0,250}Level 2 · costs two picks/u,
-  );
+  assert.match(wizard, /pick\.name !== "Spirit Familiar"/u);
+  assert.match(wizard, /status\.focusPicksUsed \+ 1 > status\.allowedFocusPicks/u);
+  assert.match(wizard, /pick\.name === "Spirit Familiar"[\s\S]*\? "Level 2"[\s\S]*: "Level 2 · advancement only"/u);
 });
 
 test("higher-level direct-sheet Foci are not misread as level-one bonus-skill sources", () => {

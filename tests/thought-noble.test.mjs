@@ -171,6 +171,15 @@ test("Elicitation of Truth requires Surface Apprehension everywhere the shared r
     "Surface Apprehension",
     "the shared helper must preserve the pre-existing prerequisite",
   );
+
+  assert.equal(
+    missingArtPrerequisite("Facile Speech", ["Open Mind"]),
+    "Far Speech",
+  );
+  assert.equal(
+    missingArtPrerequisite("Facile Speech", ["Open Mind", "Far Speech"]),
+    "",
+  );
 });
 
 test("Thought Noble grants exactly one new Art at every advancement and no spells", () => {

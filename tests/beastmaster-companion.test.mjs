@@ -4,6 +4,8 @@ import test from "node:test";
 import { levelOneCreationStatus } from "../app/character-creation.ts";
 import {
   applyShieldToArmorBase,
+  beastmasterCatalogCreature,
+  beastmasterCatalogCreatures,
   beastmasterCompanionRules,
   feralToughnessBaseArmorClass,
   parseBeastmasterHitDice,
@@ -184,6 +186,10 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /type CompanionKind = "henchman" \| "familiar" \| "beastmaster"/u);
   assert.match(sheet, /newCompanion\("beastmaster", 0, sheet\.level\)/u);
   assert.match(sheet, /title=\{chosenFriendCompanion \? "Chosen Friend" : "Beastmaster Companion"\}/u);
+  assert.match(sheet, /Bestiary profile/u);
+  assert.match(sheet, /Custom creature/u);
+  assert.match(sheet, /chooseBeastmasterCatalogProfile/u);
+  assert.match(sheet, /bestiaryId/u);
   assert.match(sheet, /Base Hit Dice/u);
   assert.match(sheet, /Effective Hit Dice/u);
   assert.match(sheet, /Effective Hit Bonus/u);
@@ -194,4 +200,25 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /artSelectionName\(name\) === "Feral Toughness"/u);
   assert.match(sheet, /feralToughnessBaseArmorClass\(effectiveLevel\)/u);
   assert.match(sheet, /feralToughnessArmorBase/u);
+});
+
+
+test("Beastmaster catalogue is an animal-minded allow-list grouped by family and capped by level", () => {
+  const levelOne = beastmasterCatalogCreatures(1);
+  assert.ok(levelOne.some(creature => creature.id === "small-bird"));
+  assert.ok(levelOne.some(creature => creature.id === "aquatic-predator"));
+  assert.ok(levelOne.some(creature => creature.id === "totw-cockatrice"));
+  assert.ok(!levelOne.some(creature => creature.id === "giant-mantis"), "3 HD profiles wait until level 2");
+  assert.ok(!levelOne.some(creature => creature.id === "totw-aboleth"), "unapproved intelligent creatures never enter the catalogue");
+  assert.equal(beastmasterCatalogCreature("totw-aboleth"), null);
+  assert.equal(beastmasterCatalogCreature("giant-phase-spider")?.source.name, "Tales Without End original content");
+
+  const levelThree = beastmasterCatalogCreatures(3);
+  assert.ok(levelThree.some(creature => creature.id === "giant-phase-spider"));
+  assert.ok(levelThree.some(creature => creature.id === "giant-scorpion"));
+  assert.ok(!levelThree.some(creature => creature.id === "large-solitary-predator"));
+  const animalFamilies = levelThree
+    .filter(creature => creature.category === "Animal")
+    .map(creature => `${creature.family}:${creature.sourceStats.hitDice}`);
+  assert.ok(animalFamilies.indexOf("Herbivore:1") < animalFamilies.indexOf("Herbivore:2"));
 });

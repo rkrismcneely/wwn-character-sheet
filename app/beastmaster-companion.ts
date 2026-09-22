@@ -113,6 +113,19 @@ export function formatBeastmasterHitBonus(value: number | null): string {
   return value >= 0 ? `+${value}` : String(value);
 }
 
+/** Extracts a rollable dice expression from the displayed attack field. */
+export function extractBeastmasterDamageExpression(value: unknown): string | null {
+  const match = String(value ?? "").match(/(\d{1,3}d\d{1,6}(?:\s*[+-]\s*\d+)?)/iu);
+  return match?.[1]?.replace(/\s+/gu, " ").trim() || null;
+}
+
+/** Uses the loaded attack name before the colon, with a safe custom fallback. */
+export function beastmasterAttackName(value: unknown, fallback = "Companion"): string {
+  const text = String(value ?? "").trim();
+  const candidate = text.split(":")[0]?.trim() || "";
+  return candidate && !/^(?:—|none)$/iu.test(candidate) ? candidate : fallback;
+}
+
 export function feralToughnessBaseArmorClass(level: number) {
   const beastmasterLevel = Math.max(1, Math.min(10, Math.floor(Number(level) || 1)));
   return 13 + Math.ceil(beastmasterLevel / 2);

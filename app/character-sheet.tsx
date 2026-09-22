@@ -83,6 +83,8 @@ import {
   beastmasterCompanionRules,
   chosenFriendBenefitArts,
   feralToughnessBaseArmorClass,
+  beastmasterAttackName,
+  extractBeastmasterDamageExpression,
   formatBeastmasterHitBonus,
   formatBeastmasterHitDice,
   parseBeastmasterHitDice,
@@ -4001,7 +4003,9 @@ export default function Home({
               attackBonus: companion.attackBonus,
             });
             const eligibleCatalogProfiles = beastmasterCatalogCreatures();
-            const selectedCatalogProfile = beastmasterCatalogCreature(companion.bestiaryId);
+            const companionAttackBonus = companionRules.effectiveHitBonus;
+            const companionDamageExpression = extractBeastmasterDamageExpression(companion.damage);
+            const companionAttackName = beastmasterAttackName(companion.damage, companion.name || "Companion");
             const catalogGroups = new Map<string, typeof eligibleCatalogProfiles>();
             for (const profile of eligibleCatalogProfiles) {
               const label = `${profile.category || "Other"} · ${profile.family || "Other"}`;
@@ -4018,32 +4022,21 @@ export default function Home({
                 </div>
                 <Field label="Appearance / details" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
                 <button type="button" className="text-button" onClick={() => patchCompanion(companion.id, "bound", false)}>Release companion</button>
-                <p className="section-intro">Use this only after releasing the companion as a Main Action in play. Its previous details remain on the sheet until you record another bound creature.</p>
-                {selectedCatalogProfile && <p className="section-intro">Base statistics copied from <strong>{selectedCatalogProfile.name}</strong>. You can still adjust this individual companion’s fields for your campaign.</p>}
-                {!companion.name.trim() && <p className="creation-choice-note">Give this companion a name so its bonded creature is easy to identify during play.</p>}
-                <div className="archetype-summary">
-                  <div><strong>Binding a companion</strong><p>Bind Companion requires a suitable animal in the current area; unusual creatures may require a Wis/Survive check. Choosing a profile records a creature already found or bound—it does not summon one.</p></div>
-                  {companionRules.sharedVitality && <div><strong>Shared Vitality</strong><p>Effective Hit Dice cannot be lower than your level ({companionRules.beastmasterLevel} HD), and effective hit bonus cannot be lower than half its effective Hit Dice, rounded up.</p></div>}
-                  {companionRules.mindCall && <div><strong>Mind Call</strong><p>{chosenFriendCompanion ? "The Chosen Friend automatically gains" : "Your committed Effort maintains"} the telepathic companion bond.</p></div>}
-                  {!chosenFriendCompanion && hasMindCallArt && !companionRules.mindCall && <div><strong>Mind Call ready</strong><p>Commit Mind Call’s Effort for the scene on the Magic tab to forge the telepathic bond.</p></div>}
-                  {chosenFriendCompanion && <div><strong>Chosen Friend · campaign option</strong><p>This campaign option keeps one lifelong companion and grants Shared Vitality and Mind Call benefits outside the standard Beastmaster Art budget.</p></div>}
-                </div>
                 <div className="companion-stats">
                   <Field label="Base Hit Dice" value={companion.hitDice} onChange={value => patchCompanion(companion.id, "hitDice", value)} />
                   <label className="field"><span>Effective Hit Dice</span><input readOnly value={formatBeastmasterHitDice(companionRules.effectiveHitDice)} /></label>
                   <label className="field"><span>Hit Points</span><span className="companion-hp"><input type="number" min={0} value={companion.hpCurrent || ""} onChange={e => patchCompanion(companion.id, "hpCurrent", Math.max(0, Number(e.target.value) || 0))} aria-label="Current hit points" /><i>/</i><input type="number" min={0} value={companion.hpMax || ""} onChange={e => patchCompanion(companion.id, "hpMax", Math.max(0, Number(e.target.value) || 0))} aria-label="Maximum hit points" /></span></label>
                   <label className="field"><span>Armor Class</span><input type="number" value={companion.ac || ""} onChange={e => patchCompanion(companion.id, "ac", Math.max(0, Number(e.target.value) || 0))} /></label>
                   <Field label="Movement" value={companion.move} onChange={value => patchCompanion(companion.id, "move", value)} />
-                  <Field label="Base Attack Bonus" value={companion.attackBonus} onChange={value => patchCompanion(companion.id, "attackBonus", value)} />
+                  <label className="field companion-roll-field"><span>Base Attack Bonus</span><span className="companion-roll-control"><input value={companion.attackBonus} onChange={event => patchCompanion(companion.id, "attackBonus", event.target.value)} /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy || companionAttackBonus === null} aria-busy={virtualDiceBusy || undefined} onClick={() => companionAttackBonus !== null && rollWeaponAttack(companionAttackName, companionAttackBonus)}>Roll Attack</button></span></label>
                   <label className="field"><span>Effective Hit Bonus</span><input readOnly value={formatBeastmasterHitBonus(companionRules.effectiveHitBonus)} /></label>
-                  <Field label="Damage / Attack" value={companion.damage} onChange={value => patchCompanion(companion.id, "damage", value)} />
+                  <label className="field companion-roll-field"><span>Damage / Attack</span><span className="companion-roll-control"><input value={companion.damage} onChange={event => patchCompanion(companion.id, "damage", event.target.value)} /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy || !companionDamageExpression} aria-busy={virtualDiceBusy || undefined} onClick={() => companionDamageExpression && rollWeaponDamage(companionAttackName, companionDamageExpression)}>Roll Damage</button></span></label>
                   <Field label="Skill Bonus" value={companion.skillBonus} onChange={value => patchCompanion(companion.id, "skillBonus", value)} />
                   <Field label="Morale" value={companion.morale} onChange={value => patchCompanion(companion.id, "morale", value)} />
                   <Field label="Instinct" value={companion.instinct} onChange={value => patchCompanion(companion.id, "instinct", value)} />
                   <label className="field"><span>Save</span><input type="number" min={1} value={companion.physicalSave || ""} onChange={e => patchCompanion(companion.id, "physicalSave", Math.max(1, Number(e.target.value) || 1))} /></label>
                   <label className="field"><span>Strength score</span><input type="number" min={0} max={30} value={companion.strength || ""} onChange={e => patchCompanion(companion.id, "strength", Math.max(0, Number(e.target.value) || 0))} /></label>
                 </div>
-                <p className="section-intro">Choose a Bestiary profile to copy its ordinary stat block, or keep a custom creature. RAW leaves suitability and rarity to the GM; profiles outside the Animal category use this campaign’s agreed animal-minded extension. Shared Vitality changes effective HD and hit bonus after those base statistics are known; roll or set appropriate extra hit points when it raises the companion’s HD.</p>
                 {chosenFriendCompanion && companion.hpCurrent <= 0 && companion.hpMax > 0 && <button type="button" className="text-button" onClick={() => patchCompanion(companion.id, "hpCurrent", companion.hpMax)}>Restore at next dawn</button>}
               </Section>
               <Section title="Companion Notes" className="companion-notes"><textarea className="tall" value={companion.notes} onChange={e => patchCompanion(companion.id, "notes", e.target.value)} /></Section>

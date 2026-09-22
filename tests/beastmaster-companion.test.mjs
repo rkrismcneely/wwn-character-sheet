@@ -5,8 +5,10 @@ import { levelOneCreationStatus } from "../app/character-creation.ts";
 import {
   applyShieldToArmorBase,
   beastmasterCatalogCreature,
+  beastmasterAttackName,
   beastmasterCatalogCreatures,
   beastmasterCompanionRules,
+  extractBeastmasterDamageExpression,
   feralToughnessBaseArmorClass,
   parseBeastmasterHitDice,
 } from "../app/beastmaster-companion.ts";
@@ -219,19 +221,31 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /No companion currently bound/u);
   assert.match(sheet, /Record a bound companion/u);
   assert.match(sheet, /Release companion/u);
-  assert.match(sheet, /releasing the companion as a Main Action/u);
+  assert.match(sheet, /Roll Attack/u);
+  assert.match(sheet, /Roll Damage/u);
+  assert.match(sheet, /companion-roll-control/u);
+  assert.match(sheet, /extractBeastmasterDamageExpression/u);
   assert.match(sheet, /Base Hit Dice/u);
   assert.match(sheet, /Effective Hit Dice/u);
   assert.match(sheet, /Effective Hit Bonus/u);
   assert.match(sheet, /Instinct/u);
   assert.match(sheet, /Lifelong bond · Shared Vitality \+ Mind Call/u);
   assert.match(sheet, /Restore at next dawn/u);
-  assert.match(sheet, /Give this companion a name so its bonded creature is easy to identify during play/u);
+  assert.doesNotMatch(sheet, /Binding a companion/u);
+  assert.doesNotMatch(sheet, /Choose a Bestiary profile to copy its ordinary stat block/u);
   assert.match(sheet, /artSelectionName\(name\) === "Feral Toughness"/u);
   assert.match(sheet, /feralToughnessBaseArmorClass\(effectiveLevel\)/u);
   assert.match(sheet, /feralToughnessArmorBase/u);
 });
 
+
+test("Loaded Beastmaster attacks expose rollable names and damage expressions", () => {
+  assert.equal(beastmasterAttackName("Horns: 1d4"), "Horns");
+  assert.equal(beastmasterAttackName("—", "Joey"), "Joey");
+  assert.equal(extractBeastmasterDamageExpression("Horns: 1d4"), "1d4");
+  assert.equal(extractBeastmasterDamageExpression("Hellfire Claws: 1d10 + 5 · Shock 6/-"), "1d10 + 5");
+  assert.equal(extractBeastmasterDamageExpression("Bite: 0"), null);
+});
 
 test("Beastmaster catalogue is an animal-minded allow-list grouped by family without an invented HD cap", () => {
   const catalog = beastmasterCatalogCreatures();

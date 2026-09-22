@@ -602,6 +602,9 @@ html[data-theme="dark"] .focus-applied{color:#dda852}
 .companion-hp{display:flex;align-items:center;gap:4px}
 .companion-hp input{width:50%;min-width:0;font-size:16px;font-weight:600}
 .companion-hp i{font-style:normal;color:var(--muted);font-size:15px}
+.companion-roll-control{display:flex;align-items:stretch;gap:4px;width:100%;min-width:0}
+.companion-roll-control input{flex:1 1 0;width:auto;min-width:0}
+.companion-roll-control .roll-affordance{margin-top:0;padding:5px;white-space:nowrap}
 .companion-saves{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 12px;padding:10px;background:rgba(161,126,66,.1);font:11px Arial,sans-serif}
 .companion-saves>b{padding:5px 8px;border:1px solid var(--line);background:var(--paper)}
 .archetype-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 12px}

@@ -627,6 +627,23 @@ test("guided creation never offers level-two Focus selection at level one", asyn
   );
 });
 
+test("higher-level direct-sheet Foci are not misread as level-one bonus-skill sources", () => {
+  const levelFiveWarrior = {
+    ...baseCharacter(),
+    level: 5,
+    focusPicks: [
+      { name: "Armsmaster", level: 1 },
+      { name: "Alert", level: 1 },
+      { name: "Unarmed Combatant", level: 1 },
+    ],
+  };
+  const sources = creationSkillSources(levelFiveWarrior);
+  assert.ok(
+    !sources.Punch.some((source) => /Unarmed Combatant Focus/u.test(source)),
+    "the later Unarmed Combatant Focus must use advancement credit, not a free creation acquisition",
+  );
+});
+
 test("class backtracking exposes invalid dependent choices without mutating the character", () => {
   const mage = withFreePick({
     ...baseCharacter(),

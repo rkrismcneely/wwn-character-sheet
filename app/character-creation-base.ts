@@ -781,8 +781,13 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     const existing = state.focusPicks.some(
       (pick, index) => index !== slotIndex && pick.name === name,
     );
-    if (existing && !focusIsRepeatable(name))
-      return { eligible: false, reason: "This Focus can only be taken once." };
+    if (existing && (name === "Spirit Familiar" || !focusIsRepeatable(name)))
+      return {
+        eligible: false,
+        reason: name === "Spirit Familiar"
+          ? "Spirit Familiar level 2 can be repeated during advancement, but level 1 can only be taken once."
+          : "This Focus can only be taken once.",
+      };
     if (name === "Developed Attribute" && isMage)
       return {
         eligible: false,

@@ -13,7 +13,12 @@ import {
   skillRankCapAtLevel,
   validLevelUpHitPointRoll,
 } from "../app/level-advancement.ts";
-import { deriveSkillProfile } from "../app/phase2-rules.ts";
+import {
+  deriveSkillProfile,
+  focusSelectionCost,
+  spiritFamiliarBenefitLimit,
+  spiritFamiliarLevelTwoSelectionLimit,
+} from "../app/phase2-rules.ts";
 import { fullClasses, partialClasses } from "../app/class-data.ts";
 import { creationPartialClassPairIsLegal } from "../app/character-creation.ts";
 
@@ -158,6 +163,80 @@ test("Focus options respect existing Focus levels and class restrictions", () =>
   const mageOptions = legalAdvancementFocuses(base({ classOne: "High Mage" }));
   assert.ok(!mageOptions.some((focus) => focus.name === "Developed Attribute"));
   assert.ok(!mageOptions.some((focus) => focus.name === "Nullifier"));
+});
+
+test("Spirit Familiar level two can repeat for one pick and unlocks two benefits each time", () => {
+  assert.equal(focusSelectionCost([{ name: "Spirit Familiar", level: 1 }]), 1);
+  assert.equal(focusSelectionCost([{ name: "Spirit Familiar", level: 2 }]), 2);
+  assert.equal(focusSelectionCost([
+    { name: "Spirit Familiar", level: 2 },
+    { name: "Spirit Familiar", level: 2 },
+  ]), 3);
+  assert.equal(focusSelectionCost([
+    { name: "Spirit Familiar", level: 2 },
+    { name: "Spirit Familiar", level: 2 },
+    { name: "Spirit Familiar", level: 2 },
+  ]), 4);
+
+  assert.equal(spiritFamiliarBenefitLimit([{ name: "Spirit Familiar", level: 1 }]), 0);
+  assert.equal(spiritFamiliarBenefitLimit([{ name: "Spirit Familiar", level: 2 }]), 2);
+  assert.equal(spiritFamiliarBenefitLimit([
+    { name: "Spirit Familiar", level: 2 },
+    { name: "Spirit Familiar", level: 2 },
+  ]), 4);
+  assert.equal(spiritFamiliarBenefitLimit([
+    { name: "Spirit Familiar", level: 2 },
+    { name: "Spirit Familiar", level: 2 },
+    { name: "Spirit Familiar", level: 2 },
+  ]), 6);
+
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(2), 1);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(4), 1);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(5), 2);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(7), 3);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(10), 3);
+});
+
+test("Spirit Familiar is offered again on later Focus opportunities after level two", () => {
+  const levelTwoUpgrade = legalAdvancementFocuses(base({
+    level: 1,
+    focusPicks: [{ name: "Spirit Familiar", level: 1 }],
+  }));
+  assert.ok(levelTwoUpgrade.some((focus) => focus.name === "Spirit Familiar"));
+
+  const levelFiveRepeat = legalAdvancementFocuses(base({
+    level: 4,
+    focusPicks: [{ name: "Spirit Familiar", level: 2 }],
+  }));
+  assert.ok(levelFiveRepeat.some((focus) => focus.name === "Spirit Familiar"));
+
+  const levelSevenRepeat = legalAdvancementFocuses(base({
+    level: 6,
+    focusPicks: [
+      { name: "Spirit Familiar", level: 2 },
+      { name: "Spirit Familiar", level: 2 },
+    ],
+  }));
+  assert.ok(levelSevenRepeat.some((focus) => focus.name === "Spirit Familiar"));
+
+  const exhaustedBenefits = legalAdvancementFocuses(base({
+    level: 9,
+    focusPicks: [
+      { name: "Spirit Familiar", level: 2 },
+      { name: "Spirit Familiar", level: 2 },
+      { name: "Spirit Familiar", level: 2 },
+    ],
+  }));
+  assert.ok(!exhaustedBenefits.some((focus) => focus.name === "Spirit Familiar"));
+});
+
+test("Spirit Familiar UI enforces the dynamic level-two benefit checkbox cap", async () => {
+  const sheet = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+  assert.match(sheet, /spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit\(sheet\.focusPicks\)/u);
+  assert.match(sheet, /Choose \{spiritFamiliarBenefitCap\}/u);
+  assert.match(sheet, /activeFamiliarBenefits\.length >= spiritFamiliarBenefitCap/u);
+  assert.match(sheet, /Lvl 2 repeat/u);
+  assert.match(sheet, /const nextFamiliars = primarySpiritFocusSlot === undefined/u);
 });
 
 test("Level-Up Wizard remains transactional, URL-addressable, and version-guarded", async () => {

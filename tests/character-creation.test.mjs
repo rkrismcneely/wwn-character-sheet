@@ -588,6 +588,17 @@ test("class structure and repeatable Focus targets keep normal eligibility rules
     ).stepStatus.foci.issues.join(" "),
     /target not used/i,
   );
+
+  const spiritFamiliarAtCreation = withFreePick({
+    ...baseCharacter(),
+    focusPicks: [
+      { name: "Spirit Familiar", level: 1 },
+      { name: "", level: 1 },
+    ],
+  });
+  const spiritStatus = levelOneCreationStatus(spiritFamiliarAtCreation);
+  assert.equal(spiritStatus.focusEligibility("Spirit Familiar", 1).eligible, false);
+  assert.match(spiritStatus.focusEligibility("Spirit Familiar", 1).reason, /level 2 can be repeated/i);
 });
 
 test("class backtracking exposes invalid dependent choices without mutating the character", () => {

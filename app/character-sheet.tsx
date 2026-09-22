@@ -73,7 +73,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusTargetAvailable, reconcileFamiliarSlots, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   beastmasterArtAvailableForBond,
   beastmasterCompanionRules,
@@ -123,7 +123,7 @@ type Companion = {
   stowed: string[];
   familiarBenefits: string[];
   familiarBackground?: string;
-  /** The Focus row that created this companion. Keeps repeatable familiars distinct. */
+  /** The primary Spirit Familiar Focus row that owns this companion. */
   focusSlot?: number;
   summoned?: boolean;
   effortRefreshUsed?: boolean;
@@ -489,7 +489,6 @@ const migratedAttributeState = (stored: Partial<Sheet>) => {
   })) as Sheet["attrs"];
   return { attributeMethod: method, attributeRolls, attributeSubstitution, attributeBoosts, attrs };
 };
-const focusPickCost = (pick: FocusPick) => pick.name ? Math.max(1, Math.min(2, pick.level || 1)) : 0;
 const resizeSelections = <T,>(values: T[], target: number, isEmpty: (value: T) => boolean, makeEmpty: () => T) => {
   const selected = values.filter(value => !isEmpty(value));
   return [...selected, ...Array.from({ length: Math.max(0, target - selected.length) }, makeEmpty)];
@@ -2124,7 +2123,24 @@ export default function Home({
   const focusRepeatAllowed = focusIsRepeatable;
   const focusEligibility = (name: string, slotIndex: number) => {
     if (!name) return { eligible: true, reason: "" };
+    const currentPick = sheet.focusPicks[slotIndex];
     const existing = sheet.focusPicks.some((pick, index) => index !== slotIndex && pick.name === name);
+    const spiritRows = sheet.focusPicks
+      .map((pick, index) => ({ pick, index }))
+      .filter(({ pick }) => pick.name === "Spirit Familiar");
+    const firstSpiritIndex = spiritRows[0]?.index ?? -1;
+    const addingSpiritRepeat = name === "Spirit Familiar" && currentPick?.name !== name && spiritRows.length > 0;
+    const existingSpiritRepeat = name === "Spirit Familiar" && currentPick?.name === name && slotIndex !== firstSpiritIndex;
+    if (addingSpiritRepeat || existingSpiritRepeat) {
+      const firstSpirit = firstSpiritIndex >= 0 ? sheet.focusPicks[firstSpiritIndex] : undefined;
+      if (effectiveLevel < 2 || (firstSpirit?.level || 1) < 2) {
+        return { eligible: false, reason: "Spirit Familiar level 2 must be taken before its level-2 benefits can be repeated." };
+      }
+      const levelTwoSelections = spiritRows.filter(({ pick }) => pick.level >= 2).length + (addingSpiritRepeat ? 1 : 0);
+      if (levelTwoSelections > spiritFamiliarLevelTwoSelectionLimit(effectiveLevel)) {
+        return { eligible: false, reason: "This character has already taken every Spirit Familiar level-2 repeat available by this level." };
+      }
+    }
     if (existing && !focusRepeatAllowed(name)) return { eligible: false, reason: "This Focus can only be taken once." };
     if (name === "Developed Attribute" && isMageClass) return { eligible: false, reason: "Mages and partial Mages cannot take Developed Attribute." };
     if (name === "Armored Magic" && !armorRestrictedTraditions.length) return { eligible: false, reason: "Armored Magic is only available to Mages whose spells or arts are normally hindered by armor." };
@@ -2132,9 +2148,10 @@ export default function Home({
     if (name === "Nullifier" && isMageClass) return { eligible: false, reason: "Mages and partial Mages cannot take Nullifier." };
     if (name === "Polymath" && !isExpertClass) return { eligible: false, reason: "Only Experts or partial Experts can take Polymath." };
     if (name === "Traditional Education" && !selectedClasses.includes("Invoker")) return { eligible: false, reason: "Only an Invoker can take Traditional Education." };
-    const currentPick = sheet.focusPicks[slotIndex];
-    const nextCost = Math.max(1, Math.min(2, currentPick?.level || 1));
-    if (name !== currentPick?.name && focusPicksUsed - focusPickCost(currentPick || { name: "", level: 1 }) + nextCost > rules.focusPicks) {
+    const candidateLevel = addingSpiritRepeat ? 2 : Math.max(1, Math.min(2, currentPick?.level || 1));
+    const candidatePicks = sheet.focusPicks.map((pick, index) =>
+      index === slotIndex ? { ...pick, name, level: candidateLevel } : pick);
+    if (focusSelectionCost(candidatePicks) > rules.focusPicks) {
       return { eligible: false, reason: "There are not enough Focus picks remaining." };
     }
     return { eligible: true, reason: "" };
@@ -2152,6 +2169,7 @@ export default function Home({
   const spiritFamiliars = useMemo(() => sheet.focusPicks
     .map((pick, index) => ({ pick, index }))
     .filter(({ pick }) => pick.name === "Spirit Familiar"), [sheet.focusPicks]);
+  const spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit(sheet.focusPicks);
   const hasHenchkeeper = Boolean(henchkeeper);
   const hasSpiritFamiliar = spiritFamiliars.length > 0;
   const hasBeastmaster = selectedClasses.includes("Beastmaster");
@@ -2165,7 +2183,7 @@ export default function Home({
         : hasBeastmaster
   );
   const armoredMagicLevel = selectedFocusPicks.find(pick => pick.name === "Armored Magic")?.level || 0;
-  const focusPicksUsed = selectedFocusPicks.reduce((total, pick) => total + focusPickCost(pick), 0);
+  const focusPicksUsed = focusSelectionCost(selectedFocusPicks);
   const developedAttributes = selectedFocusPicks
     .filter(pick => pick.name === "Developed Attribute" && attributes.includes(pick.choice as typeof attributes[number]))
     .map(pick => pick.choice as typeof attributes[number])
@@ -2364,8 +2382,8 @@ export default function Home({
   const knownSpellAllowance = knownSpellSlots(castingTraditions, effectiveLevel, sheet.classMode === "adventurer");
   const languageAllowance = startingLanguageAllowance(effectiveSkill("Know"), effectiveSkill("Connect"));
   const allowedFocusPicks = sheet.level && sheet.classOne ? rules.focusPicks : 0;
-  const levelTwoFoci = selectedFocusPicks.filter(pick => pick.level === 2).length;
-  const focusSlotCount = Math.max(selectedFocusPicks.length, allowedFocusPicks - levelTwoFoci);
+  const focusExtraPickCost = Math.max(0, focusPicksUsed - selectedFocusPicks.length);
+  const focusSlotCount = Math.max(selectedFocusPicks.length, allowedFocusPicks - focusExtraPickCost);
   const saves = {
     Physical: 16 - sheet.level - Math.max(attributeMod("STR"), attributeMod("CON")),
     Evasion: 16 - sheet.level - Math.max(attributeMod("DEX"), attributeMod("INT")),
@@ -2546,15 +2564,19 @@ export default function Home({
     setSheet(current => {
       const legalFoci = current.focusPicks.map((pick, index) =>
         focusEligibility(pick.name, index).eligible ? pick : { name: "", level: 1 });
-      let focusBudget = 0;
-      const budgetedFoci = legalFoci.map(pick => {
-        const cost = focusPickCost(pick);
-        if (!pick.name || focusBudget + cost <= allowedFocusPicks) {
-          focusBudget += cost;
-          return pick;
+      const budgetedFoci: FocusPick[] = [];
+      for (const pick of legalFoci) {
+        if (!pick.name) {
+          budgetedFoci.push(pick);
+          continue;
         }
-        return { name: "", level: 1 };
-      });
+        const candidate = [...budgetedFoci, pick];
+        budgetedFoci.push(
+          focusSelectionCost(candidate) <= allowedFocusPicks
+            ? pick
+            : { name: "", level: 1 },
+        );
+      }
       const nextFoci = resizeSelections(budgetedFoci, focusSlotCount, pick => !pick.name, () => ({ name: "", level: 1 }));
       const legalArts = current.artPicks.map((name, index) => !name || artEligibility(name, index).eligible ? name : "");
       const nextArts = resizeSelections(legalArts, artAllowance, name => !name, () => "");
@@ -2593,6 +2615,7 @@ export default function Home({
       const archivedFamiliars = current.archivedCompanions.filter(companion => companion.kind === "familiar");
       const archivedBeastmasters = current.archivedCompanions.filter(companion => companion.kind === "beastmaster");
       const availableHenchmen = [...existingHenchmen, ...archivedHenchmen];
+      const availableFamiliars = [...existingFamiliars, ...archivedFamiliars];
       const availableBeastmasters = [...existingBeastmasters, ...archivedBeastmasters];
       const nextHenchmen = hasHenchkeeper
         ? [
@@ -2602,12 +2625,18 @@ export default function Home({
             ),
           ]
         : [];
-      const nextFamiliars = reconcileFamiliarSlots(
-        existingFamiliars,
-        archivedFamiliars,
-        spiritFamiliars.map(({ index }) => index),
-        (focusSlot, familiarIndex) => newCompanion("familiar", familiarIndex, sheet.level, focusSlot),
-      );
+      const primarySpiritFocusSlot = spiritFamiliars[0]?.index;
+      const existingSpiritFamiliar = primarySpiritFocusSlot === undefined
+        ? undefined
+        : availableFamiliars.find((companion) => companion.focusSlot === primarySpiritFocusSlot)
+          || existingFamiliars[0]
+          || archivedFamiliars[0];
+      const nextFamiliars = primarySpiritFocusSlot === undefined
+        ? []
+        : [{
+            ...(existingSpiritFamiliar || newCompanion("familiar", 0, sheet.level, primarySpiritFocusSlot)),
+            focusSlot: primarySpiritFocusSlot,
+          }];
       const nextBeastmasters = hasBeastmaster
         ? [availableBeastmasters[0] || newCompanion("beastmaster", 0, sheet.level)]
         : [];
@@ -3378,20 +3407,25 @@ export default function Home({
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
               </div>
             </Section>
-            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 costs two picks</span>}>
+            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 normally costs two picks; repeated Spirit Familiar level 2 costs one</span>}>
               {sheet.focusPicks.map((pick, i) => {
                 const focus = foci.find(f => f.name === pick.name);
+                const firstSpiritIndex = sheet.focusPicks.findIndex(candidate => candidate.name === "Spirit Familiar");
+                const repeatedSpiritFamiliar = pick.name === "Spirit Familiar" && firstSpiritIndex >= 0 && i !== firstSpiritIndex;
+                const levelTwoCandidateCost = focusSelectionCost(sheet.focusPicks.map((candidate, index) =>
+                  index === i ? { ...candidate, level: 2 } : candidate));
                 return <div className={`choice-row${focusChoiceLabel(pick.name) ? " has-focus-choice" : ""}`} key={i}>
                   <select title={focus ? `${focus.intro}\n\nLevel 1: ${focus.level1}${focus.level2 ? `\n\nLevel 2: ${focus.level2}` : ""}` : "Choose a Focus"} value={pick.name} onChange={e => {
                     const next = e.target.value;
                     const eligibility = focusEligibility(next, i);
                     if (!eligibility.eligible) { setTransferMessage(eligibility.reason); return; }
-                    patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,name:next,choice:""}:x));
+                    const repeatedSpirit = next === "Spirit Familiar" && sheet.focusPicks.some((candidate, index) => index !== i && candidate.name === "Spirit Familiar");
+                    patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,name:next,level:repeatedSpirit ? 2 : x.level,choice:""}:x));
                   }}><option value="">Choose a Focus…</option>{foci.map(f => {
                     const eligibility = focusEligibility(f.name, i);
                     return <option key={f.name} disabled={!eligibility.eligible} title={eligibility.reason}>{f.name}{eligibility.eligible ? "" : " — unavailable"}</option>;
                   })}</select>
-                  <select value={pick.level} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,level:Number(e.target.value)}:x))}><option value={1}>Lvl 1</option><option value={2} disabled={sheet.level < 2 || !focus?.level2 || (pick.level !== 2 && focusPicksUsed >= allowedFocusPicks)}>Lvl 2</option></select>
+                  <select value={pick.level} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,level:Number(e.target.value)}:x))}><option value={1} disabled={repeatedSpiritFamiliar}>Lvl 1</option><option value={2} disabled={sheet.level < 2 || !focus?.level2 || (pick.level !== 2 && levelTwoCandidateCost > allowedFocusPicks)}>{repeatedSpiritFamiliar ? "Lvl 2 repeat" : "Lvl 2"}</option></select>
                   {pick.name === "Developed Attribute" && <select aria-label="Developed Attribute choice" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose attribute…</option>{attributes.map(attribute => { const available = focusTargetAvailable(sheet.focusPicks, "Developed Attribute", attribute, i); return <option key={attribute} disabled={!available}>{attribute}{available ? "" : " — already improved"}</option>; })}</select>}
                   {pick.name === "Xenoblooded" && <select aria-label="Xenoblooded gravity adaptation" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose heritage benefit…</option><option>STR +1 / DEX -1</option><option>DEX +1 / STR -1</option><option value="Other">Other non-stat benefit</option></select>}
                   {pick.name === "Traditional Education" && <select aria-label="Traditional Education tradition" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose tradition…</option><option>High Mage</option><option>Elementalist</option><option>Necromancer</option></select>}
@@ -3695,7 +3729,7 @@ export default function Home({
             </div>;
           }
           const familiar = companion.kind === "familiar";
-          const familiarFocus = familiar ? spiritFamiliars.find(({ index }) => index === companion.focusSlot)?.pick : undefined;
+          const familiarFocus = familiar ? spiritFamiliars[0]?.pick : undefined;
           const focusLevel = familiar ? (familiarFocus?.level || 1) : (henchkeeper?.level || 1);
           const archetype = npcArchetypes.find(item => item.name === companion.archetype) || npcArchetypes[0];
           const archetypeAttrs = companionAttributes(archetype);
@@ -3752,14 +3786,15 @@ export default function Home({
             "Speak any language you know",
           ];
           const familiarBenefits = companion.familiarBenefits || [];
-          const familiarMaxHp = familiarBenefits.includes("Hit points equal three times your level")
+          const activeFamiliarBenefits = familiarBenefits.slice(0, spiritFamiliarBenefitCap);
+          const familiarMaxHp = activeFamiliarBenefits.includes("Hit points equal three times your level")
             ? effectiveLevel * 3
             : effectiveLevel;
-          const familiarAttack = familiarBenefits.includes("Attack at half your level for 1d8 damage")
+          const familiarAttack = activeFamiliarBenefits.includes("Attack at half your level for 1d8 damage")
             ? signed(Math.ceil(effectiveLevel / 2))
             : "No effective attack";
-          const familiarDamage = familiarBenefits.includes("Attack at half your level for 1d8 damage") ? "1d8" : "—";
-          const familiarSkill = familiarBenefits.includes("+1 skill bonus for one background") ? "+1" : "+0";
+          const familiarDamage = activeFamiliarBenefits.includes("Attack at half your level for 1d8 damage") ? "1d8" : "—";
+          const familiarSkill = activeFamiliarBenefits.includes("+1 skill bonus for one background") ? "+1" : "+0";
           const henchmanHpDice = focusLevel >= 2 ? 2 : 1;
           // Preserve the recorded higher-level roll when toggling the Focus,
           // but never display a 2d8 total as a legal 1d8 total at level 1.
@@ -3786,7 +3821,7 @@ export default function Home({
                 attack,
                 damage,
                 shock: "None",
-                note: familiar && !familiarBenefits.includes("Attack at half your level for 1d8 damage")
+                note: familiar && !activeFamiliarBenefits.includes("Attack at half your level for 1d8 damage")
                   ? "No effective attack unless the level 2 attack benefit is selected"
                   : "Permanent unarmed attack",
               };
@@ -3922,14 +3957,14 @@ export default function Home({
                   {!companionReadiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon below to add it here.</p>}
                 </div>
               </div>
-              {familiar && focusLevel >= 2 && <div className="familiar-benefits">
-                <strong>Level 2 benefits <small>Choose two</small></strong>
+              {familiar && spiritFamiliarBenefitCap > 0 && <div className="familiar-benefits">
+                <strong>Level 2 benefits <small>Choose {spiritFamiliarBenefitCap}</small></strong>
                 {benefits.map(benefit => {
-                  const chosen = (companion.familiarBenefits || []).includes(benefit);
-                  const atLimit = !chosen && (companion.familiarBenefits || []).length >= 2;
-                  return <label key={benefit}><input type="checkbox" checked={chosen} disabled={atLimit} onChange={e => patchCompanion(companion.id, "familiarBenefits", e.target.checked ? [...(companion.familiarBenefits || []), benefit] : (companion.familiarBenefits || []).filter(item => item !== benefit))} />{benefit}</label>;
+                  const chosen = activeFamiliarBenefits.includes(benefit);
+                  const atLimit = !chosen && activeFamiliarBenefits.length >= spiritFamiliarBenefitCap;
+                  return <label key={benefit}><input type="checkbox" checked={chosen} disabled={atLimit} onChange={e => patchCompanion(companion.id, "familiarBenefits", e.target.checked ? [...familiarBenefits.filter(item => item !== benefit), benefit] : familiarBenefits.filter(item => item !== benefit))} />{benefit}</label>;
                 })}
-                {familiarBenefits.includes("+1 skill bonus for one background") && <label className="field familiar-background">
+                {activeFamiliarBenefits.includes("+1 skill bonus for one background") && <label className="field familiar-background">
                   <span>Skilled background</span>
                   <select value={companion.familiarBackground || ""} onChange={e => patchCompanion(companion.id, "familiarBackground", e.target.value)}>
                     <option value="">Choose background…</option>

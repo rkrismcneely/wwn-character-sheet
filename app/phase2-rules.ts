@@ -10,6 +10,46 @@ export function focusIsRepeatable(focusName: string) {
   return ["Developed Attribute", "Specialist", "Spirit Familiar"].includes(focusName);
 }
 
+export type FocusLevelSelection = {
+  name: string;
+  level?: number;
+};
+
+/**
+ * Spirit Familiar is unusual: the first level-2 purchase completes the Focus,
+ * while later purchases of level 2 cost one additional Focus pick each.
+ */
+export function focusSelectionCost(picks: readonly FocusLevelSelection[]) {
+  let spiritFamiliarLevelTwoSeen = false;
+  return picks.reduce((total, pick) => {
+    if (!pick.name) return total;
+    const level = Math.max(1, Math.min(2, Math.trunc(Number(pick.level) || 1)));
+    if (pick.name === "Spirit Familiar" && level >= 2) {
+      const cost = spiritFamiliarLevelTwoSeen ? 1 : 2;
+      spiritFamiliarLevelTwoSeen = true;
+      return total + cost;
+    }
+    return total + level;
+  }, 0);
+}
+
+/**
+ * Normal advancement offers Focus picks at levels 2, 5, 7, and 10. Spirit
+ * Familiar's level-2 option has only six benefits, so three level-2 purchases
+ * are enough to unlock every option.
+ */
+export function spiritFamiliarLevelTwoSelectionLimit(characterLevel: number) {
+  const level = Math.max(1, Math.min(10, Math.trunc(Number(characterLevel) || 1)));
+  return Math.min(3, [2, 5, 7, 10].filter((opportunity) => opportunity <= level).length);
+}
+
+export function spiritFamiliarBenefitLimit(picks: readonly FocusLevelSelection[]) {
+  const levelTwoSelections = picks.filter(
+    (pick) => pick.name === "Spirit Familiar" && Number(pick.level) >= 2,
+  ).length;
+  return Math.min(6, levelTwoSelections * 2);
+}
+
 export function armorRestrictsMagic(armorRule: string) {
   return /cannot .*armor|do not function .*armor|require freedom from armor|same armor and shield restrictions/i.test(armorRule);
 }

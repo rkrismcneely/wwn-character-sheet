@@ -160,6 +160,23 @@ export function advancementPlan(character: AdvancementCharacter) {
   };
 }
 
+export function advancementFocusOptionLabel(
+  character: Pick<AdvancementCharacter, "focusPicks">,
+  focusName: string,
+) {
+  const samePicks = character.focusPicks.filter((pick) => pick.name === focusName);
+  if (focusName === "Spirit Familiar") {
+    if (samePicks.some((pick) => pick.level < 2))
+      return "Spirit Familiar — upgrade to Level 2";
+    if (samePicks.some((pick) => pick.level >= 2))
+      return "Spirit Familiar — add another Level 2";
+    return "Spirit Familiar — new Level 1";
+  }
+  if (samePicks.some((pick) => pick.level < 2))
+    return `${focusName} — upgrade to Level 2`;
+  return `${focusName} — new Level 1`;
+}
+
 export function legalAdvancementFocuses(character: AdvancementCharacter) {
   const plan = advancementPlan(character);
   const classes = plan.classes;

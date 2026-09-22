@@ -429,7 +429,8 @@ test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async ()
   assert.match(sheet, /hover\/fly/u);
   assert.match(sheet, /companions: current\.companions\.map\(resetFamiliarRefresh\)/u);
   assert.match(sheet, /archivedCompanions: current\.archivedCompanions\.map\(resetFamiliarRefresh\)/u);
-  assert.match(wizard, /Spirit Familiar level 2/u);
+  assert.match(wizard, /advancementFocusOptionLabel\(sheet as AdvancementCharacter, focus\.name\)/u);
+  assert.match(wizard, /<strong>\{selectedFocusActionLabel\}<\/strong>/u);
   assert.match(wizard, /Each level-2 purchase unlocks two more benefit boxes/u);
 });
 

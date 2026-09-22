@@ -1653,13 +1653,21 @@ export default function Home({
     const strainRecovery = sheet.strainCurrent > 0 ? 1 : 0;
     const castings = sheet.spellPicks.reduce((total, pick) => total + spellCastCount(pick), 0);
     const effort = sheet.artEffort.filter(Boolean).length;
+    const familiarRefreshes = [...sheet.companions, ...sheet.archivedCompanions]
+      .filter(companion => companion.kind === "familiar" && companion.effortRefreshUsed)
+      .length;
     const details = [
       healing ? `heal ${healing} HP` : "restore no HP",
       strainRecovery ? "remove 1 System Strain" : "remove no System Strain",
       castings ? `restore ${castings} spell casting${castings === 1 ? "" : "s"}` : "restore no spent spell castings",
       effort ? `clear ${effort} committed Effort` : "clear no committed Effort",
-    ].join(", ");
+      familiarRefreshes ? "reset the Spirit Familiar’s daily Effort refresh" : "",
+    ].filter(Boolean).join(", ");
     if (!window.confirm(`Take a good night's rest?\n\nThis will ${details}. Prepared spells and other character details will not change.`)) return;
+    const resetFamiliarRefresh = (companion: Companion) =>
+      companion.kind === "familiar" && companion.effortRefreshUsed
+        ? { ...companion, effortRefreshUsed: false }
+        : companion;
     setSheet(current => ({
       ...current,
       hpCurrent: Math.min(calculatedHpMax, current.hpCurrent + Math.max(0, current.level || 0)),
@@ -1667,8 +1675,10 @@ export default function Home({
       spellPicks: current.spellPicks.map(pick => ({ ...pick, cast: false, casts: 0 })),
       artEffort: current.artPicks.map(() => false),
       effortUsed: 0,
+      companions: current.companions.map(resetFamiliarRefresh),
+      archivedCompanions: current.archivedCompanions.map(resetFamiliarRefresh),
     }));
-    setTransferMessage("Rest complete: nightly healing, System Strain, spell castings, and committed Effort have been updated.");
+    setTransferMessage("Rest complete: nightly healing, System Strain, spell castings, committed Effort, and daily familiar refreshes have been updated.");
   }
 
   async function refreshLibrary(scope = libraryScope, query = libraryQuery) {

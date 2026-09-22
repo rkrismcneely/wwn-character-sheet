@@ -215,6 +215,11 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Bind Companion · standard rules/u);
   assert.match(sheet, /Mind Call ready/u);
   assert.match(sheet, /feralToughnessHitDice/u);
+  assert.match(sheet, /companion\.kind === "beastmaster" && companion\.bound/u);
+  assert.match(sheet, /No companion currently bound/u);
+  assert.match(sheet, /Record a bound companion/u);
+  assert.match(sheet, /Release companion/u);
+  assert.match(sheet, /releasing the companion as a Main Action/u);
   assert.match(sheet, /Base Hit Dice/u);
   assert.match(sheet, /Effective Hit Dice/u);
   assert.match(sheet, /Effective Hit Bonus/u);

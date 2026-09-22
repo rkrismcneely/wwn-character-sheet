@@ -365,10 +365,16 @@ test("Level 1 invariants reject stale higher-level and advancement-only state", 
   assert.match(levelOneCreationStatus(invalidFocusChoice).stepStatus.foci.issues.join(" "), /legal specialist tradition/i);
 });
 
-test("magic availability follows selected casting traditions and partial-pair UI uses the shared rule", async () => {
+test("magic availability gives specialist casters High Magic plus their tradition list", async () => {
   const elementalist = levelOneCreationStatus(blankState({ classOne: "Elementalist" }));
-  assert.equal(elementalist.availableSpells.some((spell) => spell.tradition === "High Magic"), false);
-  assert.ok(elementalist.availableSpells.every((spell) => spell.tradition === "Elementalist"));
+  assert.ok(elementalist.availableSpells.some((spell) => spell.tradition === "High Magic"));
+  assert.ok(elementalist.availableSpells.some((spell) => spell.tradition === "Elementalist"));
+  assert.ok(elementalist.availableSpells.every((spell) => ["High Magic", "Elementalist"].includes(spell.tradition)));
+
+  const necromancer = levelOneCreationStatus(blankState({ classOne: "Necromancer" }));
+  assert.ok(necromancer.availableSpells.some((spell) => spell.tradition === "High Magic"));
+  assert.ok(necromancer.availableSpells.some((spell) => spell.tradition === "Necromancer"));
+  assert.ok(necromancer.availableSpells.every((spell) => ["High Magic", "Necromancer"].includes(spell.tradition)));
 
   const invoker = levelOneCreationStatus(blankState({ classOne: "Invoker" }));
   assert.ok(invoker.availableSpells.every((spell) => spell.tradition === "High Magic"));

@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { viewportTooltipPosition } from "./tooltip-position";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
 import { artSlots, casterLimits, classRules, dualCasterLimits, forcedArtsForTraditions, fullClasses, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
 import { backgroundNames, backgrounds } from "./background-data";
@@ -811,28 +812,27 @@ function Tip({ title, ariaLabel, children }: { title: string; ariaLabel?: string
     const tooltip = tooltipRef.current;
     if (!trigger || !tooltip) return;
 
-    const viewportPadding = 12;
-    const gap = 8;
     const triggerRect = trigger.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const spaceBelow = Math.max(0, viewportHeight - triggerRect.bottom - gap - viewportPadding);
-    const spaceAbove = Math.max(0, triggerRect.top - gap - viewportPadding);
-    const placeBelow = tooltipRect.height <= spaceBelow || spaceBelow >= spaceAbove;
-    const availableHeight = placeBelow ? spaceBelow : spaceAbove;
-    const maxHeight = Math.max(0, availableHeight);
-    const renderedHeight = Math.min(tooltipRect.height, maxHeight);
+    const next = viewportTooltipPosition({
+      trigger: {
+        top: triggerRect.top,
+        bottom: triggerRect.bottom,
+        right: triggerRect.right,
+      },
+      tooltip: {
+        width: tooltipRect.width,
+        height: tooltipRect.height,
+      },
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
 
-    const left = Math.min(
-      Math.max(viewportPadding, triggerRect.right - tooltipRect.width),
-      Math.max(viewportPadding, viewportWidth - viewportPadding - tooltipRect.width),
-    );
-    const top = placeBelow
-      ? triggerRect.bottom + gap
-      : Math.max(viewportPadding, triggerRect.top - gap - renderedHeight);
-
-    setPosition({ left, top, maxHeight });
+    setPosition({
+      left: next.left,
+      top: next.top,
+      maxHeight: next.maxHeight,
+    });
   }, []);
 
   useLayoutEffect(() => {

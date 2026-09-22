@@ -97,7 +97,7 @@ function spellChoices(character: WizardCharacter, targetLevel: number) {
       : traditions.length ? casterLimits(targetLevel, character.classMode === "adventurer")
         : { max: 0 };
   const options = [
-    ...(traditions.includes("High Mage") || traditions.includes("Invoker") || education ? highMagic.map((spell) => ({ ...spell, tradition: "High Magic" })) : []),
+    ...(traditions.length > 0 || education ? highMagic.map((spell) => ({ ...spell, tradition: "High Magic" })) : []),
     ...(traditions.includes("Elementalist") || education === "Elementalist" ? traditionSpells.Elementalist.map((spell) => ({ ...spell, tradition: "Elementalist" })) : []),
     ...(traditions.includes("Necromancer") || education === "Necromancer" ? traditionSpells.Necromancer.map((spell) => ({ ...spell, tradition: "Necromancer" })) : []),
   ];

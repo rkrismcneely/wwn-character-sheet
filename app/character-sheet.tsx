@@ -3824,24 +3824,20 @@ export default function Home({
           const armorAc = equippedArmor?.ac || 10;
           const equippedAc = shieldAc ? (armorAc >= shieldAc ? armorAc + 1 : shieldAc) : armorAc;
           const companionAc = familiar ? companion.ac : Math.max(Number(henchmanProfile.ac.match(/\d+/)?.[0] || 10), equippedAc);
-          const benefits = [
-            "Hit points equal three times your level",
-            "Attack at half your level for 1d8 damage",
-            "+1 skill bonus for one background",
-            "One additional shape",
-            "Hover or fly at normal speed",
-            "Speak any language you know",
-          ];
           const familiarBenefits = companion.familiarBenefits || [];
           const activeFamiliarBenefits = familiarBenefits.slice(0, spiritFamiliarBenefitCap);
-          const familiarMaxHp = activeFamiliarBenefits.includes("Hit points equal three times your level")
-            ? effectiveLevel * 3
-            : effectiveLevel;
-          const familiarAttack = activeFamiliarBenefits.includes("Attack at half your level for 1d8 damage")
+          const familiarMaxHp = spiritFamiliarMaximumHitPoints(
+            effectiveLevel,
+            activeFamiliarBenefits.includes(spiritFamiliarTripleHpBenefit),
+          );
+          const familiarAttack = activeFamiliarBenefits.includes(spiritFamiliarAttackBenefit)
             ? signed(Math.ceil(effectiveLevel / 2))
             : "No effective attack";
-          const familiarDamage = activeFamiliarBenefits.includes("Attack at half your level for 1d8 damage") ? "1d8" : "—";
-          const familiarSkill = activeFamiliarBenefits.includes("+1 skill bonus for one background") ? "+1" : "+0";
+          const familiarDamage = activeFamiliarBenefits.includes(spiritFamiliarAttackBenefit) ? "1d8" : "—";
+          const familiarSkill = activeFamiliarBenefits.includes(spiritFamiliarSkillBenefit) ? "+1" : "+0";
+          const familiarMovement = activeFamiliarBenefits.includes(spiritFamiliarFlightBenefit)
+            ? "30′ · hover/fly"
+            : "30′";
           const henchmanHpDice = focusLevel >= 2 ? 2 : 1;
           // Preserve the recorded higher-level roll when toggling the Focus,
           // but never display a 2d8 total as a legal 1d8 total at level 1.
@@ -3868,7 +3864,7 @@ export default function Home({
                 attack,
                 damage,
                 shock: "None",
-                note: familiar && !activeFamiliarBenefits.includes("Attack at half your level for 1d8 damage")
+                note: familiar && !activeFamiliarBenefits.includes(spiritFamiliarAttackBenefit)
                   ? "No effective attack unless the level 2 attack benefit is selected"
                   : "Permanent unarmed attack",
               };
@@ -3966,7 +3962,7 @@ export default function Home({
                 }} /></label>}
                 <label className="field"><span>Hit Points</span><span className="companion-hp"><input type="number" value={displayedCompanionHp || ""} onChange={e => patchCompanion(companion.id, "hpCurrent", Math.max(0, Math.min(familiar ? familiarMaxHp : henchmanRolledHp, Number(e.target.value))))} aria-label="Current hit points" /><i>/</i><input type="number" value={familiar ? familiarMaxHp : (companion.hpRolled ? henchmanRolledHp : "")} readOnly aria-label="Maximum hit points" /></span></label>
                 <label className="field"><span>Armor Class</span><input readOnly value={companionAc} /></label>
-                <label className="field"><span>Movement</span><input readOnly value={familiar ? companion.move : henchmanProfile.move} /></label>
+                <label className="field"><span>Movement</span><input readOnly value={familiar ? familiarMovement : henchmanProfile.move} /></label>
                 <label className="field"><span>Attack Bonus</span><input readOnly value={familiar ? familiarAttack : henchmanProfile.attack} /></label>
                 <label className="field"><span>Damage</span><input readOnly value={familiar ? familiarDamage : "By readied weapon"} /></label>
                 {!familiar && <label className="field"><span>Shock</span><input readOnly value="By readied weapon" /></label>}
@@ -4006,18 +4002,48 @@ export default function Home({
               </div>
               {familiar && spiritFamiliarBenefitCap > 0 && <div className="familiar-benefits">
                 <strong>Level 2 benefits <small>Choose {spiritFamiliarBenefitCap}</small></strong>
-                {benefits.map(benefit => {
+                {spiritFamiliarBenefits.map(benefit => {
                   const chosen = activeFamiliarBenefits.includes(benefit);
                   const atLimit = !chosen && activeFamiliarBenefits.length >= spiritFamiliarBenefitCap;
-                  return <label key={benefit}><input type="checkbox" checked={chosen} disabled={atLimit} onChange={e => patchCompanion(companion.id, "familiarBenefits", e.target.checked ? [...familiarBenefits.filter(item => item !== benefit), benefit] : familiarBenefits.filter(item => item !== benefit))} />{benefit}</label>;
+                  return <label key={benefit}><input type="checkbox" checked={chosen} disabled={atLimit} onChange={e => {
+                    const nextBenefits = e.target.checked
+                      ? [...familiarBenefits.filter(item => item !== benefit), benefit]
+                      : familiarBenefits.filter(item => item !== benefit);
+                    const nextActiveBenefits = nextBenefits.slice(0, spiritFamiliarBenefitCap);
+                    const nextMaximum = spiritFamiliarMaximumHitPoints(
+                      effectiveLevel,
+                      nextActiveBenefits.includes(spiritFamiliarTripleHpBenefit),
+                    );
+                    const hitPoints = reconcileSpiritFamiliarHitPoints(
+                      companion.hpCurrent,
+                      companion.hpMax,
+                      nextMaximum,
+                    );
+                    setSheet(current => ({
+                      ...current,
+                      companions: current.companions.map(item => item.id === companion.id
+                        ? {
+                            ...item,
+                            familiarBenefits: nextBenefits,
+                            hpCurrent: hitPoints.current,
+                            hpMax: hitPoints.maximum,
+                          }
+                        : item),
+                    }));
+                  }} />{benefit}</label>;
                 })}
-                {activeFamiliarBenefits.includes("+1 skill bonus for one background") && <label className="field familiar-background">
+                {activeFamiliarBenefits.includes(spiritFamiliarSkillBenefit) && <label className="field familiar-background">
                   <span>Skilled background</span>
                   <select value={companion.familiarBackground || ""} onChange={e => patchCompanion(companion.id, "familiarBackground", e.target.value)}>
                     <option value="">Choose background…</option>
                     {backgroundNames.map(background => <option key={background}>{background}</option>)}
                   </select>
                 </label>}
+                {activeFamiliarBenefits.includes(spiritFamiliarShapeBenefit) && <Field
+                  label="Additional shape"
+                  value={companion.familiarAdditionalShape || ""}
+                  onChange={value => patchCompanion(companion.id, "familiarAdditionalShape", value)}
+                />}
               </div>}
             </Section>
             <Section title="Inventory" aside={<span className="caption">Readied {readiedCapacity} · Stowed {stowedCapacity} from Strength</span>}>

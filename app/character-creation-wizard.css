@@ -287,6 +287,25 @@
   margin-top: 16px;
   max-width: 520px;
 }
+.creation-custom-language {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+  max-width: 620px;
+  margin: 10px 0 14px;
+}
+.creation-custom-language label {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .creation-custom-language {
+    grid-template-columns: 1fr auto;
+  }
+  .creation-custom-language label {
+    grid-column: 1 / -1;
+  }
+}
 .creation-package-summary {
   padding: 13px;
   border-left: 4px solid #a87029;

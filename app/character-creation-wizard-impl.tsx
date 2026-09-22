@@ -188,7 +188,7 @@ function MiniSummary({ sheet }: { sheet: LevelOneCreationCharacter }) {
       </div>
       <div>
         <span>Languages</span>
-        <p>{sheet.languages?.join(" · ") || "Needs Common + a native tongue"}</p>
+        <p>{[...new Set(["Common", ...(sheet.languages || []).filter((language) => language !== "Common")])].join(" · ")}</p>
       </div>
       <div>
         <span>Foci</span>
@@ -247,6 +247,8 @@ export function GuidedCreationWizard({
   const [focusFilter, setFocusFilter] = useState("All Foci");
   const [notice, setNotice] = useState("");
   const [startingSilverInput, setStartingSilverInput] = useState("");
+  const [customLanguageDraft, setCustomLanguageDraft] = useState("");
+  const [addingCustomLanguage, setAddingCustomLanguage] = useState(false);
   const status = useMemo(() => levelOneCreationStatus(sheet), [sheet]);
   const effectiveStepIndex =
     !status.hasMagicStep && creationSteps[stepIndex]?.id === "magic"
@@ -271,18 +273,35 @@ export function GuidedCreationWizard({
     if (!canEdit) return;
     onChange(update);
   };
-  const knownLanguages = Array.isArray(sheet.languages) ? sheet.languages : [];
-  const nonCommonLanguages = knownLanguages.filter((language) => language !== "Common");
-  const nativeLanguage = nonCommonLanguages[0] || "";
-  const additionalLanguages = nonCommonLanguages.slice(1);
-  const setNativeLanguage = (language: string) =>
-    change({ languages: ["Common", language, ...additionalLanguages].filter(Boolean) });
+  const knownLanguages = useMemo(() => {
+    const storedLanguages = Array.isArray(sheet.languages) ? sheet.languages : [];
+    return [...new Set([
+      "Common",
+      ...storedLanguages
+        .map((language) => language.trim())
+        .filter((language) => language && language !== "Common"),
+    ])];
+  }, [sheet.languages]);
+  useEffect(() => {
+    if (!canEdit || sheet.languages.includes("Common")) return;
+    onChange({ languages: knownLanguages });
+  }, [canEdit, knownLanguages, onChange, sheet.languages]);
+  const hasLanguage = (language: string) =>
+    knownLanguages.some((known) => known.trim().toLocaleLowerCase() === language.trim().toLocaleLowerCase());
   const addAdditionalLanguage = (language: string) => {
-    if (!language || knownLanguages.includes(language) || knownLanguages.length >= status.languageAllowance) return;
-    change({ languages: [...new Set(["Common", ...knownLanguages.filter((item) => item !== "Common"), language])] });
+    const name = language.trim();
+    if (!name || hasLanguage(name)) return;
+    change({ languages: [...knownLanguages, name] });
+  };
+  const saveCustomLanguage = () => {
+    const name = customLanguageDraft.trim();
+    if (!name || hasLanguage(name)) return;
+    addAdditionalLanguage(name);
+    setCustomLanguageDraft("");
+    setAddingCustomLanguage(false);
   };
   const removeAdditionalLanguage = (language: string) =>
-    change({ languages: knownLanguages.filter((item) => item !== language) });
+    change({ languages: knownLanguages.filter((item) => item !== language || item === "Common") });
   const nextStep = () => {
     const problem = status.stepStatus[step.id].issues[0];
     if (problem && step.id !== "review") {
@@ -587,51 +606,78 @@ export function GuidedCreationWizard({
       return (
         <>
           <StepTitle
-            eyebrow="Step 2 · Choose the languages you begin with"
+            eyebrow="Step 2 · Choose any additional languages"
             title="Languages"
           >
-            Every character starts with Common as a lingua franca and one native tongue. Know and Connect grants can add more languages; they are reflected as the later skills are resolved.
+            Every character automatically knows Common. Add any other languages this character knows; Tales Without End shows the WWN limits as guidance but does not enforce them.
           </StepTitle>
-          <div className="creation-fields two-columns">
-            <label>
-              <span>Lingua franca</span>
-              <input value="Common" readOnly aria-label="Starting lingua franca" />
-              <small className="creation-class-description">Common is the shared starting language.</small>
-            </label>
-            <label>
-              <span>Native tongue</span>
-              <select value={nativeLanguage} onChange={(event) => setNativeLanguage(event.target.value)}>
-                <option value="">Choose a native tongue…</option>
-                {(officialLanguages as readonly string[]).filter((language) => language !== "Common").map((language) => (
-                  <option key={language} value={language}>{language}</option>
-                ))}
-              </select>
-              <small className="creation-class-description">Choose the language associated with this character’s homeland or upbringing.</small>
-            </label>
-          </div>
           <div className="creation-rule-callout">
-            <strong>Starting language capacity: {status.languageAllowance}</strong>
-            <span>Common and the native tongue use the first two slots. Know-0 or Connect-0 adds one slot; Know-1 or Connect-1 adds two.</span>
+            <strong>WWN guideline: {status.languageAllowance} starting languages at your current skills</strong>
+            <span>Common and one native language normally use the first two slots. Know-0 or Connect-0 adds one language; Know-1+ or Connect-1+ adds two. You may go above or below this guideline here.</span>
           </div>
           <label className="creation-select creation-language-additional">
-            <span>Additional language</span>
-            <select value="" disabled={knownLanguages.length >= status.languageAllowance} onChange={(event) => addAdditionalLanguage(event.target.value)}>
-              <option value="">Choose an additional language…</option>
-              {(officialLanguages as readonly string[]).filter((language) => language !== "Common" && !knownLanguages.includes(language)).map((language) => (
+            <span>Add language</span>
+            <select value="" onChange={(event) => {
+              const language = event.target.value;
+              if (language === "__custom__") {
+                setAddingCustomLanguage(true);
+                setCustomLanguageDraft("");
+                return;
+              }
+              addAdditionalLanguage(language);
+            }}>
+              <option value="">Choose a language…</option>
+              {(officialLanguages as readonly string[]).filter((language) => language !== "Common" && !hasLanguage(language)).map((language) => (
                 <option key={language} value={language}>{language}</option>
               ))}
+              <option value="__custom__">Custom…</option>
             </select>
           </label>
+          {addingCustomLanguage && (
+            <div className="creation-custom-language">
+              <label>
+                <span>Custom language</span>
+                <input
+                  autoFocus
+                  value={customLanguageDraft}
+                  placeholder="Language name"
+                  onChange={(event) => setCustomLanguageDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      saveCustomLanguage();
+                    }
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="custom-item-save"
+                disabled={!customLanguageDraft.trim() || hasLanguage(customLanguageDraft)}
+                onClick={saveCustomLanguage}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setAddingCustomLanguage(false);
+                  setCustomLanguageDraft("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="known-languages" aria-live="polite">
             {knownLanguages.map((language) => (
               <span className="language-chip" key={language}>
-                {language}{language === "Common" ? " · lingua franca" : language === nativeLanguage ? " · native tongue" : " · additional"}
-                {language !== "Common" && language !== nativeLanguage && <button type="button" aria-label={`Remove ${language}`} title={`Remove ${language}`} onClick={() => removeAdditionalLanguage(language)}>×</button>}
+                {language}{language === "Common" ? " · automatic" : ""}
+                {language !== "Common" && <button type="button" aria-label={`Remove ${language}`} title={`Remove ${language}`} onClick={() => removeAdditionalLanguage(language)}>×</button>}
               </span>
             ))}
-            {!knownLanguages.length && <p className="empty-slots">Choose Common and a native tongue.</p>}
           </div>
-          {!status.stepStatus.languages.complete && <p className="creation-warning">{status.stepStatus.languages.issues.join(" ")}</p>}
         </>
       );
     if (step.id === "attributes")

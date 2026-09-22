@@ -48,10 +48,7 @@ import {
   type CreationEquipmentBase,
   type CreationEquipmentMethod,
 } from "./creation-equipment.ts";
-import {
-  officialLanguages,
-  startingLanguageAllowance,
-} from "./language-data.ts";
+import { startingLanguageAllowance } from "./language-data.ts";
 
 export const creationAttributes = [
   "STR",
@@ -959,9 +956,6 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
       Math.max(purchasedRanks[skill], freeSkillPlan.ranks[skill]),
     ]),
   ) as Record<string, number>;
-  const knownLanguages = Array.isArray(state.languages)
-    ? state.languages.filter((language): language is string => typeof language === "string" && Boolean(language.trim()))
-    : [];
   const languageAllowance = startingLanguageAllowance(
     skillRanks.Know,
     skillRanks.Connect,
@@ -978,31 +972,6 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     issues.push({ step: "identity", message: "Guided Creation is available only for level-1 characters." });
   if (!state.name.trim())
     issues.push({ step: "identity", message: "Enter a character name." });
-  if (!knownLanguages.includes("Common"))
-    issues.push({
-      step: "languages",
-      message: "Choose Common as the starting lingua franca.",
-    });
-  if (new Set(knownLanguages).size !== knownLanguages.length)
-    issues.push({
-      step: "languages",
-      message: "Each starting language can be selected only once.",
-    });
-  if (knownLanguages.length < 2)
-    issues.push({
-      step: "languages",
-      message: "Choose a native tongue in addition to Common.",
-    });
-  if (knownLanguages.length > languageAllowance)
-    issues.push({
-      step: "languages",
-      message: `This character can know only ${languageAllowance} starting languages from the current skill grants.`,
-    });
-  if (knownLanguages.some((language) => !(officialLanguages as readonly string[]).includes(language)))
-    issues.push({
-      step: "languages",
-      message: "Choose starting languages from the standard language list.",
-    });
   const rolledComplete = creationAttributes.every(
     (attribute) =>
       Number.isInteger(state.attributeRolls[attribute]) &&

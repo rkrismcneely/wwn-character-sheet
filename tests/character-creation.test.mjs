@@ -105,6 +105,39 @@ const withFreePick = (character) => {
   return character;
 };
 
+test("guided creation treats language limits as guidance and accepts custom languages", () => {
+  const character = {
+    ...baseCharacter(),
+    languages: ["Common", "Trade Cant", "My Custom Tongue", "Another Custom Tongue", "Fifth Language"],
+  };
+  const status = levelOneCreationStatus(character);
+  assert.equal(status.languageAllowance, 2);
+  assert.equal(status.stepStatus.languages.complete, true);
+  assert.deepEqual(status.stepStatus.languages.issues, []);
+
+  const noAdditionalLanguages = levelOneCreationStatus({
+    ...baseCharacter(),
+    languages: ["Common"],
+  });
+  assert.equal(noAdditionalLanguages.stepStatus.languages.complete, true);
+});
+
+test("guided creation language UI makes Common automatic and supports saved custom entries", async () => {
+  const [wizard, sheet] = await Promise.all([
+    readFile(new URL("../app/character-creation-wizard-impl.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(wizard, /Every character automatically knows Common/u);
+  assert.match(wizard, /does not enforce them/u);
+  assert.match(wizard, /value="__custom__">Custom…<\/option>/u);
+  assert.match(wizard, /customLanguageDraft/u);
+  assert.match(wizard, /saveCustomLanguage/u);
+  assert.match(wizard, /className="custom-item-save"/u);
+  assert.doesNotMatch(wizard, /Choose a native tongue/u);
+  assert.doesNotMatch(wizard, /knownLanguages\.length >= status\.languageAllowance/u);
+  assert.match(sheet, /languages: \["Common"\]/u);
+});
+
 test("level-one guided creation validates ordinary martial and expert/warrior paths", () => {
   const martial = withFreePick(baseCharacter());
   const martialStatus = levelOneCreationStatus(martial);

@@ -17,6 +17,11 @@ export type RollDice = {
   sides: number;
 };
 
+export type ShockMinimum = {
+  damage: number;
+  armorClass?: number;
+};
+
 export type RollCharacter = {
   id: string;
   name: string;
@@ -29,6 +34,8 @@ export type RollRequest = {
   dice: RollDice;
   modifiers?: RollModifier[];
   target?: number;
+  /** Shock damage is a floor when the target AC is at or below the listed threshold. */
+  shockMinimum?: ShockMinimum;
   /** WWN saving throws use an equal-or-higher target with natural 1/20 rules. */
   targetKind?: "saving-throw";
 };
@@ -46,6 +53,7 @@ export type RollResult = {
   modifierTotal: number;
   total: number;
   target?: number;
+  shockMinimum?: ShockMinimum;
   outcome?: RollOutcome;
 };
 
@@ -123,6 +131,7 @@ export async function resolveRoll(
     modifierTotal,
     total,
     ...(request.target === undefined ? {} : { target: request.target }),
+    ...(request.shockMinimum ? { shockMinimum: { ...request.shockMinimum } } : {}),
     ...(request.target === undefined ? {} : { outcome: resolveOutcome(request, roll, total) }),
   };
 }
@@ -142,6 +151,23 @@ export function parseDamageExpression(expression: string): DamageExpression {
     throw new Error(`Unsupported damage expression: ${expression}`);
   }
   return { dice: { count, sides }, modifier };
+}
+
+/** Parse a weapon's Shock value such as "3/AC 15", "3/15", or "6/-". */
+export function parseShockMinimum(value: unknown): ShockMinimum | null {
+  const match = String(value ?? "").match(/(?:shock\s*)?(\d{1,4})\s*\/\s*(?:AC\s*)?(\d{1,3}|-)(?=\s|$)/iu);
+  if (!match) return null;
+  const damage = Number(match[1]);
+  if (!Number.isInteger(damage) || damage < 0) return null;
+  if (match[2] === "-") return { damage };
+  const armorClass = Number(match[2]);
+  return Number.isInteger(armorClass) ? { damage, armorClass } : null;
+}
+
+export function formatShockMinimumReminder(shock: ShockMinimum): string {
+  return shock.armorClass === undefined
+    ? `Shock minimum: ${shock.damage} damage when Shock applies.`
+    : `Shock minimum: ${shock.damage} damage if target AC is ${shock.armorClass} or lower.`;
 }
 
 export function formatSigned(value: number) {

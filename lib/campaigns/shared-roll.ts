@@ -1,5 +1,5 @@
 import type { CampaignEncounterNpc, CampaignSharedRoll } from "./live-session.ts";
-import { isSharedRollCategory, parseDamageExpression, SHARED_ROLL_CATEGORIES, type RollRequest, type RollResult } from "../../app/rolls.ts";
+import { isSharedRollCategory, parseDamageExpression, parseShockMinimum, SHARED_ROLL_CATEGORIES, type RollRequest, type RollResult } from "../../app/rolls.ts";
 import { CampaignServiceError } from "./service.ts";
 
 function boundedText(value: unknown, field: string, maximum: number): string {
@@ -40,6 +40,19 @@ export function normalizeSharedRollRequest(value: unknown, character: RollReques
   const target = candidate.target === undefined
     ? undefined
     : boundedInteger(candidate.target, "Roll target", -1000, 1000);
+  const shockMinimum = candidate.shockMinimum === undefined
+    ? undefined
+    : (() => {
+        if (!candidate.shockMinimum || typeof candidate.shockMinimum !== "object") {
+          throw new CampaignServiceError("Shock minimum is invalid.", 422);
+        }
+        const value = candidate.shockMinimum as { damage?: unknown; armorClass?: unknown };
+        const damage = boundedInteger(value.damage, "Shock minimum damage", 0, 1000);
+        const armorClass = value.armorClass === undefined
+          ? undefined
+          : boundedInteger(value.armorClass, "Shock minimum AC", 0, 1000);
+        return { damage, ...(armorClass === undefined ? {} : { armorClass }) };
+      })();
   if (candidate.targetKind !== undefined && (candidate.targetKind !== "saving-throw" || candidate.category !== "save")) {
     throw new CampaignServiceError("Roll target type is invalid.", 422);
   }
@@ -50,6 +63,7 @@ export function normalizeSharedRollRequest(value: unknown, character: RollReques
     dice,
     modifiers,
     ...(target === undefined ? {} : { target }),
+    ...(shockMinimum === undefined ? {} : { shockMinimum }),
     ...(candidate.targetKind === undefined ? {} : { targetKind: candidate.targetKind }),
   };
 }
@@ -111,12 +125,14 @@ export function npcRollRequest(npc: CampaignEncounterNpc, action: NpcRollAction)
   }
   try {
     const damage = parseDamageExpression(attack.damage);
+    const shockMinimum = parseShockMinimum(attack.shock);
     return {
       category: "damage",
       character,
       label: npcAttackLabel(attack.name, "damage"),
       dice: damage.dice,
       modifiers: damage.modifier ? [{ label: "Damage modifier", value: damage.modifier }] : [],
+      ...(shockMinimum ? { shockMinimum } : {}),
     };
   } catch {
     return null;

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { formatDiceExpression, formatSigned, type RollResult } from "./rolls.ts";
+import { formatDiceExpression, formatShockMinimumReminder, formatSigned, type RollResult } from "./rolls.ts";
 
 export function formatRollBreakdown(result: RollResult) {
   const dice = result.dice.results.join(" + ");
@@ -25,6 +25,7 @@ export function RollResultTray({ result }: { result: RollResult | null }) {
       <span className="roll-result-kicker">Latest Roll</span>
       <span className="roll-result-label">{result.character.name} · {result.label}</span>
       <span className="roll-result-breakdown">{formatRollBreakdown(result)}</span>
+      {result.shockMinimum && <span className="roll-result-reminder">{formatShockMinimumReminder(result.shockMinimum)}</span>}
     </div>
     <div className="roll-result-total">
       <strong>{result.total}</strong>
@@ -73,7 +74,7 @@ export function RollHistoryPanel({
     </header>
     {history.length ? <ol>
       {history.map(result => <li key={result.id}>
-        <div><strong>{result.label}</strong><span>{result.character.name} · {formatRollBreakdown(result)}</span></div>
+        <div><strong>{result.label}</strong><span>{result.character.name} · {formatRollBreakdown(result)}</span>{result.shockMinimum && <span className="roll-result-reminder">{formatShockMinimumReminder(result.shockMinimum)}</span>}</div>
         <div className="roll-history-total"><b>{result.total}</b>{result.target !== undefined && <small>vs {result.target}+</small>}<ResultOutcome result={result} /></div>
       </li>)}
     </ol> : <p>{description === "Stored only in this browser session" ? "No rolls yet in this browser session." : "No shared rolls yet."}</p>}

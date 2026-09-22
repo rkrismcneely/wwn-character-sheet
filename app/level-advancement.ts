@@ -6,7 +6,7 @@
 
 import { artSlots, classRules, knownSpellSlots, traditionInfo, traditionKinds, type TraditionName } from "./class-data.ts";
 import { creationFocusBonusSkill, creationSkills } from "./character-creation.ts";
-import { armorRestrictsMagic, focusIsRepeatable } from "./phase2-rules.ts";
+import { armorRestrictsMagic, focusIsRepeatable, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit } from "./phase2-rules.ts";
 import { foci } from "./wwn-data.ts";
 
 export type AdvancementFocusPick = {
@@ -151,7 +151,15 @@ export function legalAdvancementFocuses(character: AdvancementCharacter) {
   const armorRestricted = plan.traditions.some((tradition) => armorRestrictsMagic(traditionInfo[tradition].armor));
   const hasNegativeAttribute = Object.values(character.attrs).some((score) => score <= 7);
   return foci.filter((focus) => {
-    const same = character.focusPicks.find((pick) => pick.name === focus.name);
+    const samePicks = character.focusPicks.filter((pick) => pick.name === focus.name);
+    const same = samePicks[0];
+    if (focus.name === "Spirit Familiar" && samePicks.length) {
+      const levelOnePick = samePicks.find((pick) => pick.level < 2);
+      if (levelOnePick) return true;
+      const levelTwoLimit = spiritFamiliarLevelTwoSelectionLimit(plan.to);
+      const levelTwoSelections = samePicks.filter((pick) => pick.level >= 2).length;
+      return levelTwoSelections < levelTwoLimit && spiritFamiliarBenefitLimit(samePicks) < 6;
+    }
     if (same && same.level >= 2) return false;
     if (same && !focus.level2) return false;
     if (same) return true;

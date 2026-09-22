@@ -16,8 +16,10 @@ import {
 import {
   deriveSkillProfile,
   focusSelectionCost,
+  reconcileSpiritFamiliarHitPoints,
   spiritFamiliarBenefitLimit,
   spiritFamiliarLevelTwoSelectionLimit,
+  spiritFamiliarMaximumHitPoints,
 } from "../app/phase2-rules.ts";
 import { fullClasses, partialClasses } from "../app/class-data.ts";
 import { creationPartialClassPairIsLegal } from "../app/character-creation.ts";
@@ -230,13 +232,58 @@ test("Spirit Familiar is offered again on later Focus opportunities after level 
   assert.ok(!exhaustedBenefits.some((focus) => focus.name === "Spirit Familiar"));
 });
 
-test("Spirit Familiar UI enforces the dynamic level-two benefit checkbox cap", async () => {
-  const sheet = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+test("Spirit Familiar maximum HP tracks level and preserves damage when the maximum rises", () => {
+  assert.equal(spiritFamiliarMaximumHitPoints(1, false), 1);
+  assert.equal(spiritFamiliarMaximumHitPoints(2, false), 2);
+  assert.equal(spiritFamiliarMaximumHitPoints(2, true), 6);
+  assert.equal(spiritFamiliarMaximumHitPoints(10, true), 30);
+
+  assert.deepEqual(
+    reconcileSpiritFamiliarHitPoints(1, 1, 2),
+    { current: 2, maximum: 2 },
+    "a healthy familiar stays healthy when leveling",
+  );
+  assert.deepEqual(
+    reconcileSpiritFamiliarHitPoints(1, 2, 6),
+    { current: 5, maximum: 6 },
+    "existing damage is preserved when the 3x HP benefit raises maximum HP",
+  );
+  assert.deepEqual(
+    reconcileSpiritFamiliarHitPoints(2, 2, 6),
+    { current: 6, maximum: 6 },
+    "an undamaged familiar remains at full HP when the benefit is selected",
+  );
+  assert.deepEqual(
+    reconcileSpiritFamiliarHitPoints(0, 2, 6),
+    { current: 0, maximum: 6 },
+    "a slain familiar is not silently revived by a maximum-HP increase",
+  );
+  assert.deepEqual(
+    reconcileSpiritFamiliarHitPoints(5, 6, 2),
+    { current: 2, maximum: 2 },
+    "lowering the maximum clamps current HP without creating extra damage",
+  );
+});
+
+test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async () => {
+  const [sheet, wizard] = await Promise.all([
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/level-up-wizard-impl.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(sheet, /spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit\(sheet\.focusPicks\)/u);
   assert.match(sheet, /Choose \{spiritFamiliarBenefitCap\}/u);
   assert.match(sheet, /activeFamiliarBenefits\.length >= spiritFamiliarBenefitCap/u);
+  assert.match(sheet, /disabled=\{atLimit \|\| !canEdit\}/u);
   assert.match(sheet, /Lvl 2 repeat/u);
   assert.match(sheet, /const nextFamiliars = primarySpiritFocusSlot === undefined/u);
+  assert.match(sheet, /existingSpiritRepeat && Number\(currentPick\?\.level\) < 2/u);
+  assert.match(sheet, /reconcileSpiritFamiliarHitPoints/u);
+  assert.match(sheet, /familiarAdditionalShape/u);
+  assert.match(sheet, /hover\/fly/u);
+  assert.match(sheet, /companions: current\.companions\.map\(resetFamiliarRefresh\)/u);
+  assert.match(sheet, /archivedCompanions: current\.archivedCompanions\.map\(resetFamiliarRefresh\)/u);
+  assert.match(wizard, /Spirit Familiar level 2/u);
+  assert.match(wizard, /Each level-2 purchase unlocks two more benefit boxes/u);
 });
 
 test("Level-Up Wizard remains transactional, URL-addressable, and version-guarded", async () => {

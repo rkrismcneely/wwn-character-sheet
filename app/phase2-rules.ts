@@ -50,6 +50,38 @@ export function spiritFamiliarBenefitLimit(picks: readonly FocusLevelSelection[]
   return Math.min(6, levelTwoSelections * 2);
 }
 
+export function spiritFamiliarMaximumHitPoints(
+  characterLevel: number,
+  tripleHitPoints: boolean,
+) {
+  const level = Math.max(1, Math.min(10, Math.trunc(Number(characterLevel) || 1)));
+  return level * (tripleHitPoints ? 3 : 1);
+}
+
+/**
+ * Familiar maximum HP is derived from the owner's level and the level-2 HP
+ * benefit. When that maximum rises, keep the same damage taken instead of
+ * making a healthy familiar look newly injured. A familiar already at 0 HP
+ * stays at 0 until it is explicitly restored/resummoned.
+ */
+export function reconcileSpiritFamiliarHitPoints(
+  currentHitPoints: number,
+  previousMaximum: number,
+  nextMaximum: number,
+) {
+  const next = Math.max(1, Math.trunc(Number(nextMaximum) || 1));
+  const previous = Math.max(1, Math.trunc(Number(previousMaximum) || next));
+  const current = Math.max(0, Math.min(previous, Math.trunc(Number(currentHitPoints) || 0)));
+  if (current <= 0) return { current: 0, maximum: next };
+  if (next > previous) {
+    return {
+      current: Math.min(next, current + (next - previous)),
+      maximum: next,
+    };
+  }
+  return { current: Math.min(current, next), maximum: next };
+}
+
 export function armorRestrictsMagic(armorRule: string) {
   return /cannot .*armor|do not function .*armor|require freedom from armor|same armor and shield restrictions/i.test(armorRule);
 }

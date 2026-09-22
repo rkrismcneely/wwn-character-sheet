@@ -599,6 +599,32 @@ test("class structure and repeatable Focus targets keep normal eligibility rules
   const spiritStatus = levelOneCreationStatus(spiritFamiliarAtCreation);
   assert.equal(spiritStatus.focusEligibility("Spirit Familiar", 1).eligible, false);
   assert.match(spiritStatus.focusEligibility("Spirit Familiar", 1).reason, /level 2 can be repeated/i);
+
+  const illegalLevelTwo = withFreePick({
+    ...baseCharacter(),
+    classOne: "Expert",
+    focusPicks: [
+      { name: "Spirit Familiar", level: 2 },
+      { name: "Alert", level: 1 },
+    ],
+  });
+  assert.match(
+    levelOneCreationStatus(illegalLevelTwo).stepStatus.foci.issues.join(" "),
+    /Level 1 characters can take only level-1 Focus benefits/i,
+  );
+});
+
+test("guided creation never offers level-two Focus selection at level one", async () => {
+  const wizard = await readFile(
+    new URL("../app/character-creation-wizard-impl.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(wizard, /<option value=\{2\} disabled>/u);
+  assert.match(wizard, /Level 2 · advancement only/u);
+  assert.doesNotMatch(
+    wizard,
+    /sheet\.level !== 1[\s\S]{0,250}Level 2 · costs two picks/u,
+  );
 });
 
 test("class backtracking exposes invalid dependent choices without mutating the character", () => {

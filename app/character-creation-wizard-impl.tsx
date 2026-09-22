@@ -1122,17 +1122,8 @@ export function GuidedCreationWizard({
                         }
                       >
                         <option value={1}>Level 1</option>
-                        <option
-                          value={2}
-                          disabled={
-                            sheet.level !== 1 ||
-                            !foci.find((focus) => focus.name === pick.name)
-                              ?.level2 ||
-                            (pick.level !== 2 &&
-                              status.focusPicksUsed >= status.allowedFocusPicks)
-                          }
-                        >
-                          Level 2 · costs two picks
+                        <option value={2} disabled>
+                          Level 2 · advancement only
                         </option>
                       </select>
                       {creationFocusChoiceLabel(pick.name) && (

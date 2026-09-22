@@ -41,7 +41,7 @@ const base = (overrides = {}) => ({
 test("advancement Focus labels describe the action at every future Focus opportunity", () => {
   assert.equal(
     advancementFocusOptionLabel(base({ focusPicks: [] }), "Alert"),
-    "Alert — new Level 1",
+    "Alert",
   );
   assert.equal(
     advancementFocusOptionLabel(base({ focusPicks: [{ name: "Alert", level: 1 }] }), "Alert"),

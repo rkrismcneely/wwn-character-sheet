@@ -2652,10 +2652,28 @@ export default function Home({
           || archivedFamiliars[0];
       const nextFamiliars = primarySpiritFocusSlot === undefined
         ? []
-        : [{
-            ...(existingSpiritFamiliar || newCompanion("familiar", 0, sheet.level, primarySpiritFocusSlot)),
-            focusSlot: primarySpiritFocusSlot,
-          }];
+        : (() => {
+            const familiar = existingSpiritFamiliar || newCompanion("familiar", 0, current.level, primarySpiritFocusSlot);
+            const benefitCap = spiritFamiliarBenefitLimit(current.focusPicks);
+            const activeBenefits = (familiar.familiarBenefits || []).slice(0, benefitCap);
+            const maximum = spiritFamiliarMaximumHitPoints(
+              current.level,
+              activeBenefits.includes(spiritFamiliarTripleHpBenefit),
+            );
+            const hitPoints = reconcileSpiritFamiliarHitPoints(
+              familiar.hpCurrent,
+              familiar.hpMax,
+              maximum,
+            );
+            return [{
+              ...familiar,
+              focusSlot: primarySpiritFocusSlot,
+              hpCurrent: hitPoints.current,
+              hpMax: hitPoints.maximum,
+              ac: 14,
+              move: "30′",
+            }];
+          })();
       const nextBeastmasters = hasBeastmaster
         ? [availableBeastmasters[0] || newCompanion("beastmaster", 0, sheet.level)]
         : [];

@@ -101,6 +101,20 @@ export function missingArtPrerequisite(
   return required.find((name) => !selected.has(name)) || "";
 }
 
+export function artEffortCommitmentCount(value: unknown) {
+  if (value === true) return 1;
+  if (value === false || value === null || value === undefined) return 0;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.trunc(numeric)) : 0;
+}
+
+export function artEffortTotal(values: readonly unknown[]) {
+  return values.reduce(
+    (total, value) => total + artEffortCommitmentCount(value),
+    0,
+  );
+}
+
 export function effortMaximum({
   skillLevel,
   attributeModifiers,

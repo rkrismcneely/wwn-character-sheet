@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- portraits can be local blobs or user-uploaded URLs */
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { viewportTooltipPosition } from "./tooltip-position";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
@@ -835,14 +835,14 @@ function Tip({ title, ariaLabel, children }: { title: string; ariaLabel?: string
     });
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!open) return;
-    setPosition(null);
-    updatePosition();
+    const initialFrame = window.requestAnimationFrame(updatePosition);
     const onViewportChange = () => updatePosition();
     window.addEventListener("resize", onViewportChange);
     window.addEventListener("scroll", onViewportChange, true);
     return () => {
+      window.cancelAnimationFrame(initialFrame);
       window.removeEventListener("resize", onViewportChange);
       window.removeEventListener("scroll", onViewportChange, true);
     };

@@ -6,7 +6,6 @@ import {
   gearBundles,
   inventoryArmors,
   inventoryWeapons,
-  officialInventoryItems,
 } from "./equipment-data";
 import {
   campaignInventorySnapshot,
@@ -69,17 +68,17 @@ export function CampaignInventoryOptions({ items }: { items: readonly CampaignIn
   </optgroup>;
 }
 
-const officialInventorySet = new Set<string>(officialInventoryItems);
-
 export function StoredItemsSection({
   items,
   campaignItems,
+  customItems,
   campaignError,
   onChange,
   onStow,
 }: {
   items: readonly string[];
   campaignItems: readonly CampaignInventoryOption[];
+  customItems: readonly string[];
   campaignError?: string;
   onChange: (items: string[]) => void;
   onStow: (index: number) => void;
@@ -87,6 +86,7 @@ export function StoredItemsSection({
   const compact = items.filter(item => typeof item === "string" && item.trim());
   const slots = [...compact, ""];
   const [otherIndex, setOtherIndex] = useState<number | null>(null);
+  const [otherDraft, setOtherDraft] = useState("");
 
   function setItem(index: number, value: string) {
     const next = [...compact];
@@ -104,6 +104,7 @@ export function StoredItemsSection({
     if (!window.confirm(`Drop ${inventoryItemDisplayName(item)}?\n\nThis removes it from the character’s inventory.`)) return;
     onChange(compact.filter((_, itemIndex) => itemIndex !== index));
     setOtherIndex(null);
+    setOtherDraft("");
   }
 
   return <section className="sheet-section stored-items-section">
@@ -114,18 +115,18 @@ export function StoredItemsSection({
       {campaignError && <p className="campaign-item-load-error" role="status">{campaignError}</p>}
       {slots.map((item, index) => {
         const campaignItem = campaignInventorySnapshot(item);
-        const isCustom = Boolean(item) && !campaignItem && !officialInventorySet.has(item);
         const editingOther = otherIndex === index;
         const campaignStillAvailable = Boolean(campaignItem && campaignItems.some(candidate => campaignInventoryValue(candidate) === item));
         return <div className="inventory-item-row stored-item-row" key={`${index}-${campaignItem?.id ?? item}`}>
           <label className="field">
             <span>{index < compact.length ? index + 1 : "Add item"}</span>
-            <select value={isCustom || editingOther ? "__other__" : item} aria-label={`Stored item ${index + 1}`} onChange={event => {
+            <select value={editingOther ? "__other__" : item} aria-label={`Stored item ${index + 1}`} onChange={event => {
               if (event.target.value === "__other__") {
                 setOtherIndex(index);
-                if (!isCustom) setItem(index, "");
+                setOtherDraft("");
               } else {
                 setOtherIndex(null);
+                setOtherDraft("");
                 setItem(index, event.target.value);
               }
             }}>
@@ -133,15 +134,33 @@ export function StoredItemsSection({
               <option value="__other__">Other…</option>
               {campaignItem && !campaignStillAvailable && <option value={item}>{inventoryItemDisplayName(item)} · Campaign item</option>}
               <CampaignInventoryOptions items={campaignItems} />
+              {customItems.length > 0 && <optgroup label="Custom Items">{customItems.map(customItem => <option key={customItem} value={customItem}>{customItem}</option>)}</optgroup>}
               <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
               <optgroup label="Armor & Shields">{inventoryArmors.map(armor => <option key={armor} value={armor}>{armor}</option>)}<option>Small Shield</option><option>Large Shield</option></optgroup>
               <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear.name} value={gear.name}>{gear.name}</option>)}</optgroup>
               <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle.name} value={bundle.name}>{bundle.name}</option>)}</optgroup>
             </select>
-            {(isCustom || editingOther) && <input autoFocus={editingOther && !item} aria-label={`Other stored item ${index + 1}`} placeholder="Type another item…" value={isCustom ? item : ""} onChange={event => setItem(index, event.target.value)} />}
-              {campaignItem && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignItem.kind)}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
+            {!editingOther && campaignItem && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignItem.kind)}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
           </label>
-          {item && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => onStow(index)}>Stow</button><button type="button" className="drop-item" onClick={() => drop(index, item)}>Drop</button></span>}
+          {editingOther && <div className="custom-item-entry">
+            <input autoFocus aria-label={`Other stored item ${index + 1}`} placeholder="Type item name…" value={otherDraft} onChange={event => setOtherDraft(event.target.value)} onKeyDown={event => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              const name = otherDraft.trim();
+              if (!name) return;
+              setItem(index, name);
+              setOtherIndex(null);
+              setOtherDraft("");
+            }} />
+            <button type="button" className="custom-item-save" disabled={!otherDraft.trim()} onClick={() => {
+              const name = otherDraft.trim();
+              if (!name) return;
+              setItem(index, name);
+              setOtherIndex(null);
+              setOtherDraft("");
+            }}>Save</button>
+          </div>}
+          {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => onStow(index)}>Stow</button><button type="button" className="drop-item" onClick={() => drop(index, item)}>Drop</button></span>}
         </div>;
       })}
     </div>

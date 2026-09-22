@@ -212,6 +212,7 @@ test("Beastmaster catalogue is an animal-minded allow-list grouped by family and
   assert.ok(!levelOne.some(creature => creature.id === "totw-aboleth"), "unapproved intelligent creatures never enter the catalogue");
   assert.equal(beastmasterCatalogCreature("totw-aboleth"), null);
   assert.equal(beastmasterCatalogCreature("giant-phase-spider")?.source.name, "Tales Without End original content");
+  assert.equal(beastmasterCatalogCreature("giant-scorpion")?.sourceStats.attacksPerMainAction, 2);
 
   const levelThree = beastmasterCatalogCreatures(3);
   assert.ok(levelThree.some(creature => creature.id === "giant-phase-spider"));

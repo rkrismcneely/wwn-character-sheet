@@ -445,7 +445,7 @@ const blankCharacter: Sheet = {
   goals: "",
   notes: "",
   allies: "",
-  languages: [],
+  languages: ["Common"],
   companions: [],
   archivedCompanions: [],
   gp: 0,

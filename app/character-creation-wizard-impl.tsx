@@ -1633,37 +1633,34 @@ export function GuidedCreationWizard({
           )}
           {status.selectedClasses.includes("Beastmaster") && (
             <section className="creation-magic-section creation-beastmaster-bond">
-              <h3>Companion bond</h3>
+              <h3>Companion mode</h3>
               <label>
                 <span>Beastmaster companion</span>
                 <select
-                  value={sheet.beastmasterBond}
+                  value={sheet.beastmasterBond || "bind-companion"}
                   onChange={(event) =>
                     setBeastmasterBond(
                       event.target.value as LevelOneCreationCharacter["beastmasterBond"],
                     )
                   }
                 >
-                  <option value="">Choose a companion bond…</option>
                   <option value="bind-companion">
-                    Bind Companion · flexible bond
+                    Bind Companion · standard rules
                   </option>
                   <option value="chosen-friend">
-                    Chosen Friend · lifelong bond
+                    Chosen Friend · campaign option
                   </option>
                 </select>
                 <small>
-                  Choose this bond once for the Beastmaster. Both options use
-                  the required Bind Companion Art. Chosen Friend does not spend
-                  your additional Art pick; instead, that one permanent companion
-                  automatically gains the benefits of Shared Vitality and Mind Call.
+                  Bind Companion is the standard rule. Chosen Friend is a campaign
+                  option that grants one lifelong companion the benefits of Shared
+                  Vitality and Mind Call outside the normal Beastmaster Art budget.
                 </small>
               </label>
               {sheet.beastmasterBond === "chosen-friend" && (
                 <p className="creation-choice-note">
-                  A Chosen Friend is your only possible bound companion. If it
-                  reaches 0 HP it disappears and returns beside you at the next
-                  dawn with full hit points.
+                  This campaign option is not part of the standard Beastmaster
+                  rules. Use it only if the GM has approved it for the campaign.
                 </p>
               )}
             </section>

@@ -89,6 +89,7 @@ export function armorRestrictsMagic(armorRule: string) {
 const artPrerequisites: Record<string, readonly string[]> = {
   "Deep Apprehension": ["Surface Apprehension"],
   "Elicitation of Truth": ["Surface Apprehension"],
+  "Facile Speech": ["Far Speech"],
 };
 
 export function missingArtPrerequisite(

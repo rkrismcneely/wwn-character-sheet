@@ -273,6 +273,7 @@ test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async ()
   assert.match(sheet, /spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit\(sheet\.focusPicks\)/u);
   assert.match(sheet, /Choose \{spiritFamiliarBenefitCap\}/u);
   assert.match(sheet, /activeFamiliarBenefits\.length >= spiritFamiliarBenefitCap/u);
+  assert.match(sheet, /disabled=\{atLimit \|\| !canEdit\}/u);
   assert.match(sheet, /Lvl 2 repeat/u);
   assert.match(sheet, /const nextFamiliars = primarySpiritFocusSlot === undefined/u);
   assert.match(sheet, /existingSpiritRepeat && Number\(currentPick\?\.level\) < 2/u);

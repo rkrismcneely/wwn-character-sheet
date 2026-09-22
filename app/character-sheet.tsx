@@ -75,7 +75,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -2252,6 +2252,9 @@ export default function Home({
   };
   const effectiveLevel = Math.min(10, Math.max(1, sheet.level || 1));
   const selectedClasses = (sheet.classMode === "full" ? [sheet.classOne] : [sheet.classOne, sheet.classTwo]).filter(Boolean);
+  const startingFocusSelections = sheet.classOne
+    ? classRules(sheet.classMode, sheet.classOne, sheet.classTwo, 1).focusPicks
+    : 0;
   const selectedFocusPicks = sheet.focusPicks.filter(pick => Boolean(pick.name));
   const magicalTraditions = selectedClasses.filter(c => c in traditionInfo) as TraditionName[];
   const armorRestrictedTraditions = magicalTraditions.filter(tradition => armorRestrictsMagic(traditionInfo[tradition].armor));
@@ -3590,7 +3593,8 @@ export default function Home({
                     const eligibility = focusEligibility(next, i);
                     if (!eligibility.eligible) { setTransferMessage(eligibility.reason); return; }
                     const repeatedSpirit = next === "Spirit Familiar" && sheet.focusPicks.some((candidate, index) => index !== i && candidate.name === "Spirit Familiar");
-                    patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,name:next,level:repeatedSpirit ? 2 : x.level,choice:""}:x));
+                    const nextPicks = sheet.focusPicks.map((x,j) => j===i ? {...x,name:next,level:repeatedSpirit ? 2 : x.level,choice:""}:x);
+                    patch("focusPicks", inferFocusAdvancementFlags(nextPicks, startingFocusSelections));
                   }}><option value="">Choose a Focus…</option>{foci.map(f => {
                     const eligibility = focusEligibility(f.name, i);
                     return <option key={f.name} disabled={!eligibility.eligible} title={eligibility.reason}>{f.name}{eligibility.eligible ? "" : " — unavailable"}</option>;

@@ -1,4 +1,63 @@
+import {
+  getBuiltInBestiaryCreature,
+  sortBestiaryCreaturesByFamilyAndHitDice,
+  type BuiltInBestiaryCreature,
+} from "@/lib/campaigns/bestiary";
+
 export type BeastmasterBond = "" | "bind-companion" | "chosen-friend";
+
+/**
+ * Curated animal-minded companions. This is deliberately an allow-list, not
+ * a search across every low-HD Bestiary entry: humanoids and clever monsters
+ * must never become selectable merely because their stat line is small.
+ */
+export const beastmasterCatalogCreatureIds = [
+  "small-bird",
+  "burrowing-herbivore",
+  "small-omnivore",
+  "small-pack-predator",
+  "small-solitary-predator",
+  "small-vicious-predator",
+  "totw-stirge",
+  "herd-beast",
+  "swift-riding-beast",
+  "aquatic-herbivore",
+  "aquatic-predator",
+  "constrictor",
+  "giant-centipede",
+  "totw-cockatrice",
+  "totw-giant-spider",
+  "giant-mantis",
+  "giant-phase-spider",
+  "giant-scorpion",
+  "vicious-large-herbivore",
+  "large-solitary-predator",
+  "apex-predator",
+  "elephantine-grazer",
+  "totw-grick",
+  "unnatural-swarm",
+  "large-vicious-predator",
+  "terrible-warbeast",
+  "hulking-predator",
+  "predator-hellbeast",
+] as const;
+
+const beastmasterCatalogCreatureIdSet = new Set<string>(beastmasterCatalogCreatureIds);
+
+export function beastmasterCatalogCreature(id: unknown): BuiltInBestiaryCreature | null {
+  const key = typeof id === "string" ? id : "";
+  if (!beastmasterCatalogCreatureIdSet.has(key)) return null;
+  return getBuiltInBestiaryCreature(key);
+}
+
+export function beastmasterCatalogCreatures(level: number): readonly BuiltInBestiaryCreature[] {
+  const maximumHitDice = Math.max(1, Math.min(10, Math.floor(Number(level) || 1))) + 1;
+  const creatures = beastmasterCatalogCreatureIds
+    .map(id => beastmasterCatalogCreature(id))
+    .filter((creature): creature is BuiltInBestiaryCreature => creature !== null)
+    .filter(creature => creature.sourceStats.hitDice <= maximumHitDice);
+  return Object.freeze(sortBestiaryCreaturesByFamilyAndHitDice(creatures));
+}
 
 export const beastmasterBondOptions = ["bind-companion", "chosen-friend"] as const;
 export const chosenFriendBenefitArts = ["Mind Call", "Shared Vitality"] as const;

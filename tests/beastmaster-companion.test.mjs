@@ -243,6 +243,28 @@ test("Beastmaster catalogue is an animal-minded allow-list grouped by family wit
   assert.equal(beastmasterCatalogCreature("giant-phase-spider")?.source.name, "Tales Without End original content");
   assert.equal(beastmasterCatalogCreature("giant-scorpion")?.sourceStats.attacksPerMainAction, 2);
 
+  const expectedFamilies = new Map([
+    ["small-bird", ["Animal", "Omnivore"]],
+    ["constrictor", ["Animal", "Predator"]],
+    ["totw-giant-spider", ["Animal", "Insect"]],
+    ["giant-phase-spider", ["Animal", "Insect"]],
+    ["giant-scorpion", ["Animal", "Insect"]],
+    ["totw-cockatrice", ["Supernatural Beast", "Supernatural Beast"]],
+    ["totw-stirge", ["Supernatural Beast", "Supernatural Beast"]],
+    ["totw-grick", ["Unnatural Beast", "Unnatural Beast"]],
+    ["unnatural-swarm", ["Unnatural Beast", "Unnatural Beast"]],
+    ["small-vicious-predator", ["Unnatural Beast", "Unnatural Beast"]],
+    ["large-vicious-predator", ["Unnatural Beast", "Unnatural Beast"]],
+    ["hulking-predator", ["Unnatural Beast", "Unnatural Beast"]],
+    ["terrible-warbeast", ["Unnatural Beast", "Unnatural Beast"]],
+    ["predator-hellbeast", ["Unnatural Beast", "Unnatural Beast"]],
+  ]);
+  for (const [id, [category, family]] of expectedFamilies) {
+    const profile = beastmasterCatalogCreature(id);
+    assert.equal(profile?.category, category, `${id} category`);
+    assert.equal(profile?.family, family, `${id} family`);
+  }
+
   const animalFamilies = catalog
     .filter(creature => creature.category === "Animal")
     .map(creature => `${creature.family}:${creature.sourceStats.hitDice}`);

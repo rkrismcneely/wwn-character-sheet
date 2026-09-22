@@ -155,7 +155,7 @@ export function parseDamageExpression(expression: string): DamageExpression {
 
 /** Parse a weapon's Shock value such as "3/AC 15", "3/15", or "6/-". */
 export function parseShockMinimum(value: unknown): ShockMinimum | null {
-  const match = String(value ?? "").match(/(?:shock\s*)?(\d{1,4})\s*\/\s*(?:AC\s*)?(\d{1,3}|-)\b/iu);
+  const match = String(value ?? "").match(/(?:shock\s*)?(\d{1,4})\s*\/\s*(?:AC\s*)?(\d{1,3}|-)(?=\s|$)/iu);
   if (!match) return null;
   const damage = Number(match[1]);
   if (!Number.isInteger(damage) || damage < 0) return null;

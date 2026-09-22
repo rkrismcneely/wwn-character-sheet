@@ -49,7 +49,6 @@ import {
   gearBundles as gearBundleData,
   inventoryArmors,
   inventoryWeapons,
-  officialInventoryItems,
   shields as shieldData,
 } from "./equipment-data";
 import {
@@ -202,7 +201,6 @@ const initialPurchasedSkillRanks: Record<string, number> = {
 const shields = shieldData.map((shield) => shield.name);
 const adventuringGear = adventuringGearData.map((item) => item.name);
 const gearBundles = gearBundleData.map((item) => item.name);
-const officialInventorySet = new Set<string>(officialInventoryItems);
 type CompanionAttributes = Record<typeof attributes[number], number>;
 type NpcArchetype = {
   name: string; base: CompanionAttributes; bonus: keyof CompanionAttributes; penalty: keyof CompanionAttributes;

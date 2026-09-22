@@ -365,8 +365,16 @@ export function GuidedCreationWizard({
       ),
     });
   };
-  const addFocusSlot = () =>
+  const addFocusSlot = () => {
+    if (
+      status.focusPicksUsed >= status.allowedFocusPicks ||
+      sheet.focusPicks.length >= status.allowedFocusPicks
+    ) {
+      setNotice("All starting Focus picks are already used.");
+      return;
+    }
     change({ focusPicks: [...sheet.focusPicks, { name: "", level: 1 }] });
+  };
   const updateFocus = (
     index: number,
     update: Partial<LevelOneCreationCharacter["focusPicks"][number]>,
@@ -1220,7 +1228,8 @@ export function GuidedCreationWizard({
                 </div>
               );
             })}
-            {sheet.focusPicks.length < status.allowedFocusPicks && (
+            {sheet.focusPicks.length < status.allowedFocusPicks &&
+              status.focusPicksUsed < status.allowedFocusPicks && (
               <button
                 type="button"
                 className="secondary-button"

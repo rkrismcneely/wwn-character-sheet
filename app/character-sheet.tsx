@@ -782,7 +782,7 @@ function createBlankSheet(): Sheet {
 function Tip({ title, ariaLabel, children }: { title: string; ariaLabel?: string; children: React.ReactNode }) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimer = useRef<number | null>(null);
   const tooltipId = useId();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null);

@@ -125,7 +125,6 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   const sources = useMemo(() => creationSkillSources(state.draft), [state.draft]);
   const baselineSources = useMemo(() => creationSkillSources(sheet), [sheet]);
   const credits = useMemo(() => advancementSkillCreditBySkill(state.draft), [state.draft]);
-  const baselineCredits = useMemo(() => advancementSkillCreditBySkill(sheet), [sheet]);
   const artOptions = useMemo(() => artChoices(state.draft, plan.to), [state.draft, plan.to]);
   const spellOptions = useMemo(() => spellChoices(state.draft, plan.to), [state.draft, plan.to]);
 
@@ -150,10 +149,10 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     const baselineProfile = deriveSkillProfile({
       purchased: sheet.skillPurchases[skill],
       sourceCount: baselineSources[skill].length,
-      credit: baselineCredits[skill] || 0,
     });
-    const newCredit = Math.max(0, (credits[skill] || 0) - (baselineCredits[skill] || 0));
-    return skillAdvancementCost(baselineProfile.effective, targetRank, newCredit);
+    // Normal advancement points buy the trained rank. Focus bonus-skill
+    // credit is a separate, skill-bound pool applied afterward.
+    return skillAdvancementCost(baselineProfile.granted, targetRank);
   };
   const skillPointsSpent = creationSkills.reduce((total, skill) => {
     const profile = deriveSkillProfile({
@@ -161,7 +160,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       sourceCount: sources[skill].length,
       credit: credits[skill] || 0,
     });
-    return total + skillSpendForRank(skill, profile.effective);
+    return total + skillSpendForRank(skill, profile.granted);
   }, 0);
   const pointsSpent = skillPointsSpent + attributePointsSpent;
   const combatSkillSpent = ["Punch", "Shoot", "Stab"].reduce((total, skill) => {
@@ -170,7 +169,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       sourceCount: sources[skill].length,
       credit: credits[skill] || 0,
     });
-    return total + skillSpendForRank(skill, profile.effective);
+    return total + skillSpendForRank(skill, profile.granted);
   }, 0);
   const skillBudget = plan.skillPoints + Math.max(0, Number(sheet.levelUpUnspentSkillPoints) || 0);
   const pointsRemaining = skillBudget - pointsSpent;
@@ -376,7 +375,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
           const automaticProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
           const minimumRank = Math.max(baselineProfile.effective, automaticProfile.effective);
           const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank >= minimumRank && (rank <= plan.skillCap || rank === minimumRank || rank === profile.effective));
-          const currentSkillSpend = skillSpendForRank(skill, profile.effective);
+          const currentSkillSpend = skillSpendForRank(skill, profile.granted);
           return <label className="level-up-skill-field" key={skill}><span>{skill}{profile.credit ? ` · Focus credit ${profile.credit}` : ""}</span><select aria-label={`${skill} advancement rank`} value={profile.effective} onChange={(event) => {
             const selected = Number(event.target.value);
             const stored = storedRankForDisplayedSkillRank(selected, profile.sourceCount, profile.credit);

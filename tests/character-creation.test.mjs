@@ -238,6 +238,33 @@ test("level-one guided creation validates full and partial Mage spell selections
   assert.equal(partialMageStatus.canFinish, true);
   assert.equal(partialMageStatus.artAllowance, 1);
   assert.equal(partialMageStatus.knownSpellAllowance, 2);
+
+  for (const specialist of ["Elementalist", "Necromancer"]) {
+    const specialistStatus = levelOneCreationStatus(withFreePick({
+      ...baseCharacter(),
+      classOne: specialist,
+      focusPicks: [{ name: "Alert", level: 1 }],
+      artPicks: [],
+      spellPicks: [],
+    }));
+    assert.ok(
+      specialistStatus.availableSpells.some((spell) => spell.tradition === "High Magic"),
+      `${specialist} should be able to learn High Magic spells`,
+    );
+    assert.ok(
+      specialistStatus.availableSpells.some((spell) => spell.tradition === specialist),
+      `${specialist} should retain access to its specialist spell list`,
+    );
+  }
+});
+
+test("High Magic access stays aligned across the sheet and level-up wizard", async () => {
+  const [sheet, levelUp] = await Promise.all([
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/level-up-wizard-impl.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(sheet, /castingTraditions\.length > 0 \|\| traditionalEducationTradition/u);
+  assert.match(levelUp, /traditions\.length > 0 \|\| education/u);
 });
 
 test("creation ledger retains the normal background, class, and Focus sources", () => {

@@ -900,7 +900,7 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
           ? casterLimits(1, state.classMode === "adventurer")
           : { max: 0, casts: 0, prepared: 0, arts: 0 };
   const availableSpells = [
-    ...(castingTraditions.includes("High Mage") || castingTraditions.includes("Invoker") || addedTradition
+    ...(castingTraditions.length > 0 || addedTradition
       ? highMagic.map((spell) => ({ ...spell, tradition: "High Magic" }))
       : []),
     ...(castingTraditions.includes("Elementalist") ||

@@ -34,13 +34,15 @@ export function focusSelectionCost(picks: readonly FocusLevelSelection[]) {
 }
 
 /**
- * Normal advancement offers Focus picks at levels 2, 5, 7, and 10. Spirit
- * Familiar's level-2 option has only six benefits, so three level-2 purchases
- * are enough to unlock every option.
+ * Spirit Familiar level 2 can be bought during creation when the character has
+ * two starting Focus picks. Each later Focus opportunity can buy level 2 again
+ * for one pick, up to the three total level-2 purchases needed for all six
+ * benefits.
  */
 export function spiritFamiliarLevelTwoSelectionLimit(characterLevel: number) {
   const level = Math.max(1, Math.min(10, Math.trunc(Number(characterLevel) || 1)));
-  return Math.min(3, [2, 5, 7, 10].filter((opportunity) => opportunity <= level).length);
+  const laterFocusOpportunities = [2, 5, 7, 10].filter((opportunity) => opportunity <= level).length;
+  return Math.min(3, 1 + laterFocusOpportunities);
 }
 
 export function spiritFamiliarBenefitLimit(picks: readonly FocusLevelSelection[]) {

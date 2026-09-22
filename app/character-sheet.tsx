@@ -3617,19 +3617,20 @@ export default function Home({
                   <span>{skillPointAllowance} total · {advancementPointsRemaining}{"\u00a0"}available</span>
                 </div>
                 <small>
-                  <span>Increase a Skill with its dropdown. {selectedClasses.includes("Expert") ? "Quick Learner grants 4 points per level gained." : "You gain 3 points per level gained."}</span>
+                  <span>Increase the trained rank with its dropdown. Advancement Focus credit and phantom floors are applied afterward to the Effective rank. {selectedClasses.includes("Expert") ? "Quick Learner grants 4 points per level gained." : "You gain 3 points per level gained."}</span>
                   {skillSpending.freePickSkill && <span className="free-creation-pick">Free creation pick: {skillSpending.freePickSkill}.</span>}
                 </small>
               </div>
               <div className="skills">
                 {skills.map(skill => {
                   const profile = skillProfile(skill);
-                  // The stored rank deliberately excludes temporary and granted
-                  // sources.  The selector, however, is the player-facing skill
-                  // value: a background Free/Quick/Learning result immediately
-                  // appears as its minimum (+0 or +1) instead of "Untrained".
-                  const minimumSelectable = Math.max(minimumSkillRanks[skill], profile.polymathFloor);
-                  const purchasesForDisplayedRank = (rank: number) => storedRankForDisplayedSkillRank(rank, profile.sourceCount, profile.credit);
+                  // The selector edits the underlying trained rank before
+                  // advancement-Focus credit or phantom floors are applied.
+                  // This keeps paid skill points stable when a Focus is added,
+                  // removed, or reselected; the final usable rank is shown
+                  // separately as Effective below.
+                  const minimumSelectable = minimumSkillRanks[skill];
+                  const purchasesForDisplayedRank = (rank: number) => storedRankForDisplayedSkillRank(rank, profile.sourceCount);
                   return <div className="skill-row" key={skill}><label><span><span className="skill-name" title={skillOverviews[skill]} tabIndex={0}>{skill}</span>
                     {profile.sourceCount > 0 && <small className="skill-minimum" tabIndex={0}>
                       <span className="skill-minimum-word">Granted</span> {profile.sourceFloor >= 0 ? `+${profile.sourceFloor}` : "untrained"}
@@ -3638,13 +3639,14 @@ export default function Home({
                       </span>
                     </small>}
                     {profile.polymathFloor >= 0 && profile.effective === profile.polymathFloor && profile.granted < profile.polymathFloor && <small className="focus-applied">Polymath floor → +{profile.polymathFloor}</small>}
+                    {profile.credit ? <small className="focus-applied">Advancement Focus credit {profile.credit}{profile.creditRemaining ? ` · ${profile.creditRemaining} banked` : ""}</small> : null}
                     <small className="focus-applied">Effective → {profile.effective < 0 ? "Untrained" : `+${profile.effective}`}</small>
-                  </span><select value={profile.effective} aria-label={`${skill} effective skill level`} onChange={e => {
+                  </span><select value={profile.granted} aria-label={`${skill} trained skill level before Focus credit`} onChange={e => {
                     const selectedRank = Number(e.target.value);
                     const nextPurchases = {...sheet.skillPurchases, [skill]: purchasesForDisplayedRank(selectedRank)};
                     const plan = calculateSkillSpending(nextPurchases);
                     const nextProfile = skillProfile(skill, nextPurchases);
-                    if (nextProfile.effective < minimumSelectable) return;
+                    if (nextProfile.granted !== selectedRank || nextProfile.granted < minimumSelectable) return;
                     if (plan.spent > availableSkillPoints && nextProfile.granted > skillProfile(skill).granted) return;
                     patch("skillPurchases", nextPurchases);
                   }}>
@@ -3654,8 +3656,8 @@ export default function Home({
                       const nextProfile = skillProfile(skill, nextPurchases);
                       const legalCap = Math.min(4, maxSkillRank + (profile.sourceCount ? 1 : 0));
                       const disabled = n < minimumSelectable ||
-                        nextProfile.effective < minimumSelectable ||
-                        (nextProfile.granted > legalCap && nextProfile.effective > profile.effective) ||
+                        nextProfile.granted !== n ||
+                        (nextProfile.granted > legalCap && nextProfile.granted > profile.granted) ||
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}

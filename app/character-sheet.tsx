@@ -4005,7 +4005,8 @@ export default function Home({
                 {spiritFamiliarBenefits.map(benefit => {
                   const chosen = activeFamiliarBenefits.includes(benefit);
                   const atLimit = !chosen && activeFamiliarBenefits.length >= spiritFamiliarBenefitCap;
-                  return <label key={benefit}><input type="checkbox" checked={chosen} disabled={atLimit} onChange={e => {
+                  return <label key={benefit}><input type="checkbox" checked={chosen} disabled={atLimit || !canEdit} onChange={e => {
+                    if (!canEdit) return;
                     const nextBenefits = e.target.checked
                       ? [...familiarBenefits.filter(item => item !== benefit), benefit]
                       : familiarBenefits.filter(item => item !== benefit);

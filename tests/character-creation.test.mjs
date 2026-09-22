@@ -510,6 +510,16 @@ test("manual Learning deduplicates choices without changing canonical roll weigh
   assert.match(wizard, /is already at the level-1 starting\s+maximum/u);
 });
 
+test("partial class selectors stay top-aligned when one class has a description", async () => {
+  const [wizard, css] = await Promise.all([
+    readFile(new URL("../app/character-creation-wizard-impl.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/character-creation-wizard.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(wizard, /creation-fields two-columns creation-class-fields/u);
+  assert.match(css, /\.creation-class-fields\s*\{\s*align-items:\s*start;/u);
+  assert.match(css, /\.creation-class-fields > label\s*\{\s*align-self:\s*start;/u);
+});
+
 test("guided creation route state survives reloads without storing a character draft", async () => {
   const guided = withGuidedCreationMode("/character/chr_example?tab=core", true);
   assert.equal(guided, "/character/chr_example?tab=core&guided=1");

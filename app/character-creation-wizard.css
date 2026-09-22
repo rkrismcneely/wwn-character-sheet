@@ -125,6 +125,12 @@
 .two-columns {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.creation-class-fields {
+  align-items: start;
+}
+.creation-class-fields > label {
+  align-self: start;
+}
 .creation-fields label,
 .creation-select,
 .creation-equipment-start label,

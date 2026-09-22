@@ -929,7 +929,7 @@ export function GuidedCreationWizard({
               Adventurer · two partial classes
             </button>
           </div>
-          <div className="creation-fields two-columns">
+          <div className="creation-fields two-columns creation-class-fields">
             <label>
               <span>
                 {sheet.classMode === "full" ? "Class" : "First partial class"}

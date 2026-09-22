@@ -170,11 +170,11 @@ export function advancementFocusOptionLabel(
       return "Spirit Familiar — upgrade to Level 2";
     if (samePicks.some((pick) => pick.level >= 2))
       return "Spirit Familiar — add another Level 2";
-    return "Spirit Familiar — new Level 1";
+    return "Spirit Familiar";
   }
   if (samePicks.some((pick) => pick.level < 2))
     return `${focusName} — upgrade to Level 2`;
-  return `${focusName} — new Level 1`;
+  return focusName;
 }
 
 export function legalAdvancementFocuses(character: AdvancementCharacter) {

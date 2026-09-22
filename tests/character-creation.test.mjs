@@ -700,6 +700,28 @@ test("class structure and repeatable Focus targets keep normal eligibility rules
   );
 });
 
+test("guided creation hides and guards Add Focus slot when the Focus budget is spent", async () => {
+  const wizard = await readFile(
+    new URL("../app/character-creation-wizard-impl.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    wizard,
+    /status\.focusPicksUsed >= status\.allowedFocusPicks[\s\S]*sheet\.focusPicks\.length >= status\.allowedFocusPicks[\s\S]*All starting Focus picks are already used\./u,
+  );
+  assert.match(
+    wizard,
+    /sheet\.focusPicks\.length < status\.allowedFocusPicks &&[\s\S]*status\.focusPicksUsed < status\.allowedFocusPicks && \(/u,
+  );
+
+  const spiritFamiliarTwo = levelOneCreationStatus(withFreePick({
+    ...baseCharacter(),
+    focusPicks: [{ name: "Spirit Familiar", level: 2 }],
+  }));
+  assert.equal(spiritFamiliarTwo.focusPicksUsed, spiritFamiliarTwo.allowedFocusPicks);
+});
+
 test("guided creation offers level two only for Spirit Familiar when two picks are available", async () => {
   const wizard = await readFile(
     new URL("../app/character-creation-wizard-impl.tsx", import.meta.url),

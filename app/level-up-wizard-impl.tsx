@@ -348,7 +348,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       <StepTitle eyebrow="SKILLS & ATTRIBUTES" title="Spend advancement points">
         {skillBudget} point{skillBudget === 1 ? "" : "s"} available; {pointsRemaining} remaining. Reversing a selection refunds its cost immediately.
       </StepTitle>
-      <div className="creation-rule-callout"><strong>Increasing costs</strong><span>Skills cost 1 point for level 0, 2 for level 1, 3 for level 2, 4 for level 3, and 5 for level 4. Skills cap at {skillLabel(plan.skillCap)} at level {plan.to}; Focus bonus skill credits are separate from this level’s normal skill-point pool.</span></div>
+      <div className="creation-rule-callout"><strong>Increasing costs</strong><span>Skills cost 1 point for level 0, 2 for level 1, 3 for level 2, 4 for level 3, and 5 for level 4. The dropdown edits the trained rank bought with normal advancement points; Focus bonus-skill credit is applied afterward and any unused credit remains banked on that skill.</span></div>
       <section className="level-up-spend-section" aria-labelledby="level-up-attributes-title">
         <h3 id="level-up-attributes-title">Attributes</h3>
         <p className="level-up-attribute-progression">Attribute improvements use one shared escalating cost: 1 point for the first increase, 2 for the second, 3 for the third, 4 for the fourth, and 5 for the fifth. The next increase costs {attributeImprovementCostForNext(draftBoosts)} point{attributeImprovementCostForNext(draftBoosts) === 1 ? "" : "s"}.</p>
@@ -371,14 +371,16 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
         <h3 id="level-up-skills-title">Skills</h3>
         <div className="level-up-skills-grid">{creationSkills.map((skill) => {
           const profile = deriveSkillProfile({ purchased: state.draft.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
-          const baselineProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: baselineSources[skill].length, credit: baselineCredits[skill] || 0 });
-          const automaticProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: sources[skill].length, credit: credits[skill] || 0 });
-          const minimumRank = Math.max(baselineProfile.effective, automaticProfile.effective);
-          const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank >= minimumRank && (rank <= plan.skillCap || rank === minimumRank || rank === profile.effective));
+          const baselineProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: baselineSources[skill].length });
+          const automaticProfile = deriveSkillProfile({ purchased: sheet.skillPurchases[skill], sourceCount: sources[skill].length });
+          const minimumRank = Math.max(baselineProfile.granted, automaticProfile.granted);
+          const options = [-1, 0, 1, 2, 3, 4].filter((rank) => rank >= minimumRank && (rank <= plan.skillCap || rank === minimumRank || rank === profile.granted));
           const currentSkillSpend = skillSpendForRank(skill, profile.granted);
-          return <label className="level-up-skill-field" key={skill}><span>{skill}{profile.credit ? ` · Focus credit ${profile.credit}` : ""}</span><select aria-label={`${skill} advancement rank`} value={profile.effective} onChange={(event) => {
+          return <label className="level-up-skill-field" key={skill}><span>{skill}{profile.credit ? ` · Focus credit ${profile.credit}${profile.creditRemaining ? ` · ${profile.creditRemaining} banked` : ""} · effective ${skillLabel(profile.effective)}` : ""}</span><select aria-label={`${skill} trained advancement rank before Focus credit`} value={profile.granted} onChange={(event) => {
             const selected = Number(event.target.value);
-            const stored = storedRankForDisplayedSkillRank(selected, profile.sourceCount, profile.credit);
+            const stored = storedRankForDisplayedSkillRank(selected, profile.sourceCount);
+            const roundTrip = deriveSkillProfile({ purchased: stored, sourceCount: profile.sourceCount });
+            if (roundTrip.granted !== selected) return;
             update((draft) => ({ ...draft, skillPurchases: { ...draft.skillPurchases, [skill]: stored } }));
           }}>{options.map((rank) => {
             const candidateSkillSpend = skillSpendForRank(skill, rank);
@@ -386,9 +388,9 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
             const isCombatSkill = ["Punch", "Shoot", "Stab"].includes(skill);
             const candidateCombat = combatSkillSpent + (isCombatSkill ? candidateSkillSpend - currentSkillSpend : 0);
             const disabled = candidateCost > skillBudget || (plan.quickLearner && candidateCombat > 3 && candidateCost > 3);
-            const costText = rank === baselineProfile.effective
+            const costText = rank === baselineProfile.granted
               ? ""
-              : candidateSkillSpend === 0 ? " · Focus credit" : ` · ${candidateSkillSpend} pt${candidateSkillSpend === 1 ? "" : "s"}`;
+              : ` · ${candidateSkillSpend} pt${candidateSkillSpend === 1 ? "" : "s"}`;
             return <option key={rank} value={rank} disabled={disabled}>{skillLabel(rank)}{costText}</option>;
           })}</select></label>;
         })}</div>
@@ -402,7 +404,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
             ? `The next Focus opportunity is at level ${plan.nextFocusLevel}.`
             : "There are no further Focus opportunities in the normal level-1-to-10 progression."}
       </StepTitle>
-      {plan.gainsFocus && <div className="creation-fields"><div className="creation-magic-choice-main"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{focus.name}</option>)}</select></label>{selectedFocusDefinition && <div className="creation-selection-guidance"><SelectionRuleHelp label={selectedFocusDefinition.name} fullText={focusFullRules(selectedFocusDefinition)} /><small className="creation-selection-summary">{plainLanguageSummary(selectedFocusDefinition.name, selectedFocusDefinition.level1 || selectedFocusDefinition.intro || "")}</small></div>}</div>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{selectedFocus?.name === "Spirit Familiar" && selectedFocus.level >= 2 && <div className="creation-rule-callout"><strong>Spirit Familiar level 2</strong><span>After applying this level, choose the newly unlocked familiar benefits on the Spirit Familiar tab. Each level-2 purchase unlocks two more benefit boxes.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives a three-point credit. It is reflected in the skills step without spending this level’s normal points.</span></div>}</div>}
+      {plan.gainsFocus && <div className="creation-fields"><div className="creation-magic-choice-main"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{focus.name}</option>)}</select></label>{selectedFocusDefinition && <div className="creation-selection-guidance"><SelectionRuleHelp label={selectedFocusDefinition.name} fullText={focusFullRules(selectedFocusDefinition)} /><small className="creation-selection-summary">{plainLanguageSummary(selectedFocusDefinition.name, selectedFocusDefinition.level1 || selectedFocusDefinition.intro || "")}</small></div>}</div>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{selectedFocus?.name === "Spirit Familiar" && selectedFocus.level >= 2 && <div className="creation-rule-callout"><strong>Spirit Familiar level 2</strong><span>After applying this level, choose the newly unlocked familiar benefits on the Spirit Familiar tab. Each level-2 purchase unlocks two more benefit boxes.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives three skill-specific points. Any portion that does not immediately buy another skill level stays banked toward a later increase.</span></div>}</div>}
     </>;
     if (state.step === 4) return <>
       <StepTitle eyebrow="MAGIC" title={requiredArtPicks || plan.spellPicks ? "Choose new magic" : "No new magic choices"}>

@@ -6,7 +6,7 @@
 
 import { artSlots, classRules, knownSpellSlots, traditionInfo, traditionKinds, type TraditionName } from "./class-data.ts";
 import { creationFocusBonusSkill, creationSkills } from "./character-creation.ts";
-import { armorRestrictsMagic, focusIsRepeatable, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit } from "./phase2-rules.ts";
+import { armorRestrictsMagic, focusIsRepeatable, inferFocusAdvancementFlags, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit } from "./phase2-rules.ts";
 import { foci } from "./wwn-data.ts";
 
 export type AdvancementFocusPick = {
@@ -87,8 +87,24 @@ const fixedArtsAtLevel = (tradition: TraditionName, level: number) => {
     .map((art) => art.name);
 };
 
-export function advancementSkillCreditBySkill(character: Pick<AdvancementCharacter, "focusPicks">) {
-  return character.focusPicks.reduce<Record<string, number>>((credits, pick) => {
+export function advancementSkillCreditBySkill(
+  character: Pick<
+    AdvancementCharacter,
+    "focusPicks" | "classMode" | "classOne" | "classTwo"
+  >,
+) {
+  const startingFocusSelections = character.classOne
+    ? classRules(
+        character.classMode,
+        character.classOne,
+        character.classTwo,
+        1,
+      ).focusPicks
+    : 0;
+  return inferFocusAdvancementFlags(
+    character.focusPicks,
+    startingFocusSelections,
+  ).reduce<Record<string, number>>((credits, pick) => {
     if (!pick.advancement) return credits;
     const skill = creationFocusBonusSkill(pick);
     if (skill) credits[skill] = (credits[skill] || 0) + 3;

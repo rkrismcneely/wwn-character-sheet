@@ -403,7 +403,6 @@ function matchesBestiarySourceStats(value: unknown, creature: BuiltInBestiaryCre
 }
 
 const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {
-  "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } },
   "large-solitary-predator": { description: "A powerful lone hunter suited to dangerous wilderness territory.", sourceStats: { hitDice: 5, attacksPerMainAction: 1, shock: "2/13", move: "30'", morale: 8, instinct: 6, skill: 1 } },
   "apex-predator": { description: "A huge and exceptionally dangerous hunting beast, suitable for dire predators and other apex carnivores.", sourceStats: { hitDice: 6, attacksPerMainAction: 2, shock: "2/13", move: "40'", morale: 8, instinct: 6, skill: 2 } },
   "herd-beast": { description: "A common grazing animal that can become dangerous when startled or defending its young.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
@@ -441,7 +440,7 @@ const creatureContext: Record<string, { description: string; sourceStats: BuiltI
 };
 
 const rawBuiltInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze([
-  defineCreature({ id: "small-pack-predator", name: "Small Pack Predator", category: "Animal", family: "Predator", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "1d4")], notes: "" }),
+  defineCreature({ id: "small-pack-predator", name: "Small Predator", aliases: ["Small Pack Predator", "Small Solitary Predator"], category: "Animal", family: "Predator", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "1d4")], notes: "" }),
   defineCreature({ id: "large-solitary-predator", name: "Large Solitary Predator", category: "Animal", family: "Predator", hpMax: 23, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "1d8")], notes: "" }),
   defineCreature({ id: "apex-predator", name: "Apex Predator", category: "Animal", family: "Predator", hpMax: 27, armorClass: 13, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(6, "1d8")], notes: "" }),
   defineCreature({ id: "herd-beast", name: "Herd Beast", category: "Animal", family: "Herbivore", hpMax: 9, armorClass: 11, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "1d4")], notes: "" }),
@@ -450,7 +449,6 @@ const rawBuiltInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.f
   defineOriginalCreature({ id: "small-bird", name: "Small Bird", category: "Animal", family: "Omnivore", description: "A common, alert bird suitable for scouting, messages, or distraction rather than direct combat.", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Beak", 1, "1d2")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "None", move: "10' Walk/60' Fly", morale: 6, instinct: 6, skill: 1 } }),
   defineOriginalCreature({ id: "burrowing-herbivore", name: "Burrowing Herbivore", category: "Animal", family: "Herbivore", description: "A wary tunneling animal that survives by digging away from danger and defending a burrow only when cornered.", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Bite", 0, "1d2")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "None", move: "30' Walk/20' Burrow", morale: 6, instinct: 7, skill: 1 }, abilities: [{ name: "Burrow", summary: "Can tunnel through loose earth, sand, or similar yielding ground." }] }),
   defineOriginalCreature({ id: "small-omnivore", name: "Small Omnivore", category: "Animal", family: "Omnivore", description: "A nimble forager and scavenger that is comfortable around camps, trees, and broken terrain.", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Bite", 1, "1d3")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "None", move: "30' Walk/20' Climb", morale: 7, instinct: 6, skill: 1 } }),
-  defineOriginalCreature({ id: "small-solitary-predator", name: "Small Solitary Predator", category: "Animal", family: "Predator", description: "A quick lone hunter that relies on stealth, speed, and a short violent rush rather than a pack.", hpMax: 5, armorClass: 13, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Bite", 2, "1d4", "1/13")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } }),
   defineOriginalCreature({ id: "swift-riding-beast", name: "Swift Riding Beast", category: "Animal", family: "Herbivore", description: "A sure-footed riding animal bred for speed, endurance, and carrying a single rider across open ground.", hpMax: 9, armorClass: 12, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Hooves", 2, "1d4")], notes: "", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "60'", morale: 7, instinct: 6, skill: 1 } }),
   defineOriginalCreature({ id: "aquatic-herbivore", name: "Aquatic Herbivore", category: "Animal", family: "Herbivore", description: "A placid water-dwelling herbivore that can carry a rider or haul a light load through lakes, rivers, and marshes.", hpMax: 9, armorClass: 12, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Tail", 1, "1d4")], notes: "", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "10' Walk/40' Swim", morale: 7, instinct: 6, skill: 1 } }),
   defineOriginalCreature({ id: "aquatic-predator", name: "Aquatic Predator", category: "Animal", family: "Predator", description: "A swift water hunter that attacks from beneath the surface before withdrawing into deeper water.", hpMax: 9, armorClass: 13, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Bite", 3, "1d6", "1/13")], notes: "", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "1/13", move: "10' Walk/40' Swim", morale: 8, instinct: 5, skill: 1 } }),
@@ -566,8 +564,13 @@ export function bestiaryNpcAttackOptions(): readonly BestiaryNpcAttackOption[] {
   return Object.freeze([...options.values()].sort((left, right) => left.name.localeCompare(right.name) || left.attackBonus - right.attackBonus || left.damage.localeCompare(right.damage) || left.description.localeCompare(right.description)));
 }
 
+const legacyBestiaryCreatureIds: Readonly<Record<string, string>> = Object.freeze({
+  "small-solitary-predator": "small-pack-predator",
+});
+
 export function getBuiltInBestiaryCreature(id: string): BuiltInBestiaryCreature | null {
-  return builtInBestiaryCreatures.find(creature => creature.id === id) ?? null;
+  const canonicalId = legacyBestiaryCreatureIds[id] ?? id;
+  return builtInBestiaryCreatures.find(creature => creature.id === canonicalId) ?? null;
 }
 
 function creatureMatchesSearch(creature: BuiltInBestiaryCreature, normalizedQuery: string): boolean {

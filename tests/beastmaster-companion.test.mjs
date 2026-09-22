@@ -75,16 +75,12 @@ const beastmasterCharacter = (beastmasterBond) => {
   };
 };
 
-test("Beastmaster creation requires an explicit Bind Companion or Chosen Friend bond", () => {
-  const undecided = levelOneCreationStatus(beastmasterCharacter(""));
-  assert.equal(undecided.stepStatus.magic.complete, false);
-  assert.match(
-    undecided.stepStatus.magic.issues.join(" "),
-    /Choose whether this Beastmaster uses normal Bind Companion or a Chosen Friend bond/u,
-  );
+test("Beastmaster defaults to standard Bind Companion without an extra creation choice", () => {
+  const standard = levelOneCreationStatus(beastmasterCharacter(""));
+  assert.equal(standard.stepStatus.magic.complete, true);
 });
 
-test("Beastmaster keeps Bind Companion required while Chosen Friend preserves the extra Art pick", () => {
+test("Chosen Friend remains a distinct campaign option while Bind Companion uses normal Art choices", () => {
   const normal = levelOneCreationStatus(beastmasterCharacter("bind-companion"));
   assert.equal(normal.artAllowance, 2);
   assert.deepEqual(normal.forcedArts, ["Bind Companion"]);
@@ -106,10 +102,10 @@ test("Chosen Friend and Shared Vitality derive the companion's effective HD and 
     bond: "chosen-friend",
     hasSharedVitalityArt: false,
     hasMindCallArt: false,
+    mindCallCommitted: false,
     hitDice: "2 HD",
     attackBonus: "+1",
   });
-  assert.equal(chosen.maximumBaseHitDice, 8);
   assert.equal(chosen.eligibleHitDice, true);
   assert.equal(chosen.sharedVitality, true);
   assert.equal(chosen.mindCall, true);
@@ -122,6 +118,7 @@ test("Chosen Friend and Shared Vitality derive the companion's effective HD and 
     bond: "bind-companion",
     hasSharedVitalityArt: true,
     hasMindCallArt: true,
+    mindCallCommitted: true,
     hitDice: "2 HD",
     attackBonus: "+5",
   });
@@ -134,12 +131,37 @@ test("Chosen Friend and Shared Vitality derive the companion's effective HD and 
     bond: "bind-companion",
     hasSharedVitalityArt: false,
     hasMindCallArt: false,
+    mindCallCommitted: false,
     hitDice: "2 HD",
     attackBonus: "+1",
   });
   assert.equal(ordinary.effectiveHitDice, 2);
   assert.equal(ordinary.minimumHitBonus, null);
   assert.equal(ordinary.effectiveHitBonus, 1);
+});
+
+
+test("Mind Call requires committed Effort in standard Beastmaster mode", () => {
+  const inactive = beastmasterCompanionRules({
+    level: 3,
+    bond: "bind-companion",
+    hasSharedVitalityArt: false,
+    hasMindCallArt: true,
+    mindCallCommitted: false,
+    hitDice: "2 HD",
+    attackBonus: "+1",
+  });
+  const active = beastmasterCompanionRules({
+    level: 3,
+    bond: "bind-companion",
+    hasSharedVitalityArt: false,
+    hasMindCallArt: true,
+    mindCallCommitted: true,
+    hitDice: "2 HD",
+    attackBonus: "+1",
+  });
+  assert.equal(inactive.mindCall, false);
+  assert.equal(active.mindCall, true);
 });
 
 test("Feral Toughness calculates its base AC with correct rounding and shield interaction", () => {
@@ -156,21 +178,22 @@ test("Feral Toughness calculates its base AC with correct rounding and shield in
   assert.equal(applyShieldToArmorBase(14, 16), 16);
 });
 
-test("Beastmaster companion eligibility understands fractional HD and the level-plus-one cap", () => {
+test("Beastmaster companion handling accepts zero and fractional HD without inventing an HD cap", () => {
+  assert.equal(parseBeastmasterHitDice("0 HD"), 0);
   assert.equal(parseBeastmasterHitDice("½ HD"), 0.5);
   assert.equal(parseBeastmasterHitDice("1/2"), 0.5);
   assert.equal(parseBeastmasterHitDice("0.5 HD"), 0.5);
 
-  const tooStrong = beastmasterCompanionRules({
+  const suitableBeast = beastmasterCompanionRules({
     level: 1,
     bond: "bind-companion",
     hasSharedVitalityArt: false,
     hasMindCallArt: false,
-    hitDice: "3 HD",
+    mindCallCommitted: false,
+    hitDice: "10 HD",
     attackBonus: "+1",
   });
-  assert.equal(tooStrong.maximumBaseHitDice, 2);
-  assert.equal(tooStrong.eligibleHitDice, false);
+  assert.equal(suitableBeast.eligibleHitDice, true);
 });
 
 test("Beastmaster UI exposes the bond choice and a rules-aware dedicated companion tab", async () => {
@@ -179,10 +202,9 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(wizard, /Companion bond/u);
-  assert.match(wizard, /Choose a companion bond…/u);
-  assert.match(wizard, /Chosen Friend · lifelong bond/u);
-  assert.match(wizard, /does not spend\s+your additional Art pick/u);
+  assert.match(wizard, /Companion mode/u);
+  assert.match(wizard, /Bind Companion · standard rules/u);
+  assert.match(wizard, /Chosen Friend · campaign option/u);
   assert.match(sheet, /type CompanionKind = "henchman" \| "familiar" \| "beastmaster"/u);
   assert.match(sheet, /newCompanion\("beastmaster", 0, sheet\.level\)/u);
   assert.match(sheet, /title=\{chosenFriendCompanion \? "Chosen Friend" : "Beastmaster Companion"\}/u);
@@ -190,35 +212,38 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Custom creature/u);
   assert.match(sheet, /chooseBeastmasterCatalogProfile/u);
   assert.match(sheet, /bestiaryId/u);
+  assert.match(sheet, /Bind Companion · standard rules/u);
+  assert.match(sheet, /Mind Call ready/u);
+  assert.match(sheet, /feralToughnessHitDice/u);
+  assert.match(sheet, /companion\.kind === "beastmaster" && companion\.bound/u);
+  assert.match(sheet, /No companion currently bound/u);
+  assert.match(sheet, /Record a bound companion/u);
+  assert.match(sheet, /Release companion/u);
+  assert.match(sheet, /releasing the companion as a Main Action/u);
   assert.match(sheet, /Base Hit Dice/u);
   assert.match(sheet, /Effective Hit Dice/u);
   assert.match(sheet, /Effective Hit Bonus/u);
   assert.match(sheet, /Instinct/u);
   assert.match(sheet, /Lifelong bond · Shared Vitality \+ Mind Call/u);
   assert.match(sheet, /Restore at next dawn/u);
-  assert.match(sheet, /must have a name before Beastmaster arts can control it/u);
+  assert.match(sheet, /Give this companion a name so its bonded creature is easy to identify during play/u);
   assert.match(sheet, /artSelectionName\(name\) === "Feral Toughness"/u);
   assert.match(sheet, /feralToughnessBaseArmorClass\(effectiveLevel\)/u);
   assert.match(sheet, /feralToughnessArmorBase/u);
 });
 
 
-test("Beastmaster catalogue is an animal-minded allow-list grouped by family and capped by level", () => {
-  const levelOne = beastmasterCatalogCreatures(1);
-  assert.ok(levelOne.some(creature => creature.id === "small-bird"));
-  assert.ok(levelOne.some(creature => creature.id === "aquatic-predator"));
-  assert.ok(levelOne.some(creature => creature.id === "totw-cockatrice"));
-  assert.ok(!levelOne.some(creature => creature.id === "giant-mantis"), "3 HD profiles wait until level 2");
-  assert.ok(!levelOne.some(creature => creature.id === "totw-aboleth"), "unapproved intelligent creatures never enter the catalogue");
+test("Beastmaster catalogue is an animal-minded allow-list grouped by family without an invented HD cap", () => {
+  const catalog = beastmasterCatalogCreatures();
+  assert.ok(catalog.some(creature => creature.id === "small-bird"));
+  assert.ok(catalog.some(creature => creature.id === "giant-mantis"));
+  assert.ok(catalog.some(creature => creature.id === "predator-hellbeast"));
+  assert.ok(!catalog.some(creature => creature.id === "totw-aboleth"), "unapproved intelligent creatures never enter the catalogue");
   assert.equal(beastmasterCatalogCreature("totw-aboleth"), null);
   assert.equal(beastmasterCatalogCreature("giant-phase-spider")?.source.name, "Tales Without End original content");
   assert.equal(beastmasterCatalogCreature("giant-scorpion")?.sourceStats.attacksPerMainAction, 2);
 
-  const levelThree = beastmasterCatalogCreatures(3);
-  assert.ok(levelThree.some(creature => creature.id === "giant-phase-spider"));
-  assert.ok(levelThree.some(creature => creature.id === "giant-scorpion"));
-  assert.ok(!levelThree.some(creature => creature.id === "large-solitary-predator"));
-  const animalFamilies = levelThree
+  const animalFamilies = catalog
     .filter(creature => creature.category === "Animal")
     .map(creature => `${creature.family}:${creature.sourceStats.hitDice}`);
   assert.ok(animalFamilies.indexOf("Herbivore:1") < animalFamilies.indexOf("Herbivore:2"));

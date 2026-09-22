@@ -1151,14 +1151,6 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
     !(creationSkills as readonly string[]).includes(state.wiseConceptSkill)
   )
     issues.push({ step: "class", message: "Choose the Wise concept skill." });
-  if (
-    selectedClasses.includes("Beastmaster") &&
-    !(beastmasterBondOptions as readonly BeastmasterBond[]).includes(state.beastmasterBond)
-  )
-    issues.push({
-      step: "magic",
-      message: "Choose whether this Beastmaster uses normal Bind Companion or a Chosen Friend bond.",
-    });
   if (focusPicksUsed !== allowedFocusPicks)
     issues.push({
       step: "foci",

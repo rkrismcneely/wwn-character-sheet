@@ -50,12 +50,15 @@ export function beastmasterCatalogCreature(id: unknown): BuiltInBestiaryCreature
   return getBuiltInBestiaryCreature(key);
 }
 
-export function beastmasterCatalogCreatures(level: number): readonly BuiltInBestiaryCreature[] {
-  const maximumHitDice = Math.max(1, Math.min(10, Math.floor(Number(level) || 1))) + 1;
+/**
+ * Bind Companion specifies a suitable animal, but no level-based HD ceiling.
+ * Finding an unusually rare creature remains a GM call and may require the
+ * Art's Wis/Survive check; the catalogue never implies that it is summoned.
+ */
+export function beastmasterCatalogCreatures(): readonly BuiltInBestiaryCreature[] {
   const creatures = beastmasterCatalogCreatureIds
     .map(id => beastmasterCatalogCreature(id))
-    .filter((creature): creature is BuiltInBestiaryCreature => creature !== null)
-    .filter(creature => creature.sourceStats.hitDice <= maximumHitDice);
+    .filter((creature): creature is BuiltInBestiaryCreature => creature !== null);
   return Object.freeze(sortBestiaryCreaturesByFamilyAndHitDice(creatures));
 }
 
@@ -84,10 +87,10 @@ export function parseBeastmasterHitDice(value: unknown): number | null {
   if (fraction) {
     const denominator = Number(fraction[2]);
     const result = denominator ? Number(fraction[1]) / denominator : 0;
-    return Number.isFinite(result) && result > 0 ? result : null;
+    return Number.isFinite(result) && result >= 0 ? result : null;
   }
   const result = Number(text);
-  return Number.isFinite(result) && result > 0 ? result : null;
+  return Number.isFinite(result) && result >= 0 ? result : null;
 }
 
 export function parseBeastmasterHitBonus(value: unknown): number | null {
@@ -127,6 +130,7 @@ export function beastmasterCompanionRules({
   bond,
   hasSharedVitalityArt,
   hasMindCallArt,
+  mindCallCommitted = false,
   hitDice,
   attackBonus,
 }: {
@@ -134,6 +138,8 @@ export function beastmasterCompanionRules({
   bond: BeastmasterBond;
   hasSharedVitalityArt: boolean;
   hasMindCallArt: boolean;
+  /** Mind Call is active only while its Effort is committed for the scene. */
+  mindCallCommitted?: boolean;
   hitDice: unknown;
   attackBonus: unknown;
 }) {
@@ -141,8 +147,7 @@ export function beastmasterCompanionRules({
   const baseHitDice = parseBeastmasterHitDice(hitDice);
   const baseHitBonus = parseBeastmasterHitBonus(attackBonus);
   const sharedVitality = bond === "chosen-friend" || hasSharedVitalityArt;
-  const mindCall = bond === "chosen-friend" || hasMindCallArt;
-  const maximumBaseHitDice = beastmasterLevel + 1;
+  const mindCall = bond === "chosen-friend" || (hasMindCallArt && mindCallCommitted);
   const effectiveHitDice = baseHitDice === null
     ? null
     : sharedVitality
@@ -161,8 +166,7 @@ export function beastmasterCompanionRules({
     beastmasterLevel,
     baseHitDice,
     baseHitBonus,
-    maximumBaseHitDice,
-    eligibleHitDice: baseHitDice === null || baseHitDice <= maximumBaseHitDice,
+    eligibleHitDice: baseHitDice !== null,
     sharedVitality,
     mindCall,
     effectiveHitDice,

@@ -23,10 +23,10 @@ import "./character-creation-wizard.css";
  * className="creation-selection-guidance"
  * onClick={onCancel}
  * creation-magic-choice-main
- * Companion bond
- * Choose a companion bond…
- * Chosen Friend · lifelong bond
- * does not spend your additional Art pick
+ * Companion mode
+ * Bind Companion · standard rules
+ * Chosen Friend · campaign option
+ * outside the normal Beastmaster Art budget
  * if (step.id === "class")
  * classPlayDescriptions[sheet.classOne]
  * classPlayDescriptions[sheet.classTwo]

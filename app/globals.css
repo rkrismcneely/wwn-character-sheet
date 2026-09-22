@@ -2981,11 +2981,18 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
 /* Action Bundle 6: durable off-person inventory and campaign-item metadata. */
 .stored-items-section{grid-column:1/-1}
 .inventory-item-actions{display:flex;align-items:center;gap:6px;align-self:end;margin-bottom:9px}
+.custom-item-entry{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:-4px 0 9px}
+.custom-item-entry input{width:100%;min-width:0;border:1px solid #b7a886;background:#fffdf7;padding:8px 9px;color:var(--ink);font:12px/1.2 var(--font-ui)}
+.custom-item-save{min-height:34px;border:1px solid #8e6b35;border-radius:3px;background:linear-gradient(#b9863e,#8e5f21);color:#fff8e8;padding:7px 13px;cursor:pointer;font:700 10px/1 var(--font-ui);text-transform:uppercase;letter-spacing:.05em}
+.custom-item-save:hover:not(:disabled){background:linear-gradient(#c99649,#996724)}
+.custom-item-save:disabled{opacity:.42;cursor:not-allowed}
+html[data-theme="dark"] .custom-item-entry input{background:#1d1b17;border-color:#665a42;color:#f0dfbd}
+html[data-theme="dark"] .custom-item-save{background:linear-gradient(#a87532,#704817);border-color:#b48648;color:#fff0ce}
 .campaign-item-description{display:block;margin-top:5px;color:var(--muted);font:11px/1.4 var(--font-ui);text-transform:none;letter-spacing:0}
 .campaign-item-description strong{color:var(--amber-dark)}
 .campaign-item-load-error{margin:0 0 10px;padding:8px 10px;border-left:3px solid #9e5a36;background:#f3ded1;color:#683a25;font:12px/1.4 var(--font-ui)}
 .stored-item-row{grid-template-columns:minmax(0,1fr) auto}
-@media(max-width:720px){.stored-items-section{grid-column:auto}.inventory-item-actions{flex-wrap:wrap;justify-content:flex-end}}
+@media(max-width:720px){.stored-items-section{grid-column:auto}.inventory-item-actions{flex-wrap:wrap;justify-content:flex-end}.custom-item-entry{grid-template-columns:minmax(0,1fr) auto}}
 
 /* Action Bundle 7: NPC usability */
 .gm-npc-hp-roll { display:flex; gap:.4rem; align-items:center; }

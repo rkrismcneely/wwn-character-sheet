@@ -29,7 +29,7 @@ import {
   validLevelUpHitPointRoll,
   type AdvancementCharacter,
 } from "./level-advancement";
-import { deriveSkillProfile, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { deriveSkillProfile, missingArtPrerequisite, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { foci, highMageArts, highMagic } from "./wwn-data";
 import { beastmasterArtAvailableForBond } from "./beastmaster-companion";
 import { focusFullRules, SelectionRuleHelp } from "./character-creation-guidance";
@@ -213,8 +213,13 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     const selection = newArtSelections[index] || "";
     if (!selection) return false;
     if (requirement.requiredArt && selection !== requirement.requiredArt) return false;
-    return artOptions.some((art) => art.value === selection && art.tradition === requirement.tradition)
-      && artChoiceIsComplete(selection, state.draft.artChoices);
+    const selectedArt = artOptions.find((art) => art.value === selection && art.tradition === requirement.tradition);
+    if (!selectedArt) return false;
+    if (missingArtPrerequisite(
+      selectedArt.name,
+      state.draft.artPicks.map(artSelectionName),
+    )) return false;
+    return artChoiceIsComplete(selection, state.draft.artChoices);
   });
   const spellsComplete = newSpells === plan.spellPicks;
   const ready = hpRollComplete && pointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
@@ -432,8 +437,11 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
                     if (art.tradition !== requirement.tradition) return false;
                     if (requiredArt && art.value !== requiredArt) return false;
                     const duplicate = art.name !== "Skilled" && state.draft.artPicks.some((picked, selectedIndex) => selectedIndex !== artIndex && picked === art.value);
-                    const needsSurface = art.name === "Deep Apprehension" && !state.draft.artPicks.some((picked) => artSelectionName(picked) === "Surface Apprehension");
-                    return !duplicate && !needsSurface;
+                    const missingPrerequisite = missingArtPrerequisite(
+                      art.name,
+                      state.draft.artPicks.map(artSelectionName),
+                    );
+                    return !duplicate && !missingPrerequisite;
                   }).map((art) => <option key={art.value} value={art.value}>{art.name} · {art.tradition}</option>)}
                 </select>
               </label>

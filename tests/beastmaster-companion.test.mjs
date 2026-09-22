@@ -200,10 +200,11 @@ test("Beastmaster companion handling accepts zero and fractional HD without inve
 });
 
 test("Beastmaster UI exposes the bond choice and a rules-aware dedicated companion tab", async () => {
-  const [wizard, sheet, styles] = await Promise.all([
+  const [wizard, sheet, styles, rollPresentation] = await Promise.all([
     readFile(new URL("../app/character-creation-wizard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/roll-presentation.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(wizard, /Companion mode/u);
@@ -227,7 +228,11 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Roll Damage/u);
   assert.match(sheet, /companion-roll-control/u);
   assert.match(sheet, /extractBeastmasterDamageExpression/u);
+  assert.match(sheet, /\$\{name\} — Damage/u);
   assert.match(styles, /\.companion-roll-control input\{[^}]*font-size:16px[^}]*line-height:1\.2/u);
+  assert.match(styles, /\.roll-result-reminder/u);
+  assert.match(rollPresentation, /formatShockMinimumReminder/u);
+  assert.match(rollPresentation, /roll-result-reminder/u);
   assert.match(sheet, /Base Hit Dice/u);
   assert.match(sheet, /Effective Hit Dice/u);
   assert.match(sheet, /Effective Hit Bonus/u);

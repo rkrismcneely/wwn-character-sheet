@@ -19,7 +19,7 @@ import {
 } from "./character-creation-guidance";
 import { plainLanguageSummary } from "./plain-language";
 import { rollDice } from "./dice";
-import { armorRestrictsMagic, focusTargetAvailable } from "./phase2-rules";
+import { armorRestrictsMagic, focusTargetAvailable, missingArtPrerequisite } from "./phase2-rules";
 import { foci } from "./wwn-data";
 import {
   creationEquipmentKindAlreadyPurchased,
@@ -1644,13 +1644,10 @@ export function GuidedCreationWizard({
                                 art.value === status.forcedArts[index],
                             )
                             .map((art) => {
-                              const prerequisiteMissing =
-                                art.name === "Deep Apprehension" &&
-                                !sheet.artPicks.some(
-                                  (choice) =>
-                                    artSelectionName(choice) ===
-                                    "Surface Apprehension",
-                                );
+                              const prerequisiteMissing = missingArtPrerequisite(
+                                art.name,
+                                sheet.artPicks.map(artSelectionName),
+                              );
                               const duplicate =
                                 art.name !== "Skilled" &&
                                 sheet.artPicks.some(
@@ -1666,7 +1663,7 @@ export function GuidedCreationWizard({
                                 >
                                   {art.tradition} · {art.name}
                                   {prerequisiteMissing
-                                    ? " — requires Surface Apprehension"
+                                    ? ` — requires ${prerequisiteMissing}`
                                     : duplicate
                                       ? " — already selected"
                                       : ""}

@@ -75,7 +75,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, artEffortCommitmentCount, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -292,7 +292,7 @@ const initial = {
   focusPicks: [{ name: "Henchkeeper", level: 2 }] as FocusPick[],
   artPicks: ["Arcane Lexicon", "Sense Magic", "Retain Sorcery", "Wizard’s Grandeur"] as string[],
   artChoices: {} as Record<string, string[]>,
-  artEffort: [false, false, false, false] as boolean[],
+  artEffort: [0, 0, 0, 0] as number[],
   spellPicks: [
     { name: "Velocitous Imbuement", prepared: true, cast: false },
     { name: "Decree of Lithic Dissolution", prepared: true, cast: false },
@@ -699,9 +699,9 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
       : initial.spellPicks,
     artEffort: Array.isArray(incoming.artEffort)
       ? (incoming.artPicks || initial.artPicks).map((_, index) =>
-          Boolean(incoming.artEffort?.[index]),
+          artEffortCommitmentCount(incoming.artEffort?.[index]),
         )
-      : (incoming.artPicks || initial.artPicks).map(() => false),
+      : (incoming.artPicks || initial.artPicks).map(() => 0),
     beastmasterBond:
       incoming.beastmasterBond === "chosen-friend"
         ? "chosen-friend"
@@ -1525,7 +1525,7 @@ export default function Home({
         ? current.artPicks.map(selection => redundant.includes(artSelectionName(selection)) ? "" : selection)
         : current.artPicks,
       artEffort: bond === "chosen-friend"
-        ? current.artEffort.map((committed, index) => redundant.includes(artSelectionName(current.artPicks[index] || "")) ? false : committed)
+        ? current.artEffort.map((committed, index) => redundant.includes(artSelectionName(current.artPicks[index] || "")) ? 0 : committed)
         : current.artEffort,
     }));
   };
@@ -1766,7 +1766,7 @@ export default function Home({
     const healing = Math.max(0, Math.min(sheet.level || 0, calculatedHpMax - sheet.hpCurrent));
     const strainRecovery = sheet.strainCurrent > 0 ? 1 : 0;
     const castings = sheet.spellPicks.reduce((total, pick) => total + spellCastCount(pick), 0);
-    const effort = sheet.artEffort.filter(Boolean).length;
+    const effort = artEffortTotal(sheet.artEffort);
     const familiarRefreshes = [...sheet.companions, ...sheet.archivedCompanions]
       .filter(companion => companion.kind === "familiar" && companion.effortRefreshUsed)
       .length;
@@ -1787,7 +1787,7 @@ export default function Home({
       hpCurrent: Math.min(calculatedHpMax, current.hpCurrent + Math.max(0, current.level || 0)),
       strainCurrent: Math.max(0, current.strainCurrent - 1),
       spellPicks: current.spellPicks.map(pick => ({ ...pick, cast: false, casts: 0 })),
-      artEffort: current.artPicks.map(() => false),
+      artEffort: current.artPicks.map(() => 0),
       effortUsed: 0,
       companions: current.companions.map(resetFamiliarRefresh),
       archivedCompanions: current.archivedCompanions.map(resetFamiliarRefresh),
@@ -2519,7 +2519,11 @@ export default function Home({
           partialSpellPenalty: partialPenalty,
           usesEffort: info.usesEffort !== false,
         });
-    const used = sheet.artPicks.filter((name,i) => sheet.artEffort[i] && creationArtForSelection(availableArts, name)?.tradition === t).length;
+    const used = sheet.artPicks.reduce((total, name, index) =>
+      creationArtForSelection(availableArts, name)?.tradition === t
+        ? total + artEffortCommitmentCount(sheet.artEffort[index])
+        : total,
+    0);
     return {tradition:t,skill,max,used};
   });
   const availableSpells = [
@@ -2753,8 +2757,12 @@ export default function Home({
         preparedSeen += 1;
         return preparedSeen <= limits.prepared ? pick : { ...pick, prepared: false, cast: false };
       });
-      const selectedEffort = current.artPicks.flatMap((name, index) => name ? [Boolean(current.artEffort[index])] : []);
-      const nextEffort = nextArts.map((name, index) => name ? Boolean(selectedEffort[index]) : false);
+      const selectedEffort = current.artPicks.flatMap((name, index) =>
+        name ? [artEffortCommitmentCount(current.artEffort[index])] : [],
+      );
+      const nextEffort = nextArts.map((name, index) =>
+        name ? artEffortCommitmentCount(selectedEffort[index]) : 0,
+      );
       const unchanged =
         JSON.stringify(nextFoci) === JSON.stringify(current.focusPicks) &&
         JSON.stringify(nextArts) === JSON.stringify(current.artPicks) &&
@@ -3752,6 +3760,7 @@ export default function Home({
             </div>
           </Section>}
           <Section title="Arts" buildControlled aside={<span className="caption">{artTraditions.join(" + ")} · {sheet.artPicks.filter(Boolean).length}/{artAllowance} available by level {sheet.level}</span>}>
+            <p className="section-intro">Press Commit each time an Art commits one point of Effort. The same Art can hold multiple commitments. Release one when that commitment ends under the Art’s rules, or to undo a mistaken click; a good night’s rest clears all remaining commitments.</p>
             <div className="arts-grid">{sheet.artPicks.map((name, i) => {
               const art = creationArtForSelection(availableArts, name);
               const requiredArt = forcedArts[i];
@@ -3766,7 +3775,11 @@ export default function Home({
                 <select title={art?.text || "Choose an art"} value={name} onChange={e => {
                   const next = e.target.value;
                   if (next && !artEligibility(next, i).eligible) { setTransferMessage(artEligibility(next, i).reason); return; }
-                  patch("artPicks", sheet.artPicks.map((x, j) => j === i ? next : x));
+                  setSheet(current => ({
+                    ...current,
+                    artPicks: current.artPicks.map((x, j) => j === i ? next : x),
+                    artEffort: current.artEffort.map((count, j) => j === i ? 0 : artEffortCommitmentCount(count)),
+                  }));
                 }}><option value="">{requiredArt ? `Choose ${artSelectionName(requiredArt)}…` : "Choose an art…"}</option>{artTraditions.filter(t => t !== "Invoker").map(t => <optgroup key={t} label={t}>{availableArts.filter(a => (!requiredArt || a.value === requiredArt) && a.tradition === t).map(a => {
                   const eligibility = artEligibility(a.value, i);
                   return <option value={a.value} disabled={!eligibility.eligible} key={`${t}-${a.name}`}>{a.name}{eligibility.eligible ? "" : ` — ${eligibility.reason}`}</option>;
@@ -3784,7 +3797,17 @@ export default function Home({
                 {requiredArt && <small>Required starting Art</small>}
                 {art ? <Tip title="?"><RulesTooltip name={art.name} text={art.text} extra={art.minLevel ? `Minimum level ${art.minLevel}.` : undefined}/></Tip> :
                   <span className="slot-number" aria-label={`Art selection ${i + 1}`}>{i + 1}</span>}
-                <label className="check" data-character-play-state="true"><input type="checkbox" checked={Boolean(sheet.artEffort[i])} disabled={!name || (Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked) || (!sheet.artEffort[i] && (effortPools.find(p => p.tradition === art?.tradition)?.used ?? 0) >= (effortPools.find(p => p.tradition === art?.tradition)?.max ?? 0))} onChange={e => patch("artEffort", sheet.artPicks.map((_, j) => j === i ? e.target.checked : Boolean(sheet.artEffort[j])))} /><span>Effort</span></label>
+                {(() => {
+                  const effortCount = artEffortCommitmentCount(sheet.artEffort[i]);
+                  const pool = effortPools.find(p => p.tradition === art?.tradition);
+                  const blockedByArmor = Boolean(art && armorRestrictedTraditions.includes(art.tradition)) && castingBlocked;
+                  const canCommit = Boolean(name) && !blockedByArmor && Boolean(pool) && (pool?.used ?? 0) < (pool?.max ?? 0);
+                  return <div className="art-effort-control" data-character-play-state="true" title={blockedByArmor ? castingBlockedReason : undefined}>
+                    <button type="button" className="art-effort-commit" disabled={!canCommit} onClick={() => patch("artEffort", sheet.artPicks.map((_, j) => j === i ? effortCount + 1 : artEffortCommitmentCount(sheet.artEffort[j])))}>Commit</button>
+                    <span className="art-effort-count" aria-label={`${art?.name || "Art"} has ${effortCount} Effort committed`} aria-live="polite">×{effortCount}</span>
+                    <button type="button" className="art-effort-release" disabled={effortCount <= 0} onClick={() => patch("artEffort", sheet.artPicks.map((_, j) => j === i ? Math.max(0, effortCount - 1) : artEffortCommitmentCount(sheet.artEffort[j])))}>Release</button>
+                  </div>;
+                })()}
               </div>;
             })}</div>
             {!sheet.artPicks.length && <p className="empty-slots">This class has no Art selections at the current level.</p>}

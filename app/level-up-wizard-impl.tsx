@@ -39,7 +39,7 @@ import "./character-creation-wizard.css";
 type WizardCharacter = LevelOneCreationCharacter & {
   strainCurrent?: number;
   levelUpUnspentSkillPoints?: number;
-  artEffort?: boolean[];
+  artEffort?: number[];
 };
 
 type Props = {
@@ -284,7 +284,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       // Keep the same damage taken rather than silently healing from the new maximum.
       hpCurrent: Math.max(0, Math.min(hpMaximum, sheet.hpCurrent + Math.max(0, hpMaximum - sheet.hpMax))),
       levelUpUnspentSkillPoints: Math.max(0, pointsRemaining),
-      artEffort: state.draft.artPicks.map(() => false),
+      artEffort: state.draft.artPicks.map(() => 0),
     } as WizardCharacter;
     const applied = await onFinish(final, sourceLevel);
     setFinishing(false);

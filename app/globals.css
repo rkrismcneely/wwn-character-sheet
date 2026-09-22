@@ -3065,3 +3065,41 @@ html[data-theme="dark"] .library-panel,
 html[data-theme="dark"] .campaign-store-drawer{
   background-image:var(--twe-page-overlay),var(--twe-page-background);
 }
+
+
+/* Arts can commit more than one point of Effort to the same Art. */
+.art-card{grid-template-columns:30px minmax(0,1fr) 72px minmax(174px,auto)}
+.art-effort-control{
+  display:grid;
+  grid-template-columns:minmax(58px,1fr) 34px minmax(58px,1fr);
+  align-items:center;
+  gap:5px;
+  min-width:0;
+}
+.art-effort-control button{
+  width:100%;
+  min-width:0;
+  padding:6px 7px;
+  font:700 9px/1 var(--font-ui);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  white-space:nowrap;
+}
+.art-effort-count{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:29px;
+  border:1px solid var(--line);
+  background:rgba(161,126,66,.08);
+  font:700 12px/1 var(--font-numeric);
+}
+html[data-theme="dark"] .art-effort-count{
+  background:#171713;
+  border-color:#665a42;
+  color:#f0dfbd;
+}
+@media(max-width:720px){
+  .art-card{grid-template-columns:30px minmax(0,1fr) 55px}
+  .art-card .art-effort-control{grid-column:2/-1}
+}

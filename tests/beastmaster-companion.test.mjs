@@ -80,7 +80,7 @@ test("Beastmaster defaults to standard Bind Companion without an extra creation 
   assert.equal(standard.stepStatus.magic.complete, true);
 });
 
-test("Beastmaster keeps Bind Companion required while Chosen Friend preserves the extra Art pick", () => {
+test("Chosen Friend remains a distinct campaign option while Bind Companion uses normal Art choices", () => {
   const normal = levelOneCreationStatus(beastmasterCharacter("bind-companion"));
   assert.equal(normal.artAllowance, 2);
   assert.deepEqual(normal.forcedArts, ["Bind Companion"]);
@@ -221,7 +221,7 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Instinct/u);
   assert.match(sheet, /Lifelong bond · Shared Vitality \+ Mind Call/u);
   assert.match(sheet, /Restore at next dawn/u);
-  assert.match(sheet, /must have a name before Beastmaster arts can control it/u);
+  assert.match(sheet, /Give this companion a name so its bonded creature is easy to identify during play/u);
   assert.match(sheet, /artSelectionName\(name\) === "Feral Toughness"/u);
   assert.match(sheet, /feralToughnessBaseArmorClass\(effectiveLevel\)/u);
   assert.match(sheet, /feralToughnessArmorBase/u);

@@ -358,7 +358,7 @@ test("built-in bestiary definitions search and create independent campaign and e
   assert.equal(Object.isFrozen(apex.sourceStats), true);
   assert.ok(searchBuiltInBestiaryCreatures("apex").some(creature => creature.id === "apex-predator"));
   const catalog = searchBuiltInBestiaryCreatures("");
-  assert.equal(catalog.length, 84);
+  assert.equal(catalog.length, 88);
   assert.deepEqual(catalog.map(creature => creature.name), [...catalog.map(creature => creature.name)].sort((left, right) => left.localeCompare(right)));
   assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("amorphous").map(creature => creature.id), ["slime-or-ooze"]);

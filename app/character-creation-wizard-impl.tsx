@@ -273,8 +273,19 @@ export function GuidedCreationWizard({
     if (!canEdit) return;
     onChange(update);
   };
-  const storedLanguages = Array.isArray(sheet.languages) ? sheet.languages : [];
-  const knownLanguages = [...new Set(["Common", ...storedLanguages.filter((language) => language !== "Common")])];
+  const knownLanguages = useMemo(() => {
+    const storedLanguages = Array.isArray(sheet.languages) ? sheet.languages : [];
+    return [...new Set([
+      "Common",
+      ...storedLanguages
+        .map((language) => language.trim())
+        .filter((language) => language && language !== "Common"),
+    ])];
+  }, [sheet.languages]);
+  useEffect(() => {
+    if (!canEdit || sheet.languages.includes("Common")) return;
+    onChange({ languages: knownLanguages });
+  }, [canEdit, knownLanguages, onChange, sheet.languages]);
   const hasLanguage = (language: string) =>
     knownLanguages.some((known) => known.trim().toLocaleLowerCase() === language.trim().toLocaleLowerCase());
   const addAdditionalLanguage = (language: string) => {

@@ -41,6 +41,7 @@ import {
   focusIsRepeatable,
   focusTargetAvailable,
   inferFocusAdvancementFlags,
+  missingArtPrerequisite,
 } from "./phase2-rules.ts";
 import {
   creationEquipmentChoiceIsComplete,
@@ -1311,13 +1312,14 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
         step: "magic",
         message: `${name} requires level ${art?.minLevel}.`,
       });
-    if (
-      artSelectionName(name) === "Deep Apprehension" &&
-      !selectedArts.some((selection) => artSelectionName(selection) === "Surface Apprehension")
-    )
+    const missingPrerequisite = missingArtPrerequisite(
+      artSelectionName(name),
+      selectedArts.map(artSelectionName),
+    );
+    if (missingPrerequisite)
       issues.push({
         step: "magic",
-        message: "Deep Apprehension requires Surface Apprehension.",
+        message: `${artSelectionName(name)} requires ${missingPrerequisite}.`,
       });
     if (
       artSelectionName(name) !== "Skilled" &&

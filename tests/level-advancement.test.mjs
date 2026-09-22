@@ -299,9 +299,10 @@ test("Spirit Familiar level two can repeat for one pick and unlocks two benefits
     { name: "Spirit Familiar", level: 2 },
   ]), 6);
 
-  assert.equal(spiritFamiliarLevelTwoSelectionLimit(2), 1);
-  assert.equal(spiritFamiliarLevelTwoSelectionLimit(4), 1);
-  assert.equal(spiritFamiliarLevelTwoSelectionLimit(5), 2);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(1), 1);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(2), 2);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(4), 2);
+  assert.equal(spiritFamiliarLevelTwoSelectionLimit(5), 3);
   assert.equal(spiritFamiliarLevelTwoSelectionLimit(7), 3);
   assert.equal(spiritFamiliarLevelTwoSelectionLimit(10), 3);
 });
@@ -312,6 +313,15 @@ test("Spirit Familiar is offered again on later Focus opportunities after level 
     focusPicks: [{ name: "Spirit Familiar", level: 1 }],
   }));
   assert.ok(levelTwoUpgrade.some((focus) => focus.name === "Spirit Familiar"));
+
+  const levelTwoRepeatAfterCreation = legalAdvancementFocuses(base({
+    level: 1,
+    focusPicks: [{ name: "Spirit Familiar", level: 2 }],
+  }));
+  assert.ok(
+    levelTwoRepeatAfterCreation.some((focus) => focus.name === "Spirit Familiar"),
+    "a character who bought Spirit Familiar 2 at creation can buy level 2 again with the level-2 Focus pick",
+  );
 
   const levelFiveRepeat = legalAdvancementFocuses(base({
     level: 4,
@@ -378,6 +388,11 @@ test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async ()
     readFile(new URL("../app/level-up-wizard-impl.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(sheet, /spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit\(sheet\.focusPicks\)/u);
+  assert.match(
+    sheet,
+    /\(sheet\.level < 2 && pick\.name !== "Spirit Familiar"\)/u,
+    "Spirit Familiar level 2 remains selectable at level 1 when the Focus-pick budget can pay for it",
+  );
   assert.match(sheet, /Choose \{spiritFamiliarBenefitCap\}/u);
   assert.match(sheet, /activeFamiliarBenefits\.length >= spiritFamiliarBenefitCap/u);
   assert.match(sheet, /disabled=\{atLimit \|\| !canEdit\}/u);

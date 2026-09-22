@@ -5,8 +5,9 @@ import { calculateWwnThreatEstimate, type WwnThreatBand } from "./wwn-threat.ts"
 import { thoseOutsideTheWallsPreviewCreatures } from "./bestiary-those-outside-the-walls.ts";
 
 /**
- * Immutable creature definitions derived exclusively from the CC0 Worlds
- * Without Number SRD corpus already imported by this project. See
+ * Immutable creature definitions. The generic SRD profiles are derived from
+ * the CC0 Worlds Without Number SRD corpus already imported by this project;
+ * explicitly marked TWE profiles are original additions. See
  * scripts/import-srd-search.mjs and the "Monster & NPC Statistics" SRD entry.
  *
  * The SRD gives creatures hit dice rather than fixed hit points. hpMax is a
@@ -16,6 +17,11 @@ import { thoseOutsideTheWallsPreviewCreatures } from "./bestiary-those-outside-t
 export interface BuiltInBestiaryCreature {
   readonly id: string;
   readonly name: string;
+  /** Stable grouping metadata for catalogues; never derive it from the name. */
+  readonly category?: string;
+  readonly family?: string;
+  /** Prior display names kept searchable and safe for historical encounter copies. */
+  readonly aliases?: readonly string[];
   readonly hpMax: number;
   readonly armorClass: number;
   readonly physicalSave: number;
@@ -72,6 +78,11 @@ export interface BuiltInBestiarySourceStats {
 export const worldsWithoutNumberSrdSource: BuiltInBestiarySource = Object.freeze({
   name: "Worlds Without Number SRD",
   license: "CC0",
+});
+
+export const talesWithoutEndOriginalSource: BuiltInBestiarySource = Object.freeze({
+  name: "Tales Without End original content",
+  license: "Original content",
 });
 
 type CreatureDefinition = Omit<BuiltInBestiaryCreature, "attacks" | "sourceAttacks" | "description" | "source" | "sourceStats" | "spellcasting"> & {
@@ -308,6 +319,7 @@ function defineCreature(creature: CreatureDefinition): BuiltInBestiaryCreature {
     description: context.description,
     source: worldsWithoutNumberSrdSource,
     sourceStats: Object.freeze({ ...context.sourceStats }),
+    ...(definition.aliases ? { aliases: Object.freeze([...definition.aliases]) } : {}),
     ...(spellcasting ? { spellcasting, notes: spellcastingNote(spellcasting) } : {}),
     sourceAttacks,
     attacks: Object.freeze(sourceAttacks.map(attack => Object.freeze(curatedAttack(creature, attack)))),
@@ -316,6 +328,24 @@ function defineCreature(creature: CreatureDefinition): BuiltInBestiaryCreature {
 
 function attack(attackBonus: number, damage: string, description = ""): CampaignNpcAttack {
   return { name: "Attack", attackBonus, damage, description };
+}
+
+function namedAttack(name: string, attackBonus: number, damage: string, shock = "", description = ""): CampaignNpcAttack {
+  return { name, attackBonus, damage, ...(shock ? { shock } : {}), description };
+}
+
+function defineOriginalCreature(creature: Omit<BuiltInBestiaryCreature, "source" | "sourceAttacks">): BuiltInBestiaryCreature {
+  const sourceAttacks = Object.freeze(creature.attacks.map(value => Object.freeze({ ...value })));
+  const attacks = Object.freeze(creature.attacks.map(value => Object.freeze({ ...value })));
+  return Object.freeze({
+    ...creature,
+    source: talesWithoutEndOriginalSource,
+    sourceStats: Object.freeze({ ...creature.sourceStats }),
+    ...(creature.aliases ? { aliases: Object.freeze([...creature.aliases]) } : {}),
+    ...(creature.abilities ? { abilities: Object.freeze(creature.abilities.map(value => Object.freeze({ ...value }))) } : {}),
+    sourceAttacks,
+    attacks,
+  });
 }
 
 /**
@@ -378,7 +408,7 @@ const creatureContext: Record<string, { description: string; sourceStats: BuiltI
   "apex-predator": { description: "A huge and exceptionally dangerous hunting beast, suitable for dire predators and other apex carnivores.", sourceStats: { hitDice: 6, attacksPerMainAction: 2, shock: "2/13", move: "40'", morale: 8, instinct: 6, skill: 2 } },
   "herd-beast": { description: "A common grazing animal that can become dangerous when startled or defending its young.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
   "vicious-large-herbivore": { description: "A large territorial herbivore with enough mass and aggression to threaten a party.", sourceStats: { hitDice: 4, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 9, instinct: 6, skill: 1 } },
-  "elephantine-grazer": { description: "An enormous grazer whose bulk and crushing attacks make it a formidable obstacle.", sourceStats: { hitDice: 6, attacksPerMainAction: 1, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
+  "elephantine-grazer": { description: "An enormous herbivore whose bulk and crushing attacks make it a formidable obstacle.", sourceStats: { hitDice: 6, attacksPerMainAction: 1, shock: "None", move: "40'", morale: 7, instinct: 6, skill: 1 } },
   "automaton-humanlike": { description: "A human-shaped artificial servant or guardian carrying an ordinary weapon.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "Weapon", move: "30'", morale: 12, instinct: 3, skill: 1 } },
   "automaton-laborer": { description: "A durable industrial construct designed for repetitive physical work.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "1/13", move: "30'", morale: 12, instinct: 3, skill: 1 } },
   "automaton-military": { description: "A reinforced combat automaton built for disciplined military service.", sourceStats: { hitDice: 4, attacksPerMainAction: 1, shock: "4/15", move: "30'", morale: 12, instinct: 3, skill: 1 } },
@@ -411,21 +441,29 @@ const creatureContext: Record<string, { description: string; sourceStats: BuiltI
 };
 
 const rawBuiltInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.freeze([
-  defineCreature({ id: "small-pack-predator", name: "Small Pack Predator", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "1d4")], notes: "" }),
-  defineCreature({ id: "large-solitary-predator", name: "Large Solitary Predator", hpMax: 23, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "1d8")], notes: "" }),
-  defineCreature({ id: "apex-predator", name: "Apex Predator", hpMax: 27, armorClass: 13, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(6, "1d8")], notes: "" }),
-  defineCreature({ id: "herd-beast", name: "Herd Beast", hpMax: 9, armorClass: 11, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "1d4")], notes: "" }),
-  defineCreature({ id: "vicious-large-herbivore", name: "Vicious Large Herbivore", hpMax: 18, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(5, "1d10")], notes: "" }),
-  defineCreature({ id: "elephantine-grazer", name: "Elephantine Grazer", hpMax: 27, armorClass: 13, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(5, "2d8")], notes: "" }),
-  defineCreature({ id: "automaton-humanlike", name: "Automaton, Humanlike", hpMax: 9, armorClass: 13, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "Weapon")], notes: "" }),
-  defineCreature({ id: "automaton-laborer", name: "Automaton, Laborer", hpMax: 9, armorClass: 15, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "1d6")], notes: "" }),
-  defineCreature({ id: "automaton-military", name: "Automaton, Military", hpMax: 18, armorClass: 18, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(5, "1d10+2")], notes: "" }),
+  defineCreature({ id: "small-pack-predator", name: "Small Pack Predator", category: "Animal", family: "Predator", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(2, "1d4")], notes: "" }),
+  defineCreature({ id: "large-solitary-predator", name: "Large Solitary Predator", category: "Animal", family: "Predator", hpMax: 23, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "1d8")], notes: "" }),
+  defineCreature({ id: "apex-predator", name: "Apex Predator", category: "Animal", family: "Predator", hpMax: 27, armorClass: 13, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(6, "1d8")], notes: "" }),
+  defineCreature({ id: "herd-beast", name: "Herd Beast", category: "Animal", family: "Herbivore", hpMax: 9, armorClass: 11, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "1d4")], notes: "" }),
+  defineCreature({ id: "vicious-large-herbivore", name: "Vicious Large Herbivore", category: "Animal", family: "Herbivore", hpMax: 18, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(5, "1d10")], notes: "" }),
+  defineCreature({ id: "elephantine-grazer", name: "Elephantine Herbivore", aliases: ["Elephantine Grazer"], category: "Animal", family: "Herbivore", hpMax: 27, armorClass: 13, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(5, "2d8")], notes: "" }),
+  defineOriginalCreature({ id: "small-bird", name: "Small Bird", category: "Animal", family: "Bird", description: "A common, alert bird suitable for scouting, messages, or distraction rather than direct combat.", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Beak", 1, "1d2")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "None", move: "10' Walk/60' Fly", morale: 6, instinct: 6, skill: 1 } }),
+  defineOriginalCreature({ id: "burrowing-herbivore", name: "Burrowing Herbivore", category: "Animal", family: "Herbivore", description: "A wary tunneling animal that survives by digging away from danger and defending a burrow only when cornered.", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Bite", 0, "1d2")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "None", move: "30' Walk/20' Burrow", morale: 6, instinct: 7, skill: 1 }, abilities: [{ name: "Burrow", summary: "Can tunnel through loose earth, sand, or similar yielding ground." }] }),
+  defineOriginalCreature({ id: "small-omnivore", name: "Small Omnivore", category: "Animal", family: "Omnivore", description: "A nimble forager and scavenger that is comfortable around camps, trees, and broken terrain.", hpMax: 5, armorClass: 12, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Bite", 1, "1d3")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "None", move: "30' Walk/20' Climb", morale: 7, instinct: 6, skill: 1 } }),
+  defineOriginalCreature({ id: "small-solitary-predator", name: "Small Solitary Predator", category: "Animal", family: "Predator", description: "A quick lone hunter that relies on stealth, speed, and a short violent rush rather than a pack.", hpMax: 5, armorClass: 13, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [namedAttack("Bite", 2, "1d4", "1/13")], notes: "", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40'", morale: 7, instinct: 6, skill: 1 } }),
+  defineOriginalCreature({ id: "swift-riding-beast", name: "Swift Riding Beast", category: "Animal", family: "Herbivore", description: "A sure-footed riding animal bred for speed, endurance, and carrying a single rider across open ground.", hpMax: 9, armorClass: 12, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Hooves", 2, "1d4")], notes: "", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "60'", morale: 7, instinct: 6, skill: 1 } }),
+  defineOriginalCreature({ id: "aquatic-herbivore", name: "Aquatic Herbivore", category: "Animal", family: "Herbivore", description: "A placid water-dwelling herbivore that can carry a rider or haul a light load through lakes, rivers, and marshes.", hpMax: 9, armorClass: 12, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Tail", 1, "1d4")], notes: "", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "10' Walk/40' Swim", morale: 7, instinct: 6, skill: 1 } }),
+  defineOriginalCreature({ id: "aquatic-predator", name: "Aquatic Predator", category: "Animal", family: "Predator", description: "A swift water hunter that attacks from beneath the surface before withdrawing into deeper water.", hpMax: 9, armorClass: 13, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Bite", 3, "1d6", "1/13")], notes: "", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "1/13", move: "10' Walk/40' Swim", morale: 8, instinct: 5, skill: 1 } }),
+  defineOriginalCreature({ id: "constrictor", name: "Constrictor", category: "Animal", family: "Reptile", description: "A heavy-bodied ambush snake that wraps prey in crushing coils once it has a secure hold.", hpMax: 9, armorClass: 13, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [namedAttack("Bite", 3, "1d6")], notes: "On a successful bite, it may grapple the target instead of dealing damage.", sourceStats: { hitDice: 2, attacksPerMainAction: 1, shock: "None", move: "30' Walk/20' Climb", morale: 8, instinct: 5, skill: 1 }, abilities: [{ name: "Constrict", summary: "On a successful bite, it may grapple the target instead of dealing damage; it can hold only one target at a time." }] }),
+  defineCreature({ id: "automaton-humanlike", name: "Humanlike Automaton", aliases: ["Automaton, Humanlike"], category: "Construct", family: "Automaton", hpMax: 9, armorClass: 13, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "Weapon")], notes: "" }),
+  defineCreature({ id: "automaton-laborer", name: "Laborer Automaton", aliases: ["Automaton, Laborer"], category: "Construct", family: "Automaton", hpMax: 9, armorClass: 15, physicalSave: 14, evasionSave: 14, mentalSave: 14, attacks: [attack(2, "1d6")], notes: "" }),
+  defineCreature({ id: "automaton-military", name: "Military Automaton", aliases: ["Automaton, Military"], category: "Construct", family: "Automaton", hpMax: 18, armorClass: 18, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(5, "1d10+2")], notes: "" }),
   defineCreature({ id: "slime-or-ooze", name: "Slime or Ooze", hpMax: 27, armorClass: 10, physicalSave: 12, evasionSave: 12, mentalSave: 12, attacks: [attack(6, "1d8")], notes: "" }),
-  defineCreature({ id: "small-vicious-predator", name: "Predator, Small Vicious", hpMax: 5, armorClass: 14, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(1, "1d4")], notes: "" }),
-  defineCreature({ id: "large-vicious-predator", name: "Predator, Large Vicious", hpMax: 27, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(7, "2d6")], notes: "" }),
-  defineCreature({ id: "hulking-predator", name: "Predator, Hulking", hpMax: 45, armorClass: 15, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "2d6+3")], notes: "" }),
+  defineCreature({ id: "small-vicious-predator", name: "Small Vicious Predator", aliases: ["Predator, Small Vicious"], category: "Unnatural Beast", family: "Predator", hpMax: 5, armorClass: 14, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(1, "1d4")], notes: "" }),
+  defineCreature({ id: "large-vicious-predator", name: "Large Vicious Predator", aliases: ["Predator, Large Vicious"], category: "Unnatural Beast", family: "Predator", hpMax: 27, armorClass: 13, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(7, "2d6")], notes: "" }),
+  defineCreature({ id: "hulking-predator", name: "Hulking Predator", aliases: ["Predator, Hulking"], category: "Unnatural Beast", family: "Predator", hpMax: 45, armorClass: 15, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "2d6+3")], notes: "" }),
   defineCreature({ id: "unnatural-swarm", name: "Unnatural Swarm", hpMax: 18, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(6, "1d6")], notes: "" }),
-  defineCreature({ id: "terrible-warbeast", name: "Terrible Warbeast", hpMax: 36, armorClass: 15, physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "2d6+4")], notes: "" }),
+  defineCreature({ id: "terrible-warbeast", name: "Terrible Warbeast", category: "Unnatural Beast", family: "War Beast", hpMax: 36, armorClass: 15, physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(10, "2d6+4")], notes: "" }),
   defineCreature({ id: "legendary-god-titan", name: "Legendary God-Titan", hpMax: 90, armorClass: 22, physicalSave: 2, evasionSave: 2, mentalSave: 2, attacks: [attack(20, "2d10+5")], notes: "" }),
   defineCreature({ id: "peaceful-human", name: "Peaceful Human", hpMax: 5, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(0, "Weapon")], notes: "" }),
   defineCreature({ id: "thug-or-militia", name: "Thug or Militia", hpMax: 5, armorClass: 13, armorAnnotation: "a", physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [attack(1, "Weapon")], notes: "" }),
@@ -444,8 +482,8 @@ const rawBuiltInBestiaryCreatures: readonly BuiltInBestiaryCreature[] = Object.f
   defineCreature({ id: "skilled-sorcerer", name: "Skilled Sorcerer", hpMax: 23, armorClass: 10, physicalSave: 13, evasionSave: 13, mentalSave: 13, attacks: [attack(1, "Weapon")], spellcasting: { level: 5, effort: 4 }, notes: "" }),
   defineCreature({ id: "master-wizard", name: "Master Wizard", hpMax: 36, armorClass: 13, physicalSave: 11, evasionSave: 11, mentalSave: 11, attacks: [attack(1, "Weapon")], spellcasting: { level: 8, effort: 4 }, notes: "" }),
   defineCreature({ id: "famous-arch-mage", name: "Famous Arch-Mage", hpMax: 45, armorClass: 13, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(2, "Weapon")], spellcasting: { level: 10, effort: 5 }, notes: "" }),
-  defineCreature({ id: "automaton-warbot", name: "Automaton, Warbot", hpMax: 45, armorClass: 20, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d12+5")], notes: "" }),
-  defineCreature({ id: "predator-hellbeast", name: "Predator, Hellbeast", hpMax: 45, armorClass: 18, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d10+5")], notes: "" }),
+  defineCreature({ id: "automaton-warbot", name: "Warbot Automaton", aliases: ["Automaton, Warbot"], category: "Construct", family: "Automaton", hpMax: 45, armorClass: 20, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d12+5")], notes: "" }),
+  defineCreature({ id: "predator-hellbeast", name: "Hellbeast Predator", aliases: ["Predator, Hellbeast"], category: "Unnatural Beast", family: "Predator", hpMax: 45, armorClass: 18, physicalSave: 10, evasionSave: 10, mentalSave: 10, attacks: [attack(12, "1d10+5")], notes: "" }),
   ...thoseOutsideTheWallsPreviewCreatures,
 ]);
 
@@ -531,7 +569,22 @@ export function getBuiltInBestiaryCreature(id: string): BuiltInBestiaryCreature 
 function creatureMatchesSearch(creature: BuiltInBestiaryCreature, normalizedQuery: string): boolean {
   return !normalizedQuery
     || creature.name.toLocaleLowerCase().includes(normalizedQuery)
+    || creature.aliases?.some(alias => alias.toLocaleLowerCase().includes(normalizedQuery))
     || creature.description.toLocaleLowerCase().includes(normalizedQuery);
+}
+
+function findBuiltInBestiaryCreatureByName(name: string): BuiltInBestiaryCreature | null {
+  return builtInBestiaryCreatures.find(candidate => candidate.name === name || candidate.aliases?.includes(name)) ?? null;
+}
+
+export function sortBestiaryCreaturesByFamilyAndHitDice(
+  creatures: readonly BuiltInBestiaryCreature[],
+): BuiltInBestiaryCreature[] {
+  return [...creatures].sort((left, right) =>
+    (left.category ?? "Ungrouped").localeCompare(right.category ?? "Ungrouped")
+    || (left.family ?? left.name).localeCompare(right.family ?? right.name)
+    || left.sourceStats.hitDice - right.sourceStats.hitDice
+    || left.name.localeCompare(right.name));
 }
 
 export function searchBestiaryCreatures(
@@ -621,7 +674,7 @@ export function builtInBestiaryEncounterSeed(id: string): { name: string; initia
  * being changed, while encounter-local values remain untouched.
  */
 export function restoreBestiaryEncounterAbilities(npc: CampaignEncounterNpc): CampaignEncounterNpc | null {
-  const creature = builtInBestiaryCreatures.find(candidate => candidate.name === npc.name);
+  const creature = findBuiltInBestiaryCreatureByName(npc.name);
   const stats = npc.combatStats;
   if (!creature?.abilities?.length || !stats || stats.abilities?.length || npc.notes !== creature.notes || stats.notes !== creature.notes || !matchesBestiarySourceStats(stats.sourceStats, creature)) return null;
   return {
@@ -637,7 +690,7 @@ export function restoreBestiaryEncounterAbilities(npc: CampaignEncounterNpc): Ca
  * source. Encounter-local HP, AC, and any existing combat values stay intact.
  */
 export function repairLegacyBestiaryEncounterNpc(npc: CampaignEncounterNpc): CampaignEncounterNpc | null {
-  const creature = builtInBestiaryCreatures.find(candidate => candidate.name === npc.name);
+  const creature = findBuiltInBestiaryCreatureByName(npc.name);
   if (!creature) return null;
   const legacyNotes = legacyGeneratedBestiaryNotes(creature);
   if (npc.notes !== legacyNotes) return null;

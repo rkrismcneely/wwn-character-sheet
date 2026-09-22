@@ -5,8 +5,10 @@ import { levelOneCreationStatus } from "../app/character-creation.ts";
 import {
   applyShieldToArmorBase,
   beastmasterCatalogCreature,
+  beastmasterAttackName,
   beastmasterCatalogCreatures,
   beastmasterCompanionRules,
+  extractBeastmasterDamageExpression,
   feralToughnessBaseArmorClass,
   parseBeastmasterHitDice,
 } from "../app/beastmaster-companion.ts";
@@ -220,6 +222,10 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Record a bound companion/u);
   assert.match(sheet, /Release companion/u);
   assert.match(sheet, /releasing the companion as a Main Action/u);
+  assert.match(sheet, /Roll Attack/u);
+  assert.match(sheet, /Roll Damage/u);
+  assert.match(sheet, /companion-roll-control/u);
+  assert.match(sheet, /extractBeastmasterDamageExpression/u);
   assert.match(sheet, /Base Hit Dice/u);
   assert.match(sheet, /Effective Hit Dice/u);
   assert.match(sheet, /Effective Hit Bonus/u);
@@ -232,6 +238,14 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /feralToughnessArmorBase/u);
 });
 
+
+test("Loaded Beastmaster attacks expose rollable names and damage expressions", () => {
+  assert.equal(beastmasterAttackName("Horns: 1d4"), "Horns");
+  assert.equal(beastmasterAttackName("—", "Joey"), "Joey");
+  assert.equal(extractBeastmasterDamageExpression("Horns: 1d4"), "1d4");
+  assert.equal(extractBeastmasterDamageExpression("Hellfire Claws: 1d10 + 5 · Shock 6/-"), "1d10 + 5");
+  assert.equal(extractBeastmasterDamageExpression("Bite: 0"), null);
+});
 
 test("Beastmaster catalogue is an animal-minded allow-list grouped by family without an invented HD cap", () => {
   const catalog = beastmasterCatalogCreatures();

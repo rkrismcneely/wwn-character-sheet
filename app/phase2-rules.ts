@@ -86,6 +86,46 @@ export function armorRestrictsMagic(armorRule: string) {
   return /cannot .*armor|do not function .*armor|require freedom from armor|same armor and shield restrictions/i.test(armorRule);
 }
 
+const artPrerequisites: Record<string, readonly string[]> = {
+  "Deep Apprehension": ["Surface Apprehension"],
+  "Elicitation of Truth": ["Surface Apprehension"],
+};
+
+export function missingArtPrerequisite(
+  artName: string,
+  selectedArtNames: readonly string[],
+) {
+  const required = artPrerequisites[artName] || [];
+  const selected = new Set(selectedArtNames.filter(Boolean));
+  return required.find((name) => !selected.has(name)) || "";
+}
+
+export function effortMaximum({
+  skillLevel,
+  attributeModifiers,
+  effortBase = 0,
+  partialSpellPenalty = 0,
+  usesEffort = true,
+}: {
+  skillLevel: number;
+  attributeModifiers: readonly number[];
+  effortBase?: number;
+  partialSpellPenalty?: number;
+  usesEffort?: boolean;
+}) {
+  if (!usesEffort) return 0;
+  const bestAttribute = attributeModifiers.length
+    ? Math.max(...attributeModifiers.map((value) => Number(value) || 0))
+    : 0;
+  return Math.max(
+    1,
+    (Number(effortBase) || 0)
+      + (Number(skillLevel) || 0)
+      + bestAttribute
+      - Math.max(0, Number(partialSpellPenalty) || 0),
+  );
+}
+
 /**
  * Maps repeatable Spirit Familiar Focus rows to distinct companion records.
  * A legacy familiar without a slot is adopted only by the first Focus row.

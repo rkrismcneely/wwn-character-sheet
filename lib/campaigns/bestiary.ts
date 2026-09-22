@@ -319,6 +319,7 @@ function defineCreature(creature: CreatureDefinition): BuiltInBestiaryCreature {
     description: context.description,
     source: worldsWithoutNumberSrdSource,
     sourceStats: Object.freeze({ ...context.sourceStats }),
+    ...(definition.aliases ? { aliases: Object.freeze([...definition.aliases]) } : {}),
     ...(spellcasting ? { spellcasting, notes: spellcastingNote(spellcasting) } : {}),
     sourceAttacks,
     attacks: Object.freeze(sourceAttacks.map(attack => Object.freeze(curatedAttack(creature, attack)))),

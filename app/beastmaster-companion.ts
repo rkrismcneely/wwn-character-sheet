@@ -2,7 +2,7 @@ import {
   getBuiltInBestiaryCreature,
   sortBestiaryCreaturesByFamilyAndHitDice,
   type BuiltInBestiaryCreature,
-} from "@/lib/campaigns/bestiary";
+} from "../lib/campaigns/bestiary.ts";
 
 export type BeastmasterBond = "" | "bind-companion" | "chosen-friend";
 

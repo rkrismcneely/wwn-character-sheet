@@ -2290,6 +2290,7 @@ html[data-theme="dark"] .campaign-resource-text{color:#ded0b3}
 .roll-result-tray>div:first-child{display:grid;min-width:0;gap:3px}
 .roll-result-label{font:700 12px/1.2 var(--font-display);letter-spacing:.04em;overflow-wrap:anywhere}
 .roll-result-breakdown{overflow-wrap:anywhere;color:var(--muted);font:10px/1.35 var(--font-ui)}
+.roll-result-reminder{display:block;overflow-wrap:anywhere;color:var(--amber);font:700 10px/1.3 var(--font-ui)}
 .roll-result-total{min-width:48px;display:grid;justify-items:end;gap:1px;font-family:var(--font-ui)}
 .roll-result-total strong{font:700 24px/1 var(--font-numeric)}
 .roll-result-total>span{font:700 9px/1.15 var(--font-ui);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
@@ -2344,6 +2345,7 @@ html[data-theme="dark"] .skill-roll-chooser button,
 html[data-theme="dark"] .roll-history button{background:#2b281f;border-color:#806945;color:#f0dfbd}
 html[data-theme="dark"] .roll-result-tray,
 html[data-theme="dark"] .roll-history{background:#211f19;border-color:#765b30;color:#ead9b8;box-shadow:none}
+html[data-theme="dark"] .roll-result-reminder{color:#e0b467}
 html[data-theme="dark"] .roll-history>header{border-bottom-color:#5d4c30}
 html[data-theme="dark"] .roll-history li{border-bottom-color:#4e4637}
 html[data-theme="dark"] .roll-outcome.success{color:#9dca85}

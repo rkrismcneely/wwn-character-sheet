@@ -3079,12 +3079,60 @@ html[data-theme="dark"] .campaign-store-drawer{
 .art-effort-control button{
   width:100%;
   min-width:0;
+  min-height:29px;
   padding:6px 7px;
+  border:1px solid #8e6b35;
+  border-radius:3px;
+  background:linear-gradient(#fff7e4,#e9d2a6);
+  color:#5b3a13;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 1px 2px rgba(75,49,18,.18);
+  cursor:pointer;
   font:700 9px/1 var(--font-ui);
   text-transform:uppercase;
   letter-spacing:.04em;
   white-space:nowrap;
 }
+.art-effort-control button:hover:not(:disabled){
+  background:linear-gradient(#fffaf0,#dfbd7f);
+  border-color:#6f4d1d;
+}
+.art-effort-control button:active:not(:disabled){
+  transform:translateY(1px);
+  box-shadow:inset 0 1px 2px rgba(75,49,18,.25);
+}
+.art-effort-control button:focus-visible{
+  outline:2px solid #b67922;
+  outline-offset:2px;
+}
+.art-effort-control .art-effort-commit{
+  background:linear-gradient(#b9863e,#8e5f21);
+  border-color:#6e4719;
+  color:#fff8e8;
+  text-shadow:0 1px 0 rgba(53,32,9,.45);
+}
+.art-effort-control .art-effort-commit:hover:not(:disabled){
+  background:linear-gradient(#c99649,#996724);
+}
+.art-effort-control button:disabled{
+  opacity:.42;
+  cursor:not-allowed;
+  box-shadow:none;
+}
+html[data-theme="dark"] .art-effort-control button{
+  background:linear-gradient(#3b3327,#282219);
+  border-color:#806945;
+  color:#f0dfbd;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 1px 2px rgba(0,0,0,.35);
+}
+html[data-theme="dark"] .art-effort-control .art-effort-commit{
+  background:linear-gradient(#a87532,#704817);
+  border-color:#b48648;
+  color:#fff0ce;
+}
+html[data-theme="dark"] .art-effort-control button:hover:not(:disabled){
+  border-color:#b48648;
+}
+
 .art-effort-count{
   display:flex;
   align-items:center;

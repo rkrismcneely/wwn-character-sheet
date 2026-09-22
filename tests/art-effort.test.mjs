@@ -89,3 +89,23 @@ test("changing or resizing Arts cannot transfer stale commitment counts", async 
     /name \? \[artEffortCommitmentCount\(current\.artEffort\[index\]\)\] : \[\]/u,
   );
 });
+
+
+test("Art Effort Commit and Release are visually button-styled controls", async () => {
+  const css = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    css,
+    /\.art-effort-control button\{[\s\S]*border:1px solid #8e6b35;[\s\S]*background:linear-gradient\(#fff7e4,#e9d2a6\);[\s\S]*cursor:pointer;/u,
+  );
+  assert.match(
+    css,
+    /\.art-effort-control \.art-effort-commit\{[\s\S]*background:linear-gradient\(#b9863e,#8e5f21\);[\s\S]*color:#fff8e8;/u,
+  );
+  assert.match(css, /\.art-effort-control button:hover:not\(:disabled\)/u);
+  assert.match(css, /\.art-effort-control button:focus-visible/u);
+  assert.match(css, /\.art-effort-control button:disabled/u);
+});

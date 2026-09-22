@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { builtInBestiaryEncounterSeed, repairLegacyBestiaryEncounterNpc, restoreBestiaryEncounterAbilities } from "../lib/campaigns/bestiary.ts";
+import {
+  builtInBestiaryCreatures,
+  builtInBestiaryEncounterSeed,
+  getBuiltInBestiaryCreature,
+  repairLegacyBestiaryEncounterNpc,
+  searchBuiltInBestiaryCreatures,
+  sortBestiaryCreaturesByFamilyAndHitDice,
+  restoreBestiaryEncounterAbilities,
+} from "../lib/campaigns/bestiary.ts";
 import { summarizeEncounterThreat } from "../lib/campaigns/encounter-threat.ts";
 
 const apexLegacyNotes = "CC0 WWN SRD stat line: 6 HD (default HP 27, rounded-up average of 6d8); Shock 2/13; Move 40'; Morale 8; Instinct 6; Skill +2.";
@@ -106,4 +114,54 @@ test("mixed encounter threat includes repaired legacy Bestiary snapshots indepen
   const result = summarizeEncounterThreat(encounter([elite, apex]), [3, 3]);
   assert.deepEqual(result.enemy, { totalHitDice: 9, totalAttacks: 3, score: 27 });
   assert.equal(result.estimate?.band, "deadly");
+});
+
+
+test("Bestiary uses herbivore terminology, retains renamed aliases, and provides original companion-ready animal profiles", () => {
+  const renamed = {
+    "elephantine-grazer": "Elephantine Herbivore",
+    "small-vicious-predator": "Small Vicious Predator",
+    "large-vicious-predator": "Large Vicious Predator",
+    "hulking-predator": "Hulking Predator",
+    "predator-hellbeast": "Hellbeast Predator",
+    "automaton-humanlike": "Humanlike Automaton",
+    "automaton-laborer": "Laborer Automaton",
+    "automaton-military": "Military Automaton",
+    "automaton-warbot": "Warbot Automaton",
+  };
+  for (const [id, name] of Object.entries(renamed)) {
+    assert.equal(getBuiltInBestiaryCreature(id)?.name, name);
+  }
+  assert.deepEqual(searchBuiltInBestiaryCreatures("Elephantine Grazer").map(creature => creature.id), ["elephantine-grazer"]);
+
+  const profiles = [
+    ["small-bird", 1, "Bird"],
+    ["burrowing-herbivore", 1, "Herbivore"],
+    ["small-omnivore", 1, "Omnivore"],
+    ["small-solitary-predator", 1, "Predator"],
+    ["swift-riding-beast", 2, "Herbivore"],
+    ["aquatic-herbivore", 2, "Herbivore"],
+    ["aquatic-predator", 2, "Predator"],
+    ["constrictor", 2, "Reptile"],
+  ];
+  for (const [id, hitDice, family] of profiles) {
+    const creature = getBuiltInBestiaryCreature(id);
+    assert.ok(creature, `missing ${id}`);
+    assert.equal(creature.source.name, "Tales Without End original content");
+    assert.equal(creature.category, "Animal");
+    assert.equal(creature.family, family);
+    assert.equal(creature.sourceStats.hitDice, hitDice);
+    assert.equal(creature.attacks.length, 1);
+    assert.ok(creature.attacks[0].name !== "Attack", "original profiles use a concrete attack name");
+  }
+
+  const herbivores = sortBestiaryCreaturesByFamilyAndHitDice(
+    builtInBestiaryCreatures.filter(creature => creature.category === "Animal" && creature.family === "Herbivore"),
+  );
+  assert.deepEqual(
+    herbivores.map(creature => creature.id),
+    ["burrowing-herbivore", "aquatic-herbivore", "herd-beast", "swift-riding-beast", "vicious-large-herbivore", "elephantine-grazer"],
+    "catalogue grouping keeps related profiles together and sorts within the family by HD",
+  );
+  assert.match(getBuiltInBestiaryCreature("constrictor")?.notes ?? "", /grapple/i);
 });

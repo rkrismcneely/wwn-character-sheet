@@ -51,6 +51,18 @@ export function formatBeastmasterHitBonus(value: number | null): string {
   return value >= 0 ? `+${value}` : String(value);
 }
 
+export function feralToughnessBaseArmorClass(level: number) {
+  const beastmasterLevel = Math.max(1, Math.min(10, Math.floor(Number(level) || 1)));
+  return 13 + Math.ceil(beastmasterLevel / 2);
+}
+
+export function applyShieldToArmorBase(baseArmorClass: number, shieldArmorClass: number) {
+  const base = Math.max(0, Number(baseArmorClass) || 0);
+  const shield = Math.max(0, Number(shieldArmorClass) || 0);
+  if (!shield) return base;
+  return base >= shield ? base + 1 : shield;
+}
+
 export function beastmasterCompanionRules({
   level,
   bond,

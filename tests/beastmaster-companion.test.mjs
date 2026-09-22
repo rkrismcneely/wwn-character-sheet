@@ -3,7 +3,9 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { levelOneCreationStatus } from "../app/character-creation.ts";
 import {
+  applyShieldToArmorBase,
   beastmasterCompanionRules,
+  feralToughnessBaseArmorClass,
   parseBeastmasterHitDice,
 } from "../app/beastmaster-companion.ts";
 
@@ -138,6 +140,20 @@ test("Chosen Friend and Shared Vitality derive the companion's effective HD and 
   assert.equal(ordinary.effectiveHitBonus, 1);
 });
 
+test("Feral Toughness calculates its base AC with correct rounding and shield interaction", () => {
+  assert.equal(feralToughnessBaseArmorClass(1), 14);
+  assert.equal(feralToughnessBaseArmorClass(2), 14);
+  assert.equal(feralToughnessBaseArmorClass(3), 15);
+  assert.equal(feralToughnessBaseArmorClass(4), 15);
+  assert.equal(feralToughnessBaseArmorClass(5), 16);
+  assert.equal(feralToughnessBaseArmorClass(10), 18);
+
+  assert.equal(applyShieldToArmorBase(14, 0), 14);
+  assert.equal(applyShieldToArmorBase(14, 13), 15);
+  assert.equal(applyShieldToArmorBase(14, 14), 15);
+  assert.equal(applyShieldToArmorBase(14, 16), 16);
+});
+
 test("Beastmaster companion eligibility understands fractional HD and the level-plus-one cap", () => {
   assert.equal(parseBeastmasterHitDice("½ HD"), 0.5);
   assert.equal(parseBeastmasterHitDice("1/2"), 0.5);
@@ -175,4 +191,7 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /Lifelong bond · Shared Vitality \+ Mind Call/u);
   assert.match(sheet, /Restore at next dawn/u);
   assert.match(sheet, /must have a name before Beastmaster arts can control it/u);
+  assert.match(sheet, /artSelectionName\(name\) === "Feral Toughness"/u);
+  assert.match(sheet, /feralToughnessBaseArmorClass\(effectiveLevel\)/u);
+  assert.match(sheet, /feralToughnessArmorBase/u);
 });

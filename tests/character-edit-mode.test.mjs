@@ -15,7 +15,7 @@ test("saved characters lock foundational fields behind Edit Character", async ()
     assert.match(sheet, new RegExp(`<Section title="${title}"[^>]*buildControlled`, "u"));
   }
   assert.ok(sheet.includes('data-character-build-control="true" rows={1} value={sheet.name}'));
-  assert.ok(sheet.includes('data-character-play-state="true"><input type="checkbox" checked={Boolean(sheet.artEffort[i])}'));
+  assert.ok(sheet.includes('className="art-effort-control" data-character-play-state="true"'));
   assert.match(sheet, /disabledForBuildLock = canEdit && !buildFieldsEditable/u);
   assert.match(sheet, /CHARACTER_BUILD_KEY_SET\.has\(key\)/u);
 });

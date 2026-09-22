@@ -12,6 +12,7 @@ import {
 } from "../app/class-data.ts";
 import { creationSkillSources } from "../app/character-creation.ts";
 import { advancementPlan } from "../app/level-advancement.ts";
+import { plainLanguageSummary } from "../app/plain-language.ts";
 import {
   armorRestrictsMagic,
   deriveSkillProfile,
@@ -240,6 +241,42 @@ test("Thought Noble rule enforcement is wired through creation, sheet, level-up,
   );
   assert.match(importer, /progression: \[2,3,4,5,6,7,8,9,10,11\]/u);
   assert.match(importer, /normalizeImportedArtText/u);
+});
+
+
+test("Thought Noble plain-language summaries are complete, useful sentences", () => {
+  const expected = {
+    "Open Mind": "While active, lets you read the current emotional state of a visible living creature.",
+    "Block Memory": "Makes a visible living creature forget one scene-length event if it fails a Mental save.",
+    "Elicitation of Truth": "Forces a helpless or willing target that fails a Mental save to answer one question fully and truthfully.",
+    "Facile Speech": "Lets you use Far Speech on up to six chosen companions without spending Effort, at a range of one mile per level.",
+    "Far Speech": "Creates a consensual telepathic link with a known creature, letting you share thoughts, speech, and images without a common language.",
+    "Hypercognition": "Gives you eidetic memory and advanced mental calculation, and lets you reroll a failed INT-based skill check by spending Effort.",
+    "Iconograph": "Lets you understand the intended meaning of visible writing or symbols, or create messages that chosen viewers automatically understand.",
+    "Impress Imperative": "Compels a visible living creature that fails a Mental save to carry out one brief action on its next turn, so long as it is not completely against its nature.",
+    "Mind Light": "Enhances Open Mind to sense nearby living minds, recognize known creatures and emotions, and prevents living creatures from surprising you.",
+    "Mind Over Matter": "Lets you spend Effort for emergency stabilization, sleeplessness, healing, or temporary protection from ordinary heat and cold.",
+    "Mirror Mask": "Warns you of mind-affecting powers, improves your resistance to them, and can feed false information back to the attacker.",
+    "Positive Association": "Makes a visible sentient creature that fails a Mental save regard you as an admired friend until the effect is broken or expires.",
+    "Read Intent": "Reveals what a visible living creature intends to do next, and can make Total Defense completely foil its avoidable attacks that round.",
+    "Surface Apprehension": "Reads a visible living creature’s surface thoughts for one round if it fails a Mental save, including instinctive answers to questions you ask.",
+    "Thoughts Like Razors": "Deals 1d8 nonlethal psychic damage per level to a visible living creature on a failed Mental save, with backlash on a successful save.",
+    "Unthinkable Thought": "Makes a visible living creature that fails a Mental save unable to consciously notice a chosen person, object, or ongoing situation for up to a scene, then erases its memory of the subject.",
+  };
+
+  for (const art of traditionInfo["Thought Noble"].arts) {
+    assert.equal(plainLanguageSummary(art.name, art.text), expected[art.name]);
+  }
+});
+
+test("generic plain-language fallback does not truncate at ordinary words like the or target", () => {
+  assert.equal(
+    plainLanguageSummary(
+      "Fallback regression",
+      "You may identify the target and the object it is carrying.",
+    ),
+    "You identify the target and the object it is carrying.",
+  );
 });
 
 test("audited Thought Noble text is free of known extraction artifacts", () => {

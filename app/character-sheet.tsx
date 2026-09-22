@@ -4000,7 +4000,7 @@ export default function Home({
                 </div>
                 <Field label="Appearance / details" value={companion.description} onChange={value => patchCompanion(companion.id, "description", value)} />
                 {selectedCatalogProfile && <p className="section-intro">Base statistics copied from <strong>{selectedCatalogProfile.name}</strong>. You can still adjust this individual companion’s fields for your campaign.</p>}
-                {!companion.name.trim() && <p className="creation-choice-note">A Beastmaster companion must have a name before Beastmaster arts can control it.</p>}
+                {!companion.name.trim() && <p className="creation-choice-note">Give this companion a name so its bonded creature is easy to identify during play.</p>}
                 <div className="archetype-summary">
                   <div><strong>Binding a companion</strong><p>Bind Companion requires a suitable animal in the current area; unusual creatures may require a Wis/Survive check. Choosing a profile records a creature already found or bound—it does not summon one.</p></div>
                   {companionRules.sharedVitality && <div><strong>Shared Vitality</strong><p>Effective Hit Dice cannot be lower than your level ({companionRules.beastmasterLevel} HD), and effective hit bonus cannot be lower than half its effective Hit Dice, rounded up.</p></div>}

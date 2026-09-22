@@ -238,7 +238,8 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       if (sameIndex >= 0 && focus.level2) {
         return { ...draft, focusPicks: baseline.map((pick, index) => index === sameIndex ? { ...pick, level: 2 } : pick), artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
       }
-      return { ...draft, focusPicks: [...baseline, { name, level: 1, choice: "", advancement: true }], artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
+      const repeatedSpiritFamiliar = name === "Spirit Familiar" && baseline.some((pick) => pick.name === name && pick.level >= 2);
+      return { ...draft, focusPicks: [...baseline, { name, level: repeatedSpiritFamiliar ? 2 : 1, choice: "", advancement: true }], artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
     });
   };
   const chooseFocusOption = (choice: string) => update((draft) => ({

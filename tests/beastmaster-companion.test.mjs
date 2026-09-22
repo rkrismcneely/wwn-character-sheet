@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { levelOneCreationStatus } from "../app/character-creation.ts";
+import { getBuiltInBestiaryCreature } from "../lib/campaigns/bestiary.ts";
 import {
   applyShieldToArmorBase,
   beastmasterCatalogCreature,
@@ -252,6 +253,11 @@ test("Beastmaster catalogue is an animal-minded allow-list grouped by family wit
   assert.ok(catalog.some(creature => creature.id === "small-bird"));
   assert.ok(catalog.some(creature => creature.id === "giant-mantis"));
   assert.ok(catalog.some(creature => creature.id === "predator-hellbeast"));
+  assert.equal(catalog.filter(creature => creature.name === "Small Predator").length, 1);
+  assert.equal(beastmasterCatalogCreature("small-solitary-predator"), null);
+  assert.equal(getBuiltInBestiaryCreature("small-pack-predator")?.name, "Small Predator");
+  assert.equal(getBuiltInBestiaryCreature("small-solitary-predator")?.id, "small-pack-predator");
+  assert.deepEqual(getBuiltInBestiaryCreature("small-pack-predator")?.aliases, ["Small Pack Predator", "Small Solitary Predator"]);
   assert.ok(!catalog.some(creature => creature.id === "totw-aboleth"), "unapproved intelligent creatures never enter the catalogue");
   assert.equal(beastmasterCatalogCreature("totw-aboleth"), null);
   assert.equal(beastmasterCatalogCreature("giant-phase-spider")?.source.name, "Tales Without End original content");

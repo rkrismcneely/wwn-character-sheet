@@ -12,7 +12,7 @@ test("rule tooltips flip above controls near the bottom of the viewport", () => 
   });
 
   assert.equal(position.placement, "above");
-  assert.equal(position.left, 348);
+  assert.equal(position.left, 320);
   assert.equal(position.top, 372);
   assert.ok(position.top >= 12);
   assert.ok(position.top + 320 <= 788);

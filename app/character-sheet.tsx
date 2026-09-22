@@ -3407,7 +3407,7 @@ export default function Home({
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
               </div>
             </Section>
-            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 costs two picks</span>}>
+            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 normally costs two picks; repeated Spirit Familiar level 2 costs one</span>}>
               {sheet.focusPicks.map((pick, i) => {
                 const focus = foci.find(f => f.name === pick.name);
                 const firstSpiritIndex = sheet.focusPicks.findIndex(candidate => candidate.name === "Spirit Familiar");

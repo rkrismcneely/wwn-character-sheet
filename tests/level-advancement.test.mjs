@@ -16,10 +16,12 @@ import {
 import {
   deriveSkillProfile,
   focusSelectionCost,
+  inferFocusAdvancementFlags,
   reconcileSpiritFamiliarHitPoints,
   spiritFamiliarBenefitLimit,
   spiritFamiliarLevelTwoSelectionLimit,
   spiritFamiliarMaximumHitPoints,
+  storedRankForDisplayedSkillRank,
 } from "../app/phase2-rules.ts";
 import { fullClasses, partialClasses } from "../app/class-data.ts";
 import { creationPartialClassPairIsLegal } from "../app/character-creation.ts";
@@ -157,6 +159,111 @@ test("advancement Focus bonus skill credit is separate from paid skill ranks", (
   assert.deepEqual(advancementSkillCreditBySkill(character), { Stab: 3 });
   assert.equal(deriveSkillProfile({ purchased: -1, sourceCount: 0, credit: 3 }).effective, 1);
   assert.equal(deriveSkillProfile({ purchased: 1, sourceCount: 0, credit: 3 }).effective, 2);
+});
+
+test("direct multi-level Focus rows infer advancement credit after the starting Foci", () => {
+  const picks = inferFocusAdvancementFlags([
+    { name: "Armsmaster", level: 1 },
+    { name: "Alert", level: 1 },
+    { name: "Unarmed Combatant", level: 1 },
+  ], 2);
+  assert.deepEqual(
+    picks.map((pick) => pick.advancement),
+    [false, false, true],
+  );
+
+  const character = base({
+    level: 5,
+    focusPicks: [
+      { name: "Armsmaster", level: 1 },
+      { name: "Alert", level: 1 },
+      { name: "Unarmed Combatant", level: 1 },
+    ],
+  });
+  assert.deepEqual(
+    advancementSkillCreditBySkill(character),
+    { Punch: 3 },
+    "the third Warrior Focus is an advancement Focus even when five levels are filled in directly",
+  );
+});
+
+test("Focus bonus-skill credit cannot rewrite or refund a paid skill rank", () => {
+  const paidPunchZero = 0;
+  const withFocus = deriveSkillProfile({
+    purchased: paidPunchZero,
+    sourceCount: 0,
+    credit: 3,
+  });
+  assert.equal(withFocus.granted, 0);
+  assert.equal(withFocus.effective, 1);
+  assert.equal(withFocus.creditRemaining, 1);
+
+  const withoutFocus = deriveSkillProfile({
+    purchased: paidPunchZero,
+    sourceCount: 0,
+  });
+  assert.equal(withoutFocus.granted, 0);
+  assert.equal(withoutFocus.effective, 0);
+
+  const restoredFocus = deriveSkillProfile({
+    purchased: paidPunchZero,
+    sourceCount: 0,
+    credit: 3,
+  });
+  assert.equal(restoredFocus.granted, 0);
+  assert.equal(restoredFocus.effective, 1);
+  assert.equal(restoredFocus.creditRemaining, 1);
+
+  assert.equal(
+    storedRankForDisplayedSkillRank(0, 0),
+    paidPunchZero,
+    "the trained Punch-0 selection remains Punch-0 regardless of Focus credit",
+  );
+  assert.equal(
+    skillAdvancementCost(0, 1),
+    2,
+    "two later normal points combine with the banked Focus point to reach Punch-2 effectively",
+  );
+  const afterTwoMoreNormalPoints = deriveSkillProfile({
+    purchased: 1,
+    sourceCount: 0,
+    credit: 3,
+  });
+  assert.equal(afterTwoMoreNormalPoints.granted, 1);
+  assert.equal(afterTwoMoreNormalPoints.effective, 2);
+  assert.equal(afterTwoMoreNormalPoints.creditRemaining, 0);
+});
+
+test("skill controls edit trained rank rather than Focus-adjusted effective rank", async () => {
+  const [sheet, wizard] = await Promise.all([
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/level-up-wizard-impl.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(sheet, /value=\{profile\.granted\}/u);
+  assert.match(
+    sheet,
+    /storedRankForDisplayedSkillRank\(rank, profile\.sourceCount\)/u,
+  );
+  assert.doesNotMatch(
+    sheet,
+    /storedRankForDisplayedSkillRank\(rank, profile\.sourceCount, profile\.credit\)/u,
+  );
+  assert.match(sheet, /creditRemaining/u);
+  assert.match(sheet, /inferFocusAdvancementFlags\(nextPicks, startingFocusSelections\)/u);
+
+  assert.match(wizard, /value=\{profile\.granted\}/u);
+  assert.match(
+    wizard,
+    /storedRankForDisplayedSkillRank\(selected, profile\.sourceCount\)/u,
+  );
+  assert.doesNotMatch(
+    wizard,
+    /storedRankForDisplayedSkillRank\(selected, profile\.sourceCount, profile\.credit\)/u,
+  );
+  assert.match(wizard, /skillSpendForRank\(skill, profile\.granted\)/u);
+  assert.match(wizard, /baselineProfile\.granted/u);
+  assert.match(wizard, /creditRemaining/u);
 });
 
 test("Focus options respect existing Focus levels and class restrictions", () => {

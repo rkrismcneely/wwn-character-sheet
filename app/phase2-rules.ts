@@ -106,6 +106,29 @@ export function reconcileFamiliarSlots<T extends { focusSlot?: number }>(
 
 export type FocusChoice = { name: string; choice?: string };
 
+export function inferFocusAdvancementFlags<
+  T extends { name: string; advancement?: boolean },
+>(picks: readonly T[], startingFocusSelections: number): T[] {
+  const starting = Math.max(
+    0,
+    Math.trunc(Number(startingFocusSelections) || 0),
+  );
+  let creationSelections = 0;
+  return picks.map((pick) => {
+    if (!pick.name) return { ...pick };
+    if (pick.advancement === true) return { ...pick };
+    if (pick.advancement === false) {
+      creationSelections += 1;
+      return { ...pick };
+    }
+    if (creationSelections < starting) {
+      creationSelections += 1;
+      return { ...pick, advancement: false };
+    }
+    return { ...pick, advancement: true };
+  });
+}
+
 export function focusTargetAvailable(
   picks: readonly FocusChoice[],
   focusName: "Developed Attribute" | "Specialist",

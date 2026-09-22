@@ -40,6 +40,7 @@ import {
   explicitFocusSkillChoices,
   focusIsRepeatable,
   focusTargetAvailable,
+  inferFocusAdvancementFlags,
 } from "./phase2-rules.ts";
 import {
   creationEquipmentChoiceIsComplete,
@@ -497,7 +498,10 @@ export function creationSkillGrants(
             : `${className} Class: bonus skill`,
     });
   });
-  state.focusPicks
+  const startingFocusSelections = state.classOne
+    ? classRules(state.classMode, state.classOne, state.classTwo, 1).focusPicks
+    : 0;
+  inferFocusAdvancementFlags(state.focusPicks, startingFocusSelections)
     .filter((pick) => pick.name)
     .forEach((pick, index) => {
       if (pick.advancement) return;

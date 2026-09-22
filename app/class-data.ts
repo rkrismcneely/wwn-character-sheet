@@ -63,8 +63,6 @@ export const traditionArtProgression = {
   ...additionalArtProgressions,
   // Mageslayers receive a fixed Art schedule rather than generic choices.
   Mageslayer: [2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-  // Thought Nobles gain one additional Art at every level after first.
-  "Thought Noble": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   // Generic Wise characters use the SRD's Esoteric progression. The other
   // example Wise concepts are templates a GM may opt into separately.
   Wise: [1, 1, 2, 2, 3, 3, 4, 4, 5, 5],

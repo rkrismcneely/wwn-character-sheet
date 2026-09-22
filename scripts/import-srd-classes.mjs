@@ -20,7 +20,7 @@ const metadata = {
   Duelist: { kind: "mage", skill: "Stab", attribute: "DEX/INT", armor: "Duelist arts do not function in medium or heavy armor or with a large shield.", progression: [2,3,3,4,5,6,6,7,7,8] },
   Mageslayer: { kind: "warrior", skill: "Magic", attribute: "INT/CON", armor: "Mageslayer arts may be used in or out of armor.", progression: [2,4,5,6,7,8,9,10,11,12] },
   Skinshifter: { kind: "mage", skill: "Survive", attribute: "CON/CHA", armor: "Skinshifter arts may be used in or out of armor.", progression: [2,3,3,4,5,6,6,7,7,8] },
-  "Thought Noble": { kind: "mage", skill: "Notice", attribute: "INT/WIS", armor: "Thought Noble arts are invisible mental effects and may be used in armor.", progression: [2,3,4,5,6,7,8,9,10,11] },
+  "Thought Noble": { kind: "mage", skill: "Notice", attribute: "INT/WIS", armor: "Thought Noble arts may be used in armor. They are invisible to non-magical senses and do not reveal their user; a target that succeeds on a save against a Thought Noble art is immune to that art for the rest of the scene.", progression: [2,3,4,5,6,7,8,9,10,11] },
   // The generic Wise implementation follows the SRD's Esoteric example path.
   Wise: { kind: "expert", skill: "", attribute: "", armor: "Wise arts do not use Effort and may be used in armor.", progression: [1,1,2,2,3,3,4,4,5,5] },
 };
@@ -61,6 +61,19 @@ const decode = text => text
   .replace(/\s+/g, " ")
   .trim();
 
+const normalizeImportedArtText = (className, artName, text) => {
+  if (className !== "Thought Noble") return text;
+  if (artName === "Block Memory") return text
+    .replace(
+      "Target a Visible Living Creature And Commit Effort For The Day As a Main Action While Specifying a Particular Event Or Situation That Didn’t Extend Longer Than a Scene. The Target Gets a Mental Saving Throw; On a Failure, They Simply Cannot Remember The Event And Will Construct a Plausible False Memory To Paper Over The Gap. The Memory Can Be Restored By Use Of This Power Once More Or a Magical Dispelling Ability, But Detecting The Alteration Is Difficult;",
+      "Target a visible living creature and Commit Effort for the day as a Main Action while specifying a particular event or situation that didn’t extend longer than a scene. The target gets a Mental saving throw; on a failure, they simply cannot remember the event and will construct a plausible false memory to paper over the gap. The memory can be restored by use of this power once more or a magical dispelling ability, but detecting the alteration is difficult;",
+    );
+  return text
+    .replace("tar get", "target")
+    .replace("over whelming", "overwhelming")
+    .replace("process es", "processes");
+};
+
 const result = {};
 for (const [name, number] of Object.entries(sources)) {
   const url = `https://wwn.quadrifons.com/1.0%20Character%20Creation/1.5.0%20Class%20List/1.5.${number}%20The%20${name.replaceAll(" ", "%20")}.html`;
@@ -70,7 +83,15 @@ for (const [name, number] of Object.entries(sources)) {
     .filter(text => /^[^:]{2,80}:\s+/.test(text))
     .map(text => {
       const colon = text.indexOf(":");
-      const art = { name: text.slice(0, colon).trim(), text: text.slice(colon + 1).trim() };
+      const artName = text.slice(0, colon).trim();
+      const art = {
+        name: artName,
+        text: normalizeImportedArtText(
+          name,
+          artName,
+          text.slice(colon + 1).trim(),
+        ),
+      };
       return name === "Mageslayer"
         ? { ...art, minLevel: mageslayerArtLevels[art.name] || 1 }
         : art;

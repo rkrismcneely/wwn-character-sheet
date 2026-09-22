@@ -75,7 +75,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -2491,8 +2491,12 @@ export default function Home({
     const art = creationArtForSelection(availableArts, name);
     if (!art) return { eligible: false, reason: "This Art is not available to the character’s traditions." };
     if ((art.minLevel || 1) > effectiveLevel) return { eligible: false, reason: `Requires level ${art.minLevel}.` };
-    if (artSelectionName(name) === "Deep Apprehension" && !sheet.artPicks.some(selection => artSelectionName(selection) === "Surface Apprehension")) {
-      return { eligible: false, reason: "Requires Surface Apprehension." };
+    const missingPrerequisite = missingArtPrerequisite(
+      artSelectionName(name),
+      sheet.artPicks.map(artSelectionName),
+    );
+    if (missingPrerequisite) {
+      return { eligible: false, reason: `Requires ${missingPrerequisite}.` };
     }
     if (!repeatableArt(artSelectionName(name)) && sheet.artPicks.some((picked, index) => index !== slotIndex && picked === name)) {
       return { eligible: false, reason: "This Art cannot be selected more than once." };
@@ -2505,11 +2509,16 @@ export default function Home({
     const effortAttributes = info.effortAttributes?.length
       ? info.effortAttributes.filter((attribute): attribute is typeof attributes[number] => attributes.includes(attribute as typeof attributes[number]))
       : t === "Vowed" ? [...attributes] : ["INT", "CHA"] as (typeof attributes[number])[];
-    const attribute = effortAttributes.length ? Math.max(...effortAttributes.map(a => attributeMod(a))) : 0;
     const partialPenalty = sheet.classMode === "adventurer" && traditionInfo[t].spells ? 1 : 0;
     const max = traditionalEducationTradition === t
       ? Math.max(1, effectiveSkill("Magic"))
-      : info.usesEffort === false ? 0 : Math.max(1, info.effortBase + effectiveSkill(skill) + attribute - partialPenalty);
+      : effortMaximum({
+          skillLevel: effectiveSkill(skill),
+          attributeModifiers: effortAttributes.map((a) => attributeMod(a)),
+          effortBase: info.effortBase,
+          partialSpellPenalty: partialPenalty,
+          usesEffort: info.usesEffort !== false,
+        });
     const used = sheet.artPicks.filter((name,i) => sheet.artEffort[i] && creationArtForSelection(availableArts, name)?.tradition === t).length;
     return {tradition:t,skill,max,used};
   });
@@ -3694,6 +3703,7 @@ export default function Home({
             <div><span>Tradition</span><b className="tradition-name">{magicalTraditions.join(" + ")}</b></div><div><span>{castingTraditions.length ? "Prepared" : "Spellcasting"}</span><b className={preparedCount > limits.prepared ? "bad":""}>{castingTraditions.length ? `${preparedCount}/${limits.prepared}` : "None"}</b></div><div><span>{isInvoker ? "Spell points used" : castingTraditions.length ? "Cast today" : "Arts known"}</span><b>{castingTraditions.length ? `${castsUsed}/${limits.casts}` : `${sheet.artPicks.filter(Boolean).length}/${artAllowance}`}</b></div><div><span>Effort committed</span><b className="effort-pools">{effortPools.map(p=><small key={p.tradition}>{p.tradition} {p.used}/{p.max}</small>)}</b></div>
           </div>
           {castingBlocked && <p className="casting-restriction" role="status"><strong>Armor restriction active:</strong> {castingBlockedReason}</p>}
+          {selectedClasses.includes("Thought Noble") && <p className="casting-restriction thought-noble-rule" role="note"><strong>Thought Noble:</strong> Effort equals Notice plus the better of INT or WIS modifier, minimum 1. Thought Noble Arts may be used in armor, are invisible to non-magical senses, and a target that succeeds on a save against an Art is immune to that Art for the rest of the scene.</p>}
           {selectedClasses.includes("Vowed") && <Section title="Vowed Discipline" buildControlled><div className="vowed-controls"><label className="field"><span>Order skill (Effort + bonus skill)</span><select value={sheet.vowedEffortSkill} onChange={e=>patch("vowedEffortSkill",e.target.value)}>{noncombatSkills.map(s=><option key={s}>{s}</option>)}</select></label><div><span>Punch hit</span><b>{signed(vowedProgression[effectiveLevel-1].hit)}</b></div><div><span>Punch damage</span><b>{vowedProgression[effectiveLevel-1].damage}</b></div><div><span>Punch Shock</span><b>{vowedProgression[effectiveLevel-1].shock.replace("/", "/AC ")}</b></div></div><p className="section-intro">The selected Order skill is the Vowed’s required noncombat bonus skill and is also used to calculate Vowed Effort.</p></Section>}
           {selectedClasses.includes("Wise") && <Section title="Wise Concept" buildControlled><div className="vowed-controls"><label className="field"><span>Concept bonus skill</span><select value={sheet.wiseConceptSkill} onChange={e=>patch("wiseConceptSkill",e.target.value)}><option value="">Choose a concept-appropriate skill…</option>{skills.map(s=><option key={s}>{s}</option>)}</select></label></div><p className="section-intro">Choose the skill most appropriate to the Wise’s concept. It is granted as the Wise class bonus skill and shown with its source on the Skills panel.</p></Section>}
           {hasBeastmaster && <Section title="Beastmaster Companion Bond" buildControlled><div className="vowed-controls"><label className="field"><span>Bond</span><select value={sheet.beastmasterBond} onChange={e=>changeBeastmasterBond(e.target.value as Sheet["beastmasterBond"])}><option value="">Choose a companion bond…</option><option value="bind-companion">Bind Companion · flexible bond</option><option value="chosen-friend">Chosen Friend · lifelong bond</option></select></label></div><p className="section-intro">Both modes use the required Bind Companion Art. Chosen Friend keeps one permanent companion and automatically grants that companion the benefits of Shared Vitality and Mind Call without spending Art picks.</p>{!sheet.beastmasterBond && <p className="creation-choice-note">Choose the Beastmaster’s companion bond before finishing character creation.</p>}</Section>}

@@ -563,18 +563,18 @@ export const additionalClassData = {
     "kind": "mage",
     "skill": "Notice",
     "attribute": "INT/WIS",
-    "armor": "Thought Noble arts are invisible mental effects and may be used in armor.",
+    "armor": "Thought Noble arts may be used in armor. They are invisible to non-magical senses and do not reveal their user; a target that succeeds on a save against a Thought Noble art is immune to that art for the rest of the scene.",
     "progression": [
       2,
-      3,
       3,
       4,
       5,
       6,
-      6,
       7,
-      7,
-      8
+      8,
+      9,
+      10,
+      11
     ],
     "forcedArts": [
       "Open Mind"
@@ -586,7 +586,7 @@ export const additionalClassData = {
       },
       {
         "name": "Block Memory",
-        "text": "Target a Visible Living Creature And Commit Effort For The Day As a Main Action While Specifying a Particular Event Or Situation That Didn’t Extend Longer Than a Scene. The Target Gets a Mental Saving Throw; On a Failure, They Simply Cannot Remember The Event And Will Construct a Plausible False Memory To Paper Over The Gap. The Memory Can Be Restored By Use Of This Power Once More Or a Magical Dispelling Ability, But Detecting The Alteration Is Difficult; any power that detects enchantments on a target does so with a +2 difficulty penalty to any skill check made to discern the ban."
+        "text": "Target a visible living creature and Commit Effort for the day as a Main Action while specifying a particular event or situation that didn’t extend longer than a scene. The target gets a Mental saving throw; on a failure, they simply cannot remember the event and will construct a plausible false memory to paper over the gap. The memory can be restored by use of this power once more or a magical dispelling ability, but detecting the alteration is difficult; any power that detects enchantments on a target does so with a +2 difficulty penalty to any skill check made to discern the ban."
       },
       {
         "name": "Elicitation of Truth",
@@ -606,11 +606,11 @@ export const additionalClassData = {
       },
       {
         "name": "Iconograph",
-        "text": "Commit Effort for the scene as a Main Action and tar get a visible written text, piece of sculpture, iconographic symbol, or other visible artifact. You receive a short description of the message or idea the maker was trying to convey with the object. Optionally, you may use this art when making a sigil, art object, or text of your own; any valid target will automatically understand your intended message when they see the item. You may restrict your audience to particular people or types if you wish."
+        "text": "Commit Effort for the scene as a Main Action and target a visible written text, piece of sculpture, iconographic symbol, or other visible artifact. You receive a short description of the message or idea the maker was trying to convey with the object. Optionally, you may use this art when making a sigil, art object, or text of your own; any valid target will automatically understand your intended message when they see the item. You may restrict your audience to particular people or types if you wish."
       },
       {
         "name": "Impress Imperative",
-        "text": "Commit Effort for the day as a Main Action while targeting a visible living creature. You may give it an over whelming urge to perform some action that takes no longer than a round and is not completely contrary to its nature or wishes. It can make a Mental save to resist, but on a failure it spends its next action carrying out the imperative."
+        "text": "Commit Effort for the day as a Main Action while targeting a visible living creature. You may give it an overwhelming urge to perform some action that takes no longer than a round and is not completely contrary to its nature or wishes. It can make a Mental save to resist, but on a failure it spends its next action carrying out the imperative."
       },
       {
         "name": "Mind Light",
@@ -618,7 +618,7 @@ export const additionalClassData = {
       },
       {
         "name": "Mind Over Matter",
-        "text": "Your mental control over your physical process es is considerable. Commit Effort for the day as an Instant action to gain one of the following benefits: automatically stabilize if Mortally Wounded, go without sleep for twenty-four hours, heal 1d6 hit points of damage you’ve suffered, or completely ignore normal climatic extremes of heat or cold for one day. Similar tricks of bodily control may be allowed at the GM’s discretion."
+        "text": "Your mental control over your physical processes is considerable. Commit Effort for the day as an Instant action to gain one of the following benefits: automatically stabilize if Mortally Wounded, go without sleep for twenty-four hours, heal 1d6 hit points of damage you’ve suffered, or completely ignore normal climatic extremes of heat or cold for one day. Similar tricks of bodily control may be allowed at the GM’s discretion."
       },
       {
         "name": "Mirror Mask",

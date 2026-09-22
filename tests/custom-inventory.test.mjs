@@ -60,7 +60,7 @@ test("custom item entry is a draft until Save and hides inventory actions while 
   );
 
   assert.match(sheet, /const \[otherStowedDraftName, setOtherStowedDraftName\] = useState\(""\)/u);
-  assert.match(sheet, /setOtherStowedIndex\(i\);\s*setOtherStowedDraftName\("");/u);
+  assert.match(sheet, /setOtherStowedIndex\(i\);\s*setOtherStowedDraftName\(""\);/u);
   assert.match(sheet, /value=\{otherStowedDraftName\}/u);
   assert.match(sheet, /className="custom-item-save"/u);
   assert.match(sheet, /setStowedItem\(i, name\);\s*setOtherStowedIndex\(null\)/u);

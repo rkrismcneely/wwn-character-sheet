@@ -1,5 +1,5 @@
-import { officialInventoryItems } from "./equipment-data";
-import { campaignInventorySnapshot } from "@/lib/inventory/items";
+import { officialInventoryItems } from "./equipment-data.ts";
+import { campaignInventorySnapshot } from "../lib/inventory/items.ts";
 
 const officialInventorySet = new Set<string>(officialInventoryItems);
 

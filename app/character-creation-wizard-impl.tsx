@@ -1168,8 +1168,18 @@ export function GuidedCreationWizard({
                         }
                       >
                         <option value={1}>Level 1</option>
-                        <option value={2} disabled>
-                          Level 2 · advancement only
+                        <option
+                          value={2}
+                          disabled={
+                            pick.name !== "Spirit Familiar" ||
+                            !selectedFocus?.level2 ||
+                            (pick.level !== 2 &&
+                              status.focusPicksUsed + 1 > status.allowedFocusPicks)
+                          }
+                        >
+                          {pick.name === "Spirit Familiar"
+                            ? "Level 2"
+                            : "Level 2 · advancement only"}
                         </option>
                       </select>
                       {creationFocusChoiceLabel(pick.name) && (

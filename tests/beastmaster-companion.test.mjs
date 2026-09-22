@@ -267,7 +267,7 @@ test("Beastmaster catalogue is an animal-minded allow-list grouped by family wit
     ["totw-stirge", ["Supernatural Beast", "Supernatural Beast"]],
     ["totw-grick", ["Unnatural Beast", "Unnatural Beast"]],
     ["unnatural-swarm", ["Unnatural Beast", "Unnatural Beast"]],
-    ["small-vicious-predator", ["Unnatural Beast", "Unnatural Beast"]],
+    ["small-vicious-predator", ["Unnatural Beast", "Predator"]],
     ["large-vicious-predator", ["Unnatural Beast", "Unnatural Beast"]],
     ["hulking-predator", ["Unnatural Beast", "Unnatural Beast"]],
     ["terrible-warbeast", ["Unnatural Beast", "Unnatural Beast"]],

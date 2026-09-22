@@ -31,7 +31,7 @@ import {
 import { RulesAssistant } from "./rules-assistant";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
-import { isSharedRollCategory, parseDamageExpression, resolveRoll, type RollRequest, type RollResult } from "./rolls";
+import { formatShockMinimumReminder, isSharedRollCategory, parseDamageExpression, parseShockMinimum, resolveRoll, type RollRequest, type RollResult } from "./rolls";
 import { rollDice, type DiceRoll } from "./dice";
 import { useDisplayTheme } from "./theme-provider";
 import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice-preference";
@@ -1238,7 +1238,8 @@ export default function Home({
   function announceRoll(result: RollResult) {
     const outcome = result.outcome ? ` ${result.outcome === "success" ? "Success." : "Failure."}` : "";
     const target = result.target === undefined ? "" : ` Target ${result.target} or higher.`;
-    return `${result.label}: ${result.dice.results.join(" plus ")}${result.modifiers.length ? ` with ${result.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" and ")}` : ""}, total ${result.total}.${target}${outcome}`;
+    const shockReminder = result.shockMinimum ? ` ${formatShockMinimumReminder(result.shockMinimum)}` : "";
+    return `${result.label}: ${result.dice.results.join(" plus ")}${result.modifiers.length ? ` with ${result.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" and ")}` : ""}, total ${result.total}.${target}${outcome}${shockReminder}`;
   }
 
   async function completeRoll(request: RollRequest) {
@@ -1353,21 +1354,23 @@ export default function Home({
     void completeRoll({
       category: "attack",
       character: rollCharacter(),
-      label: `${name} Attack`,
+      label: `${name} — Attack`,
       dice: { count: 1, sides: 20 },
       modifiers: [{ label: "Attack bonus", value: hit }],
     });
   }
 
-  function rollWeaponDamage(name: string, expression: string) {
+  function rollWeaponDamage(name: string, expression: string, shock?: string) {
     try {
       const damage = parseDamageExpression(expression);
+      const shockMinimum = parseShockMinimum(shock);
       void completeRoll({
         category: "damage",
         character: rollCharacter(),
-        label: `${name} Damage`,
+        label: `${name} — Damage`,
         dice: damage.dice,
         modifiers: damage.modifier ? [{ label: "Damage modifier", value: damage.modifier }] : [],
+        ...(shockMinimum ? { shockMinimum } : {}),
       });
     } catch {
       setDiceError(`The displayed ${name} damage expression could not be rolled.`);
@@ -3663,7 +3666,7 @@ export default function Home({
                   const displayName = inventoryItemDisplayName(name);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
                     <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{displayName}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage, calc.shock)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
@@ -4030,7 +4033,7 @@ export default function Home({
                   <Field label="Movement" value={companion.move} onChange={value => patchCompanion(companion.id, "move", value)} />
                   <label className="field companion-roll-field"><span>Base Attack Bonus</span><span className="companion-roll-control"><input value={companion.attackBonus} onChange={event => patchCompanion(companion.id, "attackBonus", event.target.value)} /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy || companionAttackBonus === null} aria-busy={virtualDiceBusy || undefined} onClick={() => companionAttackBonus !== null && rollWeaponAttack(companionAttackName, companionAttackBonus)}>Roll Attack</button></span></label>
                   <label className="field"><span>Effective Hit Bonus</span><input readOnly value={formatBeastmasterHitBonus(companionRules.effectiveHitBonus)} /></label>
-                  <label className="field companion-roll-field"><span>Damage / Attack</span><span className="companion-roll-control"><input value={companion.damage} onChange={event => patchCompanion(companion.id, "damage", event.target.value)} /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy || !companionDamageExpression} aria-busy={virtualDiceBusy || undefined} onClick={() => companionDamageExpression && rollWeaponDamage(companionAttackName, companionDamageExpression)}>Roll Damage</button></span></label>
+                  <label className="field companion-roll-field"><span>Damage / Attack</span><span className="companion-roll-control"><input value={companion.damage} onChange={event => patchCompanion(companion.id, "damage", event.target.value)} /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy || !companionDamageExpression} aria-busy={virtualDiceBusy || undefined} onClick={() => companionDamageExpression && rollWeaponDamage(companionAttackName, companionDamageExpression, companion.damage)}>Roll Damage</button></span></label>
                   <Field label="Skill Bonus" value={companion.skillBonus} onChange={value => patchCompanion(companion.id, "skillBonus", value)} />
                   <Field label="Morale" value={companion.morale} onChange={value => patchCompanion(companion.id, "morale", value)} />
                   <Field label="Instinct" value={companion.instinct} onChange={value => patchCompanion(companion.id, "instinct", value)} />

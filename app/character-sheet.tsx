@@ -75,9 +75,11 @@ import {
 } from "./character-creation";
 import { armorRestrictsMagic, deriveSkillProfile, deriveUnarmedAttack, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
+  applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
   beastmasterCompanionRules,
   chosenFriendBenefitArts,
+  feralToughnessBaseArmorClass,
   formatBeastmasterHitBonus,
   formatBeastmasterHitDice,
 } from "./beastmaster-companion";
@@ -2321,7 +2323,7 @@ export default function Home({
       ? `${wornArmor.name} has Encumbrance ${wornArmor.enc}; Armored Magic level 1 only permits armor of Encumbrance 2 or less.`
       : `${wornArmor.name !== "No Armor" ? wornArmor.name : sheet.shield} prevents spellcasting without Armored Magic.`
     : "";
-  const shieldAdjustedBase = shieldBase ? (armorBase >= shieldBase ? armorBase + 1 : shieldBase) : armorBase;
+  const shieldAdjustedBase = applyShieldToArmorBase(armorBase, shieldBase);
   const imperviousDefense = selectedFocusPicks.some(pick => pick.name === "Impervious Defense");
   const naturalArmorBase = imperviousDefense ? 15 + Math.ceil(effectiveLevel / 2) : 0;
   const bestArmorBase = Math.max(shieldAdjustedBase, naturalArmorBase + (hasShield ? 1 : 0));
@@ -2329,9 +2331,18 @@ export default function Home({
     ? 13 + Math.floor(effectiveLevel / 2)
     : 0;
   const coldFleshArmorBase = sheet.artPicks.some(name => artSelectionName(name) === "Cold Flesh") ? 12 + Math.floor(effectiveLevel / 2) : 0;
+  const hasFeralToughness = sheet.artPicks.some(name => artSelectionName(name) === "Feral Toughness");
+  const feralToughnessArmorBase = hasFeralToughness
+    ? applyShieldToArmorBase(feralToughnessBaseArmorClass(effectiveLevel), shieldBase)
+    : 0;
   const pavisIndex = sheet.artPicks.findIndex(name => artSelectionName(name) === "Pavis of Elements");
   const pavisActive = pavisIndex >= 0 && Boolean(sheet.artEffort[pavisIndex]);
-  const defensiveBase = Math.max(bestArmorBase, vowedArmorBase, coldFleshArmorBase + (hasShield ? 1 : 0));
+  const defensiveBase = Math.max(
+    bestArmorBase,
+    vowedArmorBase,
+    coldFleshArmorBase + (hasShield ? 1 : 0),
+    feralToughnessArmorBase,
+  );
   const calculatedAcBeforePavis = defensiveBase + attributeMod("DEX") + (sheet.armorBonus || 0);
   const calculatedAc = pavisActive ? Math.min(18, calculatedAcBeforePavis + 4) : calculatedAcBeforePavis;
   const calculatedInitiative = attributeMod("DEX");

@@ -2341,7 +2341,7 @@ export default function Home({
     return {tradition:t,skill,max,used};
   });
   const availableSpells = [
-    ...(castingTraditions.includes("High Mage") || castingTraditions.includes("Invoker") || traditionalEducationTradition
+    ...(castingTraditions.length > 0 || traditionalEducationTradition
       ? highMagic.map(s => ({...s, tradition:"High Magic"}))
       : []),
     ...(castingTraditions.includes("Elementalist") || traditionalEducationTradition === "Elementalist" ? traditionSpells.Elementalist.map(s => ({...s,tradition:"Elementalist"})) : []),

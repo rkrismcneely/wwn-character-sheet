@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clearRollHistory, MAX_ROLL_HISTORY_ENTRIES, persistRollHistory, prependRollHistory, readRollHistory } from "../app/roll-history.ts";
-import { parseDamageExpression, resolveRoll } from "../app/rolls.ts";
+import { formatShockMinimumReminder, parseDamageExpression, parseShockMinimum, resolveRoll } from "../app/rolls.ts";
 
 function fixedRoll(results, sides) {
   return (count, requestedSides) => {
@@ -77,6 +77,13 @@ test("canonical weapon damage expressions preserve their die and modifier", () =
   assert.deepEqual(parseDamageExpression("1d8+2"), { dice: { count: 1, sides: 8 }, modifier: 2 });
   assert.deepEqual(parseDamageExpression("2d6 - 1"), { dice: { count: 2, sides: 6 }, modifier: -1 });
   assert.throws(() => parseDamageExpression("special"), /Unsupported damage expression/);
+});
+
+test("Shock minimums parse from weapon values and produce a clear reminder", () => {
+  assert.deepEqual(parseShockMinimum("3/AC 15"), { damage: 3, armorClass: 15 });
+  assert.deepEqual(parseShockMinimum("Shock 6/-"), { damage: 6 });
+  assert.equal(parseShockMinimum("None"), null);
+  assert.equal(formatShockMinimumReminder({ damage: 3, armorClass: 15 }), "Shock minimum: 3 damage if target AC is 15 or lower.");
 });
 
 test("invalid injected dice are rejected before an incorrect result is presented", async () => {

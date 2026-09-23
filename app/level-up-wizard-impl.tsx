@@ -261,13 +261,18 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     focusPicks: sheet.focusPicks,
   }).flatMap((focus) => {
     const existing = sheet.focusPicks.filter((pick) => pick.name === focus.name);
+    const defaultLabel = advancementFocusOptionLabel(sheet as AdvancementCharacter, focus.name);
     if (focusIsRepeatable(focus.name) && focus.level2 && existing.some((pick) => pick.level === 1)) {
       return [
         { ...focus, value: `upgrade:${focus.name}`, label: `${focus.name} — upgrade existing` },
         { ...focus, value: `add:${focus.name}`, label: `${focus.name} — choose another` },
       ];
     }
-    return [{ ...focus, value: `add:${focus.name}`, label: focus.name }];
+    return [{
+      ...focus,
+      value: `add:${focus.name}`,
+      label: focus.name === "Developed Attribute" ? focus.name : defaultLabel,
+    }];
   }), [sheet.focusPicks, state.draft]);
   const selectedFocusDefinition = foci.find((focus) => focus.name === selectedFocus?.name);
   const selectedFocusActionLabel = selectedFocus?.name

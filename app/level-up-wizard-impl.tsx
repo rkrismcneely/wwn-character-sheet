@@ -262,7 +262,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     return artChoiceIsComplete(selection, state.draft.artChoices);
   });
   const spellsComplete = newSpells === plan.spellPicks;
-  const ready = hpRollComplete && pointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
+  const ready = hpRollComplete && pointsRemaining >= 0 && normalPointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
 
   const focusOptions = useMemo(() => legalAdvancementFocuses({
     ...state.draft,
@@ -339,7 +339,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
 
   const next = () => {
     if (state.step === 1 && !hpRollComplete) return setNotice("Roll the required hit-point total before continuing.");
-    if (state.step === 2 && pointsRemaining < 0) return setNotice("Spend no more than the available skill points.");
+    if (state.step === 2 && (pointsRemaining < 0 || normalPointsRemaining < 0)) return setNotice("Spend no more than the available skill points, including the normal-point restriction on attributes and combat skills.");
     if (state.step === 3 && !focusComplete) return setNotice("Choose the required Focus and any required Focus option.");
     if (state.step === 4 && (!artsComplete || !spellsComplete)) return setNotice("Choose every Art and spell granted at this level from the class or tradition that grants it.");
     setNotice("");

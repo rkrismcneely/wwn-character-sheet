@@ -499,7 +499,7 @@ export function creationSkillGrants(
   });
   const startingFocusSelections = state.classOne
     ? classRules(state.classMode, state.classOne, state.classTwo, 1).focusPicks +
-      (selectedClasses.includes("Mageslayer") ? 1 : 0)
+      (classes.includes("Mageslayer") ? 1 : 0)
     : 0;
   inferFocusAdvancementFlags(state.focusPicks, startingFocusSelections)
     .filter((pick) => pick.name)

@@ -3649,7 +3649,7 @@ export default function Home({
                       const roll = Number(sheet.hpRolls[step]);
                       if (!roll) { result = 0; break; }
                       const dice = step + 1;
-                      const perDieModifier = attributeMod("CON") + hitPointClassBonus + (hasDieHard ? 2 : 0);
+                      const perDieModifier = attributeMod("CON") + hitPointPerDieBonus + (hasDieHard ? 2 : 0);
                       const rolled = Math.max(dice, roll + perDieModifier * dice);
                       previousMaximum = step === 0 ? rolled : Math.max(previousMaximum + 1, rolled);
                       result = previousMaximum;

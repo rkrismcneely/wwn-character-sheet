@@ -464,7 +464,7 @@ test("special class exceptions are represented in the sheet and level-up UI", as
   assert.match(sheet, /hitPointClassBonus\(\s*sheet\.classMode,\s*sheet\.classOne,\s*sheet\.classTwo/u);
   assert.match(sheet, /usesEffort !== false/u);
   assert.match(sheet, /selectedClasses\.includes\("Mageslayer"\) \? 1 : 0/u);
-  assert.match(creation, /selectedClasses\.includes\("Mageslayer"\) \? 1 : 0/u);
+  assert.match(creation, /classes\.includes\("Mageslayer"\) \? 1 : 0/u);
   assert.match(wizard, /quickLearnerSkillBudget/u);
   assert.match(wizard, /candidateCombat > normalSkillBudget/u);
   assert.match(wizard, /upgrade existing/u);

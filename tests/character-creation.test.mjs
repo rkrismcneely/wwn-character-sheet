@@ -520,6 +520,29 @@ test("ordered replacement candidates exclude every skill already at the acquisit
   assert.equal(fixed[0].resolvedSkill, "Stab");
 });
 
+test("duplicate Learning picks both count toward level 1", () => {
+  const character = withFreePick({
+    ...baseCharacter(),
+    backgroundDevelopmentMethod: "choose-learning",
+    backgroundLearningPicks: [
+      { result: "Exert", choice: "", replacement: "" },
+      { result: "Exert", choice: "", replacement: "" },
+    ],
+  });
+  const grants = creationSkillGrantResolutions(character);
+  const sources = creationSkillSources(character);
+
+  assert.deepEqual(sources.Exert, [
+    "Soldier Background: chosen Learning 1",
+    "Soldier Background: chosen Learning 2",
+  ]);
+  assert.equal(levelOneCreationStatus(character).skillRanks.Exert, 1);
+  assert.equal(
+    grants.find((grant) => grant.id === "learning-1")?.needsReplacement,
+    false,
+  );
+});
+
 test("manual Learning deduplicates choices without changing canonical roll weighting", async () => {
   assert.equal(backgrounds.Soldier.learning.filter((result) => result === "Any Combat").length, 2);
   assert.equal(

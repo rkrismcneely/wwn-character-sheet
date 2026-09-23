@@ -208,6 +208,10 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
   const normalSkillBudget = 3 + (savedPoints.normal || 0);
   const quickLearnerSkillBudget = (plan.quickLearner ? 1 : 0) + (savedPoints.quickLearner || 0);
   const skillBudget = normalSkillBudget + quickLearnerSkillBudget;
+  const noncombatSkillSpent = Math.max(0, skillPointsSpent - combatSkillSpent);
+  const quickLearnerUsed = Math.min(quickLearnerSkillBudget, noncombatSkillSpent);
+  const normalPointsUsed = pointsSpent - quickLearnerUsed;
+  const normalPointsRemaining = normalSkillBudget - normalPointsUsed;
   const pointsRemaining = skillBudget - pointsSpent;
   const { minimum: hpRollMinimum, maximum: hpRollMaximum } = levelUpHitPointRollBounds(plan.to);
   const hpRollComplete = Number.isInteger(state.hpRoll)
@@ -355,15 +359,10 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       hpMax: hpMaximum,
       // Keep the same damage taken rather than silently healing from the new maximum.
       hpCurrent: Math.max(0, Math.min(hpMaximum, sheet.hpCurrent + Math.max(0, hpMaximum - sheet.hpMax))),
-      levelUpUnspentSkillPoints: (() => {
-        const eligiblePointsSpent = Math.max(0, pointsSpent - combatSkillSpent);
-        const quickLearnerUsed = Math.min(quickLearnerSkillBudget, eligiblePointsSpent);
-        const normalPointsUsed = pointsSpent - quickLearnerUsed;
-        return {
-          normal: Math.max(0, normalSkillBudget - normalPointsUsed),
-          quickLearner: Math.max(0, quickLearnerSkillBudget - quickLearnerUsed),
-        };
-      })(),
+      levelUpUnspentSkillPoints: {
+        normal: Math.max(0, normalSkillBudget - normalPointsUsed),
+        quickLearner: Math.max(0, quickLearnerSkillBudget - quickLearnerUsed),
+      },
       artEffort: state.draft.artPicks.map(() => 0),
     } as WizardCharacter;
     const applied = await onFinish(final, sourceLevel);
@@ -441,7 +440,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
           const boosts = state.draft.attributeBoosts[attribute] || 0;
           const baselineBoostsForAttribute = sheet.attributeBoosts[attribute] || 0;
           const nextCost = draftBoosts < plan.attributeBoostLimit ? attributeImprovementCostForNext(draftBoosts) : null;
-          const canIncrease = nextCost !== null && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= nextCost;
+          const canIncrease = nextCost !== null && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= nextCost && normalPointsRemaining >= nextCost;
           return <article className="level-up-attribute-card" key={attribute}>
             <div className="level-up-attribute-heading"><strong>{attribute}</strong><b>{state.draft.attrs[attribute]}</b></div>
             <span>{boosts} purchased increase{boosts === 1 ? "" : "s"} · {nextCost === null ? "No further increase at this level" : `next increase costs ${nextCost} point${nextCost === 1 ? "" : "s"}`}</span>
@@ -472,7 +471,11 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
             const candidateCost = pointsSpent - currentSkillSpend + candidateSkillSpend;
             const isCombatSkill = ["Punch", "Shoot", "Stab"].includes(skill);
             const candidateCombat = combatSkillSpent + (isCombatSkill ? candidateSkillSpend - currentSkillSpend : 0);
-            const disabled = candidateCost > skillBudget || candidateCombat > normalSkillBudget;
+            const candidateSkillPointsSpent = skillPointsSpent - currentSkillSpend + candidateSkillSpend;
+            const candidateNoncombatSkillSpent = Math.max(0, candidateSkillPointsSpent - candidateCombat);
+            const candidateQuickLearnerUsed = Math.min(quickLearnerSkillBudget, candidateNoncombatSkillSpent);
+            const candidateNormalPointsUsed = attributePointsSpent + candidateSkillPointsSpent - candidateQuickLearnerUsed;
+            const disabled = candidateCost > skillBudget || candidateNormalPointsUsed > normalSkillBudget;
             const costText = rank === baselineProfile.granted
               ? ""
               : ` · ${candidateSkillSpend} pt${candidateSkillSpend === 1 ? "" : "s"}`;

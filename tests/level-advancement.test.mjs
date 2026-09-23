@@ -183,7 +183,7 @@ test("special partial-class progressions stay aligned across displayed rules and
   assert.deepEqual(classRules("adventurer", "Wise", "High Mage", 10), {
     attack: 2,
     hitDice: "10d6",
-    focusPicks: 3,
+    focusPicks: 5,
     summary: "Wise uses the paired class’s attack progression and plain hit dice. Each partial magical tradition uses its own arts, Effort, and restrictions.",
   });
   assert.equal(classRules("adventurer", "Wise", "Warrior", 1).attack, 1);

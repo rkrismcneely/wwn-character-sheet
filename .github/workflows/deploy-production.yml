@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "tests/**"
+      - ".github/**"
   workflow_dispatch:
 
 permissions:
@@ -29,32 +34,32 @@ jobs:
         id: migration_guard
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0013_connected_accounts\.sql$|^scripts/migrate-connected-accounts\.mjs$|^\.github/workflows/migrate-connected-accounts\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0013_connected_accounts\\.sql$|^scripts/migrate-connected-accounts\\.mjs$|^\\.github/workflows/migrate-connected-accounts\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The connected-accounts migration workflow owns this release."
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0016_campaign_items|0019_campaign_item_equipment)\.sql$|^scripts/migrate-campaign-items\.mjs$|^\.github/workflows/migrate-campaign-items\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0016_campaign_items|0019_campaign_item_equipment)\\.sql$|^scripts/migrate-campaign-items\\.mjs$|^\\.github/workflows/migrate-campaign-items\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The campaign-item migration workflow owns this release."
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0024_campaign_stores\.sql$|^scripts/migrate-campaign-stores\.mjs$|^\.github/workflows/migrate-campaign-stores\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0024_campaign_stores\\.sql$|^scripts/migrate-campaign-stores\\.mjs$|^\\.github/workflows/migrate-campaign-stores\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The campaign-store migration workflow owns this release."
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0018_action_bundle_13_npc_inventory\.sql$|^scripts/migrate-action-bundle-13-npc-inventory\.mjs$|^\.github/workflows/migrate-action-bundle-13-npc-inventory\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/0018_action_bundle_13_npc_inventory\\.sql$|^scripts/migrate-action-bundle-13-npc-inventory\\.mjs$|^\\.github/workflows/migrate-action-bundle-13-npc-inventory\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The Action Bundle 13 NPC inventory migration workflow owns this release."
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0014_campaign_map_foundation|0015_campaign_map_interactions|0020_action_bundle_8_live_map_dice|0021_action_bundle_9_companion_map_tokens|0022_action_bundle_10_grid_types|0023_action_bundle_10_map_fog)\.sql$|^scripts/migrate-campaign-map-foundation\.mjs$|^\.github/workflows/migrate-campaign-map-foundation\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0014_campaign_map_foundation|0015_campaign_map_interactions|0020_action_bundle_8_live_map_dice|0021_action_bundle_9_companion_map_tokens|0022_action_bundle_10_grid_types|0023_action_bundle_10_map_fog)\\.sql$|^scripts/migrate-campaign-map-foundation\\.mjs$|^\\.github/workflows/migrate-campaign-map-foundation\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The campaign-map migration workflow owns this release."
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0008_campaign_resources|0009_character_campaign_lifecycle|0010_campaign_live_sessions|0012_campaign_npc_threat_stats)\\.sql$|^scripts/migrate-phase(5a1-live-sessions|5c7-structured-npc-combat)\\.mjs$|^\\.github/workflows/migrate-phase(5a1-live-sessions|5c7-structured-npc-combat)\\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0008_campaign_resources|0009_character_campaign_lifecycle|0010_campaign_live_sessions|0012_campaign_npc_threat_stats)\\\\.sql$|^scripts/migrate-phase(5a1-live-sessions|5c7-structured-npc-combat)\\\\.mjs$|^\\\\.github/workflows/migrate-phase(5a1-live-sessions|5c7-structured-npc-combat)\\\\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The feature migration workflow owns this release; ordinary deployment is skipped."
           else
@@ -97,5 +102,5 @@ jobs:
             --connect-timeout 15 \
             --max-time 30 \
             --output /dev/null \
-            --write-out 'Production health check: HTTP %{http_code}\n' \
+            --write-out 'Production health check: HTTP %{http_code}\\n' \
             https://taleswithoutend.com

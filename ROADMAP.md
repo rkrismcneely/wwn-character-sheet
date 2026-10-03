@@ -1,260 +1,128 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` at `2e943e3c` on 2026-08-16._
+_Last reconciled against `main` at `75155bc8` on 2026-10-03._
 
-This is the forward-looking project roadmap. Current source, automated tests, and merged
-pull requests are its status authority. The Phase 4B checkpoint and rollout documents
-preserve useful historical migration and production-review detail, but predate the
-subsequent merged and deployed account work; they are not current status checklists.
+This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
-## Status key
+## Current baseline
 
-- ✅ Complete
-- ◐ Partial / underway
-- ⬜ Planned
-
-## Character-sheet hierarchy principle
-
-The character identity/header is the uninterrupted visual beginning of the folio. Do not insert new utility, account, sharing, campaign, or management controls between the site header and that identity/header. Global controls belong in the global header; character-data controls belong in the appropriate tab; other utilities should use a compact secondary area or the bottom/footer portion of the folio.
-
-## Recommended next work
-
-- **Easiest meaningful task:** improve import duplicate-detection UX now that Henchkeeper
-  regression coverage is locked. Imports are already safe: they are authenticated,
-  sanitized, and always create a fresh private record.
-- **Highest-value task:** add a small Playwright browser smoke suite for the public
-  landing/archive and the signed-in dashboard/owner route boundary. Current source and
-  Worker tests are strong, but there is no browser E2E suite.
-- **Recommended next task:** improve import duplicate-detection UX. Imports are already
-  safe: they are authenticated, sanitized, and always create a fresh private record.
-  A focused pre-import warning for an obvious duplicate would reduce accidental duplicate
-  folios without changing ownership, authentication, or storage semantics.
+- `main` is the code source of truth.
+- Cloudflare Git Integration is currently the working production deployment path for `main`.
+- GitHub Actions CI is intentionally PR/manual only; do not add duplicate post-merge validation without a concrete reason.
+- The application already includes the character sheet/builder, authentication and ownership, private campaigns, GM/NPC tooling, shared maps/scenes, tokens, grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date. Do not recreate these as future roadmap items.
 
 ---
 
-## Phase 1 — Product polish, UX, and visual identity
+## Now — finish and clean up current work
 
-### Completed
+### 1. Finish the class creation and advancement rules audit
 
-- ✅ Core responsive/mobile character-sheet pass, including header and rules-search
-  behavior for narrow and tablet layouts.
-- ✅ Amber Ledger / Company Archive visual system, typography, branded navigation mark,
-  and Tales Without End metadata.
-- ✅ Signed-out landing page at `/`, with responsive polish and the later
-  large-screen density/spacing pass.
-- ✅ Standalone public-character archive for signed-out browsing.
-- ✅ Signed-in `/` experience is now a dense, responsive **My Characters** dashboard,
-  not an immediate sheet load.
-- ✅ Authenticated **Account** profile with an application-managed display name, Google
-  name fallback, and unified signed-in navigation across characters and campaigns.
-- ✅ General character-sheet usability work: labels, tooltips, confirmation affordances,
-  counters, rules search, and printable/exportable folio workflows.
+**PR #269 — `Fix class creation and advancement rules audit`**
 
-### Remaining
+Complete the remaining validation/fixes for:
 
-- ◐ Accessibility and responsive behavior are designed into current controls, but there
-  is no automated browser accessibility or cross-browser visual test suite yet.
-- ⬜ Continue UX simplification only when a concrete friction point is identified; do not
-  retain a vague evergreen redesign task.
+- Wise, Duelist, and Mageslayer hit-point exceptions
+- Wise Polymath behavior
+- repeatable Developed Attribute and Specialist selections with distinct targets
+- Mageslayer's free Nullifier Focus accounting
+- Wise's no-Effort handling
+- Quick Learner's restricted saved-point behavior across advancement
 
----
+The current branch typechecks and lints but still has a failing test run. Diagnose the failure before merging. If the failing test protects required behavior, fix the code or test correctly. If it is stale, flaky, or no longer asserts desired behavior, repair/replace/remove it rather than repeatedly paying to rerun a no-signal test.
 
-## Phase 2 — Rules accuracy and character-builder completeness
+### 2. Verify/fix the campaign-owner invitation UI
 
-**Status: complete for the reconciled Phase 2 scope.** No confirmed Phase 2 feature
-blocker was found in current source or tests.
+A production report found that a campaign owner/GM could not see the expected **Invite Player** action even though invitation APIs already existed. Re-verify this against the current production build. If still reproducible, restore an obvious owner/GM invitation action and complete the two-account join test afterward.
 
-| Item | Status | Evidence in current implementation |
-| --- | --- | --- |
-| Close Combatant | ✅ Complete | Explicit combat-skill choice handling in `app/phase2-rules.ts` and focus choice UI; covered by the SRD rules tests. |
-| Any Combat | ✅ Complete | Background development resolves legal combat choices rather than treating the text as a passive label; covered by background/SRD tests. |
-| Growth and Learning | ✅ Complete | `app/background-development.ts` models quick, selected-learning, and rolled growth/learning methods, saved rolls, attribute choices, and legacy normalization; covered by tests. |
-| Developed Attribute | ✅ Complete | Repeatable focus targeting, duplicate-target prevention, eligibility limits, and derived attribute effects are implemented and tested. |
-| Armored Magic | ✅ Complete | Eligibility is restricted to appropriate mage traditions and casting restrictions are evaluated against equipped armor/shields. |
-| Polymath | ✅ Complete | Legal focus gating and non-combat skill floors are derived without overwriting purchased ranks; covered by tests. |
-| Unarmed Combatant | ✅ Complete | Unarmed progression and damage/shock behavior are derived in the shared unarmed attack calculation; covered by tests. |
-| Vowed | ✅ Complete | Vowed class data/progression, effort handling, magical unarmed progression, and Shock modifiers are integrated; progression and unarmed behavior are tested. |
-| Wise | ✅ Complete | Wise is present as a selectable additional partial class with its arts and correct effort behavior; covered by class/rules tests. |
-| Specialist | ✅ Complete | Repeatable focus targeting and legal non-combat skill selection are enforced; duplicate-target behavior is tested. |
-| Permanent virtual Unarmed Attack | ✅ Complete | The shared derived attack is always available, excluded from inventory-owned weapon records, and cannot be stowed/dropped as equipment. It handles default, Unarmed Combatant, and Vowed cases. |
-| Repeatable Spirit Familiar | ✅ Complete | Each legal focus pick maps to a distinct familiar slot/record; legacy data is reconciled safely and multiple selections are tested. |
-| Henchkeeper support | ✅ Complete | Companion records include inventories, virtual unarmed attacks, weapons, HP, notes, level handling, and Henchkeeper count progression. |
-| All 18 intended Henchkeeper archetypes | ✅ Complete | The current curated catalogue contains Athlete, Blacksmith, Guard, Courier, Thief, Artisan, Farmer, Sailor, Miner, Student, Engineer, Bookkeeper, Hunter, Hermit, Elder, Merchant, Noble, and Performer. |
-| Henchkeeper stat spread and modifiers | ✅ Complete | Archetypes carry deliberately varied base stats; the requested +1/-1 modifiers are layered on those values rather than replacing the spread. |
+### 3. Clean up stale open PRs
 
-### Rules status
+- **PR #235 — Map/Store drawer rail:** later merged work superseded most of this branch. Decide only the remaining UX question: should the Map/Store launcher rail disappear while a drawer is open, or should the current Close Map / Close Store controls remain? Implement the chosen behavior on current `main` if necessary, then close the stale PR rather than merging its old branch.
+- **PR #222 — unused EB Garamond 500 weight:** reapply the one-line unused font import removal against current `main` when convenient, then close the old branch/PR. Do not merge the long-stale branch as-is.
 
-- ✅ Current SRD rules tests cover the corrected focus interactions, unarmed attack
-  variants, Spirit Familiar records, background development, class progressions, spells,
-  arts, and gated selection behavior.
-- ✅ Focused regression coverage now locks the 18-archetype catalogue, base-stat spreads,
-  representative modifiers, archetype-local selection, and legal HP ranges. No missing
-  player-facing Phase 2 rules feature was found.
+### 4. Rationalize CI and production deployment
+
+Reduce build minutes, GitHub Actions credits, and duplicated work:
+
+- Confirm Cloudflare Git Integration as the single normal production deployment path.
+- Retire the redundant automatic GitHub Actions deployment workflow, or convert it to a manual emergency/fallback workflow only.
+- Keep normal CI focused on pull requests and cancel superseded runs.
+- Do not rerun infrastructure/runner/credit failures unless something relevant has changed.
+- Prefer targeted validation for the files/features changed; reserve the full suite/build/Worker validation for changes where that breadth provides real confidence.
+- Audit chronically failing or flaky tests. Tests must protect current desired behavior to justify their ongoing cost. Repair, replace, or remove tests that reliably produce noise without catching a meaningful regression.
 
 ---
 
-## Phase 3 — Dice and play utilities
+## Reliability and recovery
 
-- ✅ Header d20 and 2d6 rollers.
-- ✅ Reusable dice utility using `crypto.getRandomValues` and rejection sampling.
-- ✅ Readable result presentation and subtle roll animation.
-- ⬜ Add further table/play tools only when they support the character folio without
-  turning it into an unfocused VTT surface.
+These are the highest-value remaining platform-hardening tasks after the current blockers are cleared.
 
----
+### Targeted browser smoke coverage
 
-## Phase 4A — Repository and deployment foundation
+Add a **small** browser smoke suite for critical user journeys rather than a large matrix that runs on every change:
 
-**Status: complete.**
+- sign in / sign out
+- create, open, edit, save, export, and import a character
+- campaign create/open and invitation/join flow
+- link/replace a campaign character
+- open Map and Store from a linked character
+- one representative live-session/map interaction
 
-- ✅ GitHub repository is the source of truth; development is no longer directed at the
-  old ChatGPT-hosted site.
-- ✅ Cloudflare Worker deployment, production custom domain, D1, and R2 integration.
-- ✅ Git-based deployment process with checked production Worker artifact.
-- ✅ GitHub Actions CI on pull requests to `main` and pushes to `main`: clean install,
-  typecheck, lint, full tests, production build, and Worker artifact validation.
-- ✅ Node 22.13.0 CI baseline, matching the repository engine requirement.
-- ⬜ CI intentionally has no deployment or production-credential steps.
+Run broader cross-browser/device coverage manually or on an intentional release/audit cadence unless experience shows it is worth the recurring cost.
 
----
+### Data safety and recovery
 
-## Phase 4B — Accounts, ownership, privacy, and character URLs
+- Document and test a backup/recovery procedure for persisted character and campaign data.
+- Improve user-facing recovery from optimistic-save conflicts and interrupted/network-failed saves.
+- Add production-safe error reporting with an explicit privacy/retention policy.
+- Add a pre-import duplicate warning/choice without weakening the existing safe import ownership/privacy model.
 
-**Status: complete implementation and deployed application capability.** Stateful production
-migration/admin actions are operational records, not a checklist maintained in this roadmap;
-do not infer their current data state from the older pre-rollout documents.
+### Accessibility and responsive verification
 
-### Authentication and sessions
-
-- ✅ Better Auth with Google sign-in, persistent D1-backed sessions, sign-out, and
-  re-login flows.
-- ✅ Custom Tales Without End display names are stored separately from Google identity
-  and used by campaign roster/linked-character projections.
-- ✅ Request-scoped Cloudflare Better Auth construction, avoiding module-scope binding and
-  workerd async-context failures.
-- ✅ Runtime binding guard and safe generic auth failure behavior.
-- ✅ Public responses and URLs keep internal account identifiers, email addresses, and
-  provider identifiers out of public output.
-
-### Ownership, privacy, and sharing
-
-- ✅ Server-enforced owner-only mutation for character data, deletion, portraits,
-  visibility, export, and claims.
-- ✅ Stable opaque `/character/chr_<id>` URLs for new/imported records and direct-route
-  visibility enforcement.
-- ✅ Private, unlisted, and public visibility states; public listing excludes private and
-  unlisted records.
-- ✅ Owner-scoped **My Characters** dashboard and public-character archive.
-- ✅ Authenticated, sanitized imports create fresh private owner records and strip
-  ownership/auth fields from inbound files.
-- ✅ Secure hashed, expiring, single-use legacy claim tokens and a gated claim flow.
-- ✅ Read-only administrator role with a privacy-safe **All Characters** view; all
-  non-owner mutations remain denied.
-- ◐ Import duplicate prevention is intentionally not implemented: importing the same file
-  more than once creates separate safe private records. The planned next UX task is a
-  warning/choice, not a change to that safety model.
+Continue fixing concrete accessibility/mobile issues as they are found. Add automated checks only where they provide stable signal; avoid a large always-on visual matrix unless it proves useful.
 
 ---
 
-## Phase 4C — Private Campaign Experience
+## Campaign / VTT expansion
 
-**Status: Phase 4C is complete and deployed. Campaign access is authenticated, private, and limited to actual campaign members. Character-level Public / Unlisted / Private visibility remains separate.**
+The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, or character-to-campaign integration.
 
-- ✅ Additive campaign schema/domain foundation: private campaign records, GM/player
-  membership, multi-campaign character links, hash-only expiring/single-use invite state,
-  opaque campaign IDs, and pure permission helpers. Migration 0006 is applied in
-  production with existing character/account data preserved.
-- ✅ Private campaign create/list/read/settings/delete APIs, privacy-safe member roster
-  reads, and server-side member removal/leave services.
-- ✅ Secure campaign invitation API/service foundation: seven-day hash-only player
-  invites, non-consuming validation, atomic single-use membership plus selected-character
-  redemption, and authorized revocation. Plaintext tokens are returned only at creation.
-- ✅ Initial My Campaigns dashboard and private campaign-management UI: create, open,
-  rename, roster, player removal/leave, and owner-confirmed deletion.
-- ✅ Secure invitation UI and join flow: unmistakable cminv_ code creation/copy,
-  character selection before redemption, seven-day expiry guidance, and fragment-based
-  signed-out continuation through Google sign-in that avoids request logs.
-- ✅ Owner-controlled character linking and shared campaign character library: at most
-  one linked character per member per campaign, multi-campaign participation, and
-  owner-only unlinking that preserve ownership and visibility.
-- ✅ Campaign-scoped read-only character and portrait routes for members, GMs, and
-  read-only site administrators; global visibility and direct character-route
-  authorization remain unchanged.
-- ✅ Campaign read-only sheet cleanup + responsive global header: campaign-scoped read-only views show one context banner above the folio, and the global character-sheet controls wrap accessibly across desktop, tablet, and mobile without hiding labels or introducing horizontal overflow.
+Potential next expansions:
 
-### Remaining private-campaign usability
+- map drawing and annotation tools
+- richer map layers/overlays
+- dynamic lighting / line-of-sight if the complexity is justified
+- campaign notes, handouts, journals, and lore organization
+- deeper mobile/tablet actual-play UX
+- further encounter/session conveniences only when a concrete play need is identified
 
-- ✅ Direct campaign invite links complement the existing `cminv_...` code flow with an expiring, authenticated, single-use join URL; recipients sign in if necessary, choose an owned eligible character, and then join the private campaign.
-- ✅ Lightweight campaign overview and resources layer: a description/summary plus a small set of external links such as Discord, Roll20, shared documents, a campaign wiki, or rules resources. This is not a maps, handouts, file-hosting, or full-wiki system.
-- ✅ Richer compact Campaign Characters cards with portrait, character name, effective owner/player display name, class, level, current/max HP, and Armor Class; System Strain is intentionally excluded from the party card.
-- ✅ Intuitive character ↔ campaign navigation remains clean when a character participates in more than one campaign and does not clutter the character identity/header.
-- ✅ Change/replace campaign character without leaving or rejoining preserves membership, atomically replaces the old link with a new owned eligible character, and preserves ownership, visibility, and the one-character-per-player-per-campaign rule.
+Treat these as product choices, not mandatory scope. Prefer small useful additions over turning Tales Without End into an unnecessarily heavy VTT.
 
 ---
 
-## Phase 4D — Reliability, library maturity, security, and production hardening
+## Visual polish backlog
 
-**Status: complete for the Phase 4D character and campaign lifecycle scope.**
-
-### Library maturity
-
-- ✅ Archive / retire characters and campaigns non-destructively so old records leave active lists but remain recoverable; Archive is distinct from Delete.
-- ✅ Duplicate Character as a new independent private owned record with its own identity/public ID, independent portrait object, and no campaign/revision inheritance.
-
-### Completed
-
-- ✅ GitHub Actions validation gate for PRs and `main` pushes.
-- ✅ Typecheck, lint, full automated tests, production build, and Worker artifact
-  validation in CI.
-- ✅ Migration compatibility/preservation tests and guarded production migration scripts.
-- ✅ Authentication, authorization, visibility, ownership, legacy-claim, and
-  admin-read-only regression coverage.
-- ✅ Local built-Worker/runtime checks, including Better Auth/session route coverage.
-- ✅ Optimistic version checks on character saves return a conflict instead of silently
-  overwriting a concurrent update.
-- ✅ Portrait endpoint validation and owner authorization are enforced server-side.
-
-### Remaining
-
-- ⬜ Playwright browser E2E smoke coverage, with failed-test screenshots/traces/logs.
-- ⬜ Automated desktop/tablet/phone and Chromium/Firefox/WebKit visual/accessibility
-  checks.
-- ⬜ Production-safe smoke checks that use no real player data.
-- ⬜ A documented, tested backup/recovery operational procedure.
-- ◐ Character writes have optimistic conflict detection, but the user-facing conflict
-  recovery/merge experience is not yet a dedicated workflow.
-- ⬜ Structured application error reporting and a privacy/data-retention review.
-- ⬜ Visual regression coverage for the landing page, dashboard, public archive, and
-  character sheet.
+- Re-check the current live dark-theme background before doing more art work. If the armillary sphere still has the known geometry issue around the vertical prime-meridian band, correct that specific problem rather than restarting the whole background design.
+- Continue visual/UX cleanup only for concrete observed problems; do not maintain vague permanent redesign tasks.
 
 ---
 
-## Phase 4E — Actual Play Improvements
+## Longer-term platform ideas
 
-**Status: complete for the focused dice and local play-utilities scope.**
+Only after the WWN experience is stable and the remaining reliability work is in good shape:
 
-- ✅ Click-to-roll character actions: generic d20/2d6, WWN saving throws, weapon attacks, canonical weapon damage, and skill checks with a deliberate attribute chooser.
-- ✅ Lightweight character-labelled Roll History stored only in the browser session, capped at 75 recent rolls, with a local Clear History action and no character, campaign, D1, or R2 writes.
-
----
-
-## Phase 5 — Full VTT expansion
-
-**Status: future.** Begin only after campaigns and the remaining production hardening are
-stable.
-
-- ⬜ Campaign dashboard, shared maps/scenes, tokens, fog of war, and initiative.
-- ⬜ Real-time multiplayer synchronization and character-to-token integration.
-- ⬜ Notes, handouts, journals, campaign lore, and real-time multiplayer synchronization.
-- ⬜ Mobile/tablet play support and architecture for other Without Number games.
+- architecture/content support for other **Without Number** games
+- additional campaign organization tools justified by actual play
+- broader import/export/interoperability improvements where there is a real user need
 
 ---
 
-## Development workflow
+## Development efficiency rules
 
-1. Treat current `main`, tests, and merged PRs as the project-status authority.
-2. Keep application changes in focused branches and review them through pull requests.
-3. Preserve Cloudflare bindings and production data unless a task explicitly authorizes a
-   scoped operational change.
-4. Let CI validate every PR; CI has no deployment side effects.
-5. Verify deployed behavior after merges that affect routes, authentication, data, or UI.
+1. **Use the smallest useful source of truth first.** Read the compact TWE state/decision/workflow files and the relevant current source/PR before searching archived chats or scanning the repository broadly.
+2. **Batch related work.** Group related code reads, edits, tests, and GitHub queries rather than making repeated tiny passes.
+3. **Validate proportionally to risk.** Start with the narrowest relevant tests/static checks. Escalate to broader suites only when the change can plausibly affect those areas.
+4. **A test must earn its cost.** Never blindly rerun a test that predictably fails. Determine whether it reveals a real regression. Fix meaningful failures; update/remove stale or no-signal tests; stabilize or replace flaky tests.
+5. **Avoid duplicate CI/deploy work.** Do not run the same full validation before and after merge without a specific reason, and do not maintain two automatic production deployment mechanisms when one is sufficient.
+6. **Do not retry unchanged failures.** Runner shortages, exhausted credits, authentication problems, and unchanged failing commands should be diagnosed or deferred until the condition changes rather than repeatedly retried.
+7. **Use PRs when review/CI adds value.** Documentation-only or similarly low-risk maintenance can be committed directly when repository rules allow it and doing so avoids pointless CI usage.
+8. **Production verification should be targeted.** Verify the user-facing behavior affected by a release rather than repeatedly smoke-testing unrelated features.

@@ -36,11 +36,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
+      # npm test already performs the verified production build before running tests.
+      # Do not build a second time in this workflow unless that test contract changes.
+      - name: Build and test
         run: npm test
-
-      - name: Build production artifact
-        run: npm run build
 
       - name: Validate Worker artifact
         run: npm run validate:artifact

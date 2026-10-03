@@ -1,14 +1,8 @@
 name: Deploy Production
 
+# Cloudflare Git Integration is the normal automatic production deployment path.
+# Keep this workflow as a manual fallback only so each main push is not built/deployed twice.
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "tests/**"
-      - ".github/**"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +21,7 @@ jobs:
       - name: Check out deployment commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          ref: main
           fetch-depth: 2
 
       - name: Skip ordinary deploy for the feature migration release

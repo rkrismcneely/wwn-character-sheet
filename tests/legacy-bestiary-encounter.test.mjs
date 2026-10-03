@@ -140,7 +140,7 @@ test("Bestiary uses herbivore terminology, retains renamed aliases, and provides
     ["swift-riding-beast", 2, "Herbivore"],
     ["aquatic-herbivore", 2, "Herbivore"],
     ["aquatic-predator", 2, "Predator"],
-    ["constrictor", 2, "Reptile"],
+    ["constrictor", 2, "Predator"],
   ];
   for (const [id, hitDice, family] of profiles) {
     const creature = getBuiltInBestiaryCreature(id);

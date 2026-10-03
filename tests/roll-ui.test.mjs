@@ -60,8 +60,8 @@ test("all character-sheet dice affordances use the shared roll request pipeline"
   assert.match(sheetSource, /rawRoll = preparedSharedRoll\?\.dice \|\| rollDice\(request\.dice\.count, request\.dice\.sides\)/);
   assert.match(sheetSource, /resolveRoll\(request, \{ roll: \(\) => rawRoll \}\)/);
   assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check`/);
-  assert.match(sheetSource, /label: `\$\{name\} Attack`/);
-  assert.match(sheetSource, /label: `\$\{name\} Damage`/);
+  assert.match(sheetSource, /label: `\$\{name\} — Attack`/);
+  assert.match(sheetSource, /label: `\$\{name\} — Damage`/);
   assert.match(sheetSource, /targetKind: "saving-throw"/);
   assert.match(sheetSource, /function rollInitiative\(\) \{[\s\S]*?category: "initiative",[\s\S]*?label: "Initiative",[\s\S]*?dice: \{ count: 1, sides: 8 \},[\s\S]*?value: calculatedInitiative/);
   assert.match(sheetSource, /function rollHeaderDice\(kind: "d20" \| "2d6"\) \{[\s\S]*?category: "generic"/);

@@ -30,16 +30,121 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: UI wizard Companion mode
+        if: always()
+        run: grep -Fq 'Companion mode' app/character-creation-wizard.tsx
+      - name: UI wizard standard bond
+        if: always()
+        run: grep -Fq 'Bind Companion · standard rules' app/character-creation-wizard.tsx
+      - name: UI wizard chosen friend
+        if: always()
+        run: grep -Fq 'Chosen Friend · campaign option' app/character-creation-wizard.tsx
+      - name: UI companion kind
+        if: always()
+        run: grep -Fq 'type CompanionKind = "henchman" | "familiar" | "beastmaster"' app/character-sheet.tsx
+      - name: UI new beastmaster companion
+        if: always()
+        run: grep -Fq 'newCompanion("beastmaster", 0, sheet.level)' app/character-sheet.tsx
+      - name: UI chosen friend title
+        if: always()
+        run: grep -Fq 'title={chosenFriendCompanion ? "Chosen Friend" : "Beastmaster Companion"}' app/character-sheet.tsx
+      - name: UI Bestiary profile
+        if: always()
+        run: grep -Fq 'Bestiary profile' app/character-sheet.tsx
+      - name: UI custom creature
+        if: always()
+        run: grep -Fq 'Custom creature' app/character-sheet.tsx
+      - name: UI choose catalogue profile
+        if: always()
+        run: grep -Fq 'chooseBeastmasterCatalogProfile' app/character-sheet.tsx
+      - name: UI bestiary id
+        if: always()
+        run: grep -Fq 'bestiaryId' app/character-sheet.tsx
+      - name: UI standard rules label
+        if: always()
+        run: grep -Fq 'Bind Companion · standard rules' app/character-sheet.tsx
+      - name: UI Mind Call ready
+        if: always()
+        run: grep -Fq 'Mind Call ready' app/character-sheet.tsx
+      - name: UI Feral Toughness HD
+        if: always()
+        run: grep -Fq 'feralToughnessHitDice' app/character-sheet.tsx
+      - name: UI bound beastmaster check
+        if: always()
+        run: grep -Fq 'companion.kind === "beastmaster" && companion.bound' app/character-sheet.tsx
+      - name: UI no companion label
+        if: always()
+        run: grep -Fq 'No companion currently bound' app/character-sheet.tsx
+      - name: UI record bound companion
+        if: always()
+        run: grep -Fq 'Record a bound companion' app/character-sheet.tsx
+      - name: UI release companion
+        if: always()
+        run: grep -Fq 'Release companion' app/character-sheet.tsx
+      - name: UI roll attack
+        if: always()
+        run: grep -Fq 'Roll Attack' app/character-sheet.tsx
+      - name: UI roll damage
+        if: always()
+        run: grep -Fq 'Roll Damage' app/character-sheet.tsx
+      - name: UI roll control class
+        if: always()
+        run: grep -Fq 'companion-roll-control' app/character-sheet.tsx
+      - name: UI damage extractor
+        if: always()
+        run: grep -Fq 'extractBeastmasterDamageExpression' app/character-sheet.tsx
+      - name: UI Base Hit Dice
+        if: always()
+        run: grep -Fq 'Base Hit Dice' app/character-sheet.tsx
+      - name: UI Effective Hit Dice
+        if: always()
+        run: grep -Fq 'Effective Hit Dice' app/character-sheet.tsx
+      - name: UI Effective Hit Bonus
+        if: always()
+        run: grep -Fq 'Effective Hit Bonus' app/character-sheet.tsx
+      - name: UI lifelong bond text
+        if: always()
+        run: grep -Fq 'Lifelong bond · Shared Vitality + Mind Call' app/character-sheet.tsx
+      - name: UI restore dawn
+        if: always()
+        run: grep -Fq 'Restore at next dawn' app/character-sheet.tsx
+      - name: UI no old binding copy
+        if: always()
+        run: '! grep -Fq "Binding a companion" app/character-sheet.tsx'
+      - name: UI no old Bestiary copy
+        if: always()
+        run: '! grep -Fq "Choose a Bestiary profile to copy its ordinary stat block" app/character-sheet.tsx'
+      - name: UI Feral Toughness selection
+        if: always()
+        run: grep -Fq 'artSelectionName(name) === "Feral Toughness"' app/character-sheet.tsx
+      - name: UI Feral Toughness AC function
+        if: always()
+        run: grep -Fq 'feralToughnessBaseArmorClass(effectiveLevel)' app/character-sheet.tsx
+      - name: UI Feral Toughness armor base
+        if: always()
+        run: grep -Fq 'feralToughnessArmorBase' app/character-sheet.tsx
+      - name: UI companion control CSS
+        if: always()
+        run: grep -Fq '.companion-roll-control input' app/globals.css
+      - name: UI roll reminder CSS
+        if: always()
+        run: grep -Fq '.roll-result-reminder' app/globals.css
+      - name: UI shock reminder formatter
+        if: always()
+        run: grep -Fq 'formatShockMinimumReminder' app/roll-presentation.tsx
+
       - name: Typecheck
+        if: always()
         run: npm run typecheck
 
       - name: Lint
+        if: always()
         run: npm run lint
 
-      # npm test already performs the verified production build before running tests.
-      # Do not build a second time in this workflow unless that test contract changes.
       - name: Build and test
+        if: always()
         run: npm test
 
       - name: Validate Worker artifact
+        if: always()
         run: npm run validate:artifact

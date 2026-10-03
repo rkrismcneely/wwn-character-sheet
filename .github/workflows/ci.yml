@@ -36,20 +36,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Temporary PR diagnostic: capture full test output as a downloadable artifact.
+      # npm test already performs the verified production build before running tests.
+      # Do not build a second time in this workflow unless that test contract changes.
       - name: Build and test
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee test-output.log
-
-      - name: Upload test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-output
-          path: test-output.log
-          if-no-files-found: error
+        run: npm test
 
       - name: Validate Worker artifact
         run: npm run validate:artifact

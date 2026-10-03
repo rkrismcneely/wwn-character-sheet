@@ -1,0 +1,59 @@
+name: One-off Small Predator context repair
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/one-off-bestiary-context-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Repair main and PR branch, then remove this one-off workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Tales Without End maintenance"
+          git config user.email "131004818+rkrismcneely@users.noreply.github.com"
+
+          patch_bestiary() {
+            python - <<'PY'
+          from pathlib import Path
+
+          path = Path("lib/campaigns/bestiary.ts")
+          text = path.read_text()
+          marker = 'const creatureContext: Record<string, { description: string; sourceStats: BuiltInBestiarySourceStats }> = {\n'
+          entry = '  "small-pack-predator": { description: "A small, fast pack hunter that overwhelms isolated prey with numbers.", sourceStats: { hitDice: 1, attacksPerMainAction: 1, shock: "1/13", move: "40\'", morale: 7, instinct: 6, skill: 1 } },\n'
+          if entry in text:
+              raise SystemExit(0)
+          if marker not in text:
+              raise SystemExit("creatureContext marker not found; refusing to edit")
+          path.write_text(text.replace(marker, marker + entry, 1))
+          PY
+          }
+
+          patch_bestiary
+          git rm .github/workflows/one-off-bestiary-context-fix.yml
+          git add lib/campaigns/bestiary.ts
+          git commit -m "Restore Small Predator bestiary context"
+          git push origin HEAD:main
+
+          git fetch origin fix/class-rules-audit-20260923
+          git checkout -B fix/class-rules-audit-20260923 origin/fix/class-rules-audit-20260923
+          patch_bestiary
+          if ! git diff --quiet -- lib/campaigns/bestiary.ts; then
+            git add lib/campaigns/bestiary.ts
+            git commit -m "Restore Small Predator bestiary context"
+            git push origin HEAD:fix/class-rules-audit-20260923
+          fi

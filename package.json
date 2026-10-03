@@ -11,7 +11,7 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
     "build": "bash scripts/build-verified.sh",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log WRANGLER_WRITE_LOGS=false wrangler dev --config dist/server/wrangler.json --local --show-interactive-dev-session false",
-    "test": "node --experimental-strip-types --test --test-name-pattern=\"special partial-class|repeatable Focuses|Mageslayer's free Nullifier|special class exceptions\" tests/level-advancement.test.mjs",
+    "test": "node --experimental-strip-types --test tests/legacy-bestiary-encounter.test.mjs",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit",

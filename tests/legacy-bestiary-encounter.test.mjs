@@ -134,7 +134,7 @@ test("Bestiary uses herbivore terminology, retains renamed aliases, and provides
   assert.deepEqual(searchBuiltInBestiaryCreatures("Elephantine Grazer").map(creature => creature.id), ["elephantine-grazer"]);
 
   const profiles = [
-    ["small-bird", 1, "Bird"],
+    ["small-bird", 1, "Omnivore"],
     ["burrowing-herbivore", 1, "Herbivore"],
     ["small-omnivore", 1, "Omnivore"],
     ["swift-riding-beast", 2, "Herbivore"],

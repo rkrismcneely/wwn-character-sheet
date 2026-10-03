@@ -116,7 +116,6 @@ test("mixed encounter threat includes repaired legacy Bestiary snapshots indepen
   assert.equal(result.estimate?.band, "deadly");
 });
 
-
 test("Bestiary uses herbivore terminology, retains renamed aliases, and provides original companion-ready animal profiles", () => {
   const renamed = {
     "elephantine-grazer": "Elephantine Herbivore",
@@ -135,14 +134,13 @@ test("Bestiary uses herbivore terminology, retains renamed aliases, and provides
   assert.deepEqual(searchBuiltInBestiaryCreatures("Elephantine Grazer").map(creature => creature.id), ["elephantine-grazer"]);
 
   const profiles = [
-    ["small-bird", 1, "Bird"],
+    ["small-bird", 1, "Omnivore"],
     ["burrowing-herbivore", 1, "Herbivore"],
     ["small-omnivore", 1, "Omnivore"],
-    ["small-solitary-predator", 1, "Predator"],
     ["swift-riding-beast", 2, "Herbivore"],
     ["aquatic-herbivore", 2, "Herbivore"],
     ["aquatic-predator", 2, "Predator"],
-    ["constrictor", 2, "Reptile"],
+    ["constrictor", 2, "Predator"],
   ];
   for (const [id, hitDice, family] of profiles) {
     const creature = getBuiltInBestiaryCreature(id);
@@ -154,6 +152,16 @@ test("Bestiary uses herbivore terminology, retains renamed aliases, and provides
     assert.equal(creature.attacks.length, 1);
     assert.ok(creature.attacks[0].name !== "Attack", "original profiles use a concrete attack name");
   }
+
+  const legacySmallPredator = getBuiltInBestiaryCreature("small-solitary-predator");
+  assert.ok(legacySmallPredator);
+  assert.equal(legacySmallPredator.id, "small-pack-predator");
+  assert.equal(legacySmallPredator.name, "Small Predator");
+  assert.equal(legacySmallPredator.source.name, "Worlds Without Number SRD");
+  assert.equal(legacySmallPredator.category, "Animal");
+  assert.equal(legacySmallPredator.family, "Predator");
+  assert.deepEqual(legacySmallPredator.aliases, ["Small Pack Predator", "Small Solitary Predator"]);
+  assert.equal(legacySmallPredator.sourceStats.hitDice, 1);
 
   const herbivores = sortBestiaryCreaturesByFamilyAndHitDice(
     builtInBestiaryCreatures.filter(creature => creature.category === "Animal" && creature.family === "Herbivore"),

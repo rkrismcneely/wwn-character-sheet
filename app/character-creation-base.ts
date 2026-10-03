@@ -8,6 +8,7 @@ import {
   artSlots,
   casterLimits,
   classRules,
+  hitPointClassBonus,
   dualCasterLimits,
   fullClasses,
   forcedArtsForTraditions,
@@ -497,7 +498,8 @@ export function creationSkillGrants(
     });
   });
   const startingFocusSelections = state.classOne
-    ? classRules(state.classMode, state.classOne, state.classTwo, 1).focusPicks
+    ? classRules(state.classMode, state.classOne, state.classTwo, 1).focusPicks +
+      (classes.includes("Mageslayer") ? 1 : 0)
     : 0;
   inferFocusAdvancementFlags(state.focusPicks, startingFocusSelections)
     .filter((pick) => pick.name)
@@ -720,6 +722,10 @@ const classNames = (
     : [state.classOne, state.classTwo]
   ).filter(Boolean);
 
+const hitPointClassBonusForCreation = (
+  state: Pick<LevelOneCreationCharacter, "classMode" | "classOne" | "classTwo">,
+) => hitPointClassBonus(state.classMode, state.classOne, state.classTwo);
+
 export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
   const selectedClasses = classNames(state);
   const beastmasterBond = state.beastmasterBond;
@@ -811,7 +817,11 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
         eligible: false,
         reason: "Mages and partial Mages cannot take Nullifier.",
       };
-    if (name === "Polymath" && !selectedClasses.includes("Expert"))
+    if (
+      name === "Polymath" &&
+      !selectedClasses.includes("Expert") &&
+      !selectedClasses.includes("Wise")
+    )
       return {
         eligible: false,
         reason: "Only Experts or partial Experts can take Polymath.",
@@ -1316,19 +1326,15 @@ export function levelOneCreationStatus(state: LevelOneCreationCharacter) {
         message: `${pick.name} is selected more than once.`,
       });
   });
-  const hitPointClassBonus =
-    selectedClasses.includes("Warrior") && !selectedClasses.includes("Duelist")
-      ? 2
-      : selectedClasses.includes("Expert") || selectedClasses.includes("Vowed")
-        ? 0
-        : -1;
+  const hitPointPerDieBonus = hitPointClassBonusForCreation(state);
+
   const startingHp =
     state.hpRolls[0] >= 1 && state.hpRolls[0] <= 6
       ? Math.max(
           1,
           state.hpRolls[0] +
             attributeModifier("CON") +
-            hitPointClassBonus +
+            hitPointPerDieBonus +
             (focusPicks.some((pick) => pick.name === "Die Hard") ? 2 : 0),
         )
       : 0;

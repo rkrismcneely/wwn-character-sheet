@@ -24,7 +24,7 @@ import {
   spiritFamiliarMaximumHitPoints,
   storedRankForDisplayedSkillRank,
 } from "../app/phase2-rules.ts";
-import { fullClasses, partialClasses } from "../app/class-data.ts";
+import { classRules, fullClasses, hitPointClassBonus, partialClasses } from "../app/class-data.ts";
 import { creationPartialClassPairIsLegal } from "../app/character-creation.ts";
 
 const base = (overrides = {}) => ({
@@ -177,6 +177,54 @@ test("Level-Up HP raw totals share bounded validation and canonical calculation"
   assert.equal(validLevelUpHitPointRoll(5, 6), false);
   assert.equal(validLevelUpHitPointRoll(37, 6), false);
   assert.equal(levelUpHitPointTotal(18, 24, 6, 1, 2, false), 42);
+});
+
+test("special partial-class progressions stay aligned across displayed rules and HP", () => {
+  assert.deepEqual(classRules("adventurer", "Wise", "High Mage", 10), {
+    attack: 2,
+    hitDice: "10d6",
+    focusPicks: 5,
+    summary: "Wise uses the paired class’s attack progression and plain hit dice. Each partial magical tradition uses its own arts, Effort, and restrictions.",
+  });
+  assert.equal(classRules("adventurer", "Wise", "Warrior", 1).attack, 1);
+  assert.equal(classRules("adventurer", "Wise", "Warrior", 1).hitDice, "1d6");
+  assert.equal(classRules("adventurer", "Warrior", "Duelist", 1).hitDice, "1d6");
+  assert.equal(hitPointClassBonus("adventurer", "Wise", "Warrior"), 0);
+  assert.equal(hitPointClassBonus("adventurer", "Warrior", "Duelist"), 0);
+  assert.equal(hitPointClassBonus("adventurer", "Mageslayer", "Warrior"), 2);
+  assert.equal(hitPointClassBonus("adventurer", "Mageslayer", "Wise"), 0);
+  assert.equal(advancementClassPerDieBonus(base({ classMode: "adventurer", classOne: "Wise", classTwo: "High Mage" })), 0);
+  assert.equal(advancementClassPerDieBonus(base({ classMode: "adventurer", classOne: "Warrior", classTwo: "Duelist" })), 0);
+});
+
+test("repeatable Focuses remain legal for distinct advancement targets", () => {
+  assert.ok(legalAdvancementFocuses(base({
+    focusPicks: [{ name: "Developed Attribute", level: 1 }],
+  })).some((focus) => focus.name === "Developed Attribute"));
+  assert.ok(legalAdvancementFocuses(base({
+    focusPicks: [{ name: "Specialist", level: 2, choice: "Know" }],
+  })).some((focus) => focus.name === "Specialist"));
+  assert.ok(legalAdvancementFocuses(base({
+    classMode: "adventurer",
+    classOne: "Wise",
+    classTwo: "High Mage",
+  })).some((focus) => focus.name === "Polymath"));
+});
+
+test("Mageslayer's free Nullifier does not create false advancement Focus credit", () => {
+  assert.deepEqual(
+    advancementSkillCreditBySkill(base({
+      classMode: "adventurer",
+      classOne: "Mageslayer",
+      classTwo: "Warrior",
+      focusPicks: [
+        { name: "Nullifier", level: 1 },
+        { name: "Armsmaster", level: 1 },
+        { name: "Specialist", level: 1, choice: "Know" },
+      ],
+    })),
+    {},
+  );
 });
 
 test("advancement Focus bonus skill credit is separate from paid skill ranks", () => {
@@ -405,6 +453,24 @@ test("Spirit Familiar maximum HP tracks level and preserves damage when the maxi
     { current: 2, maximum: 2 },
     "lowering the maximum clamps current HP without creating extra damage",
   );
+});
+
+test("special class exceptions are represented in the sheet and level-up UI", async () => {
+  const [sheet, creation, wizard] = await Promise.all([
+    readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/character-creation-base.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/level-up-wizard-impl.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(sheet, /hitPointClassBonus\(\s*sheet\.classMode,\s*sheet\.classOne,\s*sheet\.classTwo/u);
+  assert.match(sheet, /usesEffort !== false/u);
+  assert.match(sheet, /selectedClasses\.includes\("Mageslayer"\) \? 1 : 0/u);
+  assert.match(creation, /classes\.includes\("Mageslayer"\) \? 1 : 0/u);
+  assert.match(wizard, /quickLearnerSkillBudget/u);
+  assert.match(wizard, /candidateNormalPointsUsed > normalSkillBudget/u);
+  assert.match(wizard, /noncombatSkillSpent/u);
+  assert.match(wizard, /normalPointsRemaining/u);
+  assert.match(wizard, /upgrade existing/u);
+  assert.match(wizard, /choose another/u);
 });
 
 test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async () => {

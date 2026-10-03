@@ -30,18 +30,32 @@ import {
   validLevelUpHitPointRoll,
   type AdvancementCharacter,
 } from "./level-advancement";
-import { deriveSkillProfile, missingArtPrerequisite, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { deriveSkillProfile, focusIsRepeatable, missingArtPrerequisite, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import { foci, highMageArts, highMagic } from "./wwn-data";
 import { beastmasterArtAvailableForBond } from "./beastmaster-companion";
 import { focusFullRules, SelectionRuleHelp } from "./character-creation-guidance";
 import { plainLanguageSummary } from "./plain-language";
 import "./character-creation-wizard.css";
 
+type SavedSkillPointBank = {
+  normal?: number;
+  quickLearner?: number;
+};
+
 type WizardCharacter = LevelOneCreationCharacter & {
   strainCurrent?: number;
-  levelUpUnspentSkillPoints?: number;
+  levelUpUnspentSkillPoints?: number | SavedSkillPointBank;
   artEffort?: number[];
 };
+
+function savedSkillPointBank(value: WizardCharacter["levelUpUnspentSkillPoints"]): SavedSkillPointBank {
+  if (typeof value === "number")
+    return { normal: Math.max(0, Math.trunc(value)) };
+  return {
+    normal: Math.max(0, Math.trunc(Number(value?.normal) || 0)),
+    quickLearner: Math.max(0, Math.trunc(Number(value?.quickLearner) || 0)),
+  };
+}
 
 type Props = {
   sheet: WizardCharacter;
@@ -135,14 +149,32 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
 
   const update = (recipe: (draft: WizardCharacter) => WizardCharacter) =>
     setState((current) => ({ ...current, draft: recipe(current.draft) }));
-  const selectedFocus = state.draft.focusPicks.find((pick, index) =>
-    pick.name !== sheet.focusPicks[index]?.name || pick.level !== sheet.focusPicks[index]?.level,
-  ) || state.draft.focusPicks.filter((pick) => pick.name).slice(-1)[0];
-  const focusAdded = state.draft.focusPicks.length > sheet.focusPicks.length;
-  const focusChanged = state.draft.focusPicks.some((pick, index) =>
+  const selectedFocusIndex = state.draft.focusPicks.findIndex((pick, index) =>
     pick.name !== sheet.focusPicks[index]?.name || pick.level !== sheet.focusPicks[index]?.level,
   );
-  const focusComplete = !plan.gainsFocus || (focusChanged && (!focusAdded || !focusChoiceRequired(selectedFocus?.name || "") || Boolean(selectedFocus?.choice)));
+  const activeFocusIndex = selectedFocusIndex >= 0
+    ? selectedFocusIndex
+    : state.draft.focusPicks.length - 1;
+  const selectedFocus = activeFocusIndex >= 0 ? state.draft.focusPicks[activeFocusIndex] : undefined;
+  const selectedFocusForBonus = selectedFocus || { name: "", level: 1 };
+  const focusAdded = state.draft.focusPicks.length > sheet.focusPicks.length;
+  const focusChanged = selectedFocusIndex >= 0;
+  const selectedFocusValue = focusChanged && selectedFocus?.name
+    ? `${activeFocusIndex < sheet.focusPicks.length && sheet.focusPicks[activeFocusIndex]?.level === 1 && selectedFocus.level >= 2 ? "upgrade" : "add"}:${selectedFocus.name}`
+    : "";
+  const focusChoiceUnique = !selectedFocus ||
+    !["Developed Attribute", "Specialist"].includes(selectedFocus.name) ||
+    !state.draft.focusPicks.some((pick, index) =>
+      index !== activeFocusIndex &&
+      pick.name === selectedFocus.name &&
+      Boolean(selectedFocus.choice) &&
+      pick.choice === selectedFocus.choice,
+    );
+  const focusComplete = !plan.gainsFocus || (
+    focusChanged &&
+    (!focusChoiceRequired(selectedFocus?.name || "") ||
+      (Boolean(selectedFocus?.choice) && focusChoiceUnique))
+  );
   const originalBoosts = Object.values(sheet.attributeBoosts).reduce((total, count) => total + Number(count), 0);
   const draftBoosts = Object.values(state.draft.attributeBoosts).reduce((total, count) => total + Number(count), 0);
   const attributePointsSpent = Math.max(0, attributeImprovementCostForCount(draftBoosts) - attributeImprovementCostForCount(originalBoosts));
@@ -172,7 +204,14 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     });
     return total + skillSpendForRank(skill, profile.granted);
   }, 0);
-  const skillBudget = plan.skillPoints + Math.max(0, Number(sheet.levelUpUnspentSkillPoints) || 0);
+  const savedPoints = savedSkillPointBank(sheet.levelUpUnspentSkillPoints);
+  const normalSkillBudget = 3 + (savedPoints.normal || 0);
+  const quickLearnerSkillBudget = (plan.quickLearner ? 1 : 0) + (savedPoints.quickLearner || 0);
+  const skillBudget = normalSkillBudget + quickLearnerSkillBudget;
+  const noncombatSkillSpent = Math.max(0, skillPointsSpent - combatSkillSpent);
+  const quickLearnerUsed = Math.min(quickLearnerSkillBudget, noncombatSkillSpent);
+  const normalPointsUsed = pointsSpent - quickLearnerUsed;
+  const normalPointsRemaining = normalSkillBudget - normalPointsUsed;
   const pointsRemaining = skillBudget - pointsSpent;
   const { minimum: hpRollMinimum, maximum: hpRollMaximum } = levelUpHitPointRollBounds(plan.to);
   const hpRollComplete = Number.isInteger(state.hpRoll)
@@ -223,26 +262,45 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
     return artChoiceIsComplete(selection, state.draft.artChoices);
   });
   const spellsComplete = newSpells === plan.spellPicks;
-  const ready = hpRollComplete && pointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
+  const ready = hpRollComplete && pointsRemaining >= 0 && normalPointsRemaining >= 0 && focusComplete && artsComplete && spellsComplete;
 
   const focusOptions = useMemo(() => legalAdvancementFocuses({
     ...state.draft,
     focusPicks: sheet.focusPicks,
+  }).flatMap((focus) => {
+    const existing = sheet.focusPicks.filter((pick) => pick.name === focus.name);
+    const defaultLabel = advancementFocusOptionLabel(sheet as AdvancementCharacter, focus.name);
+    if (focusIsRepeatable(focus.name) && focus.level2 && existing.some((pick) => pick.level === 1)) {
+      return [
+        { ...focus, value: `upgrade:${focus.name}`, label: `${focus.name} — upgrade existing` },
+        { ...focus, value: `add:${focus.name}`, label: `${focus.name} — choose another` },
+      ];
+    }
+    return [{
+      ...focus,
+      value: `add:${focus.name}`,
+      label: focus.name === "Developed Attribute" ? focus.name : defaultLabel,
+    }];
   }), [sheet.focusPicks, state.draft]);
   const selectedFocusDefinition = foci.find((focus) => focus.name === selectedFocus?.name);
   const selectedFocusActionLabel = selectedFocus?.name
     ? advancementFocusOptionLabel(sheet as AdvancementCharacter, selectedFocus.name)
     : "";
-  const chooseFocus = (name: string) => {
-    if (!name) {
+  const chooseFocus = (value: string) => {
+    if (!value) {
       update((draft) => ({ ...draft, focusPicks: clone(sheet.focusPicks), artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) }));
       return;
     }
-    const focus = focusOptions.find((item) => item.name === name);
+    const focus = focusOptions.find((item) => item.value === value);
     if (!focus) return;
+    const separator = value.indexOf(":");
+    const action = separator >= 0 ? value.slice(0, separator) : "add";
+    const name = separator >= 0 ? value.slice(separator + 1) : value;
     update((draft) => {
       const baseline = clone(sheet.focusPicks);
-      const sameIndex = baseline.findIndex((pick) => pick.name === name && pick.level === 1);
+      const sameIndex = action === "upgrade"
+        ? baseline.findIndex((pick) => pick.name === name && pick.level === 1)
+        : -1;
       if (sameIndex >= 0 && focus.level2) {
         return { ...draft, focusPicks: baseline.map((pick, index) => index === sameIndex ? { ...pick, level: 2 } : pick), artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
       }
@@ -250,14 +308,28 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       return { ...draft, focusPicks: [...baseline, { name, level: repeatedSpiritFamiliar ? 2 : 1, choice: "", advancement: true }], artPicks: clone(sheet.artPicks), artChoices: clone(sheet.artChoices), spellPicks: clone(sheet.spellPicks) };
     });
   };
-  const chooseFocusOption = (choice: string) => update((draft) => ({
-    ...draft,
-    focusPicks: draft.focusPicks.map((pick, index) => index === draft.focusPicks.length - 1 ? { ...pick, choice } : pick),
-    // A Focus option can change the traditions available to its magic; do not
-    // carry dependent draft selections across that change.
-    artPicks: clone(sheet.artPicks),
-    spellPicks: clone(sheet.spellPicks),
-  }));
+  const chooseFocusOption = (choice: string) => {
+    if (activeFocusIndex < 0) return;
+    if (
+      ["Developed Attribute", "Specialist"].includes(selectedFocus?.name || "") &&
+      state.draft.focusPicks.some((pick, index) =>
+        index !== activeFocusIndex &&
+        pick.name === selectedFocus?.name &&
+        pick.choice === choice
+      )
+    ) {
+      setNotice(`Choose a different target for ${selectedFocus?.name}.`);
+      return;
+    }
+    update((draft) => ({
+      ...draft,
+      focusPicks: draft.focusPicks.map((pick, index) => index === activeFocusIndex ? { ...pick, choice } : pick),
+      // A Focus option can change the traditions available to its magic; do not
+      // carry dependent draft selections across that change.
+      artPicks: clone(sheet.artPicks),
+      spellPicks: clone(sheet.spellPicks),
+    }));
+  };
   const cancel = () => {
     if (typeof window !== "undefined") window.sessionStorage.removeItem(storageKey(persistenceKey));
     setState({ sourceLevel, step: 0, draft: clone(sheet) });
@@ -267,7 +339,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
 
   const next = () => {
     if (state.step === 1 && !hpRollComplete) return setNotice("Roll the required hit-point total before continuing.");
-    if (state.step === 2 && pointsRemaining < 0) return setNotice("Spend no more than the available skill points.");
+    if (state.step === 2 && (pointsRemaining < 0 || normalPointsRemaining < 0)) return setNotice("Spend no more than the available skill points, including the normal-point restriction on attributes and combat skills.");
     if (state.step === 3 && !focusComplete) return setNotice("Choose the required Focus and any required Focus option.");
     if (state.step === 4 && (!artsComplete || !spellsComplete)) return setNotice("Choose every Art and spell granted at this level from the class or tradition that grants it.");
     setNotice("");
@@ -287,7 +359,10 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
       hpMax: hpMaximum,
       // Keep the same damage taken rather than silently healing from the new maximum.
       hpCurrent: Math.max(0, Math.min(hpMaximum, sheet.hpCurrent + Math.max(0, hpMaximum - sheet.hpMax))),
-      levelUpUnspentSkillPoints: Math.max(0, pointsRemaining),
+      levelUpUnspentSkillPoints: {
+        normal: Math.max(0, normalSkillBudget - normalPointsUsed),
+        quickLearner: Math.max(0, quickLearnerSkillBudget - quickLearnerUsed),
+      },
       artEffort: state.draft.artPicks.map(() => 0),
     } as WizardCharacter;
     const applied = await onFinish(final, sourceLevel);
@@ -365,7 +440,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
           const boosts = state.draft.attributeBoosts[attribute] || 0;
           const baselineBoostsForAttribute = sheet.attributeBoosts[attribute] || 0;
           const nextCost = draftBoosts < plan.attributeBoostLimit ? attributeImprovementCostForNext(draftBoosts) : null;
-          const canIncrease = nextCost !== null && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= nextCost;
+          const canIncrease = nextCost !== null && (state.draft.attrs[attribute] || 0) < 18 && pointsRemaining >= nextCost && normalPointsRemaining >= nextCost;
           return <article className="level-up-attribute-card" key={attribute}>
             <div className="level-up-attribute-heading"><strong>{attribute}</strong><b>{state.draft.attrs[attribute]}</b></div>
             <span>{boosts} purchased increase{boosts === 1 ? "" : "s"} · {nextCost === null ? "No further increase at this level" : `next increase costs ${nextCost} point${nextCost === 1 ? "" : "s"}`}</span>
@@ -396,7 +471,11 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
             const candidateCost = pointsSpent - currentSkillSpend + candidateSkillSpend;
             const isCombatSkill = ["Punch", "Shoot", "Stab"].includes(skill);
             const candidateCombat = combatSkillSpent + (isCombatSkill ? candidateSkillSpend - currentSkillSpend : 0);
-            const disabled = candidateCost > skillBudget || (plan.quickLearner && candidateCombat > 3 && candidateCost > 3);
+            const candidateSkillPointsSpent = skillPointsSpent - currentSkillSpend + candidateSkillSpend;
+            const candidateNoncombatSkillSpent = Math.max(0, candidateSkillPointsSpent - candidateCombat);
+            const candidateQuickLearnerUsed = Math.min(quickLearnerSkillBudget, candidateNoncombatSkillSpent);
+            const candidateNormalPointsUsed = attributePointsSpent + candidateSkillPointsSpent - candidateQuickLearnerUsed;
+            const disabled = candidateCost > skillBudget || candidateNormalPointsUsed > normalSkillBudget;
             const costText = rank === baselineProfile.granted
               ? ""
               : ` · ${candidateSkillSpend} pt${candidateSkillSpend === 1 ? "" : "s"}`;
@@ -413,7 +492,7 @@ export function LevelUpWizard({ sheet, persistenceKey, canEdit, onCancel, onFini
             ? `The next Focus opportunity is at level ${plan.nextFocusLevel}.`
             : "There are no further Focus opportunities in the normal level-1-to-10 progression."}
       </StepTitle>
-      {plan.gainsFocus && <div className="creation-fields"><div className="creation-magic-choice-main"><label><span>Focus</span><select value={focusChanged ? selectedFocus?.name || "" : ""} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.name} value={focus.name}>{advancementFocusOptionLabel(sheet as AdvancementCharacter, focus.name)}</option>)}</select></label>{selectedFocusDefinition && <div className="creation-selection-guidance"><SelectionRuleHelp label={selectedFocusDefinition.name} fullText={focusFullRules(selectedFocusDefinition)} /><small className="creation-selection-summary">{plainLanguageSummary(selectedFocusDefinition.name, selectedFocusDefinition.level1 || selectedFocusDefinition.intro || "")}</small></div>}</div>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{selectedFocus?.name === "Spirit Familiar" && selectedFocus.level >= 2 && <div className="creation-rule-callout"><strong>{selectedFocusActionLabel}</strong><span>After applying this level, choose the newly unlocked familiar benefits on the Spirit Familiar tab. Each level-2 purchase unlocks two more benefit boxes.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocus || { name: "", level: 1 }) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocus)} receives three skill-specific points. Any portion that does not immediately buy another skill level stays banked toward a later increase.</span></div>}</div>}
+      {plan.gainsFocus && <div className="creation-fields"><div className="creation-magic-choice-main"><label><span>Focus</span><select value={selectedFocusValue} onChange={(event) => chooseFocus(event.target.value)}><option value="">Choose a Focus…</option>{focusOptions.map((focus) => <option key={focus.value} value={focus.value}>{focus.label}</option>)}</select></label>{selectedFocusDefinition && <div className="creation-selection-guidance"><SelectionRuleHelp label={selectedFocusDefinition.name} fullText={focusFullRules(selectedFocusDefinition)} /><small className="creation-selection-summary">{plainLanguageSummary(selectedFocusDefinition.name, selectedFocusDefinition.level1 || selectedFocusDefinition.intro || "")}</small></div>}</div>{focusAdded && focusChoiceRequired(selectedFocus?.name || "") && <label><span>{selectedFocus?.name} choice</span><select value={selectedFocus?.choice || ""} onChange={(event) => chooseFocusOption(event.target.value)}><option value="">Choose…</option>{creationFocusChoiceOptions(selectedFocus?.name || "").map((choice) => <option key={choice} value={choice}>{choice}</option>)}</select></label>}{focusAdded && selectedFocus?.name === "Traditional Education" && selectedFocus.choice && <div className="creation-rule-callout"><strong>Traditional Education</strong><span>Choose the first-level Arts of {selectedFocus.choice} in the magic step. Mandatory starting Arts are enforced automatically, and this tradition grants no further Arts after these initial selections.</span></div>}{selectedFocus?.name === "Spirit Familiar" && selectedFocus.level >= 2 && <div className="creation-rule-callout"><strong>{selectedFocusActionLabel}</strong><span>After applying this level, choose the newly unlocked familiar benefits on the Spirit Familiar tab. Each level-2 purchase unlocks two more benefit boxes.</span></div>}{focusAdded && creationFocusBonusSkill(selectedFocusForBonus) && <div className="creation-rule-callout"><strong>Focus bonus skill</strong><span>{creationFocusBonusSkill(selectedFocusForBonus)} receives three skill-specific points. Any portion that does not immediately buy another skill level stays banked toward a later increase.</span></div>}</div>}
     </>;
     if (state.step === 4) return <>
       <StepTitle eyebrow="MAGIC" title={requiredArtPicks || plan.spellPicks ? "Choose new magic" : "No new magic choices"}>

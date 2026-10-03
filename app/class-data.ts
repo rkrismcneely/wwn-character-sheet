@@ -169,6 +169,27 @@ export function invokerLimits(level: number, partial: boolean, intelligenceModif
   };
 }
 
+/** Canonical hit-point modifier applied to every physical hit die. */
+export function hitPointClassBonus(
+  mode: "full" | "adventurer",
+  first: string,
+  second = "",
+) {
+  const selected = [first, second].filter(Boolean);
+  if (mode === "full")
+    return first === "Warrior" ? 2 : first === "Expert" ? 0 : -1;
+  if (selected.includes("Warrior") && !selected.includes("Duelist") && !selected.includes("Wise"))
+    return 2;
+  if (
+    selected.includes("Expert") ||
+    selected.includes("Vowed") ||
+    selected.includes("Wise") ||
+    (selected.includes("Warrior") && selected.includes("Duelist"))
+  )
+    return 0;
+  return -1;
+}
+
 export function classRules(mode: "full" | "adventurer", first: string, second: string, level: number) {
   const l = Math.min(10, Math.max(1, level));
   const picks = 1 + (l >= 2 ? 1 : 0) + (l >= 5 ? 1 : 0) + (l >= 7 ? 1 : 0) + (l >= 10 ? 1 : 0);
@@ -177,20 +198,31 @@ export function classRules(mode: "full" | "adventurer", first: string, second: s
     if (first === "Expert") return { attack: Math.floor(l / 2), hitDice: `${l}d6`, focusPicks: picks + 1, summary: "Masterful Expertise rerolls one failed non-combat skill check per scene. Quick Learner grants one extra non-combat skill point each level." };
     return { attack: Math.floor(l / 5), hitDice: `${l}d6-${l}`, focusPicks: picks, summary: `${first} spellcasting, arts, and Effort. Magic is a bonus skill. Armor and shields normally prevent spellcasting and arts.` };
   }
-  const selected = [first, second];
+  const selected = [first, second].filter(Boolean);
   const kinds = selected.map(name => traditionKinds[name]);
-  const hasWarriorAttack = kinds.includes("warrior");
-  const hasExpertAttack = kinds.includes("expert");
+  // Wise uses the other half of the pairing for attack progression. It is
+  // intentionally not a generic Expert for combat purposes.
+  const wiseClass = selected.includes("Wise");
+  const otherClass = wiseClass ? selected.find(name => name !== "Wise") || "" : "";
+  const attackKinds = wiseClass && otherClass ? [traditionKinds[otherClass]] : kinds;
+  const hasWarriorAttack = attackKinds.includes("warrior");
+  const hasExpertAttack = attackKinds.includes("expert");
   const standardWarrior = selected.includes("Warrior");
   const standardExpert = selected.includes("Expert");
-  const duelistFragility = selected.includes("Duelist");
-  const attack = hasWarriorAttack ? [1,2,2,3,4,5,5,6,6,7][l-1] : hasExpertAttack ? Math.floor(l/2) : Math.floor(l/5);
-  let hitDice = standardWarrior && !duelistFragility ? `${l}d6+${l*2}` : hasExpertAttack || standardWarrior ? `${l}d6` : `${l}d6-${l}`;
-  if (first === "Vowed" || second === "Vowed") hitDice = standardWarrior ? hitDice : `${l}d6`;
+  const attack = hasWarriorAttack
+    ? [1,2,2,3,4,5,5,6,6,7][l-1]
+    : hasExpertAttack
+      ? Math.floor(l / 2)
+      : Math.floor(l / 5);
+  const hitPointBonus = hitPointClassBonus("adventurer", first, second);
+  const hitDice = hitPointBonus === 2 ? `${l}d6+${l * 2}`
+    : hitPointBonus === 0 ? `${l}d6`
+      : `${l}d6-${l}`;
   const bonusFoci = Number(standardWarrior) + Number(standardExpert);
   const notes = [
     standardWarrior && "Partial Warrior: improved hit dice and attack; no Killing Blow or Veteran’s Luck.",
     standardExpert && "Partial Expert: Quick Learner; no Masterful Expertise.",
+    wiseClass && "Wise uses the paired class’s attack progression and plain hit dice.",
     selected.includes("Duelist") && standardWarrior && "Duelist fragility removes the Partial Warrior hit-point bonus.",
     selected.includes("Mageslayer") && "Mageslayer cannot be combined with a Mage partial class.",
     kinds.filter(k => k === "mage").length > 0 && "Each partial magical tradition uses its own arts, Effort, and restrictions.",

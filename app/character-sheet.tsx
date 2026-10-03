@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { viewportTooltipPosition } from "./tooltip-position";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
-import { artSlots, casterLimits, classRules, dualCasterLimits, forcedArtsForTraditions, fullClasses, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
+import { artSlots, casterLimits, classRules, dualCasterLimits, forcedArtsForTraditions, fullClasses, hitPointClassBonus, invokerLimits, knownSpellSlots, partialClasses, traditionInfo, traditionKinds, traditionSpells, vowedProgression, type TraditionName } from "./class-data";
 import { backgroundNames, backgrounds } from "./background-data";
 import {
   activeBackgroundDevelopmentEntries,
@@ -2313,13 +2313,14 @@ export default function Home({
   const effectiveLevel = Math.min(10, Math.max(1, sheet.level || 1));
   const selectedClasses = (sheet.classMode === "full" ? [sheet.classOne] : [sheet.classOne, sheet.classTwo]).filter(Boolean);
   const startingFocusSelections = sheet.classOne
-    ? classRules(sheet.classMode, sheet.classOne, sheet.classTwo, 1).focusPicks
+    ? classRules(sheet.classMode, sheet.classOne, sheet.classTwo, 1).focusPicks +
+      (selectedClasses.includes("Mageslayer") ? 1 : 0)
     : 0;
   const selectedFocusPicks = sheet.focusPicks.filter(pick => Boolean(pick.name));
   const magicalTraditions = selectedClasses.filter(c => c in traditionInfo) as TraditionName[];
   const armorRestrictedTraditions = magicalTraditions.filter(tradition => armorRestrictsMagic(traditionInfo[tradition].armor));
   const isMageClass = selectedClasses.some(name => traditionKinds[name] === "mage");
-  const isExpertClass = selectedClasses.includes("Expert");
+  const isExpertClass = selectedClasses.includes("Expert") || selectedClasses.includes("Wise");
   const backgroundGrowth = backgroundAttributeGrowth(sheet);
   const attributeScore = (attribute: AttributeName) => Math.min(18, Math.max(0, sheet.attrs[attribute] + backgroundGrowth[attribute]));
   const hasNegativeAttribute = attributes.some(attribute => attributeScore(attribute) && mod(attributeScore(attribute)) <= -1);
@@ -2357,7 +2358,7 @@ export default function Home({
     const candidateLevel = addingSpiritRepeat ? 2 : Math.max(1, Math.min(2, currentPick?.level || 1));
     const candidatePicks = sheet.focusPicks.map((pick, index) =>
       index === slotIndex ? { ...pick, name, level: candidateLevel } : pick);
-    if (focusSelectionCost(candidatePicks) > rules.focusPicks) {
+    if (focusSelectionCost(candidatePicks) > allowedFocusPicks) {
       return { eligible: false, reason: "There are not enough Focus picks remaining." };
     }
     return { eligible: true, reason: "" };
@@ -2521,8 +2522,11 @@ export default function Home({
   const calculatedAcBeforePavis = defensiveBase + attributeMod("DEX") + (sheet.armorBonus || 0);
   const calculatedAc = pavisActive ? Math.min(18, calculatedAcBeforePavis + 4) : calculatedAcBeforePavis;
   const calculatedInitiative = attributeMod("DEX");
-  const hitPointClassBonus = selectedClasses.includes("Warrior") && !selectedClasses.includes("Duelist") ? 2
-    : selectedClasses.includes("Expert") || selectedClasses.includes("Vowed") ? 0 : -1;
+  const hitPointPerDieBonus = hitPointClassBonus(
+    sheet.classMode,
+    sheet.classOne,
+    sheet.classTwo,
+  );
   const enteredHpRolls = sheet.hpRolls.slice(0, effectiveLevel);
   let calculatedHp = 0;
   let hpRollsComplete = Boolean(sheet.level) && enteredHpRolls.length >= effectiveLevel;
@@ -2531,7 +2535,7 @@ export default function Home({
     const rawRoll = Number(enteredHpRolls[index]);
     if (!rawRoll) { hpRollsComplete = false; break; }
     const dice = index + 1;
-    const perDieModifier = attributeMod("CON") + hitPointClassBonus + (hasDieHard ? 2 : 0);
+    const perDieModifier = attributeMod("CON") + hitPointPerDieBonus + (hasDieHard ? 2 : 0);
     const rolledTotal = Math.max(dice, rawRoll + perDieModifier * dice);
     calculatedHp = index === 0 ? rolledTotal : Math.max(calculatedHp + 1, rolledTotal);
   }
@@ -2568,7 +2572,9 @@ export default function Home({
     }
     return { eligible: true, reason: "" };
   };
-  const effortPools = artTraditions.filter(t => t !== "Invoker").map(t => {
+  const effortPools = artTraditions
+    .filter(t => t !== "Invoker" && traditionInfo[t].usesEffort !== false)
+    .map(t => {
     const info = traditionInfo[t];
     const skill = t === "Vowed" ? sheet.vowedEffortSkill : info.effortSkill;
     const effortAttributes = info.effortAttributes?.length
@@ -2614,7 +2620,9 @@ export default function Home({
   ) + (traditionalEducationTradition ? artSlots(traditionalEducationTradition, 1, sheet.classMode === "adventurer") : 0);
   const knownSpellAllowance = knownSpellSlots(castingTraditions, effectiveLevel, sheet.classMode === "adventurer");
   const languageAllowance = startingLanguageAllowance(effectiveSkill("Know"), effectiveSkill("Connect"));
-  const allowedFocusPicks = sheet.level && sheet.classOne ? rules.focusPicks : 0;
+  const allowedFocusPicks = sheet.level && sheet.classOne
+    ? rules.focusPicks + (selectedClasses.includes("Mageslayer") ? 1 : 0)
+    : 0;
   const focusExtraPickCost = Math.max(0, focusPicksUsed - selectedFocusPicks.length);
   const focusSlotCount = Math.max(selectedFocusPicks.length, allowedFocusPicks - focusExtraPickCost);
   const saves = {
@@ -3480,7 +3488,7 @@ export default function Home({
               <div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollSave(k as keyof typeof saves)}>Roll Save</button></div>)}</div>
             </Section>
             <Section title="Background & Class Benefits" buildControlled>
-              {classLabel && <div className="class-benefit-card"><strong>{classLabel}</strong><p>{rules.summary}</p><dl><div><dt>Hit dice</dt><dd>{rules.hitDice}</dd></div><div><dt>Base attack</dt><dd>{signed(rules.attack)}</dd></div><div><dt>Focus picks</dt><dd>{rules.focusPicks}</dd></div></dl>{magicalTraditions.map(t=><p key={t}><b>{t}:</b> {traditionInfo[t].armor}</p>)}</div>}
+              {classLabel && <div className="class-benefit-card"><strong>{classLabel}</strong><p>{rules.summary}</p><dl><div><dt>Hit dice</dt><dd>{rules.hitDice}</dd></div><div><dt>Base attack</dt><dd>{signed(rules.attack)}</dd></div><div><dt>Focus picks</dt><dd>{allowedFocusPicks}</dd></div></dl>{magicalTraditions.map(t=><p key={t}><b>{t}:</b> {traditionInfo[t].armor}</p>)}</div>}
               {sheet.background && backgrounds[sheet.background] ? (
                 <div className="background-benefit-card" aria-live="polite">
                   <strong>{sheet.background} Benefits</strong>
@@ -3641,7 +3649,7 @@ export default function Home({
                       const roll = Number(sheet.hpRolls[step]);
                       if (!roll) { result = 0; break; }
                       const dice = step + 1;
-                      const perDieModifier = attributeMod("CON") + hitPointClassBonus + (hasDieHard ? 2 : 0);
+                      const perDieModifier = attributeMod("CON") + hitPointPerDieBonus + (hasDieHard ? 2 : 0);
                       const rolled = Math.max(dice, roll + perDieModifier * dice);
                       previousMaximum = step === 0 ? rolled : Math.max(previousMaximum + 1, rolled);
                       result = previousMaximum;

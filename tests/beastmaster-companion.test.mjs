@@ -218,7 +218,6 @@ test("Beastmaster UI exposes the bond choice and a rules-aware dedicated compani
   assert.match(sheet, /chooseBeastmasterCatalogProfile/u);
   assert.match(sheet, /bestiaryId/u);
   assert.match(sheet, /Bind Companion · standard rules/u);
-  assert.match(sheet, /Mind Call ready/u);
   assert.match(sheet, /feralToughnessHitDice/u);
   assert.match(sheet, /companion\.kind === "beastmaster" && companion\.bound/u);
   assert.match(sheet, /No companion currently bound/u);

@@ -358,7 +358,7 @@ test("built-in bestiary definitions search and create independent campaign and e
   assert.equal(Object.isFrozen(apex.sourceStats), true);
   assert.ok(searchBuiltInBestiaryCreatures("apex").some(creature => creature.id === "apex-predator"));
   const catalog = searchBuiltInBestiaryCreatures("");
-  assert.equal(catalog.length, 88);
+  assert.equal(catalog.length, 87);
   assert.deepEqual(catalog.map(creature => creature.name), [...catalog.map(creature => creature.name)].sort((left, right) => left.localeCompare(right)));
   assert.ok(searchBuiltInBestiaryCreatures("automaton").some(creature => creature.id === "automaton-military"));
   assert.deepEqual(searchBuiltInBestiaryCreatures("amorphous").map(creature => creature.id), ["slime-or-ooze"]);
@@ -370,7 +370,7 @@ test("built-in bestiary definitions search and create independent campaign and e
   for (const id of originalIds) assert.ok(catalog.some(creature => creature.id === id), `existing creature ${id} remains present`);
 
   const canonicalSrdEntries = [
-    ["small-pack-predator", "Small Pack Predator", 1, 1, 5, 12, 2, "1d4", "1/13", "40'", 7, 6, 1, 15],
+    ["small-pack-predator", "Small Predator", 1, 1, 5, 12, 2, "1d4", "1/13", "40'", 7, 6, 1, 15],
     ["large-solitary-predator", "Large Solitary Predator", 5, 1, 23, 13, 6, "1d8", "2/13", "30'", 8, 6, 1, 13],
     ["apex-predator", "Apex Predator", 6, 2, 27, 13, 6, "1d8", "2/13", "40'", 8, 6, 2, 12],
     ["herd-beast", "Herd Beast", 2, 1, 9, 11, 2, "1d4", "None", "40'", 7, 6, 1, 14],

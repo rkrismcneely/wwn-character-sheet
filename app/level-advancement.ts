@@ -4,7 +4,7 @@
  * application's class and Focus catalogs instead of carrying a second table.
  */
 
-import { artSlots, classRules, knownSpellSlots, traditionInfo, traditionKinds, type TraditionName } from "./class-data.ts";
+import { artSlots, classRules, hitPointClassBonus, knownSpellSlots, traditionInfo, traditionKinds, type TraditionName } from "./class-data.ts";
 import { creationFocusBonusSkill, creationSkills } from "./character-creation.ts";
 import { armorRestrictsMagic, focusIsRepeatable, inferFocusAdvancementFlags, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit } from "./phase2-rules.ts";
 import { foci } from "./wwn-data.ts";
@@ -99,7 +99,7 @@ export function advancementSkillCreditBySkill(
         character.classOne,
         character.classTwo,
         1,
-      ).focusPicks
+      ).focusPicks + ([character.classOne, character.classTwo].includes("Mageslayer") ? 1 : 0)
     : 0;
   return inferFocusAdvancementFlags(
     character.focusPicks,
@@ -186,6 +186,13 @@ export function legalAdvancementFocuses(character: AdvancementCharacter) {
   return foci.filter((focus) => {
     const samePicks = character.focusPicks.filter((pick) => pick.name === focus.name);
     const same = samePicks[0];
+    const repeatable = focusIsRepeatable(focus.name);
+    if (focus.name === "Developed Attribute" && mage) return false;
+    if (focus.name === "Armored Magic" && !armorRestricted) return false;
+    if (focus.name === "Lucky" && !hasNegativeAttribute) return false;
+    if (focus.name === "Nullifier" && mage) return false;
+    if (focus.name === "Polymath" && !classes.includes("Expert") && !classes.includes("Wise")) return false;
+    if (focus.name === "Traditional Education" && !classes.includes("Invoker")) return false;
     if (focus.name === "Spirit Familiar" && samePicks.length) {
       const levelOnePick = samePicks.find((pick) => pick.level < 2);
       if (levelOnePick) return true;
@@ -193,16 +200,12 @@ export function legalAdvancementFocuses(character: AdvancementCharacter) {
       const levelTwoSelections = samePicks.filter((pick) => pick.level >= 2).length;
       return levelTwoSelections < levelTwoLimit && spiritFamiliarBenefitLimit(samePicks) < 6;
     }
+    // Developed Attribute and Specialist are explicitly repeatable for
+    // different targets. They remain available even after a level-2 pick.
+    if (repeatable) return true;
     if (same && same.level >= 2) return false;
     if (same && !focus.level2) return false;
     if (same) return true;
-    if (!focusIsRepeatable(focus.name) && character.focusPicks.some((pick) => pick.name === focus.name)) return false;
-    if (focus.name === "Developed Attribute" && mage) return false;
-    if (focus.name === "Armored Magic" && !armorRestricted) return false;
-    if (focus.name === "Lucky" && !hasNegativeAttribute) return false;
-    if (focus.name === "Nullifier" && mage) return false;
-    if (focus.name === "Polymath" && !classes.includes("Expert")) return false;
-    if (focus.name === "Traditional Education" && !classes.includes("Invoker")) return false;
     return true;
   });
 }
@@ -230,9 +233,11 @@ export function validLevelUpHitPointRoll(value: number, level: number) {
 }
 
 export function advancementClassPerDieBonus(character: AdvancementCharacter) {
-  const classes = selectedClasses(character);
-  return classes.includes("Warrior") && !classes.includes("Duelist") ? 2
-    : classes.includes("Expert") || classes.includes("Vowed") ? 0 : -1;
+  return hitPointClassBonus(
+    character.classMode,
+    character.classOne,
+    character.classTwo,
+  );
 }
 
 export function advancementFocusSkillCreditsDescription(character: AdvancementCharacter) {

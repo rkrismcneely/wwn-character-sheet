@@ -36,6 +36,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Temporary PR diagnostic: capture full test output as a downloadable artifact.
       - name: Build and test
         shell: bash
         run: |

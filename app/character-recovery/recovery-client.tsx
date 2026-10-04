@@ -10,6 +10,9 @@ import {
   type CharacterRecoveryDraft,
 } from "../character-save-recovery";
 
+type OriginalStatus = "checking" | "exists" | "missing" | "unavailable";
+type BusyAction = "restore" | "copy" | null;
+
 function recoveryName(draft: CharacterRecoveryDraft | null): string {
   const value = draft?.character?.name;
   return typeof value === "string" && value.trim() ? value.trim() : "Recovered Character";
@@ -24,10 +27,10 @@ export function CharacterRecoveryClient({
 }) {
   const [draft, setDraft] = useState<CharacterRecoveryDraft | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [originalExists, setOriginalExists] = useState(false);
+  const [originalStatus, setOriginalStatus] = useState<OriginalStatus>("checking");
   const [canEditOriginal, setCanEditOriginal] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<BusyAction>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -40,6 +43,7 @@ export function CharacterRecoveryClient({
     );
     setDraft(localDraft);
     if (!localDraft) {
+      setOriginalStatus("missing");
       setLoaded(true);
       return;
     }
@@ -48,7 +52,7 @@ export function CharacterRecoveryClient({
       .then(async response => {
         if (cancelled) return;
         if (response.status === 404) {
-          setOriginalExists(false);
+          setOriginalStatus("missing");
           setCurrentVersion(null);
           return;
         }
@@ -58,12 +62,13 @@ export function CharacterRecoveryClient({
           error?: string;
         };
         if (!response.ok) throw new Error(payload.error || "The online character could not be checked.");
-        setOriginalExists(true);
+        setOriginalStatus("exists");
         setCanEditOriginal(Boolean(payload.permissions?.canEdit));
         setCurrentVersion(Number.isInteger(payload.version) ? Number(payload.version) : null);
       })
       .catch(checkError => {
         if (!cancelled) {
+          setOriginalStatus("unavailable");
           setError(checkError instanceof Error ? checkError.message : "The online character could not be checked.");
         }
       })
@@ -80,16 +85,16 @@ export function CharacterRecoveryClient({
   const safeToRestoreOriginal = useMemo(
     () => Boolean(
       draft
-      && originalExists
+      && originalStatus === "exists"
       && canEditOriginal
       && canRestoreRecoveryToOriginal(draft, currentVersion)
     ),
-    [canEditOriginal, currentVersion, draft, originalExists],
+    [canEditOriginal, currentVersion, draft, originalStatus],
   );
 
   async function restoreOriginal() {
     if (!draft || !safeToRestoreOriginal || currentVersion === null) return;
-    setBusy(true);
+    setBusyAction("restore");
     setError("");
     setNotice("");
     try {
@@ -110,13 +115,13 @@ export function CharacterRecoveryClient({
       window.location.assign(`/character/${characterId}`);
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : "The recovery copy could not be restored online.");
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
   async function saveAsNewCopy() {
     if (!draft) return;
-    setBusy(true);
+    setBusyAction("copy");
     setError("");
     setNotice("");
     try {
@@ -134,7 +139,7 @@ export function CharacterRecoveryClient({
       window.location.assign(`/character/${payload.id}`);
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : "A recovered copy could not be created.");
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -163,13 +168,15 @@ export function CharacterRecoveryClient({
     ? "No recovery copy for this character is available in this browser and account."
     : safeToRestoreOriginal
       ? "The online character is still the exact version this recovery copy was based on, so it is safe to restore the local changes to the original."
-      : !originalExists
-        ? "The original online character is no longer available. The recovery can still be saved as a new private character."
-        : !canEditOriginal
-          ? "This account can no longer edit the original character. The recovery can still be saved as a new private character."
-          : draft.baseVersion === null
-            ? "The recovery copy could not prove which online version it was based on. To avoid overwriting newer data, restore-to-original is disabled; save it as a new private character instead."
-            : "The online character has changed since this recovery copy was made. Nothing will overwrite that newer copy; save the recovery as a new private character instead.";
+      : originalStatus === "unavailable"
+        ? "The server could not be checked right now. Nothing will overwrite the original; you can retry later, download the recovery JSON, or save it as a new private character."
+        : originalStatus === "missing"
+          ? "The original online character is no longer available. The recovery can still be saved as a new private character."
+          : !canEditOriginal
+            ? "This account can no longer edit the original character. The recovery can still be saved as a new private character."
+            : draft.baseVersion === null
+              ? "The recovery copy could not prove which online version it was based on. To avoid overwriting newer data, restore-to-original is disabled; save it as a new private character instead."
+              : "The online character has changed since this recovery copy was made. Nothing will overwrite that newer copy; save the recovery as a new private character instead.";
 
   return (
     <main className="campaign-shell">
@@ -205,22 +212,22 @@ export function CharacterRecoveryClient({
                 type="button"
                 className="campaign-primary"
                 onClick={() => void restoreOriginal()}
-                disabled={busy || !safeToRestoreOriginal}
+                disabled={busyAction !== null || !safeToRestoreOriginal}
               >
-                {busy && safeToRestoreOriginal ? "Restoring…" : "Restore to Original"}
+                {busyAction === "restore" ? "Restoring…" : "Restore to Original"}
               </button>
               <button
                 type="button"
                 className="campaign-secondary"
                 onClick={() => void saveAsNewCopy()}
-                disabled={busy}
+                disabled={busyAction !== null}
               >
-                {busy && !safeToRestoreOriginal ? "Saving Copy…" : "Save as New Private Copy"}
+                {busyAction === "copy" ? "Saving Copy…" : "Save as New Private Copy"}
               </button>
-              <button type="button" className="campaign-secondary" onClick={downloadRecovery} disabled={busy}>
+              <button type="button" className="campaign-secondary" onClick={downloadRecovery} disabled={busyAction !== null}>
                 Download Recovery JSON
               </button>
-              <button type="button" className="campaign-danger" onClick={discardRecovery} disabled={busy}>
+              <button type="button" className="campaign-danger" onClick={discardRecovery} disabled={busyAction !== null}>
                 Discard Recovery Copy
               </button>
             </div>
@@ -230,7 +237,7 @@ export function CharacterRecoveryClient({
             Creating a new recovery copy intentionally leaves its portrait blank so the new character does not share the original character&apos;s uploaded image object. You can upload the portrait again afterward.
           </p>
           <div className="campaign-dialog-actions">
-            {originalExists ? <Link className="campaign-secondary" href={`/character/${characterId}`}>Open Online Character</Link> : <Link className="campaign-secondary" href="/">Return to My Characters</Link>}
+            {originalStatus === "exists" ? <Link className="campaign-secondary" href={`/character/${characterId}`}>Open Online Character</Link> : <Link className="campaign-secondary" href="/">Return to My Characters</Link>}
           </div>
         </section>
       )}

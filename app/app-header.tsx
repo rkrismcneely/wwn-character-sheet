@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { characterSaveDisposition } from "./pending-character-save";
 import {
   characterIdFromPathname,
+  characterRecoveryStorageKey,
   clearCharacterRecoveryDraft,
   readCharacterRecoveryDraft,
   writeCharacterRecoveryDraft,
@@ -268,11 +269,24 @@ export function SignedInHeader({
       saveButton?.click();
     };
 
+    const recoveryResolvedInAnotherTab = (event: StorageEvent) => {
+      const characterId = synchronizeTrackedCharacter();
+      if (!characterId || event.key !== characterRecoveryStorageKey(characterId) || event.newValue !== null) return;
+      stopCaptureInterval();
+      sawPendingSave = false;
+      baseVersionPromise = null;
+      setRecoveryCharacterId(null);
+      if (currentCharacterSaveDisposition() === "failed") {
+        window.location.reload();
+      }
+    };
+
     const observer = new MutationObserver(synchronizeRecoveryState);
     const header = document.querySelector(".app-header");
     if (header) observer.observe(header, { childList: true, subtree: true, characterData: true });
     const routeInterval = window.setInterval(synchronizeRecoveryState, 750);
     window.addEventListener("online", retryAfterReconnect);
+    window.addEventListener("storage", recoveryResolvedInAnotherTab);
     synchronizeRecoveryState();
 
     return () => {
@@ -281,6 +295,7 @@ export function SignedInHeader({
       observer.disconnect();
       window.clearInterval(routeInterval);
       window.removeEventListener("online", retryAfterReconnect);
+      window.removeEventListener("storage", recoveryResolvedInAnotherTab);
     };
   }, [ownerUserId]);
 

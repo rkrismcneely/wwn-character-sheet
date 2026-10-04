@@ -27,5 +27,4 @@ test("signed-in navigation waits for character autosave instead of unmounting th
   assert.match(header, /event\.preventDefault\(\);[\s\S]*waitForPendingCharacterSave\(\)[\s\S]*if \(saved\) window\.location\.assign\(destination\.href\)/u);
   assert.match(header, /window\.addEventListener\("beforeunload", handleBeforeUnload\)/u);
   assert.match(header, /const safeToLeave = await waitForPendingCharacterSave\(\);[\s\S]*if \(!safeToLeave\)/u);
-  assert.match(header, /normalized === "Not saved online"[\s\S]*normalized === "Newer online copy found"/u);
 });

@@ -29,6 +29,10 @@ async function authenticatedContext(browser, token) {
   return context;
 }
 
+function currentHpInput(page) {
+  return page.locator("label.stepper-field").filter({ hasText: "HP current" }).locator("input");
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("signed-out front door exposes the expected authentication boundary", async ({ page }) => {
@@ -45,8 +49,9 @@ test("character autosave finishes before same-site navigation unmounts the sheet
   const page = await context.newPage();
 
   await page.goto(`/character/${E2E_CHARACTER_IDS.userA}`);
-  const hp = page.getByLabel("HP current");
+  const hp = currentHpInput(page);
   await expect(hp).toHaveValue("5");
+  await expect(hp).toBeEditable();
 
   await hp.fill("4");
   await expect(page.locator(".save-state")).toContainText("Unsaved changes", { timeout: 500 });
@@ -55,7 +60,7 @@ test("character autosave finishes before same-site navigation unmounts the sheet
   await expect(page).toHaveURL(/\/campaigns$/u);
 
   await page.goto(`/character/${E2E_CHARACTER_IDS.userA}`);
-  await expect(page.getByLabel("HP current")).toHaveValue("4");
+  await expect(currentHpInput(page)).toHaveValue("4");
 
   await context.close();
 });

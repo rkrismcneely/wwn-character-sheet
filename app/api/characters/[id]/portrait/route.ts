@@ -9,6 +9,7 @@ import {
   portraitURL,
 } from "@/lib/characters/portraits";
 import { parseCharacter } from "@/lib/characters/sanitize";
+import { retireR2ObjectWithRecovery } from "@/lib/r2-recovery";
 import { findCharacterByPublicId, getD1 } from "../../db";
 
 type Context = { params: Promise<{ id: string }> };
@@ -118,11 +119,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       );
     }
     if (row.portraitKey && row.portraitKey !== key) {
-      try {
-        await env.BUCKET.delete(row.portraitKey);
-      } catch {
-        // The old opaque key is no longer reachable after the database update.
-      }
+      await retireR2ObjectWithRecovery(env.BUCKET, row.portraitKey);
     }
     return Response.json({ url, version: nextVersion, updatedAt: now }, { status: 201 });
   } catch {
@@ -193,12 +190,8 @@ export async function DELETE(
       );
     }
     if (row.portraitKey) {
-      try {
-        const { env } = await import("cloudflare:workers");
-        await env.BUCKET.delete(row.portraitKey);
-      } catch {
-        // The old opaque key is no longer reachable after the database update.
-      }
+      const { env } = await import("cloudflare:workers");
+      await retireR2ObjectWithRecovery(env.BUCKET, row.portraitKey);
     }
     return Response.json({ removed: true, version: nextVersion, updatedAt: now });
   } catch {

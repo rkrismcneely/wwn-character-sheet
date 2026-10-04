@@ -1,90 +1,76 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` at `75155bc8` on 2026-10-03._
+_Last reconciled against `main` at `fc852d57` on 2026-10-04._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
 ## Current baseline
 
 - `main` is the code source of truth.
-- Cloudflare Git Integration is currently the working production deployment path for `main`.
-- GitHub Actions CI is intentionally PR/manual only; do not add duplicate post-merge validation without a concrete reason.
-- The application already includes the character sheet/builder, authentication and ownership, private campaigns, GM/NPC tooling, shared maps/scenes, tokens, grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date. Do not recreate these as future roadmap items.
+- Cloudflare Git Integration is the normal automatic production deployment path for `main`.
+- `.github/workflows/deploy-production.yml` is manual fallback only.
+- GitHub Actions CI is intentionally focused on pull requests/manual validation; do not add duplicate post-merge validation without a concrete reason.
+- There are currently **no open pull requests**.
+- The application already includes the character sheet/builder, authentication and ownership, private campaigns, campaign invitations, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date. Do not recreate these as future roadmap items.
 
 ---
 
-## Now — finish and clean up current work
+## Now — highest-value remaining work
 
-### 1. Finish the class creation and advancement rules audit
+### 1. Complete one real production campaign invite/join smoke test
 
-**PR #269 — `Fix class creation and advancement rules audit`**
+The owner/GM **Invite Player** action, invitation creation API, `cminv_...` link/code flow, and owner permission coverage are implemented and production-deployed. What remains is one deliberate two-account production smoke test that verifies the entire user journey:
 
-Complete the remaining validation/fixes for:
+- owner sees **Invite Player**
+- invitation is created successfully
+- second account can follow the invitation and join
+- roster/membership updates correctly
+- linked-character permissions remain correct
+- no unrelated campaign or character data is changed
 
-- Wise, Duelist, and Mageslayer hit-point exceptions
-- Wise Polymath behavior
-- repeatable Developed Attribute and Specialist selections with distinct targets
-- Mageslayer's free Nullifier Focus accounting
-- Wise's no-Effort handling
-- Quick Learner's restricted saved-point behavior across advancement
+Do this once when two suitable accounts are available; do not turn it into a repetitive production-data test.
 
-The current branch typechecks and lints but still has a failing test run. Diagnose the failure before merging. If the failing test protects required behavior, fix the code or test correctly. If it is stale, flaky, or no longer asserts desired behavior, repair/replace/remove it rather than repeatedly paying to rerun a no-signal test.
+### 2. Data safety and recovery
 
-### 2. Verify/fix the campaign-owner invitation UI
+- Document and test a backup/recovery procedure for persisted D1 character/campaign data and R2-backed uploaded assets.
+- Improve user-facing recovery from optimistic-save conflicts and interrupted/network-failed saves.
+- Add production-safe error reporting with an explicit privacy and retention policy.
 
-A production report found that a campaign owner/GM could not see the expected **Invite Player** action even though invitation APIs already existed. Re-verify this against the current production build. If still reproducible, restore an obvious owner/GM invitation action and complete the two-account join test afterward.
+### 3. Import duplicate protection
 
-### 3. Clean up stale open PRs
+Add a conservative pre-import duplicate warning without weakening the existing safe import ownership/privacy model. A warning should require a strong match rather than merely sharing a character name, and users must still be able to intentionally import another copy.
 
-- **PR #235 — Map/Store drawer rail:** later merged work superseded most of this branch. Decide only the remaining UX question: should the Map/Store launcher rail disappear while a drawer is open, or should the current Close Map / Close Store controls remain? Implement the chosen behavior on current `main` if necessary, then close the stale PR rather than merging its old branch.
-- **PR #222 — unused EB Garamond 500 weight:** reapply the one-line unused font import removal against current `main` when convenient, then close the old branch/PR. Do not merge the long-stale branch as-is.
+An old draft implementation was closed rather than merged because it was based on a much older `main`; reimplement against current code if this is prioritized.
 
-### 4. Rationalize CI and production deployment
+### 4. Small browser smoke coverage
 
-Reduce build minutes, GitHub Actions credits, and duplicated work:
+If browser automation is worth its ongoing cost, add a **small** smoke suite for the highest-value user journeys:
 
-- Confirm Cloudflare Git Integration as the single normal production deployment path.
-- Retire the redundant automatic GitHub Actions deployment workflow, or convert it to a manual emergency/fallback workflow only.
-- Keep normal CI focused on pull requests and cancel superseded runs.
-- Do not rerun infrastructure/runner/credit failures unless something relevant has changed.
-- Prefer targeted validation for the files/features changed; reserve the full suite/build/Worker validation for changes where that breadth provides real confidence.
-- Audit chronically failing or flaky tests. Tests must protect current desired behavior to justify their ongoing cost. Repair, replace, or remove tests that reliably produce noise without catching a meaningful regression.
-
----
-
-## Reliability and recovery
-
-These are the highest-value remaining platform-hardening tasks after the current blockers are cleared.
-
-### Targeted browser smoke coverage
-
-Add a **small** browser smoke suite for critical user journeys rather than a large matrix that runs on every change:
-
-- sign in / sign out
-- create, open, edit, save, export, and import a character
+- signed-out routing and sign-in entry points
+- public/private character access boundaries
+- create/open/edit/save/export/import character
 - campaign create/open and invitation/join flow
 - link/replace a campaign character
 - open Map and Store from a linked character
 - one representative live-session/map interaction
+- one narrow mobile overflow/navigation check
 
-Run broader cross-browser/device coverage manually or on an intentional release/audit cadence unless experience shows it is worth the recurring cost.
+Keep this intentionally small. Prefer manual/release-cadence or carefully scoped CI execution over a large browser matrix on every trivial change. An old Playwright draft was closed rather than rebased because it predates substantial current architecture.
 
-### Data safety and recovery
+---
 
-- Document and test a backup/recovery procedure for persisted character and campaign data.
-- Improve user-facing recovery from optimistic-save conflicts and interrupted/network-failed saves.
-- Add production-safe error reporting with an explicit privacy/retention policy.
-- Add a pre-import duplicate warning/choice without weakening the existing safe import ownership/privacy model.
+## Reliability, accessibility, and UX consistency
 
-### Accessibility and responsive verification
-
-Continue fixing concrete accessibility/mobile issues as they are found. Add automated checks only where they provide stable signal; avoid a large always-on visual matrix unless it proves useful.
+- Continue fixing concrete accessibility/mobile issues as they are observed.
+- Standardize Escape/outside-click dismissal for modal/popout surfaces where inconsistent behavior is still reproducible. Reimplement this against current components rather than reviving the old stale overlay PR.
+- Add automated accessibility/visual checks only where they provide stable signal; avoid a large always-on visual matrix unless experience proves it valuable.
+- Keep iPhone/iPad/Safari layout verification in the release/audit checklist because responsive regressions are more likely there than in ordinary desktop testing.
 
 ---
 
 ## Campaign / VTT expansion
 
-The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, or character-to-campaign integration.
+The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, stores, or character-to-campaign integration.
 
 Potential next expansions:
 

@@ -9,6 +9,7 @@ import {
   portraitURL,
 } from "@/lib/characters/portraits";
 import { parseCharacter } from "@/lib/characters/sanitize";
+import { retireR2Object } from "@/lib/r2-recovery";
 import { findCharacterByPublicId, getD1 } from "../../db";
 
 type Context = { params: Promise<{ id: string }> };
@@ -119,9 +120,10 @@ export async function POST(request: Request, context: Context): Promise<Response
     }
     if (row.portraitKey && row.portraitKey !== key) {
       try {
-        await env.BUCKET.delete(row.portraitKey);
-      } catch {
-        // The old opaque key is no longer reachable after the database update.
+        await retireR2Object(env.BUCKET, row.portraitKey);
+      } catch (error) {
+        console.error("Portrait recovery copy failed", error);
+        // The old opaque key can remain orphaned if recovery archival fails.
       }
     }
     return Response.json({ url, version: nextVersion, updatedAt: now }, { status: 201 });
@@ -195,9 +197,10 @@ export async function DELETE(
     if (row.portraitKey) {
       try {
         const { env } = await import("cloudflare:workers");
-        await env.BUCKET.delete(row.portraitKey);
-      } catch {
-        // The old opaque key is no longer reachable after the database update.
+        await retireR2Object(env.BUCKET, row.portraitKey);
+      } catch (error) {
+        console.error("Portrait recovery copy failed", error);
+        // The old opaque key can remain orphaned if recovery archival fails.
       }
     }
     return Response.json({ removed: true, version: nextVersion, updatedAt: now });

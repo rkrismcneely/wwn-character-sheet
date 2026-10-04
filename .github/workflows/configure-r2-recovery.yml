@@ -1,0 +1,36 @@
+name: Configure R2 Recovery Retention
+
+# This runs automatically only when this workflow file itself changes on main.
+# Normal application pushes do not spend Actions time reconfiguring R2.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/configure-r2-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    name: Configure recovery lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
+      - name: Configure 35-day recovery retention
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.92.0 r2 bucket lifecycle remove site-creator-r2 --name twe-recovery-expiry || true
+          npx --yes wrangler@4.92.0 r2 bucket lifecycle add site-creator-r2 twe-recovery-expiry recovery/ --expire-days 35
+          npx --yes wrangler@4.92.0 r2 bucket lifecycle list site-creator-r2

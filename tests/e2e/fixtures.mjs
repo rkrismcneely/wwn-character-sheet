@@ -1,4 +1,4 @@
-export const E2E_ORIGIN = "http://127.0.0.1:4173";
+export const E2E_ORIGIN = "http://127.0.0.1:5173";
 export const E2E_AUTH_SECRET = "e2e-only-better-auth-secret-2026-10-04-long";
 
 export const E2E_SESSION_TOKENS = {

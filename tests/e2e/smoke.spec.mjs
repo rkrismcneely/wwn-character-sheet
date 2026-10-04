@@ -65,6 +65,57 @@ test("character autosave finishes before same-site navigation unmounts the sheet
   await context.close();
 });
 
+test("failed online save preserves and safely restores the local recovery draft", async ({ browser }) => {
+  const context = await authenticatedContext(browser, E2E_SESSION_TOKENS.userA);
+  const page = await context.newPage();
+  const characterId = E2E_CHARACTER_IDS.userA;
+  const recoveryKey = `twe:character-recovery:${characterId}`;
+
+  await page.route(`**/api/characters/${characterId}`, async route => {
+    if (route.request().method() === "PUT") {
+      await route.abort("internetdisconnected");
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto(`/character/${characterId}`);
+  const hp = currentHpInput(page);
+  await expect(hp).toHaveValue("4");
+  await expect(hp).toBeEditable();
+
+  await hp.fill("3");
+  await expect(page.locator(".save-state")).toContainText("Not saved online", { timeout: 5_000 });
+  const recoveryLink = page.getByRole("link", { name: "Open recovery copy" });
+  await expect(recoveryLink).toBeVisible();
+
+  await expect.poll(async () => page.evaluate(key => {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw)?.character?.hpCurrent ?? null;
+    } catch {
+      return null;
+    }
+  }, recoveryKey)).toBe(3);
+
+  const href = await recoveryLink.getAttribute("href");
+  expect(href).toBeTruthy();
+  const recoveryPage = await context.newPage();
+  await recoveryPage.goto(href);
+  await expect(recoveryPage.getByRole("heading", { name: "Recover Character Changes" })).toBeVisible();
+  await expect(recoveryPage.getByRole("heading", { name: "User A Sentinel" })).toBeVisible();
+
+  const restore = recoveryPage.getByRole("button", { name: "Restore to Original" });
+  await expect(restore).toBeEnabled();
+  await restore.click();
+  await expect(recoveryPage).toHaveURL(new RegExp(`/character/${characterId}$`, "u"));
+  await expect(currentHpInput(recoveryPage)).toHaveValue("3");
+  await expect.poll(async () => recoveryPage.evaluate(key => window.localStorage.getItem(key), recoveryKey)).toBeNull();
+
+  await context.close();
+});
+
 test("campaign owner can invite and a second account can redeem the invitation", async ({ browser }) => {
   const ownerContext = await authenticatedContext(browser, E2E_SESSION_TOKENS.userA);
   const ownerPage = await ownerContext.newPage();

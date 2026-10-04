@@ -12,6 +12,7 @@ import {
 } from "@/lib/campaigns/map";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
+import { retireR2ObjectWithRecovery } from "@/lib/r2-recovery";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -112,7 +113,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       selectedMapId = deleted.selectedMapId;
       announce = deleted.activeChanged;
       if (deleted.deletedKey) {
-        try { await env.BUCKET.delete(deleted.deletedKey); } catch (error) { console.error("Deleted map R2 cleanup failed", error); }
+        await retireR2ObjectWithRecovery(env.BUCKET, deleted.deletedKey);
       }
     } else {
       throw new CampaignServiceError("A valid map action is required.", 422);

@@ -82,6 +82,9 @@ export function e2eFixtureSql() {
       ('e2e-map', 'e2e-campaign', 'E2E Map', 1, NULL, NULL, NULL, NULL,
        0, 64, 0, 0, 1, '${createdAt}', '${createdAt}');
 
+    INSERT INTO campaign_map_preferences (map_id, campaign_id, snap_enabled, updated_at)
+    VALUES ('e2e-map', 'e2e-campaign', 0, '${createdAt}');
+
     INSERT INTO session
       (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
     VALUES

@@ -1,0 +1,59 @@
+name: Configure R2 Recovery Retention
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    name: Configure recovery retention
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
+      - name: Ensure recovery bucket lock and lifecycle rules
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LOCKS="$(npx --yes wrangler@4.92.0 r2 bucket lock list site-creator-r2)"
+          printf '%s\n' "$LOCKS"
+          if ! grep -Fq 'twe-recovery-30d' <<<"$LOCKS"; then
+            npx --yes wrangler@4.92.0 r2 bucket lock add \
+              site-creator-r2 \
+              twe-recovery-30d \
+              recovery/ \
+              --retention-days 30 \
+              --force
+          fi
+
+          LIFECYCLES="$(npx --yes wrangler@4.92.0 r2 bucket lifecycle list site-creator-r2)"
+          printf '%s\n' "$LIFECYCLES"
+          if ! grep -Fq 'twe-recovery-expire' <<<"$LIFECYCLES"; then
+            npx --yes wrangler@4.92.0 r2 bucket lifecycle add \
+              site-creator-r2 \
+              twe-recovery-expire \
+              recovery/ \
+              --expire-days 31 \
+              --force
+          fi
+
+      - name: Verify recovery configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOCKS="$(npx --yes wrangler@4.92.0 r2 bucket lock list site-creator-r2)"
+          LIFECYCLES="$(npx --yes wrangler@4.92.0 r2 bucket lifecycle list site-creator-r2)"
+          grep -Fq 'twe-recovery-30d' <<<"$LOCKS"
+          grep -Fq 'twe-recovery-expire' <<<"$LIFECYCLES"
+          printf '%s\n' "$LOCKS"
+          printf '%s\n' "$LIFECYCLES"

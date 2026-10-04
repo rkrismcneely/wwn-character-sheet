@@ -156,6 +156,7 @@ export function SignedInHeader({
     let sawPendingSave = false;
     let captureInterval: number | null = null;
     let baseVersionPromise: Promise<number | null> | null = null;
+    let captureGeneration = 0;
     let disposed = false;
 
     const stopCaptureInterval = () => {
@@ -167,6 +168,7 @@ export function SignedInHeader({
     const synchronizeTrackedCharacter = () => {
       const nextCharacterId = characterIdFromPathname(window.location.pathname);
       if (nextCharacterId === trackedCharacterId) return nextCharacterId;
+      captureGeneration += 1;
       stopCaptureInterval();
       trackedCharacterId = nextCharacterId;
       sawPendingSave = false;
@@ -198,6 +200,7 @@ export function SignedInHeader({
     const captureRecoveryDraft = async () => {
       const characterId = synchronizeTrackedCharacter();
       if (!characterId) return;
+      const generation = captureGeneration;
       const raw = window.localStorage.getItem("wwn-cecil-sheet");
       if (!raw) return;
 
@@ -215,7 +218,11 @@ export function SignedInHeader({
       const baseVersion = state === "Newer online copy found"
         ? null
         : existing?.baseVersion ?? await loadBaseVersion(characterId);
-      if (disposed || characterId !== synchronizeTrackedCharacter()) return;
+      if (
+        disposed
+        || generation !== captureGeneration
+        || characterId !== synchronizeTrackedCharacter()
+      ) return;
 
       writeCharacterRecoveryDraft(window.localStorage, {
         schema: 1,
@@ -249,6 +256,7 @@ export function SignedInHeader({
 
       stopCaptureInterval();
       if (sawPendingSave) {
+        captureGeneration += 1;
         clearCharacterRecoveryDraft(window.localStorage, characterId);
         setRecoveryCharacterId(null);
         sawPendingSave = false;
@@ -272,6 +280,7 @@ export function SignedInHeader({
     const recoveryResolvedInAnotherTab = (event: StorageEvent) => {
       const characterId = synchronizeTrackedCharacter();
       if (!characterId || event.key !== characterRecoveryStorageKey(characterId) || event.newValue !== null) return;
+      captureGeneration += 1;
       stopCaptureInterval();
       sawPendingSave = false;
       baseVersionPromise = null;
@@ -291,6 +300,7 @@ export function SignedInHeader({
 
     return () => {
       disposed = true;
+      captureGeneration += 1;
       stopCaptureInterval();
       observer.disconnect();
       window.clearInterval(routeInterval);

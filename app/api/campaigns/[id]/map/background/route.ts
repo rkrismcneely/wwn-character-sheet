@@ -17,6 +17,7 @@ import {
   replaceCampaignMapBackground,
 } from "@/lib/campaigns/map";
 import { getCampaignD1 } from "@/lib/campaigns/service";
+import { retireR2ObjectWithRecovery } from "@/lib/r2-recovery";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -123,7 +124,7 @@ export async function POST(request: Request, context: Context): Promise<Response
     const committedKey = uploadedKey;
     uploadedKey = null;
     if (previousKey && previousKey !== committedKey) {
-      try { await env.BUCKET.delete(previousKey); } catch { /* old key is no longer reachable */ }
+      await retireR2ObjectWithRecovery(env.BUCKET, previousKey);
     }
     if (map.isActive) await announceMapChanged(db, access.campaignInternalId);
     return Response.json(await readCampaignMap(db, actor, id, map.id), { status: 201, headers: { "cache-control": "no-store" } });
@@ -147,7 +148,7 @@ export async function DELETE(request: Request, context: Context): Promise<Respon
     const db = await getCampaignD1();
     const result = await removeCampaignMapBackground(db, actor, id, mapId, version);
     if (result.previousKey) {
-      try { await env.BUCKET.delete(result.previousKey); } catch { /* database state is authoritative */ }
+      await retireR2ObjectWithRecovery(env.BUCKET, result.previousKey);
     }
     if (result.map.isActive) {
       const access = await loadCampaignMapAccess(db, actor, id);

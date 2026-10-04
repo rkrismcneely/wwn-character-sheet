@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` at `fc852d57` on 2026-10-04._
+_Last reconciled against production `main` after PR #273 on 2026-10-04._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
@@ -10,61 +10,58 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 - Cloudflare Git Integration is the normal automatic production deployment path for `main`.
 - `.github/workflows/deploy-production.yml` is manual fallback only.
 - GitHub Actions CI is intentionally focused on pull requests/manual validation; do not add duplicate post-merge validation without a concrete reason.
-- There are currently **no open pull requests**.
-- The application already includes the character sheet/builder, authentication and ownership, private campaigns, campaign invitations, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date. Do not recreate these as future roadmap items.
+- There are currently **no unfinished product-code PRs**.
+- The application already includes the character sheet/builder, authentication and ownership, private campaigns, tested campaign invitations/joining, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date.
+- Character import was intentionally removed and is not future scope unless explicitly reconsidered.
+- The character autosave/navigation data-loss bug is fixed and production-deployed.
+- D1/R2 recovery safeguards are production-deployed: D1 Time Travel is documented, retired committed R2 media is preserved before deletion, and the private recovery prefix has retention/expiry protection.
+- A focused Chromium browser smoke suite is implemented. It uses disposable local data and is manual/release-oriented; it does **not** run on ordinary application PRs.
 
 ---
 
-## Now — highest-value remaining work
+## Now — highest-value remaining reliability work
 
-### 1. Complete one real production campaign invite/join smoke test
+### 1. Save/network failure recovery
 
-The owner/GM **Invite Player** action, invitation creation API, `cminv_...` link/code flow, and owner permission coverage are implemented and production-deployed. What remains is one deliberate two-account production smoke test that verifies the entire user journey:
+The immediate navigation-before-autosave data-loss bug is fixed. Improve the less common failure cases without replacing the working save model unnecessarily:
 
-- owner sees **Invite Player**
-- invitation is created successfully
-- second account can follow the invitation and join
-- roster/membership updates correctly
-- linked-character permissions remain correct
-- no unrelated campaign or character data is changed
+- make save failure/conflict states unmistakable to the player
+- consider a small local pending-draft fallback for edits that could not be confirmed online
+- recover cleanly after temporary network loss without overwriting a newer server version
+- preserve the existing optimistic-version conflict protection
+- add focused regression coverage only for concrete failure modes we actually support
 
-Do this once when two suitable accounts are available; do not turn it into a repetitive production-data test.
+### 2. Production-safe error reporting
 
-### 2. Data safety and recovery
+Add enough observability to diagnose real production failures without collecting unnecessary user content.
 
-- Document and test a backup/recovery procedure for persisted D1 character/campaign data and R2-backed uploaded assets.
-- Improve user-facing recovery from optimistic-save conflicts and interrupted/network-failed saves.
-- Add production-safe error reporting with an explicit privacy and retention policy.
+Before enabling any third-party or persistent reporting, explicitly define:
 
-### 3. Import duplicate protection
+- which errors/events are collected
+- whether character/campaign content is excluded or redacted
+- retention period
+- who can access reports
+- how authentication/session identifiers are handled
 
-Add a conservative pre-import duplicate warning without weakening the existing safe import ownership/privacy model. A warning should require a strong match rather than merely sharing a character name, and users must still be able to intentionally import another copy.
+Prefer compact structured diagnostics over broad request/body logging.
 
-An old draft implementation was closed rather than merged because it was based on a much older `main`; reimplement against current code if this is prioritized.
-
-### 4. Small browser smoke coverage
-
-If browser automation is worth its ongoing cost, add a **small** smoke suite for the highest-value user journeys:
-
-- signed-out routing and sign-in entry points
-- public/private character access boundaries
-- create/open/edit/save/export/import character
-- campaign create/open and invitation/join flow
-- link/replace a campaign character
-- open Map and Store from a linked character
-- one representative live-session/map interaction
-- one narrow mobile overflow/navigation check
-
-Keep this intentionally small. Prefer manual/release-cadence or carefully scoped CI execution over a large browser matrix on every trivial change. An old Playwright draft was closed rather than rebased because it predates substantial current architecture.
-
----
-
-## Reliability, accessibility, and UX consistency
+### 3. Accessibility and cross-device release verification
 
 - Continue fixing concrete accessibility/mobile issues as they are observed.
-- Standardize Escape/outside-click dismissal for modal/popout surfaces where inconsistent behavior is still reproducible. Reimplement this against current components rather than reviving the old stale overlay PR.
-- Add automated accessibility/visual checks only where they provide stable signal; avoid a large always-on visual matrix unless experience proves it valuable.
-- Keep iPhone/iPad/Safari layout verification in the release/audit checklist because responsive regressions are more likely there than in ordinary desktop testing.
+- Standardize Escape/outside-click dismissal for modal/popout surfaces where inconsistent behavior is still reproducible. Reimplement against current components rather than reviving an old stale overlay branch.
+- Keep iPhone/iPad/Safari layout verification in the release/audit checklist.
+- Add automated accessibility/visual checks only where they provide stable signal; avoid a large always-on visual matrix.
+
+### Focused browser smoke policy
+
+The implemented smoke suite covers four high-value boundaries:
+
+- signed-out front door/auth boundary
+- character edit -> immediate navigation -> confirmed persistence
+- owner invitation -> second synthetic account joins with a character
+- linked character opens the campaign map drawer
+
+Keep it small. It uses one Chromium worker, disposable local D1 data, no production credentials, no real OAuth, and zero automatic retries. Run it manually for releases/risky cross-boundary changes; it auto-runs only when its own test/workflow infrastructure changes so the suite cannot rot silently.
 
 ---
 
@@ -98,7 +95,7 @@ Only after the WWN experience is stable and the remaining reliability work is in
 
 - architecture/content support for other **Without Number** games
 - additional campaign organization tools justified by actual play
-- broader import/export/interoperability improvements where there is a real user need
+- export/interoperability improvements where there is a real user need
 
 ---
 
@@ -112,3 +109,4 @@ Only after the WWN experience is stable and the remaining reliability work is in
 6. **Do not retry unchanged failures.** Runner shortages, exhausted credits, authentication problems, and unchanged failing commands should be diagnosed or deferred until the condition changes rather than repeatedly retried.
 7. **Use PRs when review/CI adds value.** Documentation-only or similarly low-risk maintenance can be committed directly when repository rules allow it and doing so avoids pointless CI usage.
 8. **Production verification should be targeted.** Verify the user-facing behavior affected by a release rather than repeatedly smoke-testing unrelated features.
+9. **Browser automation stays intentionally small.** Do not expand the smoke suite into a broad always-on matrix unless repeated real regressions justify the added cost.

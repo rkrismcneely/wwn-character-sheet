@@ -36,48 +36,51 @@ export function CharacterRecoveryClient({
 
   useEffect(() => {
     let cancelled = false;
-    const localDraft = readCharacterRecoveryDraft(
-      window.localStorage,
-      characterId,
-      ownerUserId,
-    );
-    setDraft(localDraft);
-    if (!localDraft) {
-      setOriginalStatus("missing");
-      setLoaded(true);
-      return;
-    }
+    const start = window.setTimeout(() => {
+      const localDraft = readCharacterRecoveryDraft(
+        window.localStorage,
+        characterId,
+        ownerUserId,
+      );
+      setDraft(localDraft);
+      if (!localDraft) {
+        setOriginalStatus("missing");
+        setLoaded(true);
+        return;
+      }
 
-    void fetch(`/api/characters/${characterId}`, { cache: "no-store" })
-      .then(async response => {
-        if (cancelled) return;
-        if (response.status === 404) {
-          setOriginalStatus("missing");
-          setCurrentVersion(null);
-          return;
-        }
-        const payload = await response.json() as {
-          version?: number;
-          permissions?: { canEdit?: boolean };
-          error?: string;
-        };
-        if (!response.ok) throw new Error(payload.error || "The online character could not be checked.");
-        setOriginalStatus("exists");
-        setCanEditOriginal(Boolean(payload.permissions?.canEdit));
-        setCurrentVersion(Number.isInteger(payload.version) ? Number(payload.version) : null);
-      })
-      .catch(checkError => {
-        if (!cancelled) {
-          setOriginalStatus("unavailable");
-          setError(checkError instanceof Error ? checkError.message : "The online character could not be checked.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
+      void fetch(`/api/characters/${characterId}`, { cache: "no-store" })
+        .then(async response => {
+          if (cancelled) return;
+          if (response.status === 404) {
+            setOriginalStatus("missing");
+            setCurrentVersion(null);
+            return;
+          }
+          const payload = await response.json() as {
+            version?: number;
+            permissions?: { canEdit?: boolean };
+            error?: string;
+          };
+          if (!response.ok) throw new Error(payload.error || "The online character could not be checked.");
+          setOriginalStatus("exists");
+          setCanEditOriginal(Boolean(payload.permissions?.canEdit));
+          setCurrentVersion(Number.isInteger(payload.version) ? Number(payload.version) : null);
+        })
+        .catch(checkError => {
+          if (!cancelled) {
+            setOriginalStatus("unavailable");
+            setError(checkError instanceof Error ? checkError.message : "The online character could not be checked.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoaded(true);
+        });
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(start);
     };
   }, [characterId, ownerUserId]);
 

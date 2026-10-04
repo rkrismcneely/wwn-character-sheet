@@ -149,10 +149,7 @@ export function SignedInHeader({
   }, []);
 
   useEffect(() => {
-    if (!ownerUserId) {
-      setRecoveryCharacterId(null);
-      return;
-    }
+    if (!ownerUserId) return;
 
     let trackedCharacterId: string | null = null;
     let sawPendingSave = false;

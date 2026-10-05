@@ -23,6 +23,7 @@ import { ThemeProvider } from "./theme-provider";
 import { SiteFooter } from "./site-footer";
 import { MapUiRuntime } from "./map-ui-runtime";
 import { MapTokenDragGhostRuntime } from "./map-token-drag-ghost-runtime";
+import { ErrorReporterRuntime } from "./error-reporter-runtime";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 
 export const metadata: Metadata = {
@@ -61,6 +62,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <ThemeProvider>
+          <ErrorReporterRuntime />
           <MapUiRuntime />
           <MapTokenDragGhostRuntime />
           <div className="site-shell">

@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against production `main` after PR #273 on 2026-10-04._
+_Last reconciled against production `main` after PR #274 on 2026-10-05._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
@@ -14,6 +14,7 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 - The application already includes the character sheet/builder, authentication and ownership, private campaigns, tested campaign invitations/joining, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date.
 - Character import was intentionally removed and is not future scope unless explicitly reconsidered.
 - The character autosave/navigation data-loss bug is fixed and production-deployed.
+- Failed/interrupted cloud character saves now keep account-scoped, per-character browser recovery drafts. Same-version drafts can restore to the original safely; newer-server conflicts cannot overwrite the original and can instead be preserved as a new private character, downloaded, or discarded. Ordinary failed saves retry once when browser connectivity returns.
 - D1/R2 recovery safeguards are production-deployed: D1 Time Travel is documented, retired committed R2 media is preserved before deletion, and the private recovery prefix has retention/expiry protection.
 - A focused Chromium browser smoke suite is implemented. It uses disposable local data and is manual/release-oriented; it does **not** run on ordinary application PRs.
 
@@ -21,17 +22,7 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 
 ## Now — highest-value remaining reliability work
 
-### 1. Save/network failure recovery
-
-The immediate navigation-before-autosave data-loss bug is fixed. Improve the less common failure cases without replacing the working save model unnecessarily:
-
-- make save failure/conflict states unmistakable to the player
-- consider a small local pending-draft fallback for edits that could not be confirmed online
-- recover cleanly after temporary network loss without overwriting a newer server version
-- preserve the existing optimistic-version conflict protection
-- add focused regression coverage only for concrete failure modes we actually support
-
-### 2. Production-safe error reporting
+### 1. Production-safe error reporting
 
 Add enough observability to diagnose real production failures without collecting unnecessary user content.
 
@@ -45,7 +36,7 @@ Before enabling any third-party or persistent reporting, explicitly define:
 
 Prefer compact structured diagnostics over broad request/body logging.
 
-### 3. Accessibility and cross-device release verification
+### 2. Accessibility and cross-device release verification
 
 - Continue fixing concrete accessibility/mobile issues as they are observed.
 - Standardize Escape/outside-click dismissal for modal/popout surfaces where inconsistent behavior is still reproducible. Reimplement against current components rather than reviving an old stale overlay branch.
@@ -54,10 +45,11 @@ Prefer compact structured diagnostics over broad request/body logging.
 
 ### Focused browser smoke policy
 
-The implemented smoke suite covers four high-value boundaries:
+The implemented smoke suite covers the highest-value boundaries:
 
 - signed-out front door/auth boundary
 - character edit -> immediate navigation -> confirmed persistence
+- failed character save -> browser-local recovery -> safe restore
 - owner invitation -> second synthetic account joins with a character
 - linked character opens the campaign map drawer
 

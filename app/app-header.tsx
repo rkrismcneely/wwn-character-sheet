@@ -6,6 +6,13 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 import { characterSaveDisposition } from "./pending-character-save";
+import {
+  characterIdFromPathname,
+  characterRecoveryStorageKey,
+  clearCharacterRecoveryDraft,
+  readCharacterRecoveryDraft,
+  writeCharacterRecoveryDraft,
+} from "./character-save-recovery";
 
 export type AppHeaderDestination =
   | "account"
@@ -14,10 +21,21 @@ export type AppHeaderDestination =
   | "public";
 
 const pendingSaveMessage = "Your character still has unsaved changes. Wait for the save to finish or use Save Now before leaving this page.";
+const failedSaveMessage = "Your latest character changes are preserved in this browser but are not online yet. Use Save Now to retry, or open the recovery copy before leaving this page.";
+
+function currentCharacterSaveState(): string {
+  const status = document.querySelector<HTMLElement>(".app-header .save-state");
+  return status?.textContent?.trim() ?? "";
+}
 
 function currentCharacterSaveDisposition() {
-  const status = document.querySelector<HTMLElement>(".app-header .save-state");
-  return characterSaveDisposition(status?.textContent);
+  return characterSaveDisposition(currentCharacterSaveState());
+}
+
+function currentBlockedSaveMessage(): string {
+  return currentCharacterSaveDisposition() === "failed"
+    ? failedSaveMessage
+    : pendingSaveMessage;
 }
 
 function waitForPendingCharacterSave(timeoutMs = 20_000): Promise<boolean> {
@@ -73,8 +91,11 @@ export function SignedInHeader({
   active?: AppHeaderDestination;
   utilities?: ReactNode;
 }) {
+  const { data: session } = authClient.useSession();
+  const ownerUserId = session?.user?.id ?? null;
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [error, setError] = useState("");
+  const [recoveryCharacterId, setRecoveryCharacterId] = useState<string | null>(null);
 
   useEffect(() => {
     let navigationPending = false;
@@ -101,7 +122,7 @@ export function SignedInHeader({
       event.stopPropagation();
       if (navigationPending) return;
       if (disposition === "failed") {
-        setError(pendingSaveMessage);
+        setError(failedSaveMessage);
         return;
       }
 
@@ -110,7 +131,7 @@ export function SignedInHeader({
       void waitForPendingCharacterSave().then(saved => {
         navigationPending = false;
         if (saved) window.location.assign(destination.href);
-        else setError(pendingSaveMessage);
+        else setError(currentBlockedSaveMessage());
       });
     };
 
@@ -128,13 +149,173 @@ export function SignedInHeader({
     };
   }, []);
 
+  useEffect(() => {
+    if (!ownerUserId) return;
+
+    let trackedCharacterId: string | null = null;
+    let sawPendingSave = false;
+    let captureInterval: number | null = null;
+    let baseVersionPromise: Promise<number | null> | null = null;
+    let captureGeneration = 0;
+    let disposed = false;
+
+    const stopCaptureInterval = () => {
+      if (captureInterval === null) return;
+      window.clearInterval(captureInterval);
+      captureInterval = null;
+    };
+
+    const synchronizeTrackedCharacter = () => {
+      const nextCharacterId = characterIdFromPathname(window.location.pathname);
+      if (nextCharacterId === trackedCharacterId) return nextCharacterId;
+      captureGeneration += 1;
+      stopCaptureInterval();
+      trackedCharacterId = nextCharacterId;
+      sawPendingSave = false;
+      baseVersionPromise = null;
+      const stored = nextCharacterId
+        ? readCharacterRecoveryDraft(window.localStorage, nextCharacterId, ownerUserId)
+        : null;
+      setRecoveryCharacterId(stored ? nextCharacterId : null);
+      return nextCharacterId;
+    };
+
+    const loadBaseVersion = async (characterId: string): Promise<number | null> => {
+      const existing = readCharacterRecoveryDraft(window.localStorage, characterId, ownerUserId);
+      if (Number.isInteger(existing?.baseVersion)) return existing!.baseVersion;
+      if (!baseVersionPromise) {
+        baseVersionPromise = fetch(`/api/characters/${characterId}`, { cache: "no-store" })
+          .then(async response => {
+            if (!response.ok) return null;
+            const payload = await response.json() as { version?: number };
+            return Number.isInteger(payload.version) && Number(payload.version) > 0
+              ? Number(payload.version)
+              : null;
+          })
+          .catch(() => null);
+      }
+      return baseVersionPromise;
+    };
+
+    const captureRecoveryDraft = async () => {
+      const characterId = synchronizeTrackedCharacter();
+      if (!characterId) return;
+      const generation = captureGeneration;
+      const raw = window.localStorage.getItem("wwn-cecil-sheet");
+      if (!raw) return;
+
+      let character: Record<string, unknown>;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+        character = parsed as Record<string, unknown>;
+      } catch {
+        return;
+      }
+
+      const state = currentCharacterSaveState();
+      const existing = readCharacterRecoveryDraft(window.localStorage, characterId, ownerUserId);
+      const baseVersion = state === "Newer online copy found"
+        ? null
+        : existing?.baseVersion ?? await loadBaseVersion(characterId);
+      if (
+        disposed
+        || generation !== captureGeneration
+        || characterId !== synchronizeTrackedCharacter()
+      ) return;
+
+      writeCharacterRecoveryDraft(window.localStorage, {
+        schema: 1,
+        characterId,
+        ownerUserId,
+        baseVersion,
+        savedAt: new Date().toISOString(),
+        character,
+      });
+      setRecoveryCharacterId(characterId);
+    };
+
+    const synchronizeRecoveryState = () => {
+      const characterId = synchronizeTrackedCharacter();
+      if (!characterId) {
+        stopCaptureInterval();
+        return;
+      }
+
+      const disposition = currentCharacterSaveDisposition();
+      if (disposition === "pending" || disposition === "failed") {
+        sawPendingSave = true;
+        void captureRecoveryDraft();
+        if (captureInterval === null) {
+          captureInterval = window.setInterval(() => {
+            void captureRecoveryDraft();
+          }, 400);
+        }
+        return;
+      }
+
+      stopCaptureInterval();
+      if (sawPendingSave) {
+        captureGeneration += 1;
+        clearCharacterRecoveryDraft(window.localStorage, characterId);
+        setRecoveryCharacterId(null);
+        sawPendingSave = false;
+        baseVersionPromise = null;
+        return;
+      }
+
+      const stored = readCharacterRecoveryDraft(window.localStorage, characterId, ownerUserId);
+      setRecoveryCharacterId(stored ? characterId : null);
+    };
+
+    const retryAfterReconnect = () => {
+      synchronizeRecoveryState();
+      if (currentCharacterSaveState() !== "Not saved online") return;
+      const saveButton = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(".app-header-utilities button"),
+      ).find(button => /^(Save Now|Save Character)$/u.test(button.textContent?.trim() ?? ""));
+      saveButton?.click();
+    };
+
+    const recoveryResolvedInAnotherTab = (event: StorageEvent) => {
+      const characterId = synchronizeTrackedCharacter();
+      if (!characterId || event.key !== characterRecoveryStorageKey(characterId) || event.newValue !== null) return;
+      captureGeneration += 1;
+      stopCaptureInterval();
+      sawPendingSave = false;
+      baseVersionPromise = null;
+      setRecoveryCharacterId(null);
+      if (currentCharacterSaveDisposition() === "failed") {
+        window.location.reload();
+      }
+    };
+
+    const observer = new MutationObserver(synchronizeRecoveryState);
+    const header = document.querySelector(".app-header");
+    if (header) observer.observe(header, { childList: true, subtree: true, characterData: true });
+    const routeInterval = window.setInterval(synchronizeRecoveryState, 750);
+    window.addEventListener("online", retryAfterReconnect);
+    window.addEventListener("storage", recoveryResolvedInAnotherTab);
+    synchronizeRecoveryState();
+
+    return () => {
+      disposed = true;
+      captureGeneration += 1;
+      stopCaptureInterval();
+      observer.disconnect();
+      window.clearInterval(routeInterval);
+      window.removeEventListener("online", retryAfterReconnect);
+      window.removeEventListener("storage", recoveryResolvedInAnotherTab);
+    };
+  }, [ownerUserId]);
+
   async function signOut() {
     setSignOutBusy(true);
     setError("");
     const safeToLeave = await waitForPendingCharacterSave();
     if (!safeToLeave) {
       setSignOutBusy(false);
-      setError(pendingSaveMessage);
+      setError(currentBlockedSaveMessage());
       return;
     }
     try {
@@ -177,6 +358,18 @@ export function SignedInHeader({
           </button>
         </nav>
       </header>
+      {recoveryCharacterId && (
+        <div className="app-header-error" role="status">
+          A local recovery copy exists for character changes that are not confirmed online.{" "}
+          <Link
+            href={`/character-recovery?character=${encodeURIComponent(recoveryCharacterId)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open recovery copy
+          </Link>
+        </div>
+      )}
       {error && <div className="app-header-error" role="alert">{error}</div>}
     </>
   );

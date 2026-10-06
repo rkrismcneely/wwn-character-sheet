@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   canRestoreRecoveryToOriginal,
@@ -9,6 +10,8 @@ import {
   readCharacterRecoveryDraft,
   writeCharacterRecoveryDraft,
 } from "../app/character-save-recovery.ts";
+
+const appHeaderSource = await readFile(new URL("../app/app-header.tsx", import.meta.url), "utf8");
 
 function memoryStorage() {
   const values = new Map();
@@ -61,4 +64,13 @@ test("original recovery is allowed only against the exact unchanged server versi
   assert.equal(canRestoreRecoveryToOriginal(draft, 8), false);
   assert.equal(canRestoreRecoveryToOriginal({ ...draft, baseVersion: null }, 7), false);
   assert.equal(canRestoreRecoveryToOriginal(draft, null), false);
+});
+
+test("routine pending autosaves capture recovery silently while failed saves surface it", () => {
+  assert.match(appHeaderSource, /const captureRecoveryDraft = async \(surfaceRecovery = false\)/u);
+  assert.match(appHeaderSource, /if \(surfaceRecovery\) setRecoveryCharacterId\(characterId\)/u);
+  assert.match(appHeaderSource, /captureRecoveryDraft\(disposition === "failed"\)/u);
+  assert.match(appHeaderSource, /captureRecoveryDraft\(currentCharacterSaveDisposition\(\) === "failed"\)/u);
+  assert.match(appHeaderSource, /setRecoveryCharacterId\(stored \? nextCharacterId : null\)/u);
+  assert.doesNotMatch(appHeaderSource, /^\s*setRecoveryCharacterId\(characterId\);$/mu);
 });

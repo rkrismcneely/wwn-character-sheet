@@ -3,7 +3,12 @@ import {
   type BackgroundDevelopmentMethod,
   type BackgroundDevelopmentRoll,
 } from "../../app/background-development.ts";
-import { casterLimits, dualCasterLimits, invokerLimits, traditionKinds, traditionInfo, traditionSpells, type TraditionName } from "../../app/class-data.ts";
+import {
+  applyShieldToArmorBase,
+  feralToughnessBaseArmorClass,
+  parseBeastmasterHitDice,
+} from "../../app/beastmaster-companion.ts";
+import { casterLimits, dualCasterLimits, hitPointClassBonus, invokerLimits, traditionKinds, traditionInfo, traditionSpells, type TraditionName } from "../../app/class-data.ts";
 import { highMagic } from "../../app/wwn-data.ts";
 
 export type CampaignCharacterCardData = {
@@ -24,6 +29,7 @@ export type CampaignCharacterCardData = {
   focusPicks?: Array<{ name?: string; choice?: string }>;
   artPicks?: string[];
   artEffort?: boolean[];
+  companions?: Array<{ kind?: string; bound?: boolean; hitDice?: string }>;
   spellPicks?: Array<{ name?: string; prepared?: boolean; cast?: boolean; casts?: number }>;
   strainCurrent?: number;
   strainMax?: number;
@@ -80,6 +86,10 @@ function selectedFocusPicks(data: CampaignCharacterCardData) {
   return (data.focusPicks || []).filter(pick => Boolean(pick.name));
 }
 
+function hasArt(data: CampaignCharacterCardData, artName: string) {
+  return (data.artPicks || []).some(selection => selection === artName || selection.endsWith(`::${artName}`));
+}
+
 type Attribute = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 
 function attributeModifier(data: CampaignCharacterCardData, attribute: Attribute): number {
@@ -116,9 +126,7 @@ export function campaignCardClassLabel(data: CampaignCharacterCardData, fallback
 export function campaignCardArmorClass(data: CampaignCharacterCardData): number {
   const armorBase = ARMOR_AC[data.armor || "No Armor"] ?? ARMOR_AC["No Armor"];
   const shieldBase = data.shield === "Small Shield" ? 13 : data.shield === "Large Shield" ? 14 : 0;
-  const shieldAdjustedBase = shieldBase
-    ? (armorBase >= shieldBase ? armorBase + 1 : shieldBase)
-    : armorBase;
+  const shieldAdjustedBase = applyShieldToArmorBase(armorBase, shieldBase);
   const focusPicks = selectedFocusPicks(data);
   const classes = selectedClasses(data);
   const level = effectiveLevel(data);
@@ -128,13 +136,17 @@ export function campaignCardArmorClass(data: CampaignCharacterCardData): number 
   const vowedArmorBase = classes.includes("Vowed") && (data.armor || "No Armor") === "No Armor" && !data.shield
     ? 13 + Math.floor(level / 2)
     : 0;
-  const coldFleshArmorBase = (data.artPicks || []).includes("Cold Flesh") ? 12 + Math.floor(level / 2) : 0;
-  const pavisIndex = (data.artPicks || []).indexOf("Pavis of Elements");
+  const coldFleshArmorBase = hasArt(data, "Cold Flesh") ? 12 + Math.floor(level / 2) : 0;
+  const feralToughnessArmorBase = hasArt(data, "Feral Toughness")
+    ? applyShieldToArmorBase(feralToughnessBaseArmorClass(level), shieldBase)
+    : 0;
+  const pavisIndex = (data.artPicks || []).findIndex(selection => selection === "Pavis of Elements" || selection.endsWith("::Pavis of Elements"));
   const pavisActive = pavisIndex >= 0 && Boolean(data.artEffort?.[pavisIndex]);
   const defensiveBase = Math.max(
     bestArmorBase,
     vowedArmorBase,
     coldFleshArmorBase + (data.shield ? 1 : 0),
+    feralToughnessArmorBase,
   );
   const calculatedAcBeforePavis = defensiveBase + attributeModifier(data, "DEX") + Number(data.armorBonus || 0);
   return pavisActive ? Math.min(18, calculatedAcBeforePavis + 4) : calculatedAcBeforePavis;
@@ -143,10 +155,11 @@ export function campaignCardArmorClass(data: CampaignCharacterCardData): number 
 export function campaignCardHpMax(data: CampaignCharacterCardData): number {
   const level = effectiveLevel(data);
   const rolls = Array.isArray(data.hpRolls) ? data.hpRolls.slice(0, level) : [];
-  const classes = selectedClasses(data);
-  const classBonus = classes.includes("Warrior") && !classes.includes("Duelist")
-    ? 2
-    : classes.includes("Expert") || classes.includes("Vowed") ? 0 : -1;
+  const classBonus = hitPointClassBonus(
+    data.classMode === "adventurer" ? "adventurer" : "full",
+    data.classOne || "",
+    data.classTwo || "",
+  );
   const hasDieHard = selectedFocusPicks(data).some(pick => pick.name === "Die Hard");
   let calculatedHp = 0;
   let complete = Boolean(data.level) && rolls.length >= level;
@@ -161,7 +174,12 @@ export function campaignCardHpMax(data: CampaignCharacterCardData): number {
     const rolledTotal = Math.max(dice, rawRoll + perDieModifier * dice);
     calculatedHp = index === 0 ? rolledTotal : Math.max(calculatedHp + 1, rolledTotal);
   }
-  return complete ? calculatedHp : Math.max(0, Number(data.hpMax) || 0);
+  const baseHp = complete ? calculatedHp : Math.max(0, Number(data.hpMax) || 0);
+  const feralToughnessCompanion = hasArt(data, "Feral Toughness")
+    ? (data.companions || []).find(companion => companion.kind === "beastmaster" && companion.bound)
+    : undefined;
+  const feralToughnessHitDice = Math.max(0, parseBeastmasterHitDice(feralToughnessCompanion?.hitDice) ?? 0);
+  return baseHp + feralToughnessHitDice;
 }
 
 /** The small, campaign-safe vitals projection used by cards and live sessions. */

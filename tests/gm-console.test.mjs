@@ -7,7 +7,7 @@ import { BestiaryBrowseItem } from "../app/campaigns/bestiary-browse.ts";
 import { builtInBestiaryCreatures, searchBestiaryCreatures } from "../lib/campaigns/bestiary.ts";
 
 test("GM Console is owner-gated and reuses the existing session, encounter, party, and roll components", async () => {
-  const [page, consoleUi, encounterRoute, detail, migration, threatMigration, styles] = await Promise.all([
+  const [page, consoleUi, encounterRoute, detail, migration, threatMigration, styles, rollToolbarStyles] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/gm/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/gm-console.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
@@ -15,9 +15,11 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
     readFile(new URL("../drizzle/0011_campaign_npc_templates.sql", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0012_campaign_npc_threat_stats.sql", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-ui.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/gm-console-roll-toolbar.css", import.meta.url), "utf8"),
   ]);
   assert.match(page, /campaign\.ownerUserId !== actor\.userId/u);
   assert.match(page, /notFound\(\)/u);
+  assert.match(page, /gm-console-roll-toolbar\.css/u);
   assert.match(consoleUi, /useCampaignLiveSession/u);
   assert.match(consoleUi, /EncounterTracker/u);
   assert.match(consoleUi, /GmPartyStatus/u);
@@ -38,10 +40,14 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /npc_publish/u);
   assert.match(consoleUi, /VirtualDiceOverlay/u);
   assert.match(consoleUi, /canManageEncounter/u);
-  assert.match(consoleUi, /Recent shared campaign rolls/u);
+  assert.match(consoleUi, /Shared campaign rolls \+ private GM rolls visible only to the GM/u);
   assert.match(consoleUi, /aria-expanded=\{rollHistoryOpen\}/u);
   assert.match(consoleUi, /pendingLatestRoll/u);
-  assert.match(consoleUi, /sharedHistory\[0\]/u);
+  assert.match(consoleUi, /sharedHistory/u);
+  assert.match(consoleUi, /privateGmRolls/u);
+  assert.match(consoleUi, /const gmHistory = \[\.\.\.privateGmRolls, \.\.\.sharedHistory\]/u);
+  assert.match(consoleUi, /history=\{gmHistory\}/u);
+  assert.match(consoleUi, /Private GM Rolls/u);
   assert.match(consoleUi, /roll\.dice\.results/u);
   assert.doesNotMatch(consoleUi, /rollDice\(/u);
   assert.doesNotMatch(consoleUi, /ConsoleTab = .*"rolls"/u);
@@ -54,11 +60,17 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(consoleUi, /resolveRoll/u);
   assert.match(gmQuickRoll, /category: "generic"/u);
   assert.match(gmQuickRoll, /character: \{ id: "gm-private", name: "GM" \}/u);
+  assert.match(gmQuickRoll, /setPrivateGmRolls\(current => \[roll, \.\.\.current\]\.slice\(0, 50\)\)/u);
   assert.doesNotMatch(gmQuickRoll, /fetch\(/u, "private GM rolls never publish to the live-session endpoint");
   assert.match(consoleUi, /rollGmDice\(1, 20, "d20"\)/u);
   assert.match(consoleUi, /rollGmDice\(2, 6, "2d6"\)/u);
   assert.match(consoleUi, /aria-label="Roll a private GM d20"/u);
   assert.match(consoleUi, /aria-label="Roll private GM 2d6"/u);
+  assert.match(rollToolbarStyles, /\.gm-console-private-rolls/u);
+  assert.match(rollToolbarStyles, /\.gm-console-quick-roll/u);
+  assert.match(rollToolbarStyles, /\.gm-console-history-count/u);
+  assert.match(rollToolbarStyles, /@media\(max-width:640px\)/u);
+  assert.match(rollToolbarStyles, /html\[data-theme="dark"\]/u);
 
   assert.match(consoleUi, /Create NPC/u);
   assert.match(consoleUi, /Built-In Bestiary/u);
@@ -94,7 +106,7 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(styles, /\.gm-party-status-core dt,\.gm-party-status-resources dt\{[^}]*font-size:10px/u);
   assert.match(styles, /\.gm-party-status-core dd,\.gm-party-status-resources dd\{[^}]*font-size:17px/u);
   assert.match(styles, /@media\(max-width:900px\)\{\.gm-party-status-core\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}\}/u);
-  assert.match(styles, /@media\(max-width:430px\)\{\.gm-party-status-core\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/u);
+  assert.match(styles, /@media\(max-width:430px\)\{\.gm-party-status-core\{grid-template-columns:repeat\(3,minmax\(0,1fr\)/u);
   assert.match(consoleUi, /End Session/u);
   assert.match(consoleUi, /action\(session \? "end" : "start"\)/u);
   assert.doesNotMatch(consoleUi, /Session Active/u);

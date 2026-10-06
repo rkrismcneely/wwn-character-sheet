@@ -46,6 +46,20 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.doesNotMatch(consoleUi, /rollDice\(/u);
   assert.doesNotMatch(consoleUi, /ConsoleTab = .*"rolls"/u);
   assert.doesNotMatch(consoleUi, /tab === "rolls"/u);
+
+  const gmQuickRollStart = consoleUi.indexOf("async function rollGmDice");
+  const gmQuickRollEnd = consoleUi.indexOf("async function encounterAction", gmQuickRollStart);
+  assert.ok(gmQuickRollStart >= 0 && gmQuickRollEnd > gmQuickRollStart, "GM quick-roll function remains in the console roll pipeline");
+  const gmQuickRoll = consoleUi.slice(gmQuickRollStart, gmQuickRollEnd);
+  assert.match(consoleUi, /resolveRoll/u);
+  assert.match(gmQuickRoll, /category: "generic"/u);
+  assert.match(gmQuickRoll, /character: \{ id: "gm-private", name: "GM" \}/u);
+  assert.doesNotMatch(gmQuickRoll, /fetch\(/u, "private GM rolls never publish to the live-session endpoint");
+  assert.match(consoleUi, /rollGmDice\(1, 20, "d20"\)/u);
+  assert.match(consoleUi, /rollGmDice\(2, 6, "2d6"\)/u);
+  assert.match(consoleUi, /aria-label="Roll a private GM d20"/u);
+  assert.match(consoleUi, /aria-label="Roll private GM 2d6"/u);
+
   assert.match(consoleUi, /Create NPC/u);
   assert.match(consoleUi, /Built-In Bestiary/u);
   assert.match(consoleUi, /Search creatures/u);

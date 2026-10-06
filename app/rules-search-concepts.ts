@@ -91,8 +91,8 @@ export const ruleConcepts: RuleConcept[] = [
     id: "effort-commitment",
     phrases: ["commit effort", "committing effort", "effort for the scene", "effort for the day", "when does effort come back", "recover effort"],
     terms: ["effort", "commit", "scene", "day", "return", "recover", "refresh"],
-    controllingTitles: ["Committing Effort", "Effort"],
-    relatedTitles: ["Classes and Effort"],
+    controllingTitles: ["Committing Effort"],
+    relatedTitles: ["Effort", "Classes and Effort"],
   },
   {
     id: "partial-class-effort",

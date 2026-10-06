@@ -15,6 +15,7 @@ import "./character-creation-review.css";
 import "./map-performance.css";
 import "./map-layout-polish.css";
 import "./map-tab-dock-polish.css";
+import "./drawer-accessibility.css";
 import "./character-responsive-polish.css";
 import "./character-compact-field-polish.css";
 import "./footer-drawer-polish.css";

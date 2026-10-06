@@ -79,7 +79,7 @@ function NpcMagicAdd({ kind, options, disabled, onAdd }: { kind: "Spell" | "Art"
       const option = options.find(candidate => candidate.key === event.currentTarget.value);
       if (option) onAdd({ name: option.name, ...(option.level === undefined ? {} : { level: option.level }), summary: option.summary });
       event.currentTarget.value = "";
-    }}><option value="">Copy existing {kind.toLowerCase()} values…</option>{options.map(option => <option key={option.key} value={option.key}>{option.name}{option.level === undefined ? "" : ` · Level ${option.level}`}</option>)}</select></label>
+    }}><option value="">Copy existing {kind.toLowerCase()}…</option>{options.map(option => <option key={option.key} value={option.key}>{option.name}{option.level === undefined ? "" : ` · Level ${option.level}`}</option>)}</select></label>
     <button type="button" className="campaign-secondary" disabled={disabled} onClick={() => onAdd(blankMagic())}>Add {kind}</button>
   </div>;
 }
@@ -395,10 +395,6 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
   }, []);
 
   useEffect(() => {
-    if (!session) setPrivateGmRolls([]);
-  }, [session]);
-
-  useEffect(() => {
     let cancelled = false;
     void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
       .then(async response => {
@@ -513,7 +509,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     <SignedInHeader active="campaigns" />
     <section className="campaign-hero gm-console-hero">
       <div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div>
-      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link><button type="button" className={session ? "campaign-danger" : "campaign-primary"} disabled={busy || npcRollBusy} onClick={() => void action(session ? "end" : "start").catch(() => {})}>{session ? "End Session" : "Start Session"}</button></div>
+      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link><button type="button" className={session ? "campaign-danger" : "campaign-primary"} disabled={busy || npcRollBusy} onClick={() => void action(session ? "end" : "start").then(() => { if (session) { setPrivateGmRolls([]); setLatestRoll(null); setRollHistoryOpen(false); } }).catch(() => {})}>{session ? "End Session" : "Start Session"}</button></div>
     </section>
     {session && state.permissions.joined && <section className="gm-console-roll-row" aria-label="Campaign roll tools">
       <div className="gm-console-latest-roll"><RollResultTray result={latestRoll} /></div>

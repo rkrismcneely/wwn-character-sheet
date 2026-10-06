@@ -197,7 +197,7 @@ export function SignedInHeader({
       return baseVersionPromise;
     };
 
-    const captureRecoveryDraft = async () => {
+    const captureRecoveryDraft = async (surfaceRecovery = false) => {
       const characterId = synchronizeTrackedCharacter();
       if (!characterId) return;
       const generation = captureGeneration;
@@ -232,7 +232,7 @@ export function SignedInHeader({
         savedAt: new Date().toISOString(),
         character,
       });
-      setRecoveryCharacterId(characterId);
+      if (surfaceRecovery) setRecoveryCharacterId(characterId);
     };
 
     const synchronizeRecoveryState = () => {
@@ -245,10 +245,10 @@ export function SignedInHeader({
       const disposition = currentCharacterSaveDisposition();
       if (disposition === "pending" || disposition === "failed") {
         sawPendingSave = true;
-        void captureRecoveryDraft();
+        void captureRecoveryDraft(disposition === "failed");
         if (captureInterval === null) {
           captureInterval = window.setInterval(() => {
-            void captureRecoveryDraft();
+            void captureRecoveryDraft(currentCharacterSaveDisposition() === "failed");
           }, 400);
         }
         return;

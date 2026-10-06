@@ -72,5 +72,5 @@ test("routine pending autosaves capture recovery silently while failed saves sur
   assert.match(appHeaderSource, /captureRecoveryDraft\(disposition === "failed"\)/u);
   assert.match(appHeaderSource, /captureRecoveryDraft\(currentCharacterSaveDisposition\(\) === "failed"\)/u);
   assert.match(appHeaderSource, /setRecoveryCharacterId\(stored \? nextCharacterId : null\)/u);
-  assert.doesNotMatch(appHeaderSource, /writeCharacterRecoveryDraft[\s\S]{0,400}setRecoveryCharacterId\(characterId\);/u);
+  assert.doesNotMatch(appHeaderSource, /^\s*setRecoveryCharacterId\(characterId\);$/mu);
 });

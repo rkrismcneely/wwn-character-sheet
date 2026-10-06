@@ -20,7 +20,7 @@ import {
 } from "@/lib/campaigns/bestiary";
 import { calculateWwnPartyScore, calculateWwnThreatEstimate, wwnThreatBands, wwnThreatBandDetails, wwnThreatEstimateCaveat, wwnThreatEstimateMethod, wwnThreatEstimateProvenance, type WwnThreatBand } from "@/lib/campaigns/wwn-threat";
 import { RollHistoryPanel, RollResultTray } from "@/app/roll-presentation";
-import type { RollResult } from "@/app/rolls";
+import { resolveRoll, type RollResult } from "@/app/rolls";
 import { useDiceStylePreference, useVirtualDicePreference } from "@/app/virtual-dice-preference";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "@/app/virtual-dice-overlay";
 import { useDisplayTheme } from "@/app/theme-provider";
@@ -225,7 +225,6 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
   const partyScore = useMemo(() => calculateWwnPartyScore(partyLevels), [partyLevels]);
   const creatures = useMemo(() => builtInBestiaryCreatures, []);
   const filteredCreatures = useMemo(() => filterBestiaryCreatures(
-    // Keep the static catalog and every derived filter local; no per-creature requests.
     creatures,
     { query, minHitDice: wholeNumberOrNull(minHitDice), maxHitDice: wholeNumberOrNull(maxHitDice), partyLevels, threatBand: threatBand || null, quantity },
   ), [creatures, maxHitDice, minHitDice, partyLevels, quantity, query, threatBand]);
@@ -237,9 +236,6 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
     catch (actionError) { setError(actionError instanceof Error ? actionError.message : fallbackMessage); }
   }
 
-  // The GM Console's tabs already use local state. Keep the search and selected
-  // creature local as well: it avoids new routing surface while a hidden mobile
-  // browse list retains its query and scroll position when detail is opened.
   function selectCreature(id: string) { setSelectedId(id); setMobileView("detail"); }
 
   return <section className="gm-console-section" aria-labelledby="gm-bestiary-title">
@@ -453,6 +449,35 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     finally { npcRollBusyRef.current = false; setNpcRollBusy(false); }
   }
 
+  async function rollGmDice(count: number, sides: number, label: string) {
+    if (!state.permissions.canManageEncounter || npcRollBusyRef.current) return;
+    npcRollBusyRef.current = true;
+    setNpcRollBusy(true); setRollError("");
+    try {
+      const roll = await resolveRoll({
+        category: "generic",
+        character: { id: "gm-private", name: "GM" },
+        label,
+        dice: { count, sides },
+      });
+      const shouldAnimate = virtualDiceEnabled && !reducedMotion && Boolean(virtualDiceOverlay.current);
+      let animationFailed = false;
+      if (shouldAnimate) {
+        let watchdog: number | undefined;
+        try {
+          const animation = virtualDiceOverlay.current?.roll({ dice: roll.dice.results.map(value => ({ sides: roll.dice.sides, value })), style: diceStyle });
+          if (!animation) throw new Error("The virtual dice overlay is unavailable.");
+          const timeout = new Promise<never>((_, reject) => { watchdog = window.setTimeout(() => reject(new Error("The virtual dice renderer timed out.")), 15000); });
+          await Promise.race([animation, timeout]);
+        } catch { animationFailed = true; virtualDiceOverlay.current?.cancel(); }
+        finally { if (watchdog !== undefined) window.clearTimeout(watchdog); }
+      }
+      setLatestRoll(roll);
+      if (animationFailed) setRollError("Animated dice were unavailable; the roll completed normally.");
+    } catch (rollActionError) { setRollError(rollActionError instanceof Error ? rollActionError.message : "The GM roll could not be completed."); }
+    finally { npcRollBusyRef.current = false; setNpcRollBusy(false); }
+  }
+
   async function encounterAction(body: Record<string, unknown>) {
     setBusy(true); setError("");
     try {
@@ -485,7 +510,9 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
     </section>
     {session && state.permissions.joined && <section className="gm-console-roll-row" aria-label="Campaign roll tools">
       <div className="gm-console-latest-roll"><RollResultTray result={latestRoll || sharedHistory[0] || null} /></div>
-      <div className="gm-console-roll-history-control">
+      <div className="gm-console-roll-history-control" style={{ gap: 6 }}>
+        <button type="button" className="campaign-secondary" aria-label="Roll a private GM d20" title="Private GM roll" disabled={npcRollBusy} onClick={() => void rollGmDice(1, 20, "d20")}>d20</button>
+        <button type="button" className="campaign-secondary" aria-label="Roll private GM 2d6" title="Private GM roll" disabled={npcRollBusy} onClick={() => void rollGmDice(2, 6, "2d6")}>2d6</button>
         <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="gm-roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}>Roll History{sharedHistory.length ? ` (${sharedHistory.length})` : ""}</button>
         {rollHistoryOpen && <div className="roll-history-popout" id="gm-roll-history-popout"><RollHistoryPanel history={sharedHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} description="Recent shared campaign rolls" /></div>}
       </div>

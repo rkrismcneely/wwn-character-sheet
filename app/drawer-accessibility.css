@@ -1,0 +1,22 @@
+/* Keep the Map/Store side tools comfortably operable on phones and other
+   coarse-pointer devices without changing the established desktop geometry. */
+.campaign-map-mobile-launcher-button {
+  min-height: 44px;
+}
+
+@media (max-width: 820px), (pointer: coarse) {
+  .campaign-character-side-tools .campaign-character-side-tool {
+    min-height: 44px;
+  }
+
+  .campaign-store-header .campaign-store-close {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .campaign-store-drawer .campaign-store-search input {
+    min-height: 44px;
+  }
+}

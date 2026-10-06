@@ -186,6 +186,7 @@ html[data-theme="dark"] .gm-console-history-count{
   }
 
   .gm-console-roll-history-control .gm-console-history-toggle{
+    width:auto;
     min-width:118px;
   }
 

@@ -1,4 +1,5 @@
 import { traditionInfo, traditionSpells } from "./class-data.ts";
+import { ruleConcepts, type RuleConcept } from "./rules-search-concepts.ts";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data.ts";
 
 export type RuleEntry = {
@@ -54,10 +55,41 @@ function loadCompleteSrdRules() {
   return completeSrdRulesPromise;
 }
 
+const sectionHeadingPattern = /(?:^|(?<=[.!?·])\s+)(\d+(?:\.\d+){2,})\s+([A-Z][^.]{2,90}?)\s+\.\s+/gu;
+
+function segmentSrdEntry(entry: RuleEntry): RuleEntry[] {
+  const matches = [...entry.text.matchAll(sectionHeadingPattern)];
+  if (!matches.length) return [entry];
+
+  const sections: RuleEntry[] = [];
+  const firstIndex = matches[0].index ?? 0;
+  const introduction = entry.text.slice(0, firstIndex).trim();
+  if (introduction) sections.push({ ...entry, text: introduction });
+
+  matches.forEach((match, index) => {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = index + 1 < matches.length ? (matches[index + 1].index ?? entry.text.length) : entry.text.length;
+    const text = entry.text.slice(start, end).trim();
+    const title = match[2]?.trim();
+    const sectionNumber = match[1]?.trim();
+    if (!title || !sectionNumber || !text) return;
+    sections.push({
+      title,
+      category: entry.category,
+      source: `${entry.source} · ${sectionNumber}`,
+      text,
+    });
+  });
+
+  return sections.length ? sections : [entry];
+}
+
 function loadRulesIndex() {
-  rulesIndexPromise ||= loadCompleteSrdRules().then(
-    ({ completeSrdRules }) => [...coreRules, ...completeSrdRules, ...optionRules],
-  );
+  rulesIndexPromise ||= loadCompleteSrdRules().then(({ completeSrdRules }) => [
+    ...coreRules,
+    ...completeSrdRules.flatMap(segmentSrdEntry),
+    ...optionRules,
+  ]);
   return rulesIndexPromise;
 }
 
@@ -67,28 +99,77 @@ function loadRulesIndex() {
 export function preloadRulesSearch() {
   void loadRulesIndex();
 }
-const stopWords = new Set(["a","an","and","are","at","can","do","does","for","happen","happens","how","i","if","in","is","it","my","of","on","or","the","to","what","when","with"]);
-const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9+\- ]/g, " ").replace(/\s+/g, " ").trim();
+
+const stopWords = new Set([
+  "a", "an", "and", "are", "at", "be", "can", "do", "does", "for", "from", "happen", "happens", "how", "i", "if",
+  "in", "into", "is", "it", "me", "much", "my", "of", "on", "or", "somebody", "someone", "that", "the", "them", "they",
+  "this", "to", "what", "when", "where", "which", "while", "who", "why", "with",
+]);
+
+const normalize = (value: string) => value
+  .toLowerCase()
+  .replace(/[’']/g, "")
+  .replace(/\bhit[\s-]?points?\b/gu, "hp")
+  .replace(/\barmour\b/gu, "armor")
+  .replace(/\bstabilisation\b/gu, "stabilization")
+  .replace(/\bstabilise\b/gu, "stabilize")
+  .replace(/[^a-z0-9+\- ]/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
 const canonicalTerm = (term: string) => {
-  const irregular: Record<string,string> = {
-    fell:"fall", fallen:"fall", falling:"fall", falls:"fall",
-    died:"die", dying:"die", dead:"die",
-    healed:"heal", healing:"heal", heals:"heal",
+  const irregular: Record<string, string> = {
+    classes:"class",
+    committed:"commit",
+    committing:"commit",
+    died:"die",
+    dying:"die",
+    dead:"die",
+    fell:"fall",
+    fallen:"fall",
+    falling:"fall",
+    falls:"fall",
+    healed:"heal",
+    healing:"heal",
+    heals:"heal",
+    misses:"miss",
+    modifiers:"modifier",
+    returned:"return",
+    returning:"return",
+    returns:"return",
+    skills:"skill",
+    starting:"start",
+    wounded:"wound",
   };
   if (irregular[term]) return irregular[term];
-  if (term.length > 5 && term.endsWith("ing")) return term.slice(0, -3);
-  if (term.length > 4 && term.endsWith("ed")) return term.slice(0, -2);
+  if (term.length > 5 && term.endsWith("ies")) return `${term.slice(0, -3)}y`;
+  if (term.length > 5 && term.endsWith("ing")) {
+    const base = term.slice(0, -3);
+    return base.length > 2 && base.at(-1) === base.at(-2) ? base.slice(0, -1) : base;
+  }
+  if (term.length > 4 && term.endsWith("ed")) {
+    const base = term.slice(0, -2);
+    return base.length > 2 && base.at(-1) === base.at(-2) ? base.slice(0, -1) : base;
+  }
+  if (term.length > 5 && term.endsWith("sses")) return term.slice(0, -2);
   if (term.length > 4 && term.endsWith("s")) return term.slice(0, -1);
   return term;
 };
-const termsFor = (value: string) =>
-  normalize(value).split(" ").filter(term => term.length > 1 && !/^\d+$/.test(term) && !stopWords.has(term)).map(canonicalTerm);
+
+const termsFor = (value: string) => [...new Set(
+  normalize(value)
+    .split(" ")
+    .filter(term => term.length > 1 && !/^\d+$/u.test(term) && !stopWords.has(term))
+    .map(canonicalTerm),
+)];
+
 const containsPhrase = (text: string, phrase: string) =>
   phrase.length > 0 && (` ${text} `).includes(` ${phrase} `);
+
 const excerptFor = (text: string, terms: string[]) => {
   const excerptLength = 280;
   if (text.length <= excerptLength) return text;
-  const lower = text.toLowerCase();
+  const lower = normalize(text);
   const hits = terms.map(term => lower.indexOf(term)).filter(index => index >= 0);
   const hit = hits.length ? Math.min(...hits) : 0;
   const start = Math.max(0, hit - 70);
@@ -97,33 +178,109 @@ const excerptFor = (text: string, terms: string[]) => {
   return `${start ? "… " : ""}${excerpt}${end < text.length ? " …" : ""}`;
 };
 
+type ConceptMatch = {
+  concept: RuleConcept;
+  strength: number;
+};
+
+function matchedConcepts(normalizedQuestion: string, terms: string[]): ConceptMatch[] {
+  const queryTerms = new Set(terms);
+  return ruleConcepts.map(concept => {
+    let strength = 0;
+    for (const phrase of concept.phrases) {
+      const normalizedPhrase = normalize(phrase);
+      if (containsPhrase(normalizedQuestion, normalizedPhrase)) {
+        strength = Math.max(strength, 120 + Math.min(32, termsFor(normalizedPhrase).length * 8));
+      }
+    }
+
+    const conceptTerms = new Set(concept.terms.flatMap(termsFor));
+    const hits = [...conceptTerms].filter(term => queryTerms.has(term)).length;
+    if (hits >= 2) strength = Math.max(strength, 44 + hits * 15);
+    return { concept, strength };
+  }).filter(match => match.strength > 0)
+    .sort((left, right) => right.strength - left.strength);
+}
+
+function conceptBoost(entry: RuleEntry, matches: ConceptMatch[]) {
+  const title = normalize(entry.title);
+  let boost = 0;
+  for (const { concept, strength } of matches) {
+    const controllingIndex = concept.controllingTitles.findIndex(candidate => normalize(candidate) === title);
+    if (controllingIndex >= 0) {
+      boost = Math.max(boost, 180 + strength - controllingIndex * 10);
+      continue;
+    }
+    if (concept.relatedTitles?.some(candidate => normalize(candidate) === title)) {
+      boost = Math.max(boost, 45 + Math.round(strength * 0.4));
+    }
+  }
+  return boost;
+}
+
+function lexicalScore(entry: RuleEntry, normalizedQuestion: string, terms: string[]) {
+  const title = normalize(entry.title);
+  const aliases = (entry.aliases || []).filter(Boolean).map(normalize);
+  const titleTerms = new Set(termsFor(title));
+  const aliasTerms = new Set(termsFor(aliases.join(" ")));
+  const categoryTerms = new Set(termsFor(entry.category));
+  const sourceTerms = new Set(termsFor(entry.source));
+  const bodyTerms = new Set(termsFor(entry.text));
+  const queryTermSet = new Set(terms);
+
+  let score = 0;
+  if (title === normalizedQuestion) score += 220;
+  else if (normalizedQuestion.length > 2 && title.includes(normalizedQuestion)) score += 100;
+  else if (titleTerms.size > 1 && containsPhrase(normalizedQuestion, title)) score += 90;
+
+  if (titleTerms.size === queryTermSet.size && terms.every(term => titleTerms.has(term))) score += 90;
+  else if (terms.length > 1 && terms.every(term => titleTerms.has(term))) score += 45;
+
+  for (const alias of aliases) {
+    if (alias === normalizedQuestion) score += 130;
+    else if (containsPhrase(normalizedQuestion, alias)) score += termsFor(alias).length > 1 ? 90 : 65;
+  }
+
+  for (const term of terms) {
+    if (titleTerms.has(term)) score += 22;
+    if (aliasTerms.has(term)) score += 12;
+    if (sourceTerms.has(term)) score += 6;
+    if (categoryTerms.has(term)) score += 4;
+    if (bodyTerms.has(term)) score += 2;
+  }
+
+  if (terms.length > 1 && terms.every(term => titleTerms.has(term) || aliasTerms.has(term) || sourceTerms.has(term))) score += 30;
+  if (terms.length > 1 && terms.every(term => bodyTerms.has(term))) score += 8;
+  if (entry.text.length > 3000 && score < 100) score -= Math.min(18, Math.floor(entry.text.length / 3000) * 3);
+  return score;
+}
+
 export async function searchRules(question: string, limit = 4) {
   const normalizedQuestion = normalize(question);
   const terms = termsFor(question);
   if (!terms.length) return [];
+
   const rulesIndex = await loadRulesIndex();
-  return rulesIndex.map(entry => {
-    const title = normalize(entry.title);
-    const aliases = (entry.aliases || []).map(normalize);
-    const haystack = normalize(`${entry.title} ${entry.category} ${entry.source} ${entry.text} ${(entry.aliases || []).join(" ")}`);
-    const haystackTerms = new Set(termsFor(haystack));
-    let score = title === normalizedQuestion ? 100 : title.includes(normalizedQuestion) ? 40 : 0;
-    if (aliases.some(alias => containsPhrase(normalizedQuestion, alias))) score += 60;
-    if (aliases.some(alias => {
-      const aliasTerms = termsFor(alias);
-      return aliasTerms.length > 1 && aliasTerms.every(term => terms.includes(term));
-    })) score += 50;
-    const titleTerms = new Set(termsFor(title));
-    if (titleTerms.size === new Set(terms).size && terms.every(term => titleTerms.has(term))) score += 25;
-    for (const term of terms) score += titleTerms.has(term) ? 10 : haystackTerms.has(term) ? 3 : 0;
-    if (terms.every(term => haystackTerms.has(term))) score += 10;
-    return { entry, score };
-  }).filter(result => result.score > 0)
-    .sort((a,b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title))
-    .slice(0,limit)
-    .map(result => ({
+  const concepts = matchedConcepts(normalizedQuestion, terms);
+  const ranked = rulesIndex.map((entry, index) => ({
+    entry,
+    index,
+    score: lexicalScore(entry, normalizedQuestion, terms) + conceptBoost(entry, concepts),
+  })).filter(result => result.score > 0)
+    .sort((left, right) => right.score - left.score || left.entry.title.localeCompare(right.entry.title) || left.index - right.index);
+
+  const selected: RuleEntry[] = [];
+  const seenTitles = new Set<string>();
+  for (const result of ranked) {
+    const titleKey = normalize(result.entry.title);
+    if (seenTitles.has(titleKey)) continue;
+    seenTitles.add(titleKey);
+    selected.push({
       ...result.entry,
       fullText: result.entry.text,
       text: excerptFor(result.entry.text, terms),
-    }));
+    });
+    if (selected.length >= limit) break;
+  }
+  return selected;
 }

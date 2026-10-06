@@ -8,6 +8,7 @@ import "../../campaign-ui.css";
 import "../../campaign-map.css";
 import "../../gm-encounter-drawer.css";
 import "../../campaign-store.css";
+import "../../gm-console-roll-toolbar.css";
 
 export const metadata = { title: "GM Console | Tales Without End", robots: { index: false, follow: false } };
 

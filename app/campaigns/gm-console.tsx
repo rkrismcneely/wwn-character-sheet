@@ -79,7 +79,7 @@ function NpcMagicAdd({ kind, options, disabled, onAdd }: { kind: "Spell" | "Art"
       const option = options.find(candidate => candidate.key === event.currentTarget.value);
       if (option) onAdd({ name: option.name, ...(option.level === undefined ? {} : { level: option.level }), summary: option.summary });
       event.currentTarget.value = "";
-    }}><option value="">Copy existing {kind.toLowerCase()} values…</option>{options.map(option => <option key={option.key} value={option.key}>{option.name}{option.level === undefined ? "" : ` · Level ${option.level}`}</option>)}</select></label>
+    }}><option value="">Copy existing {kind.toLowerCase()}…</option>{options.map(option => <option key={option.key} value={option.key}>{option.name}{option.level === undefined ? "" : ` · Level ${option.level}`}</option>)}</select></label>
     <button type="button" className="campaign-secondary" disabled={disabled} onClick={() => onAdd(blankMagic())}>Add {kind}</button>
   </div>;
 }
@@ -379,6 +379,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
   const { style: diceStyle } = useDiceStylePreference();
   const { theme: displayTheme } = useDisplayTheme();
   const [pendingLatestRoll, setLatestRoll] = useState<RollResult | null>(null);
+  const [privateGmRolls, setPrivateGmRolls] = useState<RollResult[]>([]);
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
   const [npcRollBusy, setNpcRollBusy] = useState(false);
   const [rollError, setRollError] = useState("");
@@ -473,6 +474,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
         finally { if (watchdog !== undefined) window.clearTimeout(watchdog); }
       }
       setLatestRoll(roll);
+      setPrivateGmRolls(current => [roll, ...current].slice(0, 50));
       if (animationFailed) setRollError("Animated dice were unavailable; the roll completed normally.");
     } catch (rollActionError) { setRollError(rollActionError instanceof Error ? rollActionError.message : "The GM roll could not be completed."); }
     finally { npcRollBusyRef.current = false; setNpcRollBusy(false); }
@@ -501,20 +503,26 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
 
   const canManageEncounter = state.permissions.canManageEncounter;
   const sharedHistory = session?.recentRolls ?? [];
-  const latestRoll = [pendingLatestRoll, sharedHistory[0]].filter((roll): roll is RollResult => Boolean(roll)).sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0] || null;
+  const gmHistory = [...privateGmRolls, ...sharedHistory].sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp)).slice(0, 100);
+  const latestRoll = [pendingLatestRoll, gmHistory[0]].filter((roll): roll is RollResult => Boolean(roll)).sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0] || null;
   return <main className="campaign-shell gm-console-shell">
     <SignedInHeader active="campaigns" />
     <section className="campaign-hero gm-console-hero">
       <div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div>
-      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link><button type="button" className={session ? "campaign-danger" : "campaign-primary"} disabled={busy || npcRollBusy} onClick={() => void action(session ? "end" : "start").catch(() => {})}>{session ? "End Session" : "Start Session"}</button></div>
+      <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link><button type="button" className={session ? "campaign-danger" : "campaign-primary"} disabled={busy || npcRollBusy} onClick={() => void action(session ? "end" : "start").then(() => { if (session) { setPrivateGmRolls([]); setLatestRoll(null); setRollHistoryOpen(false); } }).catch(() => {})}>{session ? "End Session" : "Start Session"}</button></div>
     </section>
     {session && state.permissions.joined && <section className="gm-console-roll-row" aria-label="Campaign roll tools">
-      <div className="gm-console-latest-roll"><RollResultTray result={latestRoll || sharedHistory[0] || null} /></div>
-      <div className="gm-console-roll-history-control" style={{ gap: 6 }}>
-        <button type="button" className="campaign-secondary" aria-label="Roll a private GM d20" title="Private GM roll" disabled={npcRollBusy} onClick={() => void rollGmDice(1, 20, "d20")}>d20</button>
-        <button type="button" className="campaign-secondary" aria-label="Roll private GM 2d6" title="Private GM roll" disabled={npcRollBusy} onClick={() => void rollGmDice(2, 6, "2d6")}>2d6</button>
-        <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="gm-roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}>Roll History{sharedHistory.length ? ` (${sharedHistory.length})` : ""}</button>
-        {rollHistoryOpen && <div className="roll-history-popout" id="gm-roll-history-popout"><RollHistoryPanel history={sharedHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} description="Recent shared campaign rolls" /></div>}
+      <div className="gm-console-latest-roll"><RollResultTray result={latestRoll} /></div>
+      <div className="gm-console-roll-history-control">
+        <div className="gm-console-private-rolls" aria-label="Private GM rolls">
+          <span className="gm-console-roll-tools-label">Private GM Rolls</span>
+          <div className="gm-console-quick-roll-buttons">
+            <button type="button" className="gm-console-quick-roll" aria-label="Roll a private GM d20" title="Private GM roll" disabled={npcRollBusy} onClick={() => void rollGmDice(1, 20, "d20")}>d20</button>
+            <button type="button" className="gm-console-quick-roll" aria-label="Roll private GM 2d6" title="Private GM roll" disabled={npcRollBusy} onClick={() => void rollGmDice(2, 6, "2d6")}>2d6</button>
+          </div>
+        </div>
+        <button type="button" className="roll-history-toggle gm-console-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="gm-roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}><span>Roll History</span>{gmHistory.length ? <span className="gm-console-history-count" aria-hidden="true">{gmHistory.length}</span> : null}</button>
+        {rollHistoryOpen && <div className="roll-history-popout" id="gm-roll-history-popout"><RollHistoryPanel history={gmHistory} open={rollHistoryOpen} onClose={() => setRollHistoryOpen(false)} description="Shared campaign rolls + private GM rolls visible only to the GM" /></div>}
       </div>
     </section>}
     {(error || rollError) && <div className="campaign-error" role="status">{error || rollError}</div>}

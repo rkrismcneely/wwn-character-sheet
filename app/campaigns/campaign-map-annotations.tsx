@@ -165,7 +165,8 @@ export function useCampaignMapAnnotations({
   }, [campaignId, height, mapId, open, width]);
 
   useEffect(() => {
-    void reload();
+    const initialLoad = window.setTimeout(() => { void reload(); }, 0);
+    return () => window.clearTimeout(initialLoad);
   }, [reload]);
 
   useEffect(() => {

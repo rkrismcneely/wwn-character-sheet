@@ -4,6 +4,7 @@ export type RuleConcept = {
   terms: string[];
   controllingTitles: string[];
   relatedTitles?: string[];
+  anchors?: string[];
 };
 
 // Concepts translate the language a player is likely to use at the table into
@@ -489,6 +490,7 @@ export const ruleConcepts: RuleConcept[] = [
     id: "faction-turn",
     phrases: ["how does a faction turn work", "faction turn"],
     terms: ["faction", "turn", "work"],
+    anchors: ["faction"],
     controllingTitles: ["The Faction Turn"],
     relatedTitles: ["Faction Turn Actions", "Faction Statistics"],
   },
@@ -496,6 +498,7 @@ export const ruleConcepts: RuleConcept[] = [
     id: "faction-actions",
     phrases: ["what can a faction do on its turn", "faction action", "faction turn actions"],
     terms: ["faction", "action", "turn", "do"],
+    anchors: ["faction"],
     controllingTitles: ["Faction Turn Actions"],
     relatedTitles: ["The Faction Turn"],
   },
@@ -503,12 +506,14 @@ export const ruleConcepts: RuleConcept[] = [
     id: "major-projects",
     phrases: ["major project", "how do major projects work"],
     terms: ["major", "project", "work"],
+    anchors: ["project"],
     controllingTitles: ["Major Projects"],
   },
   {
     id: "project-scope",
     phrases: ["project scope", "scope determined", "determine project scope"],
     terms: ["project", "scope", "determine"],
+    anchors: ["project"],
     controllingTitles: ["Determining the Project Scope"],
     relatedTitles: ["Major Projects"],
   },
@@ -516,7 +521,101 @@ export const ruleConcepts: RuleConcept[] = [
     id: "project-difficulty",
     phrases: ["project difficulty", "difficulty of a major project", "set project difficulty"],
     terms: ["project", "difficulty", "set", "major"],
+    anchors: ["project"],
     controllingTitles: ["Determining the Project Difficulty"],
     relatedTitles: ["Major Projects"],
+  },
+
+  {
+    id: "starting-attack-bonus",
+    phrases: ["class attack bonus at character creation", "starting attack bonus", "record attack bonus"],
+    terms: ["start", "attack", "bonus", "creation", "class"],
+    controllingTitles: ["Record Attack Bonus"],
+  },
+  {
+    id: "exploring-a-hex",
+    phrases: ["explores a new hex", "explore a new hex", "exploring a hex"],
+    terms: ["explore", "new", "hex", "party"],
+    controllingTitles: ["Exploring a Hex"],
+  },
+  {
+    id: "starvation-privation",
+    phrases: ["no food water or warmth", "starving thirsting and freezing", "starving and thirsty", "without food or water"],
+    terms: ["food", "water", "warmth", "starve", "thirst", "freeze"],
+    controllingTitles: ["Starving, Thirsting, and Freezing"],
+    relatedTitles: ["Supplies for an Expedition"],
+  },
+  {
+    id: "foraging",
+    phrases: ["forage for food", "foraging in the wilderness", "find food in the wilderness"],
+    terms: ["forage", "food", "wilderness"],
+    controllingTitles: ["Foraging"],
+  },
+  {
+    id: "dungeon-order",
+    phrases: ["order while exploring a dungeon", "order of play in a dungeon", "dungeon order of play"],
+    terms: ["dungeon", "order", "explore", "play"],
+    controllingTitles: ["The Order of Play"],
+  },
+  {
+    id: "dungeon-fleeing",
+    phrases: ["fleeing during dungeon exploration", "flee in a dungeon", "dungeon fleeing"],
+    terms: ["dungeon", "flee", "movement", "explore"],
+    controllingTitles: ["Movement and Fleeing"],
+  },
+  {
+    id: "npc-attack-rolls",
+    phrases: ["npc attack rolls", "how do npc attack rolls work", "npc attacks roll"],
+    terms: ["npc", "attack", "roll"],
+    controllingTitles: ["NPC Attack Rolls"],
+    relatedTitles: ["Combat Attack Rolls"],
+  },
+  {
+    id: "damage-and-shock",
+    phrases: ["damage and shock", "how are damage and shock handled", "damage plus shock"],
+    terms: ["damage", "shock", "attack", "handle"],
+    controllingTitles: ["Damage and Shock"],
+    relatedTitles: ["Shock Damage"],
+  },
+  {
+    id: "advancement-hit-points",
+    phrases: ["maximum hit points improve when i level", "hit points improve when i level", "additional hit points when leveling"],
+    terms: ["maximum", "hp", "improve", "level"],
+    controllingTitles: ["Additional Hit Points"],
+    relatedTitles: ["Advancement Benefits"],
+  },
+  {
+    id: "advancement-saving-throw",
+    phrases: ["saving throws improve with advancement", "saving throw improve when i level", "improved saving throw"],
+    terms: ["saving", "throw", "improve", "advance", "level"],
+    controllingTitles: ["Improved Saving Throw"],
+    relatedTitles: ["Advancement Benefits"],
+  },
+  {
+    id: "advancement-attack-bonus",
+    phrases: ["attack bonus improve", "attack bonus improve when i level", "improved attack bonus"],
+    terms: ["attack", "bonus", "improve", "level"],
+    controllingTitles: ["Improved Attack Bonus"],
+    relatedTitles: ["Advancement Benefits"],
+  },
+  {
+    id: "advancement-attributes",
+    phrases: ["improve my attributes when i level", "improving attributes", "raise attributes with advancement"],
+    terms: ["improve", "attribute", "level", "advance"],
+    controllingTitles: ["Improving Attributes"],
+    relatedTitles: ["Advancement Benefits"],
+  },
+  {
+    id: "crafting-gear",
+    phrases: ["craft ordinary gear", "crafting gear", "make ordinary equipment"],
+    terms: ["craft", "gear", "equipment", "ordinary"],
+    controllingTitles: ["Crafting Gear"],
+    relatedTitles: ["Modifying Gear"],
+  },
+  {
+    id: "gear-bundles",
+    phrases: ["gear bundles", "gear bundles when buying starting equipment", "buy a gear bundle"],
+    terms: ["gear", "bundle", "buy", "start", "equipment"],
+    controllingTitles: ["Gear Bundles"],
   },
 ];

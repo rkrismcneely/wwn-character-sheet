@@ -24,6 +24,7 @@ export type CampaignMapDrawingTool = CampaignMapAnnotationKind | "erase";
 
 type DrawingDraft = {
   pointerId: number;
+  mapId: string;
   kind: CampaignMapAnnotationKind;
   start: CampaignMapPoint;
   latest: CampaignMapPoint;
@@ -145,10 +146,7 @@ export function useCampaignMapAnnotations({
   const loadSequence = useRef(0);
 
   const reload = useCallback(async () => {
-    if (!open || !mapId || !width || !height) {
-      setAnnotations([]);
-      return;
-    }
+    if (!open || !mapId || !width || !height) return;
     const sequence = ++loadSequence.current;
     try {
       const params = new URLSearchParams({ mapId });
@@ -189,12 +187,6 @@ export function useCampaignMapAnnotations({
     };
     return () => channel.close();
   }, [campaignId, open, reload]);
-
-  useEffect(() => {
-    draftRef.current = null;
-    setDraftState(null);
-    setToolState(null);
-  }, [canManage, mapId, open]);
 
   const persistAnnotation = useCallback(async (geometry: CampaignMapAnnotationGeometry) => {
     if (!mapId || !canManage) return;
@@ -283,8 +275,10 @@ export function useCampaignMapAnnotations({
     if (tool === "erase" || busy) return true;
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
     if (!point) return true;
+    if (!mapId) return true;
     const next: DrawingDraft = {
       pointerId: event.pointerId,
+      mapId,
       kind: tool,
       start: point,
       latest: point,
@@ -293,11 +287,11 @@ export function useCampaignMapAnnotations({
     setDraft(next);
     event.currentTarget.setPointerCapture(event.pointerId);
     return true;
-  }, [busy, canManage, height, setDraft, tool, width]);
+  }, [busy, canManage, height, mapId, setDraft, tool, width]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
     const current = draftRef.current;
-    if (!current || current.pointerId !== event.pointerId || !width || !height) return false;
+    if (!current || current.mapId !== mapId || current.pointerId !== event.pointerId || !width || !height) return false;
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
     if (!point) return true;
     event.preventDefault();
@@ -308,11 +302,11 @@ export function useCampaignMapAnnotations({
     }
     setDraft({ ...current, latest: point, points });
     return true;
-  }, [height, setDraft, width]);
+  }, [height, mapId, setDraft, width]);
 
   const handlePointerEnd = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
     const current = draftRef.current;
-    if (!current || current.pointerId !== event.pointerId || !width || !height) return false;
+    if (!current || current.mapId !== mapId || current.pointerId !== event.pointerId || !width || !height) return false;
     event.preventDefault();
     const end = pointFromEvent(event.currentTarget, event.nativeEvent, width, height) ?? current.latest;
     let points = current.points;
@@ -328,11 +322,11 @@ export function useCampaignMapAnnotations({
       if (validated) void persistAnnotation(validated);
     }
     return true;
-  }, [height, persistAnnotation, setDraft, width]);
+  }, [height, mapId, persistAnnotation, setDraft, width]);
 
   return {
     annotations,
-    draft: draftState && width && height ? draftGeometry(draftState, width, height) : null,
+    draft: draftState && draftState.mapId === mapId && width && height ? draftGeometry(draftState, width, height) : null,
     tool,
     visibility,
     busy,

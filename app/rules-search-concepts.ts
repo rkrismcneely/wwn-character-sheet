@@ -319,7 +319,7 @@ export const ruleConcepts: RuleConcept[] = [
   },
   {
     id: "npc-mortal-injury",
-    phrases: ["unnamed npcs at zero hp", "npc mortal injury", "ordinary npc at zero"],
+    phrases: ["unnamed npcs at zero hp", "npc mortal injury", "ordinary npc at zero", "unnamed npcs get mortal injury"],
     terms: ["npc", "mortal", "injury", "zero", "hp"],
     controllingTitles: ["NPCs and Mortal Injury"],
     relatedTitles: ["Mortal Injury and Stabilization"],
@@ -332,7 +332,7 @@ export const ruleConcepts: RuleConcept[] = [
   },
   {
     id: "nonlethal-incapacitation",
-    phrases: ["non lethal damage to zero", "non-lethal damage to zero", "knocked to zero non lethal"],
+    phrases: ["non lethal damage to zero", "non-lethal damage to zero", "knocked to zero non lethal", "non-lethal damage takes someone to zero"],
     terms: ["nonlethal", "zero", "incapacitation", "damage"],
     controllingTitles: ["Non-Lethal Incapacitation"],
     relatedTitles: ["Non-Lethal Damage"],
@@ -435,7 +435,7 @@ export const ruleConcepts: RuleConcept[] = [
   },
   {
     id: "spell-development-check",
-    phrases: ["finish developing a spell", "development skill check", "roll to develop a spell"],
+    phrases: ["finish developing a spell", "finish developing a new spell", "roll is used to finish developing a new spell", "development skill check", "roll to develop a spell"],
     terms: ["develop", "spell", "roll", "check", "finish"],
     controllingTitles: ["The Development Skill Check"],
     relatedTitles: ["Preparing To Develop a Spell"],

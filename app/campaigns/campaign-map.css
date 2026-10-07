@@ -873,3 +873,177 @@
   }
   .campaign-map-drawer-resize-handle { display: none; }
 }
+
+
+/* Map drawing & annotations v1 */
+.campaign-map-svg.is-drawing {
+  cursor: crosshair;
+}
+
+.campaign-map-svg.is-drawing.is-erase {
+  cursor: cell;
+}
+
+.campaign-map-drawing-palette {
+  position: absolute;
+  z-index: 12;
+  top: .75rem;
+  left: .75rem;
+  display: grid;
+  gap: .5rem;
+  width: min(42rem, calc(100% - 1.5rem));
+  padding: .55rem;
+  border: 1px solid rgba(222, 184, 111, .68);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface, #17130f) 94%, #000 6%);
+  box-shadow: 0 9px 30px rgba(0, 0, 0, .38);
+  color: var(--text, #f4ead8);
+  pointer-events: auto;
+}
+
+.campaign-map-drawing-tools,
+.campaign-map-drawing-options,
+.campaign-map-drawing-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .32rem;
+}
+
+.campaign-map-drawing-palette button {
+  min-height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--border, #725f47) 72%, transparent);
+  border-radius: 7px;
+  padding: .42rem .62rem;
+  background: color-mix(in srgb, var(--surface, #17130f) 82%, #000 18%);
+  color: var(--text, #f4ead8);
+  font: 650 .74rem/1 var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+
+.campaign-map-drawing-palette button:hover,
+.campaign-map-drawing-palette button:focus-visible,
+.campaign-map-drawing-palette button.is-active {
+  border-color: rgba(236, 187, 79, .95);
+  background: color-mix(in srgb, #8a5e20 34%, var(--surface, #17130f));
+  color: #fff3cf;
+}
+
+.campaign-map-drawing-palette button:focus-visible {
+  outline: 2px solid #f2cb78;
+  outline-offset: 1px;
+}
+
+.campaign-map-drawing-palette button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.campaign-map-drawing-options {
+  padding-top: .42rem;
+  border-top: 1px solid color-mix(in srgb, var(--border, #725f47) 42%, transparent);
+}
+
+.campaign-map-drawing-options > span {
+  margin-right: .18rem;
+  color: var(--text-muted, #b9ad9b);
+  font: 700 .67rem/1 var(--font-ui, sans-serif);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.campaign-map-drawing-options button:first-of-type.is-active {
+  border-color: rgba(244, 207, 114, .9);
+  color: #ffe49b;
+}
+
+.campaign-map-drawing-options button:nth-of-type(2).is-active {
+  border-color: rgba(125, 211, 252, .9);
+  color: #b8e8ff;
+}
+
+.campaign-map-drawing-actions {
+  justify-content: flex-end;
+}
+
+.campaign-map-drawing-palette > small {
+  color: var(--text-muted, #b9ad9b);
+  font-size: .72rem;
+}
+
+.campaign-map-drawing-error {
+  margin: 0;
+  color: #ffb6a7;
+  font-size: .75rem;
+}
+
+.campaign-map-annotation-layer {
+  pointer-events: none;
+}
+
+.campaign-map-annotation {
+  stroke: #f4cf72;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .78));
+  pointer-events: none;
+}
+
+.campaign-map-annotation-group.is-gm .campaign-map-annotation {
+  stroke: #7dd3fc;
+  stroke-dasharray: 8 5;
+}
+
+.campaign-map-annotation-preview {
+  stroke: #fff8dd;
+  stroke-width: 4;
+  stroke-dasharray: 6 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .9));
+  pointer-events: none;
+}
+
+.campaign-map-annotation-layer.is-erasing,
+.campaign-map-annotation-group.is-erasable {
+  pointer-events: all;
+}
+
+.campaign-map-annotation-group.is-erasable:focus {
+  outline: none;
+}
+
+.campaign-map-annotation-group.is-erasable:focus .campaign-map-annotation {
+  stroke-width: 6;
+  filter: drop-shadow(0 0 4px #fff);
+}
+
+.campaign-map-annotation-hit {
+  stroke: rgba(255,255,255,.001);
+  stroke-width: 22px;
+  pointer-events: stroke;
+  cursor: cell;
+}
+
+.campaign-map-annotation-hit.is-area {
+  fill: rgba(255,255,255,.001);
+  pointer-events: all;
+}
+
+@media (max-width: 820px) {
+  .campaign-map-drawing-palette {
+    top: .55rem;
+    left: .55rem;
+    width: calc(100% - 1.1rem);
+    max-height: 42%;
+    overflow-y: auto;
+  }
+  .campaign-map-drawing-palette button {
+    min-height: 44px;
+    padding-inline: .72rem;
+  }
+  .campaign-map-drawing-actions {
+    justify-content: flex-start;
+  }
+}

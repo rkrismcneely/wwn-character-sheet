@@ -266,6 +266,9 @@ export function CampaignMapWorkspace({
   const [tokenDragMeasurement, setTokenDragMeasurement] = useState<TokenDragMeasurement | null>(null);
   const [tokenDragOrigin, setTokenDragOrigin] = useState<TokenDragOrigin | null>(null);
   const [fogMode, setFogMode] = useState<FogMode | null>(null);
+  const publishMapInvalidation = useCallback(() => {
+    mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId });
+  }, [campaignId]);
   const annotations = useCampaignMapAnnotations({
     campaignId,
     mapId: map?.id ?? null,
@@ -309,7 +312,6 @@ export function CampaignMapWorkspace({
 
   useEffect(() => { if (!open || typeof BroadcastChannel === "undefined") return; const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`); mapSyncChannelRef.current = channel; channel.onmessage = event => { const message = event.data as { type?: unknown; campaignId?: unknown } | null; if (message?.type !== "map-changed" || message.campaignId !== campaignId) return; const requestedMapId = canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; return () => { if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null; channel.close(); }; }, [campaignId, loadMap, open]);
   useEffect(() => { if (!initialPresentation || !initialOpen) return; const initialLoad = window.setTimeout(() => { void loadMap(false); }, 0); return () => window.clearTimeout(initialLoad); }, [initialOpen, initialPresentation, loadMap]);
-  function publishMapInvalidation() { mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId }); }
   useEffect(() => { const onOpenMap = (event: Event) => { const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail; if (detail?.campaignId !== campaignId) return; if (detail.action === "close") { closeMap(); return; } if (open) return; dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }; window.addEventListener(campaignMapOpenEvent, onOpenMap); return () => window.removeEventListener(campaignMapOpenEvent, onOpenMap); }, [campaignId, closeMap, loadMap, open]);
   useEffect(() => { if (!open) return; const onMapChanged = (event: Event) => { const detail = (event as CustomEvent<{ campaignId?: string }>).detail; if (detail?.campaignId !== campaignId) return; const requestedMapId = canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; window.addEventListener(campaignMapChangedEvent, onMapChanged); return () => window.removeEventListener(campaignMapChangedEvent, onMapChanged); }, [campaignId, loadMap, open]);
 

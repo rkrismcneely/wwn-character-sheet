@@ -10,6 +10,7 @@ const migrationNames = [
   "0021_action_bundle_9_companion_map_tokens.sql",
   "0022_action_bundle_10_grid_types.sql",
   "0023_action_bundle_10_map_fog.sql",
+  "0025_campaign_map_annotations.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -107,6 +108,7 @@ for (const table of [
   "campaign_map_preferences",
   "campaign_map_token_sizes",
   "campaign_map_fog_cells",
+  "campaign_map_annotations",
 ]) {
   if (!tables.has(table)) throw new Error(`Production is missing table ${table}.`);
 }
@@ -161,6 +163,17 @@ for (const column of ["map_id", "campaign_id", "cell_q", "cell_r", "created_at"]
   if (!fogColumns.has(column)) throw new Error(`campaign_map_fog_cells is missing ${column}.`);
 }
 
+const annotationColumns = new Set(query("PRAGMA table_info(campaign_map_annotations)").map(row => row.name));
+for (const column of ["id", "campaign_id", "map_id", "kind", "visibility", "geometry_json", "created_at"]) {
+  if (!annotationColumns.has(column)) throw new Error(`campaign_map_annotations is missing ${column}.`);
+}
+const invalidAnnotationRows = query(`SELECT COUNT(*) AS count FROM campaign_map_annotations
+  WHERE kind NOT IN ('freehand', 'line', 'arrow', 'rect', 'circle')
+     OR visibility NOT IN ('players', 'gm')`)[0]?.count ?? 0;
+if (Number(invalidAnnotationRows) !== 0) {
+  throw new Error("campaign_map_annotations contains an unsupported kind or visibility.");
+}
+
 const indexes = new Set(query("SELECT name FROM sqlite_master WHERE type = 'index'").map(row => row.name));
 for (const index of [
   "campaign_maps_campaign_idx",
@@ -170,6 +183,8 @@ for (const index of [
   "campaign_map_preferences_campaign_idx",
   "campaign_map_token_sizes_map_idx",
   "campaign_map_fog_cells_campaign_map_idx",
+  "campaign_map_annotations_map_created_idx",
+  "campaign_map_annotations_campaign_map_idx",
 ]) {
   if (!indexes.has(index)) throw new Error(`Production is missing index ${index}.`);
 }

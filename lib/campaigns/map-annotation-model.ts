@@ -52,15 +52,19 @@ export function parseCampaignMapAnnotationGeometry(
   if (kind === "freehand") {
     if (!Array.isArray(value.points) || value.points.length < 2 || value.points.length > 400) return null;
     const points: CampaignMapPoint[] = [];
+    let hasVisibleSegment = false;
     for (const rawPoint of value.points) {
       if (!rawPoint || typeof rawPoint !== "object") return null;
       const point = rawPoint as Record<string, unknown>;
       const x = finiteCoordinate(point.x, mapWidth);
       const y = finiteCoordinate(point.y, mapHeight);
       if (x === null || y === null) return null;
-      points.push({ x, y });
+      const next = { x, y };
+      const previous = points.at(-1);
+      if (previous && Math.hypot(next.x - previous.x, next.y - previous.y) >= 1) hasVisibleSegment = true;
+      points.push(next);
     }
-    return { kind, points };
+    return hasVisibleSegment ? { kind, points } : null;
   }
   if (kind === "line" || kind === "arrow") {
     const x1 = finiteCoordinate(value.x1, mapWidth);

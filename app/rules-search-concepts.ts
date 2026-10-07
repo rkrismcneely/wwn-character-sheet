@@ -65,8 +65,8 @@ export const ruleConcepts: RuleConcept[] = [
   },
   {
     id: "fighting-withdrawal",
-    phrases: ["fighting withdrawal", "leave melee", "disengage", "free attack", "parting attack"],
-    terms: ["leave", "melee", "free", "attack", "retreat", "disengage"],
+    phrases: ["fighting withdrawal", "leave melee", "disengage", "free attack", "parting attack", "run away", "move away from melee"],
+    terms: ["leave", "melee", "free", "attack", "retreat", "disengage", "run", "away", "fight"],
     controllingTitles: ["Fighting Withdrawal"],
   },
   {
@@ -86,6 +86,7 @@ export const ruleConcepts: RuleConcept[] = [
     phrases: ["cast in armor", "cast a spell in armor", "cast while wearing armor", "mage armor", "spellcasting and armor"],
     terms: ["cast", "spell", "mage", "armor", "armour", "shield"],
     controllingTitles: ["Spellcasting and Armor"],
+    relatedTitles: ["Armored Magic"],
   },
   {
     id: "effort-commitment",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { preloadRulesSearch, searchRules, type RuleEntry } from "./rules-search";
+import { getRuleDetail, preloadRulesSearch, searchRules, type RuleEntry, type RuleReference } from "./rules-search";
 
 function formattedRuleText(text: string): ReactNode[] {
   const blocks = text.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
@@ -39,9 +39,85 @@ function formattedRuleText(text: string): ReactNode[] {
   });
 }
 
+function matchKindLabel(rule: RuleEntry, best = false) {
+  if (rule.matchKind === "controlling") return best ? "Best answer · Controlling rule" : "Controlling rule";
+  if (rule.matchKind === "supporting") return "Supporting rule";
+  return best ? "Best match" : "Related match";
+}
+
+function referenceKey(reference: RuleReference) {
+  return `${reference.source}:${reference.title}`;
+}
+
+function RuleDetailView({
+  rule,
+  onBack,
+  onOpenRule,
+}: {
+  rule: RuleEntry;
+  onBack: () => void;
+  onOpenRule: (title: string) => void;
+}) {
+  const parents = rule.context?.parents ?? [];
+  const children = rule.context?.children ?? [];
+  const nearby = rule.context?.nearby ?? [];
+  const related = rule.relatedRules ?? [];
+  const detailTitle = rule.detailTitle || rule.title;
+  const detailSource = rule.detailSource || rule.source;
+
+  return <article className="rule-detail-view">
+    <div className="rule-detail-navigation">
+      <button type="button" className="rule-detail-back" onClick={onBack}>← Back to results</button>
+      <span className={`rule-result-kind ${rule.matchKind || "match"}`}>{matchKindLabel(rule, true)}</span>
+    </div>
+    <header className="rule-detail-heading">
+      <h3>{rule.title}</h3>
+      <small>{rule.source}</small>
+    </header>
+    <section className="rule-detail-quick" aria-labelledby="rule-detail-quick-heading">
+      <h4 id="rule-detail-quick-heading">Quick answer</h4>
+      <p>{rule.text}</p>
+    </section>
+    <section className="rule-detail-full" aria-labelledby="rule-detail-full-heading">
+      <div className="rule-detail-section-heading">
+        <h4 id="rule-detail-full-heading">Full rule{detailTitle !== rule.title ? ` · ${detailTitle}` : ""}</h4>
+        <small>{detailSource}</small>
+      </div>
+      {formattedRuleText(rule.fullText || rule.text)}
+    </section>
+    {parents.length > 0 && <section className="rule-detail-context" aria-labelledby="rule-detail-context-heading">
+      <h4 id="rule-detail-context-heading">Rule context</h4>
+      <p className="rule-detail-help">The immediate rule structure around this section, so the result is not read in isolation.</p>
+      {parents.map((parent, index) => <details className="rule-context-section" key={referenceKey(parent)} open={index === 0 ? true : undefined}>
+        <summary><strong>{parent.title}</strong><small>{parent.source}</small></summary>
+        <div>{formattedRuleText(parent.text)}</div>
+      </details>)}
+    </section>}
+    {children.length > 0 && <section className="rule-detail-links" aria-labelledby="rule-detail-subrules-heading">
+      <h4 id="rule-detail-subrules-heading">Direct subrules</h4>
+      <div className="rule-related-links">{children.map(child => <button type="button" className="rule-related-link" key={referenceKey(child)} onClick={() => onOpenRule(child.title)}>
+        <strong>{child.title}</strong><span>{child.text}</span><small>{child.source}</small>
+      </button>)}</div>
+    </section>}
+    {related.length > 0 && <section className="rule-detail-links" aria-labelledby="rule-detail-related-heading">
+      <h4 id="rule-detail-related-heading">Related rules</h4>
+      <div className="rule-related-links compact">{related.map(reference => <button type="button" className="rule-related-link" key={referenceKey(reference)} onClick={() => onOpenRule(reference.title)}>
+        <strong>{reference.title}</strong><small>{reference.source}</small>
+      </button>)}</div>
+    </section>}
+    {nearby.length > 0 && <section className="rule-detail-links" aria-labelledby="rule-detail-nearby-heading">
+      <h4 id="rule-detail-nearby-heading">Nearby rules</h4>
+      <div className="rule-related-links compact">{nearby.map(reference => <button type="button" className="rule-related-link" key={referenceKey(reference)} onClick={() => onOpenRule(reference.title)}>
+        <strong>{reference.title}</strong><small>{reference.source}</small>
+      </button>)}</div>
+    </section>}
+  </article>;
+}
+
 export function RulesAssistant({ compact = false, className = "", id = "rules-question" }: { compact?: boolean; className?: string; id?: string }) {
   const [question, setQuestion] = useState("");
   const [results, setResults] = useState<RuleEntry[]>([]);
+  const [selectedRule, setSelectedRule] = useState<RuleEntry | null>(null);
   const [searched, setSearched] = useState(false);
   const [open, setOpen] = useState(!compact);
   const assistant = useRef<HTMLFormElement>(null);
@@ -50,6 +126,7 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
 
   const close = useCallback(() => {
     setSearched(false);
+    setSelectedRule(null);
     if (compact) setOpen(false);
   }, [compact]);
 
@@ -58,7 +135,13 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion) return;
     setResults(await searchRules(trimmedQuestion));
+    setSelectedRule(null);
     setSearched(true);
+  }
+
+  async function openRuleDetail(title: string) {
+    const detail = await getRuleDetail(title, question.trim());
+    if (detail) setSelectedRule(detail);
   }
 
   useEffect(() => {
@@ -83,11 +166,18 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
       <input ref={input} id={id} name="wwn-rules-question-no-history" type="search" autoComplete="off" data-lpignore="true" value={question} onChange={event => setQuestion(event.target.value)} onFocus={preloadRulesSearch} placeholder="What happens at 0 HP?" />
       <button type="submit">Search</button>
     </div>
-    {searched && <div className="rules-results" aria-live="polite">
-      {results.length ? results.map(result => <details className="rule-result" key={`${result.source}:${result.title}`}>
-        <summary><span className="rule-result-heading"><strong>{result.title}</strong><span className="rule-result-toggle" aria-hidden="true">Show full section</span></span><p className="rule-result-preview">{result.text}</p><small className="rule-result-source">{result.source}</small></summary>
-        <div className="rule-result-full">{formattedRuleText(result.fullText || result.text)}<span aria-hidden="true">Click the result again to collapse</span></div>
-      </details>) : <p className="rules-no-result">No close SRD match found. Try a rule name such as “System Strain,” “Shock,” or a spell, Art, Focus, or weapon name.</p>}
+    {searched && <div className={`rules-results${selectedRule ? " has-rule-detail" : ""}`} aria-live="polite">
+      {selectedRule
+        ? <RuleDetailView rule={selectedRule} onBack={() => setSelectedRule(null)} onOpenRule={title => void openRuleDetail(title)} />
+        : results.length
+          ? <div className="rule-result-list">{results.map((result, index) => <article className="rule-result" key={`${result.source}:${result.title}`}>
+              <button type="button" className="rule-result-summary" onClick={() => void openRuleDetail(result.title)}>
+                <span className="rule-result-heading"><strong>{result.title}</strong><span className={`rule-result-kind ${result.matchKind || "match"}`}>{matchKindLabel(result, index === 0)}</span></span>
+                <p className="rule-result-preview">{result.text}</p>
+                <span className="rule-result-footer"><small className="rule-result-source">{result.source}</small><span className="rule-result-toggle">More details →</span></span>
+              </button>
+            </article>)}</div>
+          : <p className="rules-no-result">No close SRD match found. Try a rule name such as “System Strain,” “Shock,” or a spell, Art, Focus, or weapon name.</p>}
     </div>}
   </>;
 

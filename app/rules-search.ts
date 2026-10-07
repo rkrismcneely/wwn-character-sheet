@@ -28,6 +28,8 @@ export type RuleEntry = {
   detailTitle?: string;
   detailSource?: string;
   matchKind?: "controlling" | "supporting" | "match";
+  confidence?: "high" | "medium" | "low";
+  ambiguous?: boolean;
   context?: RuleContext;
   relatedRules?: RuleReference[];
 };
@@ -386,15 +388,30 @@ function relatedReferences(entry: RuleEntry, matches: ConceptMatch[], rulesIndex
   return references;
 }
 
-function enrichedRule(entry: RuleEntry, rulesIndex: IndexedRule[], matches: ConceptMatch[], terms: string[]): RuleEntry {
+function confidenceFor(score: number, matchKind: RuleEntry["matchKind"]): RuleEntry["confidence"] {
+  if (matchKind === "controlling" || score >= 160) return "high";
+  if (matchKind === "supporting" || score >= 55) return "medium";
+  return "low";
+}
+
+function enrichedRule(
+  entry: RuleEntry,
+  rulesIndex: IndexedRule[],
+  matches: ConceptMatch[],
+  terms: string[],
+  metadata?: { score?: number; ambiguous?: boolean },
+): RuleEntry {
   const detail = bestDetailedEntry(entry, rulesIndex);
+  const matchKind = matchKindFor(entry, matches);
   return {
     ...entry,
     text: excerptFor(entry.text, terms),
     fullText: detail.text,
     detailTitle: detail.title,
     detailSource: detail.source,
-    matchKind: matchKindFor(entry, matches),
+    matchKind,
+    confidence: confidenceFor(metadata?.score ?? 160, matchKind),
+    ambiguous: metadata?.ambiguous,
     context: contextFor(detail, rulesIndex),
     relatedRules: relatedReferences(entry, matches, rulesIndex),
   };
@@ -409,7 +426,8 @@ export async function getRuleDetail(title: string, question = ""): Promise<RuleE
   const normalizedQuestion = normalize(query);
   const terms = termsFor(query);
   const concepts = matchedConcepts(normalizedQuestion, terms);
-  return enrichedRule(sourceEntry, rulesIndex, concepts, terms);
+  const score = lexicalScore(sourceEntry, normalizedQuestion, terms) + conceptBoost(sourceEntry, concepts);
+  return enrichedRule(sourceEntry, rulesIndex, concepts, terms, { score });
 }
 
 export async function searchRules(question: string, limit = 4) {
@@ -423,17 +441,34 @@ export async function searchRules(question: string, limit = 4) {
     entry,
     index,
     score: lexicalScore(entry, normalizedQuestion, terms) + conceptBoost(entry, concepts),
-  })).filter(result => result.score > 0)
+  })).filter(result => result.score >= 6)
     .sort((left, right) => right.score - left.score || left.entry.title.localeCompare(right.entry.title) || left.index - right.index);
 
-  const selected: RuleEntry[] = [];
+  const uniqueRanked: typeof ranked = [];
   const seenTitles = new Set<string>();
   for (const result of ranked) {
     const titleKey = normalize(result.entry.title);
     if (seenTitles.has(titleKey)) continue;
     seenTitles.add(titleKey);
-    selected.push(enrichedRule(result.entry, rulesIndex, concepts, terms));
-    if (selected.length >= limit) break;
+    uniqueRanked.push(result);
+    if (uniqueRanked.length >= Math.max(limit, 4)) break;
   }
-  return selected;
+
+  const top = uniqueRanked[0];
+  const second = uniqueRanked[1];
+  const topKind = top ? matchKindFor(top.entry, concepts) : undefined;
+  const scoreGap = top && second ? top.score - second.score : Number.POSITIVE_INFINITY;
+  const ambiguous = Boolean(
+    top &&
+    topKind !== "controlling" &&
+    second &&
+    (top.score < 80 || scoreGap <= Math.max(14, top.score * 0.12))
+  );
+
+  return uniqueRanked.slice(0, limit).map((result, index) =>
+    enrichedRule(result.entry, rulesIndex, concepts, terms, {
+      score: result.score,
+      ambiguous: index === 0 ? ambiguous : false,
+    })
+  );
 }

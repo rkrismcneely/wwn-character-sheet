@@ -176,6 +176,9 @@ const canonicalTerm = (term: string) => {
     heals:"heal",
     misses:"miss",
     modifiers:"modifier",
+    modification:"modify",
+    modifications:"modify",
+    traumatic:"trauma",
     returned:"return",
     returning:"return",
     returns:"return",
@@ -237,8 +240,10 @@ function matchedConcepts(normalizedQuestion: string, terms: string[]): ConceptMa
     }
 
     const conceptTerms = new Set(concept.terms.flatMap(termsFor));
+    const anchorTerms = new Set((concept.anchors || []).flatMap(termsFor));
     const hits = [...conceptTerms].filter(term => queryTerms.has(term)).length;
-    if (hits >= 2) strength = Math.max(strength, 44 + hits * 15);
+    const hasRequiredAnchor = anchorTerms.size === 0 || [...anchorTerms].some(term => queryTerms.has(term));
+    if (hits >= 2 && hasRequiredAnchor) strength = Math.max(strength, 44 + hits * 15);
     return { concept, strength };
   }).filter(match => match.strength > 0)
     .sort((left, right) => right.strength - left.strength);

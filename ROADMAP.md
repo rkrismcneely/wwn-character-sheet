@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against production `main` after PR #274 on 2026-10-05._
+_Last reconciled against `main` after PR #283 on 2026-10-07._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
@@ -17,31 +17,30 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 - Failed/interrupted cloud character saves now keep account-scoped, per-character browser recovery drafts. Same-version drafts can restore to the original safely; newer-server conflicts cannot overwrite the original and can instead be preserved as a new private character, downloaded, or discarded. Ordinary failed saves retry once when browser connectivity returns.
 - D1/R2 recovery safeguards are production-deployed: D1 Time Travel is documented, retired committed R2 media is preserved before deletion, and the private recovery prefix has retention/expiry protection.
 - A focused Chromium browser smoke suite is implemented. It uses disposable local data and is manual/release-oriented; it does **not** run on ordinary application PRs.
+- Production-safe structured error reporting is deployed with privacy-preserving browser/server diagnostics and broad request/body logging disabled.
+- Map/Store drawer keyboard, focus-return, and mobile touch-target accessibility improvements are deployed; continue fixing concrete accessibility/mobile issues as observed.
+- Rules Search has completed its current overhaul: section-level SRD retrieval, WWN concepts/synonyms, controlling/supporting rule ranking, contextual drill-down, related-rule navigation, confidence/ambiguity handling, and a broad benchmark at 97% Top-1 / 100% Top-3.
 
 ---
 
-## Now — highest-value remaining reliability work
+## Now — map drawing and annotations
 
-### 1. Production-safe error reporting
+Build the first useful annotation layer on top of the existing campaign map foundation.
 
-Add enough observability to diagnose real production failures without collecting unnecessary user content.
+Version 1 scope:
 
-Before enabling any third-party or persistent reporting, explicitly define:
+- GM-only creation and removal
+- player-visible or GM-only annotations
+- freehand pen
+- straight line and arrow
+- rectangle and circle
+- erase individual annotations
+- clear annotations with confirmation
+- persistence per map
+- coordinates remain aligned through zoom, pan, resize, drawer/fullscreen/PiP, and map switching
+- mouse, touch, and stylus-friendly interaction
 
-- which errors/events are collected
-- whether character/campaign content is excluded or redacted
-- retention period
-- who can access reports
-- how authentication/session identifiers are handled
-
-Prefer compact structured diagnostics over broad request/body logging.
-
-### 2. Accessibility and cross-device release verification
-
-- Continue fixing concrete accessibility/mobile issues as they are observed.
-- Standardize Escape/outside-click dismissal for modal/popout surfaces where inconsistent behavior is still reproducible. Reimplement against current components rather than reviving an old stale overlay branch.
-- Keep iPhone/iPad/Safari layout verification in the release/audit checklist.
-- Add automated accessibility/visual checks only where they provide stable signal; avoid a large always-on visual matrix.
+Keep v1 deliberately lightweight. Do not add a general-purpose vector editor, arbitrary layer stacks, or dynamic lighting/line-of-sight as part of this project.
 
 ### Focused browser smoke policy
 
@@ -61,9 +60,8 @@ Keep it small. It uses one Chromium worker, disposable local D1 data, no product
 
 The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, stores, or character-to-campaign integration.
 
-Potential next expansions:
+Potential next expansions after drawing/annotations v1:
 
-- map drawing and annotation tools
 - richer map layers/overlays
 - dynamic lighting / line-of-sight if the complexity is justified
 - campaign notes, handouts, journals, and lore organization

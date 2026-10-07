@@ -38,6 +38,20 @@ test("search results identify controlling and supporting rules", async () => {
   assert.ok(results.some(result => result.matchKind === "supporting"));
   assert.ok(results[0]?.relatedRules?.some(rule => rule.title === "Dropping to 0 Hit Points"));
   assert.ok(results[0]?.relatedRules?.some(rule => rule.title === "First Aid"));
+
+  const armor = await searchRules("Can I cast a spell while wearing armor?");
+  assert.equal(armor[0]?.title, "Spellcasting and Armor");
+  assert.ok(armor[0]?.relatedRules?.some(rule => rule.title === "Armored Magic"));
+});
+
+test("harder conversational questions keep the correct controlling rule at the top", async () => {
+  for (const [question, expectedTitle] of [
+    ["What happens if I just run away from someone I am fighting?", "Fighting Withdrawal"],
+    ["Can I cast this spell in armor and is there an exception?", "Spellcasting and Armor"],
+    ["How do I stabilize someone and what happens afterward?", "Stabilizing a Mortally Wounded Character"],
+  ]) {
+    assert.equal((await searchRules(question))[0]?.title, expectedTitle, question);
+  }
 });
 
 test("Rules Assistant provides a focused detail view and clickable related-rule navigation", async () => {

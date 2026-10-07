@@ -182,7 +182,7 @@ export function useCampaignMapAnnotations({
   useEffect(() => {
     draftRef.current = null;
     setDraftState(null);
-    if (!canManage) setToolState(null);
+    setToolState(null);
   }, [canManage, mapId]);
 
   const persistAnnotation = useCallback(async (geometry: CampaignMapAnnotationGeometry) => {

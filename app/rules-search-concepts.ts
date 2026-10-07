@@ -65,8 +65,8 @@ export const ruleConcepts: RuleConcept[] = [
   },
   {
     id: "fighting-withdrawal",
-    phrases: ["fighting withdrawal", "leave melee", "disengage", "free attack", "parting attack"],
-    terms: ["leave", "melee", "free", "attack", "retreat", "disengage"],
+    phrases: ["fighting withdrawal", "leave melee", "disengage", "free attack", "parting attack", "run away", "move away from melee"],
+    terms: ["leave", "melee", "free", "attack", "retreat", "disengage", "run", "away", "fight"],
     controllingTitles: ["Fighting Withdrawal"],
   },
   {

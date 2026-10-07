@@ -47,7 +47,7 @@ test("the complete SRD corpus is searchable beyond hand-authored core topics", a
     ["faction turn", "The Faction Turn"],
     ["major projects", "Major Projects"],
     ["creating magic items", "Creating Magic Items"],
-    ["reaction rolls", "Reaction Rolls & Parleying"],
+    ["reaction rolls", "Making a Reaction Roll"],
   ]) {
     assert.equal((await searchRules(question))[0]?.title, expectedTitle, question);
   }

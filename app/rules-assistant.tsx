@@ -40,6 +40,8 @@ function formattedRuleText(text: string): ReactNode[] {
 }
 
 function matchKindLabel(rule: RuleEntry, best = false) {
+  if (best && rule.confidence === "low") return "Possible match";
+  if (best && rule.ambiguous) return "Several possible rules";
   if (rule.matchKind === "controlling") return best ? "Best answer · Controlling rule" : "Controlling rule";
   if (rule.matchKind === "supporting") return "Supporting rule";
   return best ? "Best match" : "Related match";
@@ -68,7 +70,7 @@ function RuleDetailView({
   return <article className="rule-detail-view">
     <div className="rule-detail-navigation">
       <button type="button" className="rule-detail-back" onClick={onBack}>← Back to results</button>
-      <span className={`rule-result-kind ${rule.matchKind || "match"}`}>{matchKindLabel(rule, true)}</span>
+      <span className={`rule-result-kind ${rule.matchKind || "match"} confidence-${rule.confidence || "medium"}`}>{matchKindLabel(rule, true)}</span>
     </div>
     <header className="rule-detail-heading">
       <h3>{rule.title}</h3>
@@ -170,13 +172,20 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
       {selectedRule
         ? <RuleDetailView rule={selectedRule} onBack={() => setSelectedRule(null)} onOpenRule={title => void openRuleDetail(title)} />
         : results.length
-          ? <div className="rule-result-list">{results.map((result, index) => <article className="rule-result" key={`${result.source}:${result.title}`}>
+          ? <>
+            {results[0]?.ambiguous
+              ? <p className="rules-search-guidance is-ambiguous">This question could reasonably point to more than one rule. Compare the top results before relying on one answer.</p>
+              : results[0]?.confidence === "low"
+                ? <p className="rules-search-guidance is-low-confidence">These are weak matches rather than a confident rules answer. Try adding the action, condition, class, or rule term you are asking about.</p>
+                : null}
+            <div className="rule-result-list">{results.map((result, index) => <article className="rule-result" key={`${result.source}:${result.title}`}>
               <button type="button" className="rule-result-summary" onClick={() => void openRuleDetail(result.title)}>
-                <span className="rule-result-heading"><strong>{result.title}</strong><span className={`rule-result-kind ${result.matchKind || "match"}`}>{matchKindLabel(result, index === 0)}</span></span>
+                <span className="rule-result-heading"><strong>{result.title}</strong><span className={`rule-result-kind ${result.matchKind || "match"} confidence-${result.confidence || "medium"}`}>{matchKindLabel(result, index === 0)}</span></span>
                 <p className="rule-result-preview">{result.text}</p>
                 <span className="rule-result-footer"><small className="rule-result-source">{result.source}</small><span className="rule-result-toggle">More details →</span></span>
               </button>
             </article>)}</div>
+          </>
           : <p className="rules-no-result">No close SRD match found. Try a rule name such as “System Strain,” “Shock,” or a spell, Art, Focus, or weapon name.</p>}
     </div>}
   </>;

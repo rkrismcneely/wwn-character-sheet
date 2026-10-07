@@ -28,6 +28,8 @@ export type RuleEntry = {
   detailTitle?: string;
   detailSource?: string;
   matchKind?: "controlling" | "supporting" | "match";
+  confidence?: "high" | "medium" | "low";
+  ambiguous?: boolean;
   context?: RuleContext;
   relatedRules?: RuleReference[];
 };
@@ -46,6 +48,9 @@ const coreRules: RuleEntry[] = [
   { title:"First Aid", category:"Injury", source:"Rules of the Game · Injury, Healing, and System Strain · p. 48", text:"A few minutes of treatment restores 1d6 plus the healer’s Heal skill in hit points, with a -1 penalty if the healer is untrained. Each application adds 1 System Strain and can be repeated while the target can accept the Strain.", aliases:["mundane healing","heal skill","medical attention","bandage","treat wounds"] },
   { title:"Shock Damage", category:"Combat", source:"Rules of the Game · Shock", text:"Many melee weapons inflict Shock on a miss against targets with an Armor Class equal to or lower than the weapon’s listed Shock AC. A successful hit never inflicts less damage than the Shock it would have caused.", aliases:["damage on miss","shock ac","melee miss"], detailTitle:"Shock" },
   { title:"Fighting Withdrawal", category:"Combat", source:"Rules of the Game · Fighting Withdrawal", text:"A Fighting Withdrawal uses the combatant’s Main Action to disengage safely and move away without allowing the usual free melee attack from engaged enemies.", aliases:["disengage","leave melee","parting attack","retreat"], detailTitle:"Common Combat Actions" },
+  { title:"Ranged Attacks in Melee", category:"Combat", source:"Rules of the Game · Common Combat Actions", text:"If an enemy attacker is in melee range, one-handed ranged weapons and thrown weapons take a -4 penalty to hit. Bows and other two-handed ranged weapons cannot normally be fired while an enemy is in melee range.", aliases:["shoot in melee","shoot while engaged","bow in melee","ranged attack beside enemy","enemy next to me"], detailTitle:"Common Combat Actions" },
+  { title:"Reloading Weapons", category:"Combat", source:"Rules of the Game · Common Combat Actions", text:"Reloading a crossbow from Readied ammunition is normally a Main Action. A bow or crossbow can be reloaded as an On Turn action if the shooter has Shoot-1 or better; otherwise nocking a new arrow in a bow is a Move Action.", aliases:["reload","reload and attack","nock arrow","crossbow reload"], detailTitle:"Common Combat Actions" },
+  { title:"Prone in Combat", category:"Combat", source:"Rules of the Game · Common Combat Actions", text:"Going prone is an On Turn action. While prone, ranged attacks against you take a -2 penalty, melee-range attacks against you gain a +2 bonus, and your normal movement rate is halved.", aliases:["prone","go prone","lying down","harder to shoot"], detailTitle:"Common Combat Actions" },
   { title:"Total Defense", category:"Combat", source:"Rules of the Game · Total Defense", text:"A combatant who takes Total Defense focuses entirely on avoiding harm, gaining the action’s defensive benefit until their next turn but giving up their normal offensive Main Action.", aliases:["defend","dodge","defensive action"], detailTitle:"Common Combat Actions" },
   { title:"Execution Attacks", category:"Combat", source:"Rules of the Game · Execution Attacks", text:"An Execution Attack requires an unaware or helpless target and enough time to line up the attempt. If the attack hits, the victim must make a Physical save or suffer immediate mortal injury; a successful save still allows the attack’s normal damage.", aliases:["assassination","execute","helpless target","sniper"] },
   { title:"Effort", category:"Magic", source:"Magic · Effort", text:"Effort powers Arts and similar abilities. Effort committed for an effect remains unavailable while that effect continues; Effort committed for the scene returns when the scene ends, and Effort committed for the day returns after a night’s rest.", aliases:["commit effort","effort for scene","effort for day","refresh effort"] },
@@ -171,6 +176,9 @@ const canonicalTerm = (term: string) => {
     heals:"heal",
     misses:"miss",
     modifiers:"modifier",
+    modification:"modify",
+    modifications:"modify",
+    traumatic:"trauma",
     returned:"return",
     returning:"return",
     returns:"return",
@@ -232,8 +240,10 @@ function matchedConcepts(normalizedQuestion: string, terms: string[]): ConceptMa
     }
 
     const conceptTerms = new Set(concept.terms.flatMap(termsFor));
+    const anchorTerms = new Set((concept.anchors || []).flatMap(termsFor));
     const hits = [...conceptTerms].filter(term => queryTerms.has(term)).length;
-    if (hits >= 2) strength = Math.max(strength, 44 + hits * 15);
+    const hasRequiredAnchor = anchorTerms.size === 0 || [...anchorTerms].some(term => queryTerms.has(term));
+    if (hits >= 2 && hasRequiredAnchor) strength = Math.max(strength, 44 + hits * 15);
     return { concept, strength };
   }).filter(match => match.strength > 0)
     .sort((left, right) => right.strength - left.strength);
@@ -383,15 +393,30 @@ function relatedReferences(entry: RuleEntry, matches: ConceptMatch[], rulesIndex
   return references;
 }
 
-function enrichedRule(entry: RuleEntry, rulesIndex: IndexedRule[], matches: ConceptMatch[], terms: string[]): RuleEntry {
+function confidenceFor(score: number, matchKind: RuleEntry["matchKind"]): RuleEntry["confidence"] {
+  if (matchKind === "controlling" || score >= 160) return "high";
+  if (matchKind === "supporting" || score >= 55) return "medium";
+  return "low";
+}
+
+function enrichedRule(
+  entry: RuleEntry,
+  rulesIndex: IndexedRule[],
+  matches: ConceptMatch[],
+  terms: string[],
+  metadata?: { score?: number; ambiguous?: boolean },
+): RuleEntry {
   const detail = bestDetailedEntry(entry, rulesIndex);
+  const matchKind = matchKindFor(entry, matches);
   return {
     ...entry,
     text: excerptFor(entry.text, terms),
     fullText: detail.text,
     detailTitle: detail.title,
     detailSource: detail.source,
-    matchKind: matchKindFor(entry, matches),
+    matchKind,
+    confidence: confidenceFor(metadata?.score ?? 160, matchKind),
+    ambiguous: metadata?.ambiguous,
     context: contextFor(detail, rulesIndex),
     relatedRules: relatedReferences(entry, matches, rulesIndex),
   };
@@ -406,7 +431,8 @@ export async function getRuleDetail(title: string, question = ""): Promise<RuleE
   const normalizedQuestion = normalize(query);
   const terms = termsFor(query);
   const concepts = matchedConcepts(normalizedQuestion, terms);
-  return enrichedRule(sourceEntry, rulesIndex, concepts, terms);
+  const score = lexicalScore(sourceEntry, normalizedQuestion, terms) + conceptBoost(sourceEntry, concepts);
+  return enrichedRule(sourceEntry, rulesIndex, concepts, terms, { score });
 }
 
 export async function searchRules(question: string, limit = 4) {
@@ -420,17 +446,34 @@ export async function searchRules(question: string, limit = 4) {
     entry,
     index,
     score: lexicalScore(entry, normalizedQuestion, terms) + conceptBoost(entry, concepts),
-  })).filter(result => result.score > 0)
+  })).filter(result => result.score >= 6)
     .sort((left, right) => right.score - left.score || left.entry.title.localeCompare(right.entry.title) || left.index - right.index);
 
-  const selected: RuleEntry[] = [];
+  const uniqueRanked: typeof ranked = [];
   const seenTitles = new Set<string>();
   for (const result of ranked) {
     const titleKey = normalize(result.entry.title);
     if (seenTitles.has(titleKey)) continue;
     seenTitles.add(titleKey);
-    selected.push(enrichedRule(result.entry, rulesIndex, concepts, terms));
-    if (selected.length >= limit) break;
+    uniqueRanked.push(result);
+    if (uniqueRanked.length >= Math.max(limit, 4)) break;
   }
-  return selected;
+
+  const top = uniqueRanked[0];
+  const second = uniqueRanked[1];
+  const topKind = top ? matchKindFor(top.entry, concepts) : undefined;
+  const scoreGap = top && second ? top.score - second.score : Number.POSITIVE_INFINITY;
+  const ambiguous = Boolean(
+    top &&
+    topKind !== "controlling" &&
+    second &&
+    (top.score < 80 || scoreGap <= Math.max(14, top.score * 0.12))
+  );
+
+  return uniqueRanked.slice(0, limit).map((result, index) =>
+    enrichedRule(result.entry, rulesIndex, concepts, terms, {
+      score: result.score,
+      ambiguous: index === 0 ? ambiguous : false,
+    })
+  );
 }

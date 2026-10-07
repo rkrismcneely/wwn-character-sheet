@@ -83,8 +83,9 @@ function distance(a: CampaignMapPoint, b: CampaignMapPoint): number {
 
 function draftGeometry(draft: DrawingDraft, width: number, height: number): CampaignMapAnnotationGeometry | null {
   if (draft.kind === "freehand") {
-    const points = draft.points.length > 1 ? draft.points : [draft.start, draft.latest];
-    return points.length > 1 ? { kind: "freehand", points } : null;
+    if (draft.points.length < 2) return null;
+    const hasVisibleSegment = draft.points.some((point, index) => index > 0 && distance(draft.points[index - 1], point) >= 1);
+    return hasVisibleSegment ? { kind: "freehand", points: draft.points } : null;
   }
   if (draft.kind === "line" || draft.kind === "arrow") {
     if (distance(draft.start, draft.latest) < 1) return null;
@@ -180,10 +181,20 @@ export function useCampaignMapAnnotations({
   }, [campaignId, open, reload]);
 
   useEffect(() => {
+    if (!open || typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`);
+    channel.onmessage = event => {
+      const message = event.data as { type?: unknown; campaignId?: unknown } | null;
+      if (message?.type === "map-changed" && message.campaignId === campaignId) void reload();
+    };
+    return () => channel.close();
+  }, [campaignId, open, reload]);
+
+  useEffect(() => {
     draftRef.current = null;
     setDraftState(null);
     setToolState(null);
-  }, [canManage, mapId]);
+  }, [canManage, mapId, open]);
 
   const persistAnnotation = useCallback(async (geometry: CampaignMapAnnotationGeometry) => {
     if (!mapId || !canManage) return;

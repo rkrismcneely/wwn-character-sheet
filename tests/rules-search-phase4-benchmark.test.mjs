@@ -56,12 +56,17 @@ const benchmark = [
   {
     "category": "character",
     "question": "Can I be two partial classes instead of one full class?",
-    "expectedTitle": "Full and Partial Classes"
+    "expectedTitle": "The Adventurer Class"
   },
   {
     "category": "character",
     "question": "How does the Adventurer combine two partial classes?",
     "expectedTitle": "The Adventurer Class"
+  },
+  {
+    "category": "character",
+    "question": "What is the difference between a full class and a partial class?",
+    "expectedTitle": "Full and Partial Classes"
   },
   {
     "category": "character",

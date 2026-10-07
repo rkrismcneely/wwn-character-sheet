@@ -88,7 +88,7 @@ function RuleDetailView({
     {parents.length > 0 && <section className="rule-detail-context" aria-labelledby="rule-detail-context-heading">
       <h4 id="rule-detail-context-heading">Rule context</h4>
       <p className="rule-detail-help">The immediate rule structure around this section, so the result is not read in isolation.</p>
-      {parents.map((parent, index) => <details className="rule-context-section" key={referenceKey(parent)} defaultOpen={index === 0}>
+      {parents.map((parent, index) => <details className="rule-context-section" key={referenceKey(parent)} open={index === 0 ? true : undefined}>
         <summary><strong>{parent.title}</strong><small>{parent.source}</small></summary>
         <div>{formattedRuleText(parent.text)}</div>
       </details>)}

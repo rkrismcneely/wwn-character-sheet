@@ -29,7 +29,7 @@ Build the first useful annotation layer on top of the existing campaign map foun
 
 Version 1 scope:
 
-- GM-only creation/editing
+- GM-only creation and removal
 - player-visible or GM-only annotations
 - freehand pen
 - straight line and arrow

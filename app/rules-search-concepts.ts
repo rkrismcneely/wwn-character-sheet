@@ -86,6 +86,7 @@ export const ruleConcepts: RuleConcept[] = [
     phrases: ["cast in armor", "cast a spell in armor", "cast while wearing armor", "mage armor", "spellcasting and armor"],
     terms: ["cast", "spell", "mage", "armor", "armour", "shield"],
     controllingTitles: ["Spellcasting and Armor"],
+    relatedTitles: ["Armored Magic"],
   },
   {
     id: "effort-commitment",

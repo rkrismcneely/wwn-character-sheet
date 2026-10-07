@@ -4,6 +4,31 @@ import { searchRules } from "../app/rules-search.ts";
 
 const benchmark = [
   {
+    "category": "combat",
+    "question": "Can I shoot somebody if an enemy is standing right beside me?",
+    "expectedTitle": "Ranged Attacks in Melee"
+  },
+  {
+    "category": "combat",
+    "question": "Can I reload a bow or crossbow and still attack on the same turn?",
+    "expectedTitle": "Reloading Weapons"
+  },
+  {
+    "category": "combat",
+    "question": "Does going prone make me harder to hit with a ranged attack?",
+    "expectedTitle": "Prone in Combat"
+  },
+  {
+    "category": "combat",
+    "question": "Does carrying a shield stop Shock damage?",
+    "expectedTitle": "Shock Damage"
+  },
+  {
+    "category": "magic",
+    "question": "How many spells can a mage prepare and cast?",
+    "expectedTitle": "Preparing & Casting Spells"
+  },
+  {
     "category": "character",
     "question": "How are my six attributes generated?",
     "expectedTitle": "Generating Attributes"

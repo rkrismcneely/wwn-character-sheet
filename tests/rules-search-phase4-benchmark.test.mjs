@@ -524,6 +524,7 @@ test("Rules Search Phase 4 broad benchmark meets Top-1 and Top-3 accuracy target
     missesTop3.length ? `Top-3 misses:\n- ${missesTop3.join("\n- ")}` : "Top-3 misses: none",
   ].join("\n");
 
+  console.info(report);
   assert.ok(top1 >= 0.90 && top3 >= 0.98, report);
 });
 

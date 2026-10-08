@@ -1,4 +1,4 @@
-export type CampaignMapAnnotationKind = "freehand" | "line" | "arrow" | "rect" | "circle";
+export type CampaignMapAnnotationKind = "freehand" | "line" | "arrow" | "rect" | "circle" | "text";
 export type CampaignMapAnnotationVisibility = "players" | "gm";
 
 export type CampaignMapPoint = { x: number; y: number };
@@ -7,19 +7,24 @@ export type CampaignMapAnnotationGeometry =
   | { kind: "freehand"; points: CampaignMapPoint[] }
   | { kind: "line" | "arrow"; x1: number; y1: number; x2: number; y2: number }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
-  | { kind: "circle"; cx: number; cy: number; r: number };
+  | { kind: "circle"; cx: number; cy: number; r: number }
+  | { kind: "text"; x: number; y: number; text: string; fontSize: number };
 
 export type CampaignMapAnnotation = {
   id: string;
   kind: CampaignMapAnnotationKind;
   visibility: CampaignMapAnnotationVisibility;
+  color: string;
   geometry: CampaignMapAnnotationGeometry;
   createdAt: string;
 };
 
 export const campaignMapAnnotationKinds: CampaignMapAnnotationKind[] = [
-  "freehand", "line", "arrow", "rect", "circle",
+  "freehand", "line", "arrow", "rect", "circle", "text",
 ];
+
+export const campaignMapPlayerAnnotationColor = "#f4cf72";
+export const campaignMapGmAnnotationColor = "#7dd3fc";
 
 export function isCampaignMapAnnotationKind(value: unknown): value is CampaignMapAnnotationKind {
   return typeof value === "string" && campaignMapAnnotationKinds.includes(value as CampaignMapAnnotationKind);
@@ -27,6 +32,18 @@ export function isCampaignMapAnnotationKind(value: unknown): value is CampaignMa
 
 export function isCampaignMapAnnotationVisibility(value: unknown): value is CampaignMapAnnotationVisibility {
   return value === "players" || value === "gm";
+}
+
+export function campaignMapAnnotationDefaultColor(visibility: CampaignMapAnnotationVisibility): string {
+  return visibility === "gm" ? campaignMapGmAnnotationColor : campaignMapPlayerAnnotationColor;
+}
+
+export function parseCampaignMapAnnotationColor(
+  value: unknown,
+  visibility: CampaignMapAnnotationVisibility,
+): string {
+  if (typeof value === "string" && /^#[0-9a-fA-F]{6}$/u.test(value)) return value.toLowerCase();
+  return campaignMapAnnotationDefaultColor(visibility);
 }
 
 function finiteCoordinate(value: unknown, maximum: number): number | null {
@@ -37,6 +54,13 @@ function finiteCoordinate(value: unknown, maximum: number): number | null {
 function positiveExtent(value: unknown, maximum: number): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > maximum) return null;
   return Math.round(value * 100) / 100;
+}
+
+function annotationText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text.length > 120 || /[\u0000-\u001f\u007f]/u.test(text)) return null;
+  return text;
 }
 
 export function parseCampaignMapAnnotationGeometry(
@@ -82,6 +106,14 @@ export function parseCampaignMapAnnotationGeometry(
     const height = positiveExtent(value.height, mapHeight);
     if (x === null || y === null || width === null || height === null || x + width > mapWidth + 0.01 || y + height > mapHeight + 0.01) return null;
     return { kind, x, y, width, height };
+  }
+  if (kind === "text") {
+    const x = finiteCoordinate(value.x, mapWidth);
+    const y = finiteCoordinate(value.y, mapHeight);
+    const text = annotationText(value.text);
+    const fontSize = positiveExtent(value.fontSize, Math.max(mapWidth, mapHeight));
+    if (x === null || y === null || text === null || fontSize === null || fontSize < 8 || fontSize > 200) return null;
+    return { kind, x, y, text, fontSize };
   }
   const cx = finiteCoordinate(value.cx, mapWidth);
   const cy = finiteCoordinate(value.cy, mapHeight);

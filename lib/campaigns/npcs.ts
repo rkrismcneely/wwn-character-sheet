@@ -1,3 +1,4 @@
+import { canManageCampaignRuntime } from "./authorization.ts";
 import { loadCampaignAccess, CampaignServiceError, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 import { builtInBestiaryCreatureDraft, getBuiltInBestiaryCreature } from "./bestiary.ts";
@@ -128,7 +129,9 @@ function input(draft: CampaignNpcDraft, campaignPublicId: string, legacyAttacks:
 
 async function ownerCampaign(db: D1Database, actor: CampaignActor, campaignPublicId: string, mutation = false) {
   const { campaign } = await loadCampaignAccess(db, actor, campaignPublicId);
-  if (campaign.ownerUserId !== actor.userId) throw new CampaignServiceError("Only the campaign owner can manage NPC templates.", 403);
+  if (!canManageCampaignRuntime(actor, campaign)) {
+    throw new CampaignServiceError("Only the campaign owner or a site admin can manage NPC templates.", 403);
+  }
   if (mutation) requireActiveCampaign(campaign);
   return campaign;
 }

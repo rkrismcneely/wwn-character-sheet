@@ -7,8 +7,11 @@ import {
   canDeleteCampaignLinkedCharacter,
   canDetachCharacterFromCampaign,
   canEditCampaignLinkedCharacter,
+  canDeleteCampaign,
   canInviteCampaignMembers,
   canManageCampaignContent,
+  canManageCampaignRuntime,
+  canManageCampaignSettings,
   canRemoveCampaignMember,
   canViewCampaign,
 } from "../lib/campaigns/authorization.ts";
@@ -21,25 +24,27 @@ const targetPlayer = { campaignId: campaign.id, userId: "player-2", role: "playe
 const ownCharacter = { id: "character-admin", ownerUserId: admin.userId, visibility: "private" };
 const ownLink = { campaignId: campaign.id, characterId: ownCharacter.id };
 
-test("site-admin status adds global read access without removing actual GM permissions", () => {
+test("site admins receive campaign feature access without a membership row", () => {
   assert.equal(canViewCampaign(admin, campaign, null), true);
-  assert.equal(canManageCampaignContent(admin, campaign, null), false);
-  assert.equal(canManageCampaignContent(admin, campaign, gmMembership), true);
-  assert.equal(canInviteCampaignMembers(admin, campaign, gmMembership), true);
-  assert.equal(canRemoveCampaignMember(admin, campaign, gmMembership, targetPlayer), true);
+  assert.equal(canManageCampaignContent(admin, campaign, null), true);
+  assert.equal(canManageCampaignRuntime(admin, campaign), true);
+  assert.equal(canInviteCampaignMembers(admin, campaign, null), true);
+  assert.equal(canRemoveCampaignMember(admin, campaign, null, targetPlayer), true);
+  assert.equal(canManageCampaignSettings(admin, campaign), false);
+  assert.equal(canDeleteCampaign(admin, campaign), false);
 });
 
-test("admins keep their normal participant and character-owner permissions", () => {
-  assert.equal(canAttachCharacterToCampaign(admin, campaign, null, ownCharacter), false);
+test("admins get campaign participation for their own characters without gaining ownership of other characters", () => {
+  assert.equal(canAttachCharacterToCampaign(admin, campaign, null, ownCharacter), true);
+  assert.equal(canDetachCharacterFromCampaign(admin, campaign, null, ownCharacter), true);
   assert.equal(canAttachCharacterToCampaign(admin, campaign, gmMembership, ownCharacter), true);
-  assert.equal(canDetachCharacterFromCampaign(admin, campaign, gmMembership, ownCharacter), true);
   assert.equal(canAttachCharacterToCampaign(admin, campaign, playerMembership, ownCharacter), true);
-  assert.equal(canEditCampaignLinkedCharacter(admin, campaign, playerMembership, ownLink, ownCharacter), true);
-  assert.equal(canDeleteCampaignLinkedCharacter(admin, campaign, playerMembership, ownLink, ownCharacter), true);
-  assert.equal(canChangeCampaignLinkedCharacterPortrait(admin, campaign, playerMembership, ownLink, ownCharacter), true);
+  assert.equal(canEditCampaignLinkedCharacter(admin, campaign, null, ownLink, ownCharacter), true);
+  assert.equal(canDeleteCampaignLinkedCharacter(admin, campaign, null, ownLink, ownCharacter), true);
+  assert.equal(canChangeCampaignLinkedCharacterPortrait(admin, campaign, null, ownLink, ownCharacter), true);
 });
 
-test("campaign character service no longer turns admins off when they are real participants", async () => {
+test("campaign character service does not turn admins off", async () => {
   const source = await readFile(new URL("../lib/campaigns/characters.ts", import.meta.url), "utf8");
   assert.match(source, /canUnlink: isMine,/u);
   assert.match(source, /if \(campaign\.archivedAt\) return \[\];/u);

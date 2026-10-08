@@ -263,7 +263,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const annotation = annotations.find(a => a.id === move.id);
       const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
       const moved = point ? translateCampaignMapAnnotationGeometry(move.geometry, point.x - move.start.x, point.y - move.start.y, width, height) : null;
-      if (annotation && moved) void saveUpdate(annotation, moved);
+      if (annotation) void saveUpdate(annotation, moved ?? annotation.geometry);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault(); return true;
     }

@@ -38,6 +38,8 @@ type MoveDraft = {
   start: CampaignMapGridPosition;
   x: number;
   y: number;
+  latestX: number;
+  latestY: number;
 };
 
 type RotateDraft = {
@@ -45,6 +47,7 @@ type RotateDraft = {
   id: string;
   x: number;
   y: number;
+  angleDegrees: number;
 };
 
 export type CampaignMapAreaTemplateController = {
@@ -274,8 +277,13 @@ export function useCampaignMapAreaTemplates({
   }, [selected, setSelectedLocal]);
 
   const nudgeAngle = useCallback((delta: number) => {
-    setAngleDegrees(angleDegrees + delta);
-  }, [angleDegrees, setAngleDegrees]);
+    const next = normalizeCampaignMapAreaTemplateAngle(angleDegrees + delta);
+    setAngleDegreesState(next);
+    if (!selected?.canEdit) return;
+    const updated = { ...selected, angleDegrees: next };
+    setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
+    void saveTemplate(updated);
+  }, [angleDegrees, saveTemplate, selected]);
 
   const setColor = useCallback((value: string) => {
     setColorState(value);
@@ -354,7 +362,15 @@ export function useCampaignMapAreaTemplates({
     event.stopPropagation();
     selectTemplate(id);
     editingRef.current = true;
-    moveRef.current = { pointerId: event.pointerId, id, start: point, x: template.x, y: template.y };
+    moveRef.current = {
+      pointerId: event.pointerId,
+      id,
+      start: point,
+      x: template.x,
+      y: template.y,
+      latestX: template.x,
+      latestY: template.y,
+    };
     svg.setPointerCapture(event.pointerId);
   }, [height, mode, selectTemplate, templates, width]);
 
@@ -367,7 +383,13 @@ export function useCampaignMapAreaTemplates({
     event.stopPropagation();
     selectTemplate(id);
     editingRef.current = true;
-    rotateRef.current = { pointerId: event.pointerId, id, x: template.x, y: template.y };
+    rotateRef.current = {
+      pointerId: event.pointerId,
+      id,
+      x: template.x,
+      y: template.y,
+      angleDegrees: template.angleDegrees,
+    };
     svg.setPointerCapture(event.pointerId);
   }, [height, mode, selectTemplate, templates, width]);
 
@@ -393,6 +415,8 @@ export function useCampaignMapAreaTemplates({
       if (!point) return true;
       const x = Math.max(0, Math.min(width, move.x + point.x - move.start.x));
       const y = Math.max(0, Math.min(height, move.y + point.y - move.start.y));
+      move.latestX = x;
+      move.latestY = y;
       setTemplates(current => current.map(template => template.id === move.id ? { ...template, x, y } : template));
       event.preventDefault();
       return true;
@@ -402,6 +426,7 @@ export function useCampaignMapAreaTemplates({
       const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
       if (!point) return true;
       const angle = normalizeCampaignMapAreaTemplateAngle(Math.atan2(point.y - rotate.y, point.x - rotate.x) * 180 / Math.PI);
+      rotate.angleDegrees = angle;
       setAngleDegreesState(angle);
       setTemplates(current => current.map(template => template.id === rotate.id ? { ...template, angleDegrees: angle } : template));
       event.preventDefault();
@@ -416,7 +441,11 @@ export function useCampaignMapAreaTemplates({
       moveRef.current = null;
       const template = templates.find(candidate => candidate.id === move.id);
       editingRef.current = false;
-      if (template?.canEdit) void saveTemplate(template).then(flushDeferredReload);
+      if (template?.canEdit) {
+        const updated = { ...template, x: move.latestX, y: move.latestY };
+        setTemplates(current => current.map(candidate => candidate.id === move.id ? updated : candidate));
+        void saveTemplate(updated).then(flushDeferredReload);
+      }
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault();
       return true;
@@ -426,7 +455,12 @@ export function useCampaignMapAreaTemplates({
       rotateRef.current = null;
       const template = templates.find(candidate => candidate.id === rotate.id);
       editingRef.current = false;
-      if (template?.canEdit) void saveTemplate(template).then(flushDeferredReload);
+      if (template?.canEdit) {
+        const updated = { ...template, angleDegrees: rotate.angleDegrees };
+        setTemplates(current => current.map(candidate => candidate.id === rotate.id ? updated : candidate));
+        setAngleDegreesState(rotate.angleDegrees);
+        void saveTemplate(updated).then(flushDeferredReload);
+      }
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault();
       return true;
@@ -531,7 +565,7 @@ function AreaTemplateAngleControl({ controller }: { controller: CampaignMapAreaT
   const finish = () => { if (controller.selected) void controller.commitSelected(); };
   return <div className="campaign-map-area-angle">
     <span>Angle</span>
-    <button type="button" onClick={() => { controller.nudgeAngle(-15); if (controller.selected) window.setTimeout(() => void controller.commitSelected(), 0); }}>−15°</button>
+    <button type="button" onClick={() => controller.nudgeAngle(-15)}>−15°</button>
     <input
       type="range"
       min="0"
@@ -554,7 +588,7 @@ function AreaTemplateAngleControl({ controller }: { controller: CampaignMapAreaT
       onBlur={finish}
       onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
     />
-    <button type="button" onClick={() => { controller.nudgeAngle(15); if (controller.selected) window.setTimeout(() => void controller.commitSelected(), 0); }}>+15°</button>
+    <button type="button" onClick={() => controller.nudgeAngle(15)}>+15°</button>
   </div>;
 }
 

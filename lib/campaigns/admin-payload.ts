@@ -13,18 +13,16 @@ type CampaignPayloadProjection = {
 };
 
 /**
- * Site-admin status is additive, not a reason to turn off the permissions that
- * come from actually participating in a campaign. Global admins who are not an
- * owner/member remain read-only observers; admin owners, GMs, and players keep
- * the same campaign-character controls they would have without the admin role.
+ * Site admins are opted into campaign feature surfaces without needing a
+ * campaign membership row. Character mutations remain ownership-scoped in the
+ * character authorization layer; this projection only removes the old
+ * campaign-wide admin read-only mode.
  */
 export function withAdditiveAdminCampaignPermissions<T extends CampaignPayloadProjection>(
   actor: CampaignActor,
   campaign: T,
 ): T {
   if (actor.role !== "admin") return campaign;
-  const participant = campaign.isOwner || campaign.membershipRole !== null;
-  if (!participant) return campaign;
   return {
     ...campaign,
     permissions: {

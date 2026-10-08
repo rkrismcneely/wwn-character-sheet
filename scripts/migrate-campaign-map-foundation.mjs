@@ -12,6 +12,7 @@ const migrationNames = [
   "0023_action_bundle_10_map_fog.sql",
   "0025_campaign_map_annotations.sql",
   "0026_campaign_map_annotation_text.sql",
+  "0027_campaign_map_annotation_ownership.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -165,7 +166,7 @@ for (const column of ["map_id", "campaign_id", "cell_q", "cell_r", "created_at"]
 }
 
 const annotationColumns = new Set(query("PRAGMA table_info(campaign_map_annotations)").map(row => row.name));
-for (const column of ["id", "campaign_id", "map_id", "kind", "visibility", "geometry_json", "created_at"]) {
+for (const column of ["id", "campaign_id", "map_id", "kind", "visibility", "geometry_json", "creator_user_id", "created_at"]) {
   if (!annotationColumns.has(column)) throw new Error(`campaign_map_annotations is missing ${column}.`);
 }
 const annotationTableSql = String(query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'campaign_map_annotations'")[0]?.sql ?? "");
@@ -190,6 +191,7 @@ for (const index of [
   "campaign_map_fog_cells_campaign_map_idx",
   "campaign_map_annotations_map_created_idx",
   "campaign_map_annotations_campaign_map_idx",
+  "campaign_map_annotations_creator_idx",
 ]) {
   if (!indexes.has(index)) throw new Error(`Production is missing index ${index}.`);
 }

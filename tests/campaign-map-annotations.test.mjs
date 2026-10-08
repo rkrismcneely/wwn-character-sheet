@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   campaignMapAnnotationPath,
+  parseCampaignMapAnnotationColor,
   parseCampaignMapAnnotationGeometry,
 } from "../lib/campaigns/map-annotation-model.ts";
 
@@ -19,6 +20,18 @@ test("map annotation geometry accepts bounded map-space vectors", () => {
     parseCampaignMapAnnotationGeometry("circle", { cx: 50, cy: 50, r: 25 }, 100, 100),
     { kind: "circle", cx: 50, cy: 50, r: 25 },
   );
+});
+
+test("map text annotations and colours validate safely", () => {
+  assert.deepEqual(
+    parseCampaignMapAnnotationGeometry("text", { x: 22, y: 35, text: "Secret Door", fontSize: 28 }, 100, 100),
+    { kind: "text", x: 22, y: 35, text: "Secret Door", fontSize: 28 },
+  );
+  assert.equal(parseCampaignMapAnnotationGeometry("text", { x: 22, y: 35, text: " ", fontSize: 28 }, 100, 100), null);
+  assert.equal(parseCampaignMapAnnotationGeometry("text", { x: 22, y: 35, text: "Bad\nLabel", fontSize: 28 }, 100, 100), null);
+  assert.equal(parseCampaignMapAnnotationColor("#A1b2C3", "players"), "#a1b2c3");
+  assert.equal(parseCampaignMapAnnotationColor("not-a-colour", "players"), "#f4cf72");
+  assert.equal(parseCampaignMapAnnotationColor(undefined, "gm"), "#7dd3fc");
 });
 
 test("map annotation geometry rejects oversized, degenerate, and excessive freehand input", () => {
@@ -42,9 +55,10 @@ test("freehand and arrow geometry serialize to stable SVG paths", () => {
   );
 });
 
-test("map drawing v1 persists per map, filters GM-only rows from players, and uses the map migration release path", async () => {
-  const [migration, service, route, controller, launcher, css, migrationScript, workflow] = await Promise.all([
+test("map annotations persist per map, filter GM-only rows from players, and use the map migration release path", async () => {
+  const [migration, textMigration, service, route, controller, launcher, css, migrationScript, workflow, deployWorkflow] = await Promise.all([
     readFile(new URL("../drizzle/0025_campaign_map_annotations.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0026_campaign_map_annotation_text.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map-annotations.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/map/annotations/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8"),
@@ -52,12 +66,17 @@ test("map drawing v1 persists per map, filters GM-only rows from players, and us
     readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
     readFile(new URL("../scripts/migrate-campaign-map-foundation.mjs", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/migrate-campaign-map-foundation.yml", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/deploy-production.yml", import.meta.url), "utf8"),
   ]);
 
   assert.match(migration, /CREATE TABLE .*campaign_map_annotations/u);
   assert.match(migration, /FOREIGN KEY .*map_id.* REFERENCES .*campaign_maps/u);
   assert.match(migration, /'freehand', 'line', 'arrow', 'rect', 'circle'/u);
   assert.match(migration, /'players', 'gm'/u);
+  assert.match(textMigration, /'freehand', 'line', 'arrow', 'rect', 'circle', 'text'/u);
+  assert.match(textMigration, /INSERT INTO .*campaign_map_annotations_next/u);
+  assert.match(textMigration, /SELECT[\s\S]*geometry_json[\s\S]*FROM .*campaign_map_annotations/u);
+  assert.match(textMigration, /ALTER TABLE .*campaign_map_annotations_next.* RENAME TO .*campaign_map_annotations/u);
   assert.match(service, /visibilitySql = access\.canManage \? "" : " AND visibility = 'players'"/u);
   assert.match(service, /requireManagement\(access\)/u);
   assert.match(service, /500-drawing limit/u);
@@ -65,12 +84,17 @@ test("map drawing v1 persists per map, filters GM-only rows from players, and us
   assert.match(route, /body\.action === "delete"/u);
   assert.match(route, /body\.action === "clear"/u);
   assert.match(route, /announceMapChanged/u);
-  assert.match(controller, /"freehand", "line", "arrow", "rect", "circle", "erase"/u);
-  assert.match(controller, /New drawings/u);
+  assert.match(controller, /"freehand", "line", "arrow", "rect", "circle", "text", "erase"/u);
+  assert.match(controller, /New annotations/u);
+  assert.match(controller, /type="color"/u);
+  assert.match(controller, /aria-label="Annotation colour"/u);
+  assert.match(controller, /Label text/u);
+  assert.match(controller, /click or tap the map where the label should begin/u);
+  assert.match(controller, /color=\{annotation\.color\}/u);
   assert.match(controller, />Players</u);
   assert.match(controller, />GM only</u);
   assert.match(controller, /Clear all/u);
-  assert.match(controller, /Tap or click a drawing to erase it/u);
+  assert.match(controller, /Tap or click an annotation to erase it/u);
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);
@@ -78,10 +102,15 @@ test("map drawing v1 persists per map, filters GM-only rows from players, and us
   assert.match(launcher, /canManage && <CampaignMapAnnotationLayer/u);
   assert.match(css, /\.campaign-map-drawing-palette/u);
   assert.match(css, /\.campaign-map-annotation-group\.is-gm/u);
+  assert.match(css, /\.campaign-map-drawing-color/u);
+  assert.match(css, /\.campaign-map-annotation-text/u);
   assert.match(css, /min-height:\s*44px/u);
   assert.match(migrationScript, /0025_campaign_map_annotations\.sql/u);
+  assert.match(migrationScript, /0026_campaign_map_annotation_text\.sql/u);
+  assert.match(migrationScript, /does not permit text annotations/u);
   assert.match(migrationScript, /campaign_map_annotations_map_created_idx/u);
-  assert.match(workflow, /0025_campaign_map_annotations\.sql/u);
+  assert.match(workflow, /0026_campaign_map_annotation_text\.sql/u);
+  assert.match(deployWorkflow, /0026_campaign_map_annotation_text/u);
 });
 
 test("map drawing uses SVG map-space geometry with touch-sized erase targets", async () => {

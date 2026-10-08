@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   campaignMapAnnotationPath,
+  campaignMapPlayerAnnotationColor,
   parseCampaignMapAnnotationGeometry,
   type CampaignMapAnnotation,
   type CampaignMapAnnotationGeometry,
@@ -22,10 +23,12 @@ import { campaignMapChangedEvent } from "./use-live-session";
 
 export type CampaignMapDrawingTool = CampaignMapAnnotationKind | "erase";
 
+type DragDrawingKind = Exclude<CampaignMapAnnotationKind, "text">;
+
 type DrawingDraft = {
   pointerId: number;
   mapId: string;
-  kind: CampaignMapAnnotationKind;
+  kind: DragDrawingKind;
   start: CampaignMapPoint;
   latest: CampaignMapPoint;
   points: CampaignMapPoint[];
@@ -43,11 +46,15 @@ export type CampaignMapAnnotationController = {
   draft: CampaignMapAnnotationGeometry | null;
   tool: CampaignMapDrawingTool | null;
   visibility: CampaignMapAnnotationVisibility;
+  color: string;
+  textValue: string;
   busy: boolean;
   error: string;
   toggleDrawing: () => void;
   setTool: (tool: CampaignMapDrawingTool) => void;
   setVisibility: (visibility: CampaignMapAnnotationVisibility) => void;
+  setColor: (color: string) => void;
+  setTextValue: (value: string) => void;
   stopDrawing: () => void;
   clearAnnotations: () => Promise<void>;
   eraseAnnotation: (id: string) => Promise<void>;
@@ -141,6 +148,8 @@ export function useCampaignMapAnnotations({
   const draftRef = useRef<DrawingDraft | null>(null);
   const [tool, setToolState] = useState<CampaignMapDrawingTool | null>(null);
   const [visibility, setVisibility] = useState<CampaignMapAnnotationVisibility>("players");
+  const [color, setColor] = useState(campaignMapPlayerAnnotationColor);
+  const [textValue, setTextValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const loadSequence = useRef(0);
@@ -202,6 +211,7 @@ export function useCampaignMapAnnotations({
           mapId,
           kind: geometry.kind,
           visibility,
+          color,
           geometry,
         }),
       });
@@ -210,6 +220,7 @@ export function useCampaignMapAnnotations({
       setAnnotations(current => current.some(annotation => annotation.id === body.annotation?.id)
         ? current
         : [...current, body.annotation as CampaignMapAnnotation]);
+      if (geometry.kind === "text") setTextValue("");
       onChanged?.();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Drawing could not be saved.");
@@ -217,7 +228,7 @@ export function useCampaignMapAnnotations({
     } finally {
       setBusy(false);
     }
-  }, [campaignId, canManage, mapId, onChanged, reload, visibility]);
+  }, [campaignId, canManage, color, mapId, onChanged, reload, visibility]);
 
   const eraseAnnotation = useCallback(async (id: string) => {
     if (!mapId || !canManage || busy) return;
@@ -275,8 +286,23 @@ export function useCampaignMapAnnotations({
     event.preventDefault();
     if (tool === "erase" || busy) return true;
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
-    if (!point) return true;
-    if (!mapId) return true;
+    if (!point || !mapId) return true;
+    if (tool === "text") {
+      const text = textValue.trim();
+      if (!text) {
+        setError("Enter label text, then click or tap the map to place it.");
+        return true;
+      }
+      const fontSize = Math.round(clamp(Math.min(width, height) * 0.03, 18, 52) * 100) / 100;
+      const geometry = parseCampaignMapAnnotationGeometry(
+        "text",
+        { kind: "text", x: point.x, y: point.y, text, fontSize },
+        width,
+        height,
+      );
+      if (geometry) void persistAnnotation(geometry);
+      return true;
+    }
     const next: DrawingDraft = {
       pointerId: event.pointerId,
       mapId,
@@ -288,7 +314,7 @@ export function useCampaignMapAnnotations({
     setDraft(next);
     event.currentTarget.setPointerCapture(event.pointerId);
     return true;
-  }, [busy, canManage, height, mapId, setDraft, tool, width]);
+  }, [busy, canManage, height, mapId, persistAnnotation, setDraft, textValue, tool, width]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
     const current = draftRef.current;
@@ -330,11 +356,15 @@ export function useCampaignMapAnnotations({
     draft: draftState && draftState.mapId === mapId && width && height ? draftGeometry(draftState, width, height) : null,
     tool,
     visibility,
+    color,
+    textValue,
     busy,
     error,
     toggleDrawing: () => setToolState(current => current ? null : "freehand"),
     setTool: setToolState,
     setVisibility,
+    setColor,
+    setTextValue,
     stopDrawing: () => {
       setToolState(null);
       setDraft(null);
@@ -356,7 +386,7 @@ function toolLabel(tool: CampaignMapDrawingTool): string {
 
 export function CampaignMapDrawingPalette({ controller }: { controller: CampaignMapAnnotationController }) {
   if (!controller.tool) return null;
-  const tools: CampaignMapDrawingTool[] = ["freehand", "line", "arrow", "rect", "circle", "erase"];
+  const tools: CampaignMapDrawingTool[] = ["freehand", "line", "arrow", "rect", "circle", "text", "erase"];
   return <div className="campaign-map-drawing-palette" role="toolbar" aria-label="Map drawing tools">
     <div className="campaign-map-drawing-tools">
       {tools.map(tool => <button
@@ -369,16 +399,32 @@ export function CampaignMapDrawingPalette({ controller }: { controller: Campaign
       >{toolLabel(tool)}</button>)}
     </div>
     <div className="campaign-map-drawing-options">
-      <span>New drawings</span>
+      <span>New annotations</span>
       <button type="button" className={controller.visibility === "players" ? "is-active" : ""} aria-pressed={controller.visibility === "players"} onClick={() => controller.setVisibility("players")}>Players</button>
       <button type="button" className={controller.visibility === "gm" ? "is-active" : ""} aria-pressed={controller.visibility === "gm"} onClick={() => controller.setVisibility("gm")}>GM only</button>
+      <label className="campaign-map-drawing-color">
+        <span>Colour</span>
+        <input type="color" value={controller.color} aria-label="Annotation colour" onChange={event => controller.setColor(event.target.value)} />
+      </label>
     </div>
+    {controller.tool === "text" && <label className="campaign-map-text-entry">
+      <span>Label text</span>
+      <input
+        type="text"
+        value={controller.textValue}
+        onChange={event => controller.setTextValue(event.target.value)}
+        maxLength={120}
+        placeholder="Enter a map label…"
+        autoFocus
+      />
+    </label>}
     <div className="campaign-map-drawing-actions">
       <button type="button" disabled={controller.busy || controller.annotations.length === 0} onClick={() => void controller.clearAnnotations()}>Clear all</button>
       <button type="button" onClick={controller.stopDrawing}>Done</button>
     </div>
-    {controller.tool === "erase" && <small>Tap or click a drawing to erase it.</small>}
+    {controller.tool === "erase" && <small>Tap or click an annotation to erase it.</small>}
     {controller.tool === "circle" && <small>Drag from the circle’s center outward.</small>}
+    {controller.tool === "text" && <small>Enter text above, then click or tap the map where the label should begin.</small>}
     {controller.error && <p className="campaign-map-drawing-error" role="alert">{controller.error}</p>}
   </div>;
 }
@@ -391,21 +437,37 @@ function annotationAriaLabel(annotation: CampaignMapAnnotation): string {
 
 function AnnotationShape({
   geometry,
-  markerEnd,
   className,
+  color,
+  markerId,
 }: {
   geometry: CampaignMapAnnotationGeometry;
-  markerEnd?: string;
   className: string;
+  color: string;
+  markerId?: string;
 }) {
+  if (geometry.kind === "text") {
+    return <text
+      className={`${className} campaign-map-annotation-text`}
+      x={geometry.x}
+      y={geometry.y}
+      fontSize={geometry.fontSize}
+      fill={color}
+      dominantBaseline="hanging"
+    >{geometry.text}</text>;
+  }
   const path = campaignMapAnnotationPath(geometry);
-  if (path) return <path className={className} d={path} fill="none" markerEnd={geometry.kind === "arrow" ? markerEnd : undefined} vectorEffect="non-scaling-stroke" />;
-  if (geometry.kind === "rect") return <rect className={className} x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill="none" vectorEffect="non-scaling-stroke" />;
-  if (geometry.kind === "circle") return <circle className={className} cx={geometry.cx} cy={geometry.cy} r={geometry.r} fill="none" vectorEffect="non-scaling-stroke" />;
+  if (path) return <>
+    {geometry.kind === "arrow" && markerId && <defs><marker id={markerId} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 z" fill={color} /></marker></defs>}
+    <path className={className} d={path} fill="none" stroke={color} markerEnd={geometry.kind === "arrow" && markerId ? `url(#${markerId})` : undefined} vectorEffect="non-scaling-stroke" />
+  </>;
+  if (geometry.kind === "rect") return <rect className={className} x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill="none" stroke={color} vectorEffect="non-scaling-stroke" />;
+  if (geometry.kind === "circle") return <circle className={className} cx={geometry.cx} cy={geometry.cy} r={geometry.r} fill="none" stroke={color} vectorEffect="non-scaling-stroke" />;
   return null;
 }
 
 function AnnotationHitShape({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {
+  if (geometry.kind === "text") return <text className="campaign-map-annotation-hit is-text" x={geometry.x} y={geometry.y} fontSize={geometry.fontSize} dominantBaseline="hanging">{geometry.text}</text>;
   const path = campaignMapAnnotationPath(geometry);
   if (path) return <path className="campaign-map-annotation-hit" d={path} fill="none" vectorEffect="non-scaling-stroke" />;
   if (geometry.kind === "rect") return <rect className="campaign-map-annotation-hit is-area" x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} vectorEffect="non-scaling-stroke" />;
@@ -415,9 +477,6 @@ function AnnotationHitShape({ geometry }: { geometry: CampaignMapAnnotationGeome
 
 export function CampaignMapAnnotationLayer({ controller }: { controller: CampaignMapAnnotationController }) {
   const markerBase = useId().replaceAll(":", "");
-  const playerMarker = `${markerBase}-players`;
-  const gmMarker = `${markerBase}-gm`;
-  const previewMarker = `${markerBase}-preview`;
   const erasing = controller.tool === "erase";
 
   const erasePointer = (event: ReactPointerEvent<SVGGElement>, id: string) => {
@@ -433,30 +492,29 @@ export function CampaignMapAnnotationLayer({ controller }: { controller: Campaig
     void controller.eraseAnnotation(id);
   };
 
-  return <>
-    <defs>
-      <marker id={playerMarker} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 z" fill="#f4cf72" /></marker>
-      <marker id={gmMarker} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 z" fill="#7dd3fc" /></marker>
-      <marker id={previewMarker} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 z" fill="#fff8dd" /></marker>
-    </defs>
-    <g className={`campaign-map-annotation-layer${erasing ? " is-erasing" : ""}`}>
-      {controller.annotations.map(annotation => <g
-        key={annotation.id}
-        className={`campaign-map-annotation-group is-${annotation.visibility}${erasing ? " is-erasable" : ""}`}
-        role={erasing ? "button" : undefined}
-        tabIndex={erasing ? 0 : undefined}
-        aria-label={erasing ? annotationAriaLabel(annotation) : undefined}
-        onPointerDown={event => erasePointer(event, annotation.id)}
-        onKeyDown={event => eraseKey(event, annotation.id)}
-      >
-        <AnnotationShape
-          geometry={annotation.geometry}
-          className="campaign-map-annotation"
-          markerEnd={`url(#${annotation.visibility === "players" ? playerMarker : gmMarker})`}
-        />
-        {erasing && <AnnotationHitShape geometry={annotation.geometry} />}
-      </g>)}
-      {controller.draft && <AnnotationShape geometry={controller.draft} className="campaign-map-annotation-preview" markerEnd={`url(#${previewMarker})`} />}
-    </g>
-  </>;
+  return <g className={`campaign-map-annotation-layer${erasing ? " is-erasing" : ""}`}>
+    {controller.annotations.map((annotation, index) => <g
+      key={annotation.id}
+      className={`campaign-map-annotation-group is-${annotation.visibility}${erasing ? " is-erasable" : ""}`}
+      role={erasing ? "button" : undefined}
+      tabIndex={erasing ? 0 : undefined}
+      aria-label={erasing ? annotationAriaLabel(annotation) : undefined}
+      onPointerDown={event => erasePointer(event, annotation.id)}
+      onKeyDown={event => eraseKey(event, annotation.id)}
+    >
+      <AnnotationShape
+        geometry={annotation.geometry}
+        className="campaign-map-annotation"
+        color={annotation.color}
+        markerId={`${markerBase}-annotation-${index}`}
+      />
+      {erasing && <AnnotationHitShape geometry={annotation.geometry} />}
+    </g>)}
+    {controller.draft && <AnnotationShape
+      geometry={controller.draft}
+      className="campaign-map-annotation-preview"
+      color={controller.color}
+      markerId={`${markerBase}-preview`}
+    />}
+  </g>;
 }

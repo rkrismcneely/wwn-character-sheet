@@ -11,6 +11,7 @@ const migrationNames = [
   "0022_action_bundle_10_grid_types.sql",
   "0023_action_bundle_10_map_fog.sql",
   "0025_campaign_map_annotations.sql",
+  "0026_campaign_map_annotation_text.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -167,8 +168,12 @@ const annotationColumns = new Set(query("PRAGMA table_info(campaign_map_annotati
 for (const column of ["id", "campaign_id", "map_id", "kind", "visibility", "geometry_json", "created_at"]) {
   if (!annotationColumns.has(column)) throw new Error(`campaign_map_annotations is missing ${column}.`);
 }
+const annotationTableSql = String(query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'campaign_map_annotations'")[0]?.sql ?? "");
+if (!annotationTableSql.includes("'text'")) {
+  throw new Error("campaign_map_annotations does not permit text annotations.");
+}
 const invalidAnnotationRows = query(`SELECT COUNT(*) AS count FROM campaign_map_annotations
-  WHERE kind NOT IN ('freehand', 'line', 'arrow', 'rect', 'circle')
+  WHERE kind NOT IN ('freehand', 'line', 'arrow', 'rect', 'circle', 'text')
      OR visibility NOT IN ('players', 'gm')`)[0]?.count ?? 0;
 if (Number(invalidAnnotationRows) !== 0) {
   throw new Error("campaign_map_annotations contains an unsupported kind or visibility.");

@@ -11,6 +11,7 @@ on:
       - "drizzle/0022_action_bundle_10_grid_types.sql"
       - "drizzle/0023_action_bundle_10_map_fog.sql"
       - "drizzle/0025_campaign_map_annotations.sql"
+      - "drizzle/0026_campaign_map_annotation_text.sql"
       - "scripts/migrate-campaign-map-foundation.mjs"
       - ".github/workflows/migrate-campaign-map-foundation.yml"
   workflow_dispatch:

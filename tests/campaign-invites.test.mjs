@@ -257,11 +257,11 @@ test("a campaign owner can create and revoke invites when the same account is al
   assert.equal(storedInvite(sqlite, tokenHash).revokedAt, now.toISOString());
 });
 
-test("players, unrelated site admins, outsiders, and signed-out callers cannot create invites", async () => {
+test("players cannot create invites while site admins can without campaign membership", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   await addMember(sqlite, campaign.id, player);
   await expectServiceError(createCampaignInvite(db, player, campaign.id, now), 403);
-  await expectServiceError(createCampaignInvite(db, admin, campaign.id, now), 403);
+  assert.match((await createCampaignInvite(db, admin, campaign.id, now)).token, /^cminv_/u);
   await expectServiceError(createCampaignInvite(db, outsider, campaign.id, now), 404);
   await expectServiceError(createCampaignInvite(db, null, campaign.id, now), 401);
 });
@@ -535,12 +535,12 @@ test("owner and GM can revoke while preserving the historical invite row", async
   );
 });
 
-test("players, site admins, outsiders, and signed-out callers cannot revoke", async () => {
+test("players cannot revoke invites while site admins can without campaign membership", async () => {
   const { sqlite, db, campaign } = await campaignFixture();
   await addMember(sqlite, campaign.id, player);
   const invite = await createCampaignInvite(db, owner, campaign.id, now);
   await expectServiceError(revokeCampaignInvite(db, player, campaign.id, invite.token, now), 403);
-  await expectServiceError(revokeCampaignInvite(db, admin, campaign.id, invite.token, now), 403);
+  await revokeCampaignInvite(db, admin, campaign.id, invite.token, now);
   await expectServiceError(revokeCampaignInvite(db, outsider, campaign.id, invite.token, now), 404);
   await expectServiceError(revokeCampaignInvite(db, null, campaign.id, invite.token, now), 401);
 });

@@ -29,9 +29,12 @@ test("participating admins keep campaign character controls enabled", () => {
   });
 });
 
-test("global admin observation remains read-only without campaign participation", () => {
+test("global admins receive campaign controls without campaign participation", () => {
   const value = campaign({ membershipRole: null, permissions: { canLinkCharacters: false, adminReadOnly: true } });
-  assert.equal(withAdditiveAdminCampaignPermissions(admin, value), value);
+  assert.deepEqual(withAdditiveAdminCampaignPermissions(admin, value).permissions, {
+    canLinkCharacters: true,
+    adminReadOnly: false,
+  });
 });
 
 test("archived campaigns do not regain character-link writes", () => {

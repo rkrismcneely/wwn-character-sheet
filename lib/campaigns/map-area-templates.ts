@@ -6,8 +6,9 @@ import {
   campaignMapAreaTemplateMinSize,
   clampCampaignMapAreaTemplateSize,
   isCampaignMapAreaTemplateShape,
-  normalizeCampaignMapAreaTemplateAngle,
   parseCampaignMapAreaTemplateColor,
+  snapCampaignMapAreaTemplateAngle,
+  snapCampaignMapAreaTemplateOrigin,
   type CampaignMapAreaTemplate,
   type CampaignMapAreaTemplateShape,
 } from "./map-area-template-model.ts";
@@ -17,6 +18,10 @@ type AreaTemplateMapRow = {
   isActive: number;
   backgroundWidth: number | null;
   backgroundHeight: number | null;
+  gridType: "square" | "hex";
+  gridSize: number;
+  gridOffsetX: number;
+  gridOffsetY: number;
 };
 
 type AreaTemplateRow = {
@@ -25,6 +30,7 @@ type AreaTemplateRow = {
   x: number;
   y: number;
   sizeSpaces: number;
+  widthSpaces: number;
   angleDegrees: number;
   color: string;
   creatorUserId: string;
@@ -57,7 +63,9 @@ async function areaTemplateMap(
   const access = await loadCampaignMapAccess(db, actor, publicId);
   const mapId = identifier(mapIdValue, "Map");
   const map = await db.prepare(`SELECT id, is_active AS isActive,
-      background_width AS backgroundWidth, background_height AS backgroundHeight
+      background_width AS backgroundWidth, background_height AS backgroundHeight,
+      grid_type AS gridType, grid_size AS gridSize,
+      grid_offset_x AS gridOffsetX, grid_offset_y AS gridOffsetY
     FROM campaign_maps WHERE campaign_id = ? AND id = ?`)
     .bind(access.campaignInternalId, mapId).first<AreaTemplateMapRow>();
   if (!map || (!access.canManage && !map.isActive)) throw new CampaignServiceError("Campaign map not found.", 404);
@@ -94,6 +102,7 @@ function publicTemplate(
     x: row.x,
     y: row.y,
     sizeSpaces: row.sizeSpaces,
+    widthSpaces: row.widthSpaces,
     angleDegrees: row.angleDegrees,
     color: parseCampaignMapAreaTemplateColor(row.color),
     canEdit: canEditAreaTemplate(access, actor, row.creatorUserId),
@@ -123,7 +132,7 @@ async function templateRow(
   templateIdValue: unknown,
 ): Promise<AreaTemplateRow> {
   const templateId = identifier(templateIdValue, "Area template");
-  const row = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces,
+  const row = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces, width_spaces AS widthSpaces,
       angle_degrees AS angleDegrees, color, creator_user_id AS creatorUserId,
       created_at AS createdAt, updated_at AS updatedAt
     FROM campaign_map_area_templates
@@ -141,7 +150,7 @@ export async function readCampaignMapAreaTemplates(
 ): Promise<CampaignMapAreaTemplate[]> {
   const { access, map } = await areaTemplateMap(db, actor, publicId, mapIdValue);
   try {
-    const result = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces,
+    const result = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces, width_spaces AS widthSpaces,
         angle_degrees AS angleDegrees, color, creator_user_id AS creatorUserId,
         created_at AS createdAt, updated_at AS updatedAt
       FROM campaign_map_area_templates
@@ -173,18 +182,32 @@ export async function createCampaignMapAreaTemplate(
 
   const shape = validatedShape(input.shape);
   const sizeSpaces = validatedSize(input.sizeSpaces);
-  const x = finitePoint(input.x, map.backgroundWidth as number, "Horizontal position");
-  const y = finitePoint(input.y, map.backgroundHeight as number, "Vertical position");
-  const angleDegrees = normalizeCampaignMapAreaTemplateAngle(input.angleDegrees);
+  const widthSpaces = validatedSize(input.widthSpaces ?? 1);
+  const grid = { type: map.gridType, size: map.gridSize, offsetX: map.gridOffsetX, offsetY: map.gridOffsetY };
+  const rawPoint = {
+    x: finitePoint(input.x, map.backgroundWidth as number, "Horizontal position"),
+    y: finitePoint(input.y, map.backgroundHeight as number, "Vertical position"),
+  };
+  const snappedPoint = snapCampaignMapAreaTemplateOrigin(
+    rawPoint,
+    grid,
+    shape,
+    sizeSpaces,
+    map.backgroundWidth as number,
+    map.backgroundHeight as number,
+  );
+  const x = finitePoint(snappedPoint.x, map.backgroundWidth as number, "Horizontal position");
+  const y = finitePoint(snappedPoint.y, map.backgroundHeight as number, "Vertical position");
+  const angleDegrees = snapCampaignMapAreaTemplateAngle(input.angleDegrees, grid);
   const color = parseCampaignMapAreaTemplateColor(input.color);
   const id = `area_${crypto.randomUUID()}`;
 
   await db.prepare(`INSERT INTO campaign_map_area_templates
-      (id, campaign_id, map_id, creator_user_id, shape, x, y, size_spaces, angle_degrees, color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, access.campaignInternalId, map.id, actor.userId, shape, x, y, sizeSpaces, angleDegrees, color, now, now).run();
+      (id, campaign_id, map_id, creator_user_id, shape, x, y, size_spaces, width_spaces, angle_degrees, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, access.campaignInternalId, map.id, actor.userId, shape, x, y, sizeSpaces, widthSpaces, angleDegrees, color, now, now).run();
 
-  return { id, shape, x, y, sizeSpaces, angleDegrees, color, canEdit: true, createdAt: now, updatedAt: now };
+  return { id, shape, x, y, sizeSpaces, widthSpaces, angleDegrees, color, canEdit: true, createdAt: now, updatedAt: now };
 }
 
 export async function updateCampaignMapAreaTemplate(
@@ -203,15 +226,29 @@ export async function updateCampaignMapAreaTemplate(
 
   const shape = validatedShape(input.shape ?? row.shape);
   const sizeSpaces = validatedSize(input.sizeSpaces ?? row.sizeSpaces);
-  const x = finitePoint(input.x ?? row.x, map.backgroundWidth as number, "Horizontal position");
-  const y = finitePoint(input.y ?? row.y, map.backgroundHeight as number, "Vertical position");
-  const angleDegrees = normalizeCampaignMapAreaTemplateAngle(input.angleDegrees ?? row.angleDegrees);
+  const widthSpaces = validatedSize(input.widthSpaces ?? row.widthSpaces);
+  const grid = { type: map.gridType, size: map.gridSize, offsetX: map.gridOffsetX, offsetY: map.gridOffsetY };
+  const rawPoint = {
+    x: finitePoint(input.x ?? row.x, map.backgroundWidth as number, "Horizontal position"),
+    y: finitePoint(input.y ?? row.y, map.backgroundHeight as number, "Vertical position"),
+  };
+  const snappedPoint = snapCampaignMapAreaTemplateOrigin(
+    rawPoint,
+    grid,
+    shape,
+    sizeSpaces,
+    map.backgroundWidth as number,
+    map.backgroundHeight as number,
+  );
+  const x = finitePoint(snappedPoint.x, map.backgroundWidth as number, "Horizontal position");
+  const y = finitePoint(snappedPoint.y, map.backgroundHeight as number, "Vertical position");
+  const angleDegrees = snapCampaignMapAreaTemplateAngle(input.angleDegrees ?? row.angleDegrees, grid);
   const color = parseCampaignMapAreaTemplateColor(input.color ?? row.color);
 
   const result = await db.prepare(`UPDATE campaign_map_area_templates
-    SET shape = ?, x = ?, y = ?, size_spaces = ?, angle_degrees = ?, color = ?, updated_at = ?
+    SET shape = ?, x = ?, y = ?, size_spaces = ?, width_spaces = ?, angle_degrees = ?, color = ?, updated_at = ?
     WHERE campaign_id = ? AND map_id = ? AND id = ?`)
-    .bind(shape, x, y, sizeSpaces, angleDegrees, color, now, access.campaignInternalId, map.id, row.id).run();
+    .bind(shape, x, y, sizeSpaces, widthSpaces, angleDegrees, color, now, access.campaignInternalId, map.id, row.id).run();
   if (result.meta.changes !== 1) throw new CampaignServiceError("Area template could not be updated.", 409);
 
   return {
@@ -220,6 +257,7 @@ export async function updateCampaignMapAreaTemplate(
     x,
     y,
     sizeSpaces,
+    widthSpaces,
     angleDegrees,
     color,
     canEdit: true,

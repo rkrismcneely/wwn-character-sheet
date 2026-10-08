@@ -289,6 +289,7 @@ export function CampaignMapWorkspace({
     mapId: map?.id ?? null,
     width: map?.backgroundWidth ?? null,
     height: map?.backgroundHeight ?? null,
+    grid: map?.grid ?? null,
     openMap: open,
     onChanged: publishMapInvalidation,
   });

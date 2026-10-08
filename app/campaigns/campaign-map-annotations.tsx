@@ -428,12 +428,15 @@ function annotationSelectionBounds(geometry: CampaignMapAnnotationGeometry): Ann
   }
   if (geometry.kind === "rect") return { x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height };
   if (geometry.kind === "circle") return { x: geometry.cx - geometry.r, y: geometry.cy - geometry.r, width: geometry.r * 2, height: geometry.r * 2 };
-  return {
-    x: geometry.x,
-    y: geometry.y,
-    width: Math.max(geometry.fontSize, geometry.text.length * geometry.fontSize * 0.62),
-    height: geometry.fontSize * 1.2,
-  };
+  if (geometry.kind === "text") {
+    return {
+      x: geometry.x,
+      y: geometry.y,
+      width: Math.max(geometry.fontSize, geometry.text.length * geometry.fontSize * 0.62),
+      height: geometry.fontSize * 1.2,
+    };
+  }
+  return { x: 0, y: 0, width: 1, height: 1 };
 }
 
 function AnnotationSelectionIndicator({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {

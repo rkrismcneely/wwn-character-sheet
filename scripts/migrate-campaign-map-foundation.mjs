@@ -13,6 +13,7 @@ const migrationNames = [
   "0025_campaign_map_annotations.sql",
   "0026_campaign_map_annotation_text.sql",
   "0027_campaign_map_annotation_ownership.sql",
+  "0028_campaign_map_area_templates.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -111,6 +112,7 @@ for (const table of [
   "campaign_map_token_sizes",
   "campaign_map_fog_cells",
   "campaign_map_annotations",
+  "campaign_map_area_templates",
 ]) {
   if (!tables.has(table)) throw new Error(`Production is missing table ${table}.`);
 }
@@ -180,6 +182,24 @@ if (Number(invalidAnnotationRows) !== 0) {
   throw new Error("campaign_map_annotations contains an unsupported kind or visibility.");
 }
 
+const areaTemplateColumns = new Set(query("PRAGMA table_info(campaign_map_area_templates)").map(row => row.name));
+for (const column of [
+  "id", "campaign_id", "map_id", "creator_user_id", "shape", "x", "y",
+  "size_spaces", "angle_degrees", "color", "created_at", "updated_at",
+]) {
+  if (!areaTemplateColumns.has(column)) throw new Error(`campaign_map_area_templates is missing ${column}.`);
+}
+const areaTemplateTableSql = String(query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'campaign_map_area_templates'")[0]?.sql ?? "");
+for (const shape of ["radius", "cube", "cone", "line"]) {
+  if (!areaTemplateTableSql.includes(`'${shape}'`)) throw new Error(`campaign_map_area_templates does not permit ${shape}.`);
+}
+const invalidAreaTemplateRows = query(`SELECT COUNT(*) AS count FROM campaign_map_area_templates
+  WHERE shape NOT IN ('radius', 'cube', 'cone', 'line')
+     OR size_spaces < 1 OR size_spaces > 60`)[0]?.count ?? 0;
+if (Number(invalidAreaTemplateRows) !== 0) {
+  throw new Error("campaign_map_area_templates contains an unsupported shape or size.");
+}
+
 const indexes = new Set(query("SELECT name FROM sqlite_master WHERE type = 'index'").map(row => row.name));
 for (const index of [
   "campaign_maps_campaign_idx",
@@ -192,6 +212,8 @@ for (const index of [
   "campaign_map_annotations_map_created_idx",
   "campaign_map_annotations_campaign_map_idx",
   "campaign_map_annotations_creator_idx",
+  "campaign_map_area_templates_map_created_idx",
+  "campaign_map_area_templates_creator_idx",
 ]) {
   if (!indexes.has(index)) throw new Error(`Production is missing index ${index}.`);
 }

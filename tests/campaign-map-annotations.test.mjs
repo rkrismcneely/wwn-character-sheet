@@ -55,7 +55,7 @@ test("freehand and arrow geometry serialize to stable SVG paths", () => {
   );
 });
 
-test("map drawing v1 persists per map, filters GM-only rows from players, and uses the map migration release path", async () => {
+test("map annotations persist per map, filter GM-only rows from players, and use the map migration release path", async () => {
   const [migration, textMigration, service, route, controller, launcher, css, migrationScript, workflow, deployWorkflow] = await Promise.all([
     readFile(new URL("../drizzle/0025_campaign_map_annotations.sql", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0026_campaign_map_annotation_text.sql", import.meta.url), "utf8"),
@@ -75,7 +75,7 @@ test("map drawing v1 persists per map, filters GM-only rows from players, and us
   assert.match(migration, /'players', 'gm'/u);
   assert.match(textMigration, /'freehand', 'line', 'arrow', 'rect', 'circle', 'text'/u);
   assert.match(textMigration, /INSERT INTO .*campaign_map_annotations_next/u);
-  assert.match(textMigration, /SELECT .*geometry_json.*FROM .*campaign_map_annotations/u);
+  assert.match(textMigration, /SELECT[\s\S]*geometry_json[\s\S]*FROM .*campaign_map_annotations/u);
   assert.match(textMigration, /ALTER TABLE .*campaign_map_annotations_next.* RENAME TO .*campaign_map_annotations/u);
   assert.match(service, /visibilitySql = access\.canManage \? "" : " AND visibility = 'players'"/u);
   assert.match(service, /requireManagement\(access\)/u);
@@ -94,7 +94,7 @@ test("map drawing v1 persists per map, filters GM-only rows from players, and us
   assert.match(controller, />Players</u);
   assert.match(controller, />GM only</u);
   assert.match(controller, /Clear all/u);
-  assert.match(controller, /Tap or click a drawing to erase it/u);
+  assert.match(controller, /Tap or click an annotation to erase it/u);
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);

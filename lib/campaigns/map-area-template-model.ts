@@ -212,7 +212,8 @@ function gridDistanceSpaces(
 }
 
 function angularDifferenceDegrees(first: number, second: number): number {
-  const difference = Math.abs(normalizeCampaignMapAreaTemplateAngle(first) - normalizeCampaignMapAreaTemplateAngle(second));
+  const wrap = (value: number) => ((value % 360) + 360) % 360;
+  const difference = Math.abs(wrap(first) - wrap(second));
   return Math.min(difference, 360 - difference);
 }
 
@@ -238,9 +239,7 @@ function campaignMapAreaTemplateCellAffected(
 
   if (template.shape === "cone") {
     if (gridDistanceSpaces(sourceCell, cell, grid) > clampCampaignMapAreaTemplateSize(template.sizeSpaces)) return false;
-    const pointAngle = normalizeCampaignMapAreaTemplateAngle(
-      Math.atan2(center.y - template.y, center.x - template.x) * 180 / Math.PI,
-    );
+    const pointAngle = Math.atan2(center.y - template.y, center.x - template.x) * 180 / Math.PI;
     const halfAngle = Math.atan(0.5) * 180 / Math.PI;
     return angularDifferenceDegrees(pointAngle, template.angleDegrees) <= halfAngle + EPSILON;
   }

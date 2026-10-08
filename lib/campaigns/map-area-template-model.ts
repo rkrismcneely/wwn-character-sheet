@@ -222,7 +222,11 @@ export function campaignMapAreaTemplateAffectedCells(
     grid,
     MAX_CANDIDATE_CELLS,
   );
+  const sourceCell = template.shape === "cone" || template.shape === "line"
+    ? gridCellAtPosition({ x: template.x, y: template.y }, grid)
+    : null;
   return candidates.filter(cell => {
+    if (sourceCell && cell.q === sourceCell.q && cell.r === sourceCell.r) return false;
     const center = gridCellCenter(cell, grid);
     return center.x >= 0 && center.x <= mapWidth
       && center.y >= 0 && center.y <= mapHeight

@@ -71,6 +71,10 @@ function requireWritable(access: Awaited<ReturnType<typeof loadCampaignMapAccess
   if (access.archived) throw new CampaignServiceError("This campaign is archived. Restore it before making changes.", 409);
 }
 
+function missingAreaTemplateTable(error: unknown): boolean {
+  return error instanceof Error && /no such table:\s*campaign_map_area_templates/iu.test(error.message);
+}
+
 function canEditAreaTemplate(
   access: Awaited<ReturnType<typeof loadCampaignMapAccess>>,
   actor: CampaignActor,
@@ -136,15 +140,20 @@ export async function readCampaignMapAreaTemplates(
   mapIdValue: unknown,
 ): Promise<CampaignMapAreaTemplate[]> {
   const { access, map } = await areaTemplateMap(db, actor, publicId, mapIdValue);
-  const result = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces,
-      angle_degrees AS angleDegrees, color, creator_user_id AS creatorUserId,
-      created_at AS createdAt, updated_at AS updatedAt
-    FROM campaign_map_area_templates
-    WHERE map_id = ?
-    ORDER BY created_at ASC, id ASC
-    LIMIT 100`)
-    .bind(map.id).all<AreaTemplateRow>();
-  return result.results.map(row => publicTemplate(row, access, actor));
+  try {
+    const result = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces,
+        angle_degrees AS angleDegrees, color, creator_user_id AS creatorUserId,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM campaign_map_area_templates
+      WHERE map_id = ?
+      ORDER BY created_at ASC, id ASC
+      LIMIT 100`)
+      .bind(map.id).all<AreaTemplateRow>();
+    return result.results.map(row => publicTemplate(row, access, actor));
+  } catch (error) {
+    if (missingAreaTemplateTable(error)) return [];
+    throw error;
+  }
 }
 
 export async function createCampaignMapAreaTemplate(

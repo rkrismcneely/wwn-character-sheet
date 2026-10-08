@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionActor } from "@/lib/auth-session";
 import { GmConsole } from "@/app/campaigns/gm-console";
 import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
+import { canManageCampaignRuntime } from "@/lib/campaigns/authorization";
 import { CampaignServiceError, getCampaignD1, loadCampaignAccess } from "@/lib/campaigns/service";
 import "../../campaign-ui.css";
 import "../../campaign-map.css";
@@ -19,7 +20,7 @@ export default async function GmConsolePage({ params }: { params: Promise<{ id: 
   let campaignName: string;
   try {
     const { campaign } = await loadCampaignAccess(await getCampaignD1(), actor, id);
-    if (campaign.ownerUserId !== actor.userId) notFound();
+    if (!canManageCampaignRuntime(actor, campaign)) notFound();
     campaignName = campaign.name;
   } catch (error) {
     if (error instanceof CampaignServiceError && error.status < 500) notFound();

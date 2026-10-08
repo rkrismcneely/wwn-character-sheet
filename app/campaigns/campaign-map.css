@@ -1118,3 +1118,52 @@
     justify-content: flex-start;
   }
 }
+
+/* Map annotation selection and ownership editing */
+.campaign-map-selection-options,
+.campaign-map-text-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .55rem;
+}
+.campaign-map-selection-options strong {
+  font: 800 .72rem/1 var(--font-ui, sans-serif);
+  letter-spacing: .04em;
+}
+.campaign-map-text-size {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: var(--text-muted, #b9ad9b);
+  font: 700 .67rem/1 var(--font-ui, sans-serif);
+  text-transform: uppercase;
+}
+.campaign-map-text-size input {
+  width: 5rem;
+  min-height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--border, #725f47) 72%, transparent);
+  border-radius: 7px;
+  padding: .35rem .45rem;
+  background: color-mix(in srgb, var(--surface, #17130f) 78%, #000 22%);
+  color: var(--text, #f4ead8);
+}
+.campaign-map-annotation-layer.is-selecting .campaign-map-annotation-group.is-editable,
+.campaign-map-annotation-layer.is-erasing .campaign-map-annotation-group.is-editable {
+  cursor: grab;
+  pointer-events: all;
+}
+.campaign-map-annotation-layer.is-erasing .campaign-map-annotation-group.is-editable {
+  cursor: cell;
+}
+.campaign-map-annotation-group.is-selected .campaign-map-annotation {
+  filter: drop-shadow(0 0 4px rgba(255,255,255,.95)) drop-shadow(0 0 8px rgba(0,0,0,.9));
+}
+.campaign-map-annotation-group.is-selected .campaign-map-annotation:not(.campaign-map-annotation-text) {
+  stroke-width: 6;
+}
+@media (max-width: 720px) {
+  .campaign-map-text-size input { min-height: 44px; }
+  .campaign-map-selection-options,
+  .campaign-map-text-controls { align-items: stretch; }
+}

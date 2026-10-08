@@ -16,6 +16,7 @@ export type CampaignMapAnnotation = {
   visibility: CampaignMapAnnotationVisibility;
   color: string;
   geometry: CampaignMapAnnotationGeometry;
+  canEdit: boolean;
   createdAt: string;
 };
 
@@ -131,4 +132,28 @@ export function campaignMapAnnotationPath(geometry: CampaignMapAnnotationGeometr
     return `M ${geometry.x1} ${geometry.y1} L ${geometry.x2} ${geometry.y2}`;
   }
   return null;
+}
+
+export function translateCampaignMapAnnotationGeometry(
+  geometry: CampaignMapAnnotationGeometry,
+  dx: number,
+  dy: number,
+  mapWidth: number,
+  mapHeight: number,
+): CampaignMapAnnotationGeometry | null {
+  let moved: CampaignMapAnnotationGeometry;
+  if (geometry.kind === "freehand") {
+    moved = { kind: "freehand", points: geometry.points.map(point => ({ x: point.x + dx, y: point.y + dy })) };
+  } else if (geometry.kind === "line" || geometry.kind === "arrow") {
+    moved = { ...geometry, x1: geometry.x1 + dx, y1: geometry.y1 + dy, x2: geometry.x2 + dx, y2: geometry.y2 + dy };
+  } else if (geometry.kind === "rect") {
+    moved = { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
+  } else if (geometry.kind === "circle") {
+    moved = { ...geometry, cx: geometry.cx + dx, cy: geometry.cy + dy };
+  } else if (geometry.kind === "text") {
+    moved = { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
+  } else {
+    return null;
+  }
+  return parseCampaignMapAnnotationGeometry(geometry.kind, moved, mapWidth, mapHeight);
 }

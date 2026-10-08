@@ -326,8 +326,11 @@ function toolLabel(tool: CampaignMapDrawingTool) {
 
 function CampaignMapTextSizeControl({ controller, selected }: { controller: CampaignMapAnnotationController; selected: boolean }) {
   const [draft, setDraft] = useState(String(controller.textSize));
-  useEffect(() => { setDraft(String(controller.textSize)); }, [controller.textSize, controller.selectedId]);
 
+  const setSize = (size: number) => {
+    setDraft(String(size));
+    controller.setTextSize(size);
+  };
   const preview = (raw: string) => {
     setDraft(raw);
     const parsed = Number(raw);
@@ -348,7 +351,7 @@ function CampaignMapTextSizeControl({ controller, selected }: { controller: Camp
       step="1"
       value={controller.textSize}
       aria-label={selected ? "Selected text size" : "New text size"}
-      onChange={event => controller.setTextSize(Number(event.target.value))}
+      onChange={event => setSize(Number(event.target.value))}
       onPointerUp={finish}
       onKeyUp={finish}
     />
@@ -378,7 +381,7 @@ export function CampaignMapDrawingPalette({ controller }: { controller: Campaign
     {controller.selected ? <div className="campaign-map-selection-options">
       <strong>Selected {toolLabel(controller.selected.kind)}</strong>
       <label className="campaign-map-drawing-color"><span>Colour</span><input type="color" value={controller.color} aria-label="Selected annotation colour" onChange={e => controller.setColor(e.target.value)} /></label>
-      {selectedText && <CampaignMapTextSizeControl controller={controller} selected />}
+      {selectedText && <CampaignMapTextSizeControl key={controller.selected?.id ?? "selected-text"} controller={controller} selected />}
       <small>Drag the selected annotation on the map to move it.</small>
     </div> : <>
       <div className="campaign-map-drawing-options">

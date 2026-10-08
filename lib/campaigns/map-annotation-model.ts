@@ -150,8 +150,10 @@ export function translateCampaignMapAnnotationGeometry(
     moved = { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
   } else if (geometry.kind === "circle") {
     moved = { ...geometry, cx: geometry.cx + dx, cy: geometry.cy + dy };
-  } else {
+  } else if (geometry.kind === "text") {
     moved = { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
+  } else {
+    return null;
   }
   return parseCampaignMapAnnotationGeometry(geometry.kind, moved, mapWidth, mapHeight);
 }

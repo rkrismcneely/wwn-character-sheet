@@ -48,6 +48,15 @@ test("cone coverage recalculates affected squares when the template rotates", ()
   assert.ok(!southCells.includes("4:2"));
 });
 
+test("rotated cones also recalculate discrete coverage on hex grids", () => {
+  const first = { shape: "cone", x: 150, y: 150, sizeSpaces: 3, angleDegrees: 0 };
+  const rotated = { ...first, angleDegrees: 60 };
+  assert.notDeepEqual(
+    keys(campaignMapAreaTemplateAffectedCells(first, hexGrid, 500, 500)),
+    keys(campaignMapAreaTemplateAffectedCells(rotated, hexGrid, 500, 500)),
+  );
+});
+
 test("cube and line outlines rotate in continuous map space", () => {
   const cube0 = campaignMapAreaTemplateOutlinePath(
     { shape: "cube", x: 100, y: 100, sizeSpaces: 2, angleDegrees: 0 },

@@ -8,6 +8,8 @@ import {
   campaignMapAreaTemplateSizeLabel,
   campaignMapGridSpacePixels,
   normalizeCampaignMapAreaTemplateAngle,
+  snapCampaignMapAreaTemplateAngle,
+  snapCampaignMapAreaTemplateOrigin,
 } from "../lib/campaigns/map-area-template-model.ts";
 
 const squareGrid = { type: "square", size: 50, offsetX: 0, offsetY: 0 };
@@ -57,6 +59,39 @@ test("rotated cones also recalculate discrete coverage on hex grids", () => {
   );
 });
 
+test("area templates snap origins and directions to the active grid", () => {
+  assert.deepEqual(
+    snapCampaignMapAreaTemplateOrigin({ x: 121, y: 137 }, squareGrid, "radius", 4, 300, 300),
+    { x: 125, y: 125 },
+  );
+  assert.deepEqual(
+    snapCampaignMapAreaTemplateOrigin({ x: 91, y: 113 }, squareGrid, "cube", 2, 300, 300),
+    { x: 100, y: 100 },
+  );
+  assert.deepEqual(
+    snapCampaignMapAreaTemplateOrigin({ x: 162, y: 142 }, hexGrid, "cone", 3, 400, 400),
+    { x: 150, y: 150 },
+  );
+  assert.equal(snapCampaignMapAreaTemplateAngle(22, squareGrid), 0);
+  assert.equal(snapCampaignMapAreaTemplateAngle(23, squareGrid), 45);
+  assert.equal(snapCampaignMapAreaTemplateAngle(31, hexGrid), 60);
+  assert.equal(snapCampaignMapAreaTemplateAngle(359, hexGrid), 0);
+});
+
+test("line templates support explicit WWN-style widths instead of assuming one grid space", () => {
+  const narrow = { shape: "line", x: 125, y: 125, sizeSpaces: 4, widthSpaces: 1, angleDegrees: 0 };
+  const wide = { ...narrow, widthSpaces: 3 };
+  const narrowCells = keys(campaignMapAreaTemplateAffectedCells(narrow, squareGrid, 400, 400));
+  const wideCells = keys(campaignMapAreaTemplateAffectedCells(wide, squareGrid, 400, 400));
+  assert.ok(wideCells.length > narrowCells.length);
+  assert.ok(!narrowCells.includes("3:3"));
+  assert.ok(wideCells.includes("3:3"));
+  assert.notEqual(
+    campaignMapAreaTemplateOutlinePath(narrow, squareGrid),
+    campaignMapAreaTemplateOutlinePath(wide, squareGrid),
+  );
+});
+
 test("cube and line outlines rotate in continuous map space", () => {
   const cube0 = campaignMapAreaTemplateOutlinePath(
     { shape: "cube", x: 100, y: 100, sizeSpaces: 2, angleDegrees: 0 },
@@ -76,8 +111,9 @@ test("cube and line outlines rotate in continuous map space", () => {
 });
 
 test("spell area templates are durable, shared, owner-editable, and wired through the campaign map", async () => {
-  const [migration, model, service, route, controller, launcher, css, migrationScript, workflow, deploy] = await Promise.all([
+  const [migration, widthMigration, model, service, route, controller, launcher, css, migrationScript, workflow, deploy] = await Promise.all([
     readFile(new URL("../drizzle/0028_campaign_map_area_templates.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0029_campaign_map_area_template_width.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map-area-template-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map-area-templates.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/map/templates/route.ts", import.meta.url), "utf8"),
@@ -93,11 +129,16 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(migration, /creator_user_id/u);
   assert.match(migration, /'radius', 'cube', 'cone', 'line'/u);
   assert.match(migration, /size_spaces.*between 1 and 60/isu);
+  assert.match(widthMigration, /ADD COLUMN `width_spaces`/u);
+  assert.match(widthMigration, /width_spaces.*between 1 and 60/isu);
   assert.match(model, /campaignMapAreaTemplateContainsPoint/u);
   assert.match(model, /gridCellCenter/u);
   assert.match(model, /local\.x \/ 2/u);
   assert.match(model, /campaignMapAreaTemplateAffectedCells/u);
   assert.match(model, /campaignMapAreaTemplateAffectedPath/u);
+  assert.match(model, /snapCampaignMapAreaTemplateOrigin/u);
+  assert.match(model, /snapCampaignMapAreaTemplateAngle/u);
+  assert.match(model, /widthSpaces/u);
   assert.match(service, /access\.canManage \|\| creatorUserId === actor\.userId/u);
   assert.match(service, /You can only edit your own area templates/u);
   assert.match(service, /You can only remove your own area templates/u);
@@ -111,7 +152,8 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, />Place</u);
   assert.match(controller, />Select</u);
   assert.match(controller, /beginRotate/u);
-  assert.match(controller, /Rotation recalculates coverage immediately/u);
+  assert.match(controller, /Line width/u);
+  assert.match(controller, /snaps placement, movement, and direction to the active grid/u);
   assert.match(controller, /centre lies inside the true area/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);
@@ -124,7 +166,10 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(css, /fill-opacity:\s*\.22/u);
   assert.match(css, /\.campaign-map-area-rotate-handle/u);
   assert.match(migrationScript, /0028_campaign_map_area_templates\.sql/u);
+  assert.match(migrationScript, /0029_campaign_map_area_template_width\.sql/u);
   assert.match(migrationScript, /campaign_map_area_templates_map_created_idx/u);
   assert.match(workflow, /0028_campaign_map_area_templates\.sql/u);
+  assert.match(workflow, /0029_campaign_map_area_template_width\.sql/u);
   assert.match(deploy, /0028_campaign_map_area_templates/u);
+  assert.match(deploy, /0029_campaign_map_area_template_width/u);
 });

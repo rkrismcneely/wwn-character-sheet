@@ -1,4 +1,5 @@
 import {
+  gridCellAtPosition,
   gridCellCenter,
   gridCellPath,
   gridCellsInRectangle,
@@ -16,6 +17,7 @@ export type CampaignMapAreaTemplate = {
   x: number;
   y: number;
   sizeSpaces: number;
+  widthSpaces: number;
   angleDegrees: number;
   color: string;
   canEdit: boolean;
@@ -47,6 +49,78 @@ export function normalizeCampaignMapAreaTemplateAngle(value: unknown): number {
   const number = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.round((((number % 360) + 360) % 360) * 100) / 100;
+}
+
+export function campaignMapAreaTemplateAngleStep(grid: CampaignMapGrid): number {
+  return grid.type === "hex" ? 60 : 45;
+}
+
+export function snapCampaignMapAreaTemplateAngle(value: unknown, grid: CampaignMapGrid): number {
+  const step = campaignMapAreaTemplateAngleStep(grid);
+  const normalized = normalizeCampaignMapAreaTemplateAngle(value);
+  return normalizeCampaignMapAreaTemplateAngle(Math.round(normalized / step) * step);
+}
+
+function roundedGridCoordinate(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function snapSquareAxis(value: number, phase: number, step: number, maximum?: number): number {
+  let index = Math.round((value - phase) / step);
+  if (Number.isFinite(maximum) && (maximum as number) >= 0) {
+    const minimumIndex = Math.ceil((0 - phase) / step);
+    const maximumIndex = Math.floor(((maximum as number) - phase) / step);
+    if (minimumIndex <= maximumIndex) index = Math.max(minimumIndex, Math.min(maximumIndex, index));
+  }
+  return roundedGridCoordinate(phase + index * step);
+}
+
+export function snapCampaignMapAreaTemplateOrigin(
+  position: CampaignMapGridPosition,
+  grid: CampaignMapGrid,
+  shape: CampaignMapAreaTemplateShape,
+  sizeSpaces: number,
+  maximumWidth?: number,
+  maximumHeight?: number,
+): CampaignMapGridPosition {
+  if (!Number.isFinite(grid.size) || grid.size <= 0
+      || !Number.isFinite(grid.offsetX) || !Number.isFinite(grid.offsetY)
+      || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return position;
+
+  if (grid.type === "square") {
+    const cubeOnIntersection = shape === "cube" && clampCampaignMapAreaTemplateSize(sizeSpaces) % 2 === 0;
+    const phaseX = grid.offsetX + (cubeOnIntersection ? 0 : grid.size / 2);
+    const phaseY = grid.offsetY + (cubeOnIntersection ? 0 : grid.size / 2);
+    return {
+      x: snapSquareAxis(position.x, phaseX, grid.size, maximumWidth),
+      y: snapSquareAxis(position.y, phaseY, grid.size, maximumHeight),
+    };
+  }
+
+  const snappedCell = gridCellAtPosition(position, grid);
+  if (!Number.isFinite(maximumWidth) || !Number.isFinite(maximumHeight)) {
+    const center = gridCellCenter(snappedCell, grid);
+    return { x: roundedGridCoordinate(center.x), y: roundedGridCoordinate(center.y) };
+  }
+
+  let best: CampaignMapGridPosition | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let dq = -2; dq <= 2; dq += 1) {
+    for (let dr = -2; dr <= 2; dr += 1) {
+      const center = gridCellCenter({ q: snappedCell.q + dq, r: snappedCell.r + dr }, grid);
+      if (center.x < 0 || center.x > (maximumWidth as number) || center.y < 0 || center.y > (maximumHeight as number)) continue;
+      const distance = Math.hypot(center.x - position.x, center.y - position.y);
+      if (distance < bestDistance) {
+        best = center;
+        bestDistance = distance;
+      }
+    }
+  }
+  if (!best) return {
+    x: roundedGridCoordinate(Math.max(0, Math.min(maximumWidth as number, position.x))),
+    y: roundedGridCoordinate(Math.max(0, Math.min(maximumHeight as number, position.y))),
+  };
+  return { x: roundedGridCoordinate(best.x), y: roundedGridCoordinate(best.y) };
 }
 
 export function parseCampaignMapAreaTemplateColor(value: unknown): string {
@@ -90,7 +164,7 @@ function worldPoint(
 }
 
 export function campaignMapAreaTemplateContainsPoint(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   point: CampaignMapGridPosition,
   grid: CampaignMapGrid,
 ): boolean {
@@ -115,14 +189,14 @@ export function campaignMapAreaTemplateContainsPoint(
       && Math.abs(local.y) <= Math.max(0, local.x / 2) + EPSILON;
   }
   const length = size * unit;
-  const halfWidth = unit / 2;
+  const halfWidth = clampCampaignMapAreaTemplateSize(template.widthSpaces ?? 1) * unit / 2;
   return local.x >= -EPSILON
     && local.x <= length + EPSILON
     && Math.abs(local.y) <= halfWidth + EPSILON;
 }
 
 function campaignMapAreaTemplateBoundingRadius(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "sizeSpaces">,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "sizeSpaces"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   grid: CampaignMapGrid,
 ): number {
   const unit = campaignMapGridSpacePixels(grid);
@@ -130,11 +204,11 @@ function campaignMapAreaTemplateBoundingRadius(
   if (template.shape === "radius") return size * unit;
   if (template.shape === "cube") return size * unit * Math.SQRT2 / 2;
   if (template.shape === "cone") return size * unit * Math.sqrt(1.25);
-  return Math.hypot(size * unit, unit / 2);
+  return Math.hypot(size * unit, clampCampaignMapAreaTemplateSize(template.widthSpaces ?? 1) * unit / 2);
 }
 
 export function campaignMapAreaTemplateAffectedCells(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   grid: CampaignMapGrid,
   mapWidth: number,
   mapHeight: number,
@@ -157,7 +231,7 @@ export function campaignMapAreaTemplateAffectedCells(
 }
 
 export function campaignMapAreaTemplateAffectedPath(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   grid: CampaignMapGrid,
   mapWidth: number,
   mapHeight: number,
@@ -168,7 +242,7 @@ export function campaignMapAreaTemplateAffectedPath(
 }
 
 export function campaignMapAreaTemplateOutlinePath(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   grid: CampaignMapGrid,
 ): string {
   const unit = campaignMapGridSpacePixels(grid);
@@ -200,7 +274,7 @@ export function campaignMapAreaTemplateOutlinePath(
     return points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + " Z";
   }
   const length = size * unit;
-  const halfWidth = unit / 2;
+  const halfWidth = clampCampaignMapAreaTemplateSize(template.widthSpaces ?? 1) * unit / 2;
   const points = [
     worldPoint(origin, { x: 0, y: -halfWidth }, angle),
     worldPoint(origin, { x: length, y: -halfWidth }, angle),
@@ -211,7 +285,7 @@ export function campaignMapAreaTemplateOutlinePath(
 }
 
 export function campaignMapAreaTemplateDirectionPoint(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   grid: CampaignMapGrid,
 ): CampaignMapGridPosition {
   const unit = campaignMapGridSpacePixels(grid);

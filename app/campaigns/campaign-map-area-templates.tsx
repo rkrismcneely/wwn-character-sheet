@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   campaignMapAreaTemplateAffectedPath,
+  campaignMapAreaTemplateAngleStep,
   campaignMapAreaTemplateDefaultColor,
   campaignMapAreaTemplateDirectionPoint,
   campaignMapAreaTemplateMaxSize,
@@ -17,6 +18,8 @@ import {
   campaignMapAreaTemplateSizeLabel,
   clampCampaignMapAreaTemplateSize,
   normalizeCampaignMapAreaTemplateAngle,
+  snapCampaignMapAreaTemplateAngle,
+  snapCampaignMapAreaTemplateOrigin,
   type CampaignMapAreaTemplate,
   type CampaignMapAreaTemplateShape,
 } from "@/lib/campaigns/map-area-template-model";
@@ -58,6 +61,7 @@ export type CampaignMapAreaTemplateController = {
   selected: CampaignMapAreaTemplate | null;
   shape: CampaignMapAreaTemplateShape;
   sizeSpaces: number;
+  widthSpaces: number;
   angleDegrees: number;
   color: string;
   busy: boolean;
@@ -67,6 +71,7 @@ export type CampaignMapAreaTemplateController = {
   setMode: (mode: CampaignMapAreaTemplateMode) => void;
   setShape: (shape: CampaignMapAreaTemplateShape) => void;
   setSizeSpaces: (value: number) => void;
+  setWidthSpaces: (value: number) => void;
   setAngleDegrees: (value: number) => void;
   nudgeAngle: (delta: number) => void;
   setColor: (value: string) => void;
@@ -109,6 +114,7 @@ export function useCampaignMapAreaTemplates({
   mapId,
   width,
   height,
+  grid,
   openMap,
   onChanged,
 }: {
@@ -116,6 +122,7 @@ export function useCampaignMapAreaTemplates({
   mapId: string | null;
   width: number | null;
   height: number | null;
+  grid: CampaignMapGrid | null;
   openMap: boolean;
   onChanged?: () => void;
 }): CampaignMapAreaTemplateController {
@@ -125,6 +132,7 @@ export function useCampaignMapAreaTemplates({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shape, setShapeState] = useState<CampaignMapAreaTemplateShape>("radius");
   const [sizeSpaces, setSizeSpacesState] = useState(4);
+  const [widthSpaces, setWidthSpacesState] = useState(1);
   const [angleDegrees, setAngleDegreesState] = useState(0);
   const [color, setColorState] = useState(campaignMapAreaTemplateDefaultColor);
   const [busy, setBusy] = useState(false);
@@ -211,6 +219,7 @@ export function useCampaignMapAreaTemplates({
           x: template.x,
           y: template.y,
           sizeSpaces: template.sizeSpaces,
+          widthSpaces: template.widthSpaces,
           angleDegrees: template.angleDegrees,
           color: template.color,
         }),
@@ -249,6 +258,7 @@ export function useCampaignMapAreaTemplates({
     setSelectedId(id);
     setShapeState(template.shape);
     setSizeSpacesState(template.sizeSpaces);
+    setWidthSpacesState(template.widthSpaces);
     setAngleDegreesState(template.angleDegrees);
     setColorState(template.color);
     setModeState("select");
@@ -268,20 +278,28 @@ export function useCampaignMapAreaTemplates({
     if (selected?.canEdit) setSelectedLocal({ sizeSpaces: next });
   }, [selected, setSelectedLocal]);
 
-  const setAngleDegrees = useCallback((value: number) => {
-    const next = normalizeCampaignMapAreaTemplateAngle(value);
-    setAngleDegreesState(next);
-    if (selected?.canEdit) setSelectedLocal({ angleDegrees: next });
+  const setWidthSpaces = useCallback((value: number) => {
+    const next = clampCampaignMapAreaTemplateSize(value);
+    setWidthSpacesState(next);
+    if (selected?.canEdit) setSelectedLocal({ widthSpaces: next });
   }, [selected, setSelectedLocal]);
 
+  const setAngleDegrees = useCallback((value: number) => {
+    const next = grid ? snapCampaignMapAreaTemplateAngle(value, grid) : normalizeCampaignMapAreaTemplateAngle(value);
+    setAngleDegreesState(next);
+    if (selected?.canEdit) setSelectedLocal({ angleDegrees: next });
+  }, [grid, selected, setSelectedLocal]);
+
   const nudgeAngle = useCallback((delta: number) => {
-    const next = normalizeCampaignMapAreaTemplateAngle(angleDegrees + delta);
+    const next = grid
+      ? snapCampaignMapAreaTemplateAngle(angleDegrees + delta, grid)
+      : normalizeCampaignMapAreaTemplateAngle(angleDegrees + delta);
     setAngleDegreesState(next);
     if (!selected?.canEdit) return;
     const updated = { ...selected, angleDegrees: next };
     setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
     void saveTemplate(updated);
-  }, [angleDegrees, saveTemplate, selected]);
+  }, [angleDegrees, grid, saveTemplate, selected]);
 
   const setColor = useCallback((value: string) => {
     setColorState(value);
@@ -292,7 +310,9 @@ export function useCampaignMapAreaTemplates({
   }, [saveTemplate, selected]);
 
   const createAt = useCallback(async (point: CampaignMapGridPosition) => {
-    if (!mapId || busy) return;
+    if (!mapId || !grid || !width || !height || busy) return;
+    const snappedPoint = snapCampaignMapAreaTemplateOrigin(point, grid, shape, sizeSpaces, width, height);
+    const snappedAngle = snapCampaignMapAreaTemplateAngle(angleDegrees, grid);
     setBusy(true);
     setError("");
     try {
@@ -303,10 +323,11 @@ export function useCampaignMapAreaTemplates({
           action: "create",
           mapId,
           shape,
-          x: point.x,
-          y: point.y,
+          x: snappedPoint.x,
+          y: snappedPoint.y,
           sizeSpaces,
-          angleDegrees,
+          widthSpaces,
+          angleDegrees: snappedAngle,
           color,
         }),
       });
@@ -322,7 +343,7 @@ export function useCampaignMapAreaTemplates({
     } finally {
       setBusy(false);
     }
-  }, [angleDegrees, busy, campaignId, color, mapId, publishLocal, reload, shape, sizeSpaces]);
+  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, publishLocal, reload, shape, sizeSpaces, width, widthSpaces]);
 
   const deleteSelected = useCallback(async () => {
     const template = templates.find(candidate => candidate.id === selectedId);
@@ -411,11 +432,19 @@ export function useCampaignMapAreaTemplates({
     if (move?.pointerId === event.pointerId) {
       const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
       if (!point) return true;
-      const x = Math.max(0, Math.min(width, move.x + point.x - move.start.x));
-      const y = Math.max(0, Math.min(height, move.y + point.y - move.start.y));
-      move.latestX = x;
-      move.latestY = y;
-      setTemplates(current => current.map(template => template.id === move.id ? { ...template, x, y } : template));
+      const template = templates.find(candidate => candidate.id === move.id);
+      if (!template || !grid) return true;
+      const snapped = snapCampaignMapAreaTemplateOrigin(
+        { x: move.x + point.x - move.start.x, y: move.y + point.y - move.start.y },
+        grid,
+        template.shape,
+        template.sizeSpaces,
+        width,
+        height,
+      );
+      move.latestX = snapped.x;
+      move.latestY = snapped.y;
+      setTemplates(current => current.map(candidate => candidate.id === move.id ? { ...candidate, x: snapped.x, y: snapped.y } : candidate));
       event.preventDefault();
       return true;
     }
@@ -423,7 +452,8 @@ export function useCampaignMapAreaTemplates({
     if (rotate?.pointerId === event.pointerId) {
       const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
       if (!point) return true;
-      const angle = normalizeCampaignMapAreaTemplateAngle(Math.atan2(point.y - rotate.y, point.x - rotate.x) * 180 / Math.PI);
+      const rawAngle = Math.atan2(point.y - rotate.y, point.x - rotate.x) * 180 / Math.PI;
+      const angle = grid ? snapCampaignMapAreaTemplateAngle(rawAngle, grid) : normalizeCampaignMapAreaTemplateAngle(rawAngle);
       rotate.angleDegrees = angle;
       setAngleDegreesState(angle);
       setTemplates(current => current.map(template => template.id === rotate.id ? { ...template, angleDegrees: angle } : template));
@@ -431,7 +461,7 @@ export function useCampaignMapAreaTemplates({
       return true;
     }
     return false;
-  }, [height, width]);
+  }, [grid, height, templates, width]);
 
   const handlePointerEnd = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
     const move = moveRef.current;
@@ -483,6 +513,7 @@ export function useCampaignMapAreaTemplates({
     selected,
     shape,
     sizeSpaces,
+    widthSpaces,
     angleDegrees,
     color,
     busy,
@@ -505,6 +536,7 @@ export function useCampaignMapAreaTemplates({
       if (selected?.canEdit) setSelectedLocal({ shape: next });
     },
     setSizeSpaces,
+    setWidthSpaces,
     setAngleDegrees,
     nudgeAngle,
     setColor,
@@ -558,17 +590,64 @@ function AreaTemplateSizeControl({
   </div>;
 }
 
-function AreaTemplateAngleControl({ controller }: { controller: CampaignMapAreaTemplateController }) {
+function AreaTemplateWidthControl({
+  controller,
+  grid,
+}: {
+  controller: CampaignMapAreaTemplateController;
+  grid: CampaignMapGrid;
+}) {
+  if (controller.shape !== "line") return null;
+  const finish = () => { if (controller.selected) void controller.commitSelected(); };
+  return <div className="campaign-map-area-size campaign-map-area-width">
+    <label>
+      <span>Line width</span>
+      <input
+        type="range"
+        min={campaignMapAreaTemplateMinSize}
+        max={campaignMapAreaTemplateMaxSize}
+        step="1"
+        value={controller.widthSpaces}
+        onChange={event => controller.setWidthSpaces(Number(event.target.value))}
+        onPointerUp={finish}
+        onKeyUp={finish}
+      />
+    </label>
+    <label>
+      <span>Spaces</span>
+      <input
+        type="number"
+        min={campaignMapAreaTemplateMinSize}
+        max={campaignMapAreaTemplateMaxSize}
+        step="1"
+        value={controller.widthSpaces}
+        onChange={event => controller.setWidthSpaces(Number(event.target.value))}
+        onBlur={finish}
+        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
+      />
+    </label>
+    <small>{campaignMapAreaTemplateSizeLabel(controller.widthSpaces, grid)}</small>
+  </div>;
+}
+
+function AreaTemplateAngleControl({
+  controller,
+  grid,
+}: {
+  controller: CampaignMapAreaTemplateController;
+  grid: CampaignMapGrid;
+}) {
   if (controller.shape === "radius") return null;
   const finish = () => { if (controller.selected) void controller.commitSelected(); };
+  const step = campaignMapAreaTemplateAngleStep(grid);
   return <div className="campaign-map-area-angle">
     <span>Angle</span>
-    <button type="button" onClick={() => controller.nudgeAngle(-15)}>−15°</button>
+    <button type="button" onClick={() => controller.nudgeAngle(-step)}>−{step}°</button>
     <input
       type="range"
       min="0"
-      max="359"
-      step="1"
+      max={360 - step}
+      step={step}
       value={controller.angleDegrees}
       aria-label="Area template angle"
       onChange={event => controller.setAngleDegrees(Number(event.target.value))}
@@ -578,24 +657,29 @@ function AreaTemplateAngleControl({ controller }: { controller: CampaignMapAreaT
     <input
       type="number"
       min="0"
-      max="359"
-      step="1"
+      max={360 - step}
+      step={step}
       value={Math.round(controller.angleDegrees)}
       aria-label="Area template angle value"
       onChange={event => controller.setAngleDegrees(Number(event.target.value))}
       onBlur={finish}
       onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
     />
-    <button type="button" onClick={() => controller.nudgeAngle(15)}>+15°</button>
+    <button type="button" onClick={() => controller.nudgeAngle(step)}>+{step}°</button>
   </div>;
 }
 
-function areaTemplateDescription(shape: CampaignMapAreaTemplateShape, sizeSpaces: number, grid: CampaignMapGrid): string {
+function areaTemplateDescription(
+  shape: CampaignMapAreaTemplateShape,
+  sizeSpaces: number,
+  widthSpaces: number,
+  grid: CampaignMapGrid,
+): string {
   const size = campaignMapAreaTemplateSizeLabel(sizeSpaces, grid);
   if (shape === "radius") return `Radius: ${size}.`;
   if (shape === "cube") return `Cube footprint: ${size} on each side.`;
   if (shape === "cone") return `Cone: ${size} long and the same width at its far end.`;
-  return `Line: ${size} long and one grid space wide.`;
+  return `Line: ${size} long and ${campaignMapAreaTemplateSizeLabel(widthSpaces, grid)} wide.`;
 }
 
 export function CampaignMapAreaTemplatePalette({
@@ -617,20 +701,21 @@ export function CampaignMapAreaTemplatePalette({
     </div>}
     {controller.selected && <strong>Selected {shapeLabel(controller.selected.shape)}</strong>}
     <AreaTemplateSizeControl controller={controller} grid={grid} />
-    <AreaTemplateAngleControl controller={controller} />
+    <AreaTemplateWidthControl controller={controller} grid={grid} />
+    <AreaTemplateAngleControl controller={controller} grid={grid} />
     <label className="campaign-map-area-color">
       <span>Colour</span>
       <input type="color" value={controller.color} aria-label="Area template colour" onChange={event => controller.setColor(event.target.value)} />
     </label>
-    <small>{areaTemplateDescription(controller.shape, controller.sizeSpaces, grid)}</small>
-    <small>A square or hex is affected when its centre lies inside the true area. Rotation recalculates coverage immediately.</small>
+    <small>{areaTemplateDescription(controller.shape, controller.sizeSpaces, controller.widthSpaces, grid)}</small>
+    <small>WWN does not define a battle-grid translation rule. TWE counts a square or hex when its centre lies inside the true area, and snaps placement, movement, and direction to the active grid.</small>
     {controller.selected && <div className="campaign-map-area-selected-actions">
       <button type="button" className="campaign-danger" disabled={controller.busy} onClick={() => void controller.deleteSelected()}>Remove Template</button>
     </div>}
     <div className="campaign-map-area-actions"><button type="button" onClick={controller.close}>Done</button></div>
     {controller.mode === "place" && !controller.selected && <small>Click or tap the map to place the template.</small>}
     {controller.mode === "select" && !controller.selected && <small>Select a template to move, resize, recolour, or rotate it.</small>}
-    {controller.selected && controller.shape !== "radius" && <small>Drag the round handle on the map for free rotation, or use the angle controls.</small>}
+    {controller.selected && controller.shape !== "radius" && <small>Drag the round handle to rotate in {campaignMapAreaTemplateAngleStep(grid)}° grid steps, or use the angle controls.</small>}
     {controller.error && <p className="campaign-map-area-error" role="alert">{controller.error}</p>}
   </div>;
 }

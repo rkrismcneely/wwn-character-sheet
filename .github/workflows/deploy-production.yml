@@ -48,7 +48,7 @@ jobs:
             echo "The Action Bundle 13 NPC inventory migration workflow owns this release."
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0014_campaign_map_foundation|0015_campaign_map_interactions|0020_action_bundle_8_live_map_dice|0021_action_bundle_9_companion_map_tokens|0022_action_bundle_10_grid_types|0023_action_bundle_10_map_fog|0025_campaign_map_annotations|0026_campaign_map_annotation_text|0027_campaign_map_annotation_ownership|0028_campaign_map_area_templates)\.sql$|^scripts/migrate-campaign-map-foundation\.mjs$|^\.github/workflows/migrate-campaign-map-foundation\.yml$"; then
+          if [ "${{ github.event_name }}" = "push" ] && git diff-tree --no-commit-id --name-only -r -m "${GITHUB_SHA}" | grep -Eq "^drizzle/(0014_campaign_map_foundation|0015_campaign_map_interactions|0020_action_bundle_8_live_map_dice|0021_action_bundle_9_companion_map_tokens|0022_action_bundle_10_grid_types|0023_action_bundle_10_map_fog|0025_campaign_map_annotations|0026_campaign_map_annotation_text|0027_campaign_map_annotation_ownership|0028_campaign_map_area_templates|0029_campaign_map_area_template_width)\.sql$|^scripts/migrate-campaign-map-foundation\.mjs$|^\.github/workflows/migrate-campaign-map-foundation\.yml$"; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "The campaign-map migration workflow owns this release."
             exit 0

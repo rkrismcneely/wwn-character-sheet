@@ -195,6 +195,68 @@ export function campaignMapAreaTemplateContainsPoint(
     && Math.abs(local.y) <= halfWidth + EPSILON;
 }
 
+function gridDistanceSpaces(
+  source: CampaignMapGridCell,
+  target: CampaignMapGridCell,
+  grid: CampaignMapGrid,
+): number {
+  const dq = Math.abs(target.q - source.q);
+  const dr = Math.abs(target.r - source.r);
+  if (grid.type === "hex") {
+    const ds = Math.abs((-target.q - target.r) - (-source.q - source.r));
+    return Math.max(dq, dr, ds);
+  }
+  const diagonal = Math.min(dq, dr);
+  const straight = Math.max(dq, dr) - diagonal;
+  return straight + diagonal + Math.floor(diagonal / 2);
+}
+
+function angularDifferenceDegrees(first: number, second: number): number {
+  const wrap = (value: number) => ((value % 360) + 360) % 360;
+  const difference = Math.abs(wrap(first) - wrap(second));
+  return Math.min(difference, 360 - difference);
+}
+
+function campaignMapAreaTemplateCellAffected(
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  cell: CampaignMapGridCell,
+  grid: CampaignMapGrid,
+): boolean {
+  const center = gridCellCenter(cell, grid);
+  if (template.shape !== "cone" && template.shape !== "line") {
+    return campaignMapAreaTemplateContainsPoint(template, center, grid);
+  }
+
+  const sourceCell = gridCellAtPosition({ x: template.x, y: template.y }, grid);
+  if (cell.q === sourceCell.q && cell.r === sourceCell.r) return false;
+
+  const local = rotateLocal(
+    center.x - template.x,
+    center.y - template.y,
+    normalizeCampaignMapAreaTemplateAngle(template.angleDegrees),
+  );
+  if (local.x <= EPSILON) return false;
+
+  if (template.shape === "cone") {
+    if (gridDistanceSpaces(sourceCell, cell, grid) > clampCampaignMapAreaTemplateSize(template.sizeSpaces)) return false;
+    const pointAngle = Math.atan2(center.y - template.y, center.x - template.x) * 180 / Math.PI;
+    const halfAngle = Math.atan(0.5) * 180 / Math.PI;
+    return angularDifferenceDegrees(pointAngle, template.angleDegrees) <= halfAngle + EPSILON;
+  }
+
+  const unit = campaignMapGridSpacePixels(grid);
+  const halfWidth = clampCampaignMapAreaTemplateSize(template.widthSpaces ?? 1) * unit / 2;
+  if (Math.abs(local.y) > halfWidth + EPSILON) return false;
+
+  const angleRadians = normalizeCampaignMapAreaTemplateAngle(template.angleDegrees) * Math.PI / 180;
+  const projected = {
+    x: template.x + Math.cos(angleRadians) * local.x,
+    y: template.y + Math.sin(angleRadians) * local.x,
+  };
+  const projectedCell = gridCellAtPosition(projected, grid);
+  return gridDistanceSpaces(sourceCell, projectedCell, grid) <= clampCampaignMapAreaTemplateSize(template.sizeSpaces);
+}
+
 function campaignMapAreaTemplateBoundingRadius(
   template: Pick<CampaignMapAreaTemplate, "shape" | "sizeSpaces"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
   grid: CampaignMapGrid,
@@ -203,8 +265,9 @@ function campaignMapAreaTemplateBoundingRadius(
   const size = clampCampaignMapAreaTemplateSize(template.sizeSpaces);
   if (template.shape === "radius") return size * unit;
   if (template.shape === "cube") return size * unit * Math.SQRT2 / 2;
-  if (template.shape === "cone") return size * unit * Math.sqrt(1.25);
-  return Math.hypot(size * unit, clampCampaignMapAreaTemplateSize(template.widthSpaces ?? 1) * unit / 2);
+  if (template.shape === "cone") return size * unit * (grid.type === "square" ? Math.SQRT2 : 1) + unit;
+  const halfWidth = clampCampaignMapAreaTemplateSize(template.widthSpaces ?? 1) * unit / 2;
+  return size * unit * (grid.type === "square" ? Math.SQRT2 : 1) + halfWidth + unit;
 }
 
 export function campaignMapAreaTemplateAffectedCells(
@@ -222,15 +285,11 @@ export function campaignMapAreaTemplateAffectedCells(
     grid,
     MAX_CANDIDATE_CELLS,
   );
-  const sourceCell = template.shape === "cone" || template.shape === "line"
-    ? gridCellAtPosition({ x: template.x, y: template.y }, grid)
-    : null;
   return candidates.filter(cell => {
-    if (sourceCell && cell.q === sourceCell.q && cell.r === sourceCell.r) return false;
     const center = gridCellCenter(cell, grid);
     return center.x >= 0 && center.x <= mapWidth
       && center.y >= 0 && center.y <= mapHeight
-      && campaignMapAreaTemplateContainsPoint(template, center, grid);
+      && campaignMapAreaTemplateCellAffected(template, cell, grid);
   });
 }
 

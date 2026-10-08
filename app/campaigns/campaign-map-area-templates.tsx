@@ -110,7 +110,6 @@ export function useCampaignMapAreaTemplates({
   width,
   height,
   openMap,
-  grid,
   onChanged,
 }: {
   campaignId: string;
@@ -118,7 +117,6 @@ export function useCampaignMapAreaTemplates({
   width: number | null;
   height: number | null;
   openMap: boolean;
-  grid: CampaignMapGrid;
   onChanged?: () => void;
 }): CampaignMapAreaTemplateController {
   const [templates, setTemplates] = useState<CampaignMapAreaTemplate[]>([]);

@@ -6,6 +6,7 @@ import {
   createCampaignMapAnnotation,
   deleteCampaignMapAnnotation,
   readCampaignMapAnnotations,
+  updateCampaignMapAnnotation,
 } from "@/lib/campaigns/map-annotations";
 import { loadCampaignMapAccess } from "@/lib/campaigns/map";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
@@ -54,6 +55,11 @@ export async function POST(request: Request, context: Context): Promise<Response
 
     if (body.action === "create") {
       const annotation = await createCampaignMapAnnotation(db, actor, id, body);
+      await announceMapChanged(db, access.campaignInternalId);
+      return Response.json({ annotation }, { headers: { "cache-control": "no-store" } });
+    }
+    if (body.action === "update") {
+      const annotation = await updateCampaignMapAnnotation(db, actor, id, body);
       await announceMapChanged(db, access.campaignInternalId);
       return Response.json({ annotation }, { headers: { "cache-control": "no-store" } });
     }

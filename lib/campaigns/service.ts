@@ -2,6 +2,7 @@ import {
   canDeleteCampaign,
   canInviteCampaignMembers,
   canManageCampaignContent,
+  canManageCampaignRuntime,
   canLeaveCampaign,
   canManageCampaignSettings,
   canRemoveCampaignMember,
@@ -70,6 +71,7 @@ export interface CampaignPayload {
   permissions: {
     canManageSettings: boolean;
     canManageContent: boolean;
+    canUseGmConsole: boolean;
     canDelete: boolean;
     canArchive: boolean;
     canRestore: boolean;
@@ -191,6 +193,7 @@ function campaignPayload(
     permissions: {
       canManageSettings: isActive && canManageCampaignSettings(actor, campaign),
       canManageContent: isActive && canManageCampaignContent(actor, campaign, membership),
+      canUseGmConsole: isActive && canManageCampaignRuntime(actor, campaign),
       canDelete: canDeleteCampaign(actor, campaign),
       canArchive: isActive && isOwner,
       canRestore: !isActive && isOwner,

@@ -38,16 +38,17 @@ test("one-space spell radius covers the origin hex and all six adjacent hexes", 
   assert.ok(Math.abs(campaignMapGridSpacePixels(hexGrid) - Math.sqrt(3) * 30) < 0.0001);
 });
 
-test("cone coverage recalculates affected squares when the template rotates", () => {
-  const east = { shape: "cone", x: 125, y: 125, sizeSpaces: 2, angleDegrees: 0 };
-  const south = { ...east, angleDegrees: 90 };
-  const eastCells = keys(campaignMapAreaTemplateAffectedCells(east, squareGrid, 350, 350));
-  const southCells = keys(campaignMapAreaTemplateAffectedCells(south, squareGrid, 350, 350));
-  assert.notDeepEqual(eastCells, southCells);
-  assert.ok(eastCells.includes("4:2"));
-  assert.ok(!eastCells.includes("2:4"));
-  assert.ok(southCells.includes("2:4"));
-  assert.ok(!southCells.includes("4:2"));
+test("square-grid cones use canonical whole-square masks when rotated", () => {
+  const east = { shape: "cone", x: 100, y: 100, sizeSpaces: 3, angleDegrees: 0 };
+  const southeast = { ...east, angleDegrees: 45 };
+  assert.deepEqual(
+    keys(campaignMapAreaTemplateAffectedCells(east, squareGrid, 400, 400)),
+    ["2:2", "3:1", "3:2", "4:1", "4:2", "4:3"],
+  );
+  assert.deepEqual(
+    keys(campaignMapAreaTemplateAffectedCells(southeast, squareGrid, 400, 400)),
+    ["2:2", "2:3", "2:4", "3:2", "3:3", "4:2"],
+  );
 });
 
 test("rotated cones also recalculate discrete coverage on hex grids", () => {
@@ -59,29 +60,25 @@ test("rotated cones also recalculate discrete coverage on hex grids", () => {
   );
 });
 
-test("directional templates exclude their source cell from affected coverage", () => {
-  const squareSource = { q: 2, r: 2 };
-  const cone = { shape: "cone", x: 125, y: 125, sizeSpaces: 4, angleDegrees: 0 };
-  const line = { shape: "line", x: 125, y: 125, sizeSpaces: 4, widthSpaces: 1, angleDegrees: 0 };
-  const radius = { shape: "radius", x: 125, y: 125, sizeSpaces: 1, angleDegrees: 0 };
+test("square-grid cone origins are grid corners, while line coverage still excludes its origin-side cell", () => {
+  const cone = { shape: "cone", x: 100, y: 100, sizeSpaces: 3, angleDegrees: 0 };
+  assert.ok(keys(campaignMapAreaTemplateAffectedCells(cone, squareGrid, 400, 400)).includes("2:2"));
 
-  assert.ok(!keys(campaignMapAreaTemplateAffectedCells(cone, squareGrid, 400, 400)).includes(`${squareSource.q}:${squareSource.r}`));
-  assert.ok(!keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400)).includes(`${squareSource.q}:${squareSource.r}`));
-  assert.ok(keys(campaignMapAreaTemplateAffectedCells(radius, squareGrid, 400, 400)).includes(`${squareSource.q}:${squareSource.r}`));
-
-  const eastLine = keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400));
-  assert.deepEqual(eastLine, ["3:2", "4:2", "5:2", "6:2"]);
+  const line = { shape: "line", x: 100, y: 100, sizeSpaces: 4, widthSpaces: 1, angleDegrees: 0 };
+  assert.ok(!keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400)).includes("2:2"));
 });
 
-test("grid-aware cone coverage stays nearly constant between cardinal and diagonal directions", () => {
-  const cardinal = { shape: "cone", x: 125, y: 125, sizeSpaces: 4, angleDegrees: 0 };
-  const diagonal = { ...cardinal, angleDegrees: 45 };
-  const cardinalCells = campaignMapAreaTemplateAffectedCells(cardinal, squareGrid, 500, 500);
-  const diagonalCells = campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 500, 500);
-
-  assert.equal(cardinalCells.length, 10);
-  assert.equal(diagonalCells.length, 9);
-  assert.ok(Math.abs(cardinalCells.length - diagonalCells.length) <= 1);
+test("square-grid cone area is orientation-invariant and follows whole-square triangular templates", () => {
+  for (const sizeSpaces of [3, 4, 6, 12]) {
+    const expected = sizeSpaces * (sizeSpaces + 1) / 2;
+    const cardinal = { shape: "cone", x: 300, y: 300, sizeSpaces, angleDegrees: 0 };
+    const diagonal = { ...cardinal, angleDegrees: 45 };
+    assert.equal(campaignMapAreaTemplateAffectedCells(cardinal, squareGrid, 1200, 1200).length, expected);
+    assert.equal(campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 1200, 1200).length, expected);
+  }
+  assert.equal(3 * 4 / 2, 6);   // 15-foot cone
+  assert.equal(6 * 7 / 2, 21);  // 30-foot cone
+  assert.equal(12 * 13 / 2, 78); // 60-foot cone
 });
 
 test("grid-aware line length follows TWE diagonal movement distance", () => {
@@ -104,6 +101,14 @@ test("area templates snap origins and directions to the active grid", () => {
     { x: 100, y: 100 },
   );
   assert.deepEqual(
+    snapCampaignMapAreaTemplateOrigin({ x: 121, y: 137 }, squareGrid, "cone", 4, 300, 300),
+    { x: 100, y: 150 },
+  );
+  assert.deepEqual(
+    snapCampaignMapAreaTemplateOrigin({ x: 121, y: 137 }, squareGrid, "line", 4, 300, 300),
+    { x: 100, y: 150 },
+  );
+  assert.deepEqual(
     snapCampaignMapAreaTemplateOrigin({ x: 162, y: 142 }, hexGrid, "cone", 3, 400, 400),
     { x: 150, y: 150 },
   );
@@ -111,6 +116,15 @@ test("area templates snap origins and directions to the active grid", () => {
   assert.equal(snapCampaignMapAreaTemplateAngle(23, squareGrid), 45);
   assert.equal(snapCampaignMapAreaTemplateAngle(31, hexGrid), 60);
   assert.equal(snapCampaignMapAreaTemplateAngle(359, hexGrid), 0);
+});
+
+test("square-grid cone outline follows the stepped whole-square boundary", () => {
+  const template = { shape: "cone", x: 100, y: 100, sizeSpaces: 4, angleDegrees: 0 };
+  const outline = campaignMapAreaTemplateOutlinePath(template, squareGrid);
+  assert.match(outline, /^M /u);
+  assert.ok((outline.match(/ L /gu) ?? []).length > 4);
+  assert.doesNotMatch(outline, / A /u);
+  assert.equal(campaignMapAreaTemplateAffectedCells(template, squareGrid, 500, 500).length, 10);
 });
 
 test("line templates support explicit WWN-style widths instead of assuming one grid space", () => {
@@ -174,6 +188,9 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(model, /snapCampaignMapAreaTemplateOrigin/u);
   assert.match(model, /snapCampaignMapAreaTemplateAngle/u);
   assert.match(model, /widthSpaces/u);
+  assert.match(model, /squareConeLocalCells/u);
+  assert.match(model, /squareCellBoundaryPath/u);
+  assert.match(model, /N\(N\+1\)\/2 whole squares/u);
   assert.match(service, /access\.canManage \|\| creatorUserId === actor\.userId/u);
   assert.match(service, /You can only edit your own area templates/u);
   assert.match(service, /You can only remove your own area templates/u);

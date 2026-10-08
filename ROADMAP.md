@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` after PR #283 on 2026-10-07._
+_Last reconciled against `main` after PR #288 on 2026-10-08._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
@@ -23,25 +23,6 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 
 ---
 
-## Now — map drawing and annotations
-
-Build the first useful annotation layer on top of the existing campaign map foundation.
-
-Version 1 scope:
-
-- GM-only creation and removal
-- player-visible or GM-only annotations
-- freehand pen
-- straight line and arrow
-- rectangle and circle
-- erase individual annotations
-- clear annotations with confirmation
-- persistence per map
-- coordinates remain aligned through zoom, pan, resize, drawer/fullscreen/PiP, and map switching
-- mouse, touch, and stylus-friendly interaction
-
-Keep v1 deliberately lightweight. Do not add a general-purpose vector editor, arbitrary layer stacks, or dynamic lighting/line-of-sight as part of this project.
-
 ### Focused browser smoke policy
 
 The implemented smoke suite covers the highest-value boundaries:
@@ -58,9 +39,30 @@ Keep it small. It uses one Chromium worker, disposable local D1 data, no product
 
 ## Campaign / VTT expansion
 
-The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, stores, or character-to-campaign integration.
+The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, stores, annotations, or character-to-campaign integration.
 
-Potential next expansions after drawing/annotations v1:
+### Planned — rules-accurate spell area templates
+
+Add a map tool that removes guesswork about exactly which spaces are affected by an area spell or similar effect.
+
+Required scope:
+
+- support common area shapes such as radius/circle, cube/square, cone, and line, with room to add other rules-defined shapes later
+- let the user set the effect size in map/grid units before placement
+- render a clear outline with a mostly transparent interior so tokens and map details remain visible
+- work on both square and hex grids
+- calculate and visibly highlight the exact grid spaces affected according to the applicable area/coverage rules rather than merely drawing a geometric approximation
+- allow the template to be moved after placement
+- allow free rotation, with sensible angle snapping where useful
+- recalculate affected squares/hexes live as the template rotates so borderline spaces enter or leave the affected set correctly
+- keep the geometric template and the discrete highlighted-space result visually distinct so users can understand why a space is or is not affected
+- use deterministic, testable coverage rules so the same origin, size, angle, and grid always produce the same affected spaces
+- remain accurate through map zoom, pan, resize, drawer/fullscreen/PiP, and map switching
+- support mouse, touch, and stylus interaction
+
+Implementation should treat square-grid and hex-grid coverage as explicit rules engines, not pixel hit-testing. The feature should be suitable for spells, abilities, hazards, and other measured areas without requiring the user to manually judge partial-square coverage.
+
+Other potential expansions:
 
 - richer map layers/overlays
 - dynamic lighting / line-of-sight if the complexity is justified
@@ -68,7 +70,7 @@ Potential next expansions after drawing/annotations v1:
 - deeper mobile/tablet actual-play UX
 - further encounter/session conveniences only when a concrete play need is identified
 
-Treat these as product choices, not mandatory scope. Prefer small useful additions over turning Tales Without End into an unnecessarily heavy VTT.
+Treat the spell-template tool as planned scope. Treat the remaining expansion bullets as product choices rather than mandatory scope. Prefer small useful additions over turning Tales Without End into an unnecessarily heavy VTT.
 
 ---
 

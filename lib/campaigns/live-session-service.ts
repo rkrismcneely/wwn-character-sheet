@@ -1,7 +1,8 @@
 import { effectiveDisplayName } from "../account/display-name.ts";
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
+import { canManageCampaignRuntime } from "./authorization.ts";
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
-import type { CampaignActor } from "./types.ts";
+import type { CampaignAccessRecord, CampaignActor } from "./types.ts";
 import { campaignCharacterStatus, type CampaignCharacterCardData } from "./character-card.ts";
 import type { CampaignLiveSession, CampaignLiveSessionCharacter, CampaignLiveSessionState } from "./live-session.ts";
 
@@ -19,10 +20,10 @@ async function participantKey(sessionId: string, userId: string): Promise<string
 
 function isOwner(actor: CampaignActor, ownerUserId: string): boolean { return actor.userId === ownerUserId; }
 function isParticipant(actor: CampaignActor, ownerUserId: string, membership: { userId: string } | null): boolean {
-  return isOwner(actor, ownerUserId) || Boolean(membership?.userId === actor.userId);
+  return actor.role === "admin" || isOwner(actor, ownerUserId) || Boolean(membership?.userId === actor.userId);
 }
-function requireOwner(actor: CampaignActor, ownerUserId: string): void {
-  if (!isOwner(actor, ownerUserId)) throw new CampaignServiceError("Only the campaign owner can manage live sessions.", 403);
+function requireRuntimeManager(actor: CampaignActor, campaign: CampaignAccessRecord): void {
+  if (!canManageCampaignRuntime(actor, campaign)) throw new CampaignServiceError("Only the campaign owner or a site admin can manage live sessions.", 403);
 }
 function requireSessionParticipant(actor: CampaignActor, ownerUserId: string, membership: { userId: string } | null): void {
   if (!isParticipant(actor, ownerUserId, membership)) throw new CampaignServiceError("Only campaign members can join this live session.", 403);
@@ -75,15 +76,16 @@ async function stateFor(db: D1Database, actor: CampaignActor, publicId: string):
   const sessionPayload = session ? await payload(db, session) : null;
   const active = !campaign.archivedAt;
   const participant = isParticipant(actor, campaign.ownerUserId, membership);
+  const runtimeManager = canManageCampaignRuntime(actor, campaign);
   const actorParticipantKey = sessionPayload ? await participantKey(sessionPayload.id, actor.userId) : null;
   const joined = sessionPayload
     ? sessionPayload.participants.some(candidate => candidate.participantKey === actorParticipantKey)
     : false;
   return { campaignId: campaign.id, state: { session: sessionPayload, permissions: {
-    canStart: active && isOwner(actor, campaign.ownerUserId),
+    canStart: active && runtimeManager,
     canJoin: active && Boolean(session) && participant && !joined,
-    canEnd: active && Boolean(session) && isOwner(actor, campaign.ownerUserId),
-    canManageEncounter: active && Boolean(session) && joined && isOwner(actor, campaign.ownerUserId),
+    canEnd: active && Boolean(session) && runtimeManager,
+    canManageEncounter: active && Boolean(session) && joined && runtimeManager,
     joined,
     adminReadOnly: actor.role === "admin" && !participant,
   } } };
@@ -118,7 +120,7 @@ export async function listActiveCharacterLiveSessionCampaigns(
 
 export async function startLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string }> {
   const { campaign } = await loadCampaignAccess(db, actor, publicId);
-  requireActiveCampaign(campaign); requireOwner(actor, campaign.ownerUserId);
+  requireActiveCampaign(campaign); requireRuntimeManager(actor, campaign);
   const existing = await activeSession(db, campaign.id);
   if (existing) return stateFor(db, actor, publicId);
   const id = crypto.randomUUID();
@@ -144,7 +146,7 @@ export async function joinLiveSession(db: D1Database, actor: CampaignActor, publ
 
 export async function endLiveSession(db: D1Database, actor: CampaignActor, publicId: string, now = new Date().toISOString()): Promise<{ state: CampaignLiveSessionState; campaignId: string; endedSessionId: string | null }> {
   const { campaign } = await loadCampaignAccess(db, actor, publicId);
-  requireOwner(actor, campaign.ownerUserId);
+  requireRuntimeManager(actor, campaign);
   const session = await activeSession(db, campaign.id);
   if (!session) return { ...(await stateFor(db, actor, publicId)), endedSessionId: null };
   await db.prepare("UPDATE campaign_sessions SET ended_at = ?, ended_by_user_id = ? WHERE id = ? AND ended_at IS NULL").bind(now, actor.userId, session.id).run();
@@ -168,7 +170,7 @@ export async function authorizeEncounterManagement(
 ): Promise<{ campaignId: string; sessionId: string; participantKey: string }> {
   const { campaign } = await loadCampaignAccess(db, actor, publicId);
   requireActiveCampaign(campaign);
-  requireOwner(actor, campaign.ownerUserId);
+  requireRuntimeManager(actor, campaign);
   const session = await activeSession(db, campaign.id);
   if (!session) throw new CampaignServiceError("There is no active live session.", 409);
   const joined = await db.prepare("SELECT 1 AS joined FROM campaign_session_participants WHERE session_id = ? AND user_id = ?")

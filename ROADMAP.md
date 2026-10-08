@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` after PR #288 on 2026-10-08._
+_Last reconciled against `main` after PR #289 on 2026-10-08._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
@@ -11,7 +11,7 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 - `.github/workflows/deploy-production.yml` is manual fallback only.
 - GitHub Actions CI is intentionally focused on pull requests/manual validation; do not add duplicate post-merge validation without a concrete reason.
 - There are currently **no unfinished product-code PRs**.
-- The application already includes the character sheet/builder, authentication and ownership, private campaigns, tested campaign invitations/joining, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date.
+- The application already includes the character sheet/builder, authentication and ownership, private campaigns, tested campaign invitations/joining, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, annotations, rules-accurate measured area/spell templates, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date.
 - Character import was intentionally removed and is not future scope unless explicitly reconsidered.
 - The character autosave/navigation data-loss bug is fixed and production-deployed.
 - Failed/interrupted cloud character saves now keep account-scoped, per-character browser recovery drafts. Same-version drafts can restore to the original safely; newer-server conflicts cannot overwrite the original and can instead be preserved as a new private character, downloaded, or discarded. Ordinary failed saves retry once when browser connectivity returns.
@@ -41,27 +41,6 @@ Keep it small. It uses one Chromium worker, disposable local D1 data, no product
 
 The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, stores, annotations, or character-to-campaign integration.
 
-### Planned — rules-accurate spell area templates
-
-Add a map tool that removes guesswork about exactly which spaces are affected by an area spell or similar effect.
-
-Required scope:
-
-- support common area shapes such as radius/circle, cube/square, cone, and line, with room to add other rules-defined shapes later
-- let the user set the effect size in map/grid units before placement
-- render a clear outline with a mostly transparent interior so tokens and map details remain visible
-- work on both square and hex grids
-- calculate and visibly highlight the exact grid spaces affected according to the applicable area/coverage rules rather than merely drawing a geometric approximation
-- allow the template to be moved after placement
-- allow free rotation, with sensible angle snapping where useful
-- recalculate affected squares/hexes live as the template rotates so borderline spaces enter or leave the affected set correctly
-- keep the geometric template and the discrete highlighted-space result visually distinct so users can understand why a space is or is not affected
-- use deterministic, testable coverage rules so the same origin, size, angle, and grid always produce the same affected spaces
-- remain accurate through map zoom, pan, resize, drawer/fullscreen/PiP, and map switching
-- support mouse, touch, and stylus interaction
-
-Implementation should treat square-grid and hex-grid coverage as explicit rules engines, not pixel hit-testing. The feature should be suitable for spells, abilities, hazards, and other measured areas without requiring the user to manually judge partial-square coverage.
-
 Other potential expansions:
 
 - richer map layers/overlays
@@ -70,7 +49,7 @@ Other potential expansions:
 - deeper mobile/tablet actual-play UX
 - further encounter/session conveniences only when a concrete play need is identified
 
-Treat the spell-template tool as planned scope. Treat the remaining expansion bullets as product choices rather than mandatory scope. Prefer small useful additions over turning Tales Without End into an unnecessarily heavy VTT.
+Treat the remaining expansion bullets as product choices rather than mandatory scope. Prefer small useful additions over turning Tales Without End into an unnecessarily heavy VTT.
 
 ---
 

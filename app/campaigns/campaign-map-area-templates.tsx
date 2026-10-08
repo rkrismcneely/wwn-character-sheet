@@ -708,7 +708,7 @@ export function CampaignMapAreaTemplatePalette({
       <input type="color" value={controller.color} aria-label="Area template colour" onChange={event => controller.setColor(event.target.value)} />
     </label>
     <small>{areaTemplateDescription(controller.shape, controller.sizeSpaces, controller.widthSpaces, grid)}</small>
-    <small>WWN does not define a battle-grid translation rule. TWE counts a square or hex when its centre lies inside the true area, and snaps placement, movement, and direction to the active grid.</small>
+    <small>WWN does not define a battle-grid translation rule. TWE counts a square or hex when its centre lies inside the true area, excludes the source cell for cones and lines, and snaps placement, movement, and direction to the active grid.</small>
     {controller.selected && <div className="campaign-map-area-selected-actions">
       <button type="button" className="campaign-danger" disabled={controller.busy} onClick={() => void controller.deleteSelected()}>Remove Template</button>
     </div>}

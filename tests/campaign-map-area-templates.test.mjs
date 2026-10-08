@@ -59,6 +59,20 @@ test("rotated cones also recalculate discrete coverage on hex grids", () => {
   );
 });
 
+test("directional templates exclude their source cell from affected coverage", () => {
+  const squareSource = { q: 2, r: 2 };
+  const cone = { shape: "cone", x: 125, y: 125, sizeSpaces: 4, angleDegrees: 0 };
+  const line = { shape: "line", x: 125, y: 125, sizeSpaces: 4, widthSpaces: 1, angleDegrees: 0 };
+  const radius = { shape: "radius", x: 125, y: 125, sizeSpaces: 1, angleDegrees: 0 };
+
+  assert.ok(!keys(campaignMapAreaTemplateAffectedCells(cone, squareGrid, 400, 400)).includes(`${squareSource.q}:${squareSource.r}`));
+  assert.ok(!keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400)).includes(`${squareSource.q}:${squareSource.r}`));
+  assert.ok(keys(campaignMapAreaTemplateAffectedCells(radius, squareGrid, 400, 400)).includes(`${squareSource.q}:${squareSource.r}`));
+
+  const eastLine = keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400));
+  assert.deepEqual(eastLine, ["3:2", "4:2", "5:2", "6:2"]);
+});
+
 test("area templates snap origins and directions to the active grid", () => {
   assert.deepEqual(
     snapCampaignMapAreaTemplateOrigin({ x: 121, y: 137 }, squareGrid, "radius", 4, 300, 300),

@@ -188,7 +188,7 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, />Select</u);
   assert.match(controller, /beginRotate/u);
   assert.match(controller, /Line width/u);
-  assert.match(controller, /snaps placement, movement, and direction to the active grid/u);
+  assert.match(controller, /directional affected spaces use the map’s grid-distance rules/u);
   assert.match(controller, /centre lies inside the true area/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);

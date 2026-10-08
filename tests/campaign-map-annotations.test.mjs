@@ -108,7 +108,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /type="color"/u);
   assert.match(controller, /aria-label="Annotation colour"/u);
   assert.match(controller, /Label text/u);
-  assert.match(controller, /click or tap the map where the label should begin/u);
+  assert.match(controller, /click or tap the map to place it/u);
   assert.match(controller, /color=\{annotation\.color\}/u);
   assert.match(controller, />Players</u);
   assert.match(controller, />GM only</u);
@@ -118,7 +118,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /beginMove/u);
   assert.match(controller, /annotation\.canEdit/u);
   assert.match(controller, /Clear all/u);
-  assert.match(controller, /Tap or click an annotation to erase it/u);
+  assert.match(controller, /Tap or click one of your editable annotations to erase it/u);
   assert.match(launcher, />Annotate</u);
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);

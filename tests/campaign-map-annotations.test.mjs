@@ -90,7 +90,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /aria-label="Annotation colour"/u);
   assert.match(controller, /Label text/u);
   assert.match(controller, /click or tap the map where the label should begin/u);
-  assert.match(controller, /color: annotation\.color/u);
+  assert.match(controller, /color=\{annotation\.color\}/u);
   assert.match(controller, />Players</u);
   assert.match(controller, />GM only</u);
   assert.match(controller, /Clear all/u);

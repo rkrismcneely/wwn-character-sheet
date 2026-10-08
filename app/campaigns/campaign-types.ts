@@ -12,6 +12,7 @@ export type CampaignResource = {
 export type CampaignPermissions = {
   canManageSettings: boolean;
   canManageContent: boolean;
+  canUseGmConsole: boolean;
   canDelete: boolean;
   canArchive: boolean;
   canRestore: boolean;
@@ -73,6 +74,7 @@ export type CreatedInvite = {
 export function campaignRoleLabel(campaign: CampaignSummary): string {
   if (campaign.permissions.adminReadOnly) return "Administrator · Read-only";
   if (campaign.isOwner) return "Owner · Game Master";
+  if (campaign.permissions.canUseGmConsole) return "Administrator · Game Master";
   return campaign.membershipRole === "gm" ? "Game Master" : "Player";
 }
 

@@ -43,6 +43,7 @@ export type CampaignMapAnnotationController = {
   setColor: (color: string) => void;
   setTextValue: (value: string) => void;
   setTextSize: (size: number) => void;
+  commitTextSize: () => Promise<void>;
   selectAnnotation: (id: string | null) => void;
   beginMove: (event: ReactPointerEvent<SVGGElement>, id: string) => void;
   stopDrawing: () => void;
@@ -91,6 +92,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
   const [color, setColorState] = useState(campaignMapPlayerAnnotationColor);
   const [textValue, setTextValue] = useState("");
   const [textSize, setTextSizeState] = useState(32);
+  const textSizeEditingRef = useRef(false);
+  const pendingReloadRef = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -99,6 +102,10 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
 
   const reload = useCallback(async () => {
     if (!open || !mapId || !width || !height) return;
+    if (textSizeEditingRef.current) {
+      pendingReloadRef.current = true;
+      return;
+    }
     const seq = ++loadSequence.current;
     try {
       const response = await fetch(`/api/campaigns/${campaignId}/map/annotations?${new URLSearchParams({ mapId })}`, { cache: "no-store" });
@@ -190,6 +197,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     if (!id) { setSelectedId(null); return; }
     const annotation = annotations.find(a => a.id === id);
     if (!annotation?.canEdit) return;
+    textSizeEditingRef.current = false;
+    pendingReloadRef.current = false;
     setSelectedId(id); setColorState(annotation.color);
     if (annotation.geometry.kind === "text") setTextSizeState(annotation.geometry.fontSize);
   }, [annotations]);
@@ -204,9 +213,27 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     setTextSizeState(size);
     if (selected?.canEdit && selected.geometry.kind === "text" && width && height) {
       const geometry = parseCampaignMapAnnotationGeometry("text", { ...selected.geometry, fontSize: size }, width, height);
-      if (geometry) void saveUpdate(selected, geometry);
+      if (geometry) {
+        textSizeEditingRef.current = true;
+        setAnnotations(current => current.map(annotation => annotation.id === selected.id
+          ? { ...annotation, geometry }
+          : annotation));
+      }
     }
-  }, [height, saveUpdate, selected, width]);
+  }, [height, selected, width]);
+
+  const commitTextSize = useCallback(async () => {
+    if (!textSizeEditingRef.current || !selectedId) return;
+    textSizeEditingRef.current = false;
+    const annotation = annotations.find(candidate => candidate.id === selectedId);
+    if (annotation?.canEdit && annotation.geometry.kind === "text") {
+      await saveUpdate(annotation, annotation.geometry);
+    }
+    if (pendingReloadRef.current) {
+      pendingReloadRef.current = false;
+      await reload();
+    }
+  }, [annotations, reload, saveUpdate, selectedId]);
 
   const setDraft = useCallback((next: DrawingDraft | null) => { draftRef.current = next; setDraftState(next); }, []);
 
@@ -286,8 +313,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     toggleDrawing: () => setToolState(current => current ? null : "select"),
     setTool: next => { setToolState(next); if (next !== "select") setSelectedId(null); },
     setVisibility: next => setVisibilityState(canManage ? next : "players"),
-    setColor, setTextValue, setTextSize, selectAnnotation, beginMove,
-    stopDrawing: () => { setToolState(null); setSelectedId(null); setDraft(null); moveRef.current = null; },
+    setColor, setTextValue, setTextSize, commitTextSize, selectAnnotation, beginMove,
+    stopDrawing: () => { textSizeEditingRef.current = false; pendingReloadRef.current = false; setToolState(null); setSelectedId(null); setDraft(null); moveRef.current = null; },
     clearAnnotations, eraseAnnotation, handlePointerDown, handlePointerMove, handlePointerEnd,
   };
 }
@@ -295,6 +322,49 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
 function toolLabel(tool: CampaignMapDrawingTool) {
   if (tool === "freehand") return "Pen"; if (tool === "rect") return "Rectangle"; if (tool === "select") return "Select";
   return tool[0].toUpperCase() + tool.slice(1);
+}
+
+function CampaignMapTextSizeControl({ controller, selected }: { controller: CampaignMapAnnotationController; selected: boolean }) {
+  const [draft, setDraft] = useState(String(controller.textSize));
+  useEffect(() => { setDraft(String(controller.textSize)); }, [controller.textSize, controller.selectedId]);
+
+  const preview = (raw: string) => {
+    setDraft(raw);
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= 8 && parsed <= 200) controller.setTextSize(parsed);
+  };
+  const finish = () => {
+    setDraft(String(controller.textSize));
+    if (selected) void controller.commitTextSize();
+  };
+
+  return <label className="campaign-map-text-size">
+    <span>Text size</span>
+    <input
+      className="campaign-map-text-size-slider"
+      type="range"
+      min="8"
+      max="200"
+      step="1"
+      value={controller.textSize}
+      aria-label={selected ? "Selected text size" : "New text size"}
+      onChange={event => controller.setTextSize(Number(event.target.value))}
+      onPointerUp={finish}
+      onKeyUp={finish}
+    />
+    <input
+      className="campaign-map-text-size-number"
+      type="number"
+      min="8"
+      max="200"
+      step="1"
+      value={draft}
+      aria-label={selected ? "Selected text size value" : "New text size value"}
+      onChange={event => preview(event.target.value)}
+      onBlur={finish}
+      onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
+    />
+  </label>;
 }
 
 export function CampaignMapDrawingPalette({ controller }: { controller: CampaignMapAnnotationController }) {
@@ -308,7 +378,7 @@ export function CampaignMapDrawingPalette({ controller }: { controller: Campaign
     {controller.selected ? <div className="campaign-map-selection-options">
       <strong>Selected {toolLabel(controller.selected.kind)}</strong>
       <label className="campaign-map-drawing-color"><span>Colour</span><input type="color" value={controller.color} aria-label="Selected annotation colour" onChange={e => controller.setColor(e.target.value)} /></label>
-      {selectedText && <label className="campaign-map-text-size"><span>Text size</span><input type="number" min="8" max="200" step="2" value={controller.textSize} onChange={e => controller.setTextSize(Number(e.target.value))} /></label>}
+      {selectedText && <CampaignMapTextSizeControl controller={controller} selected />}
       <small>Drag the selected annotation on the map to move it.</small>
     </div> : <>
       <div className="campaign-map-drawing-options">
@@ -319,7 +389,7 @@ export function CampaignMapDrawingPalette({ controller }: { controller: Campaign
       </div>
       {controller.tool === "text" && <div className="campaign-map-text-controls">
         <label className="campaign-map-text-entry"><span>Label text</span><input type="text" value={controller.textValue} onChange={e => controller.setTextValue(e.target.value)} maxLength={120} placeholder="Enter a map label…" autoFocus /></label>
-        <label className="campaign-map-text-size"><span>Text size</span><input type="number" min="8" max="200" step="2" value={controller.textSize} onChange={e => controller.setTextSize(Number(e.target.value))} /></label>
+        <CampaignMapTextSizeControl controller={controller} selected={false} />
       </div>}
     </>}
     <div className="campaign-map-drawing-actions">
@@ -337,6 +407,44 @@ export function CampaignMapDrawingPalette({ controller }: { controller: Campaign
 function annotationAriaLabel(annotation: CampaignMapAnnotation, action: "select" | "erase") {
   const visibility = annotation.visibility === "players" ? "player-visible" : "GM-only";
   return `${action === "erase" ? "Erase" : "Select"} ${visibility} ${annotation.kind} annotation`;
+}
+
+type AnnotationBounds = { x: number; y: number; width: number; height: number };
+
+function annotationSelectionBounds(geometry: CampaignMapAnnotationGeometry): AnnotationBounds {
+  if (geometry.kind === "freehand") {
+    const xs = geometry.points.map(point => point.x);
+    const ys = geometry.points.map(point => point.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+  }
+  if (geometry.kind === "line" || geometry.kind === "arrow") {
+    return {
+      x: Math.min(geometry.x1, geometry.x2),
+      y: Math.min(geometry.y1, geometry.y2),
+      width: Math.max(1, Math.abs(geometry.x2 - geometry.x1)),
+      height: Math.max(1, Math.abs(geometry.y2 - geometry.y1)),
+    };
+  }
+  if (geometry.kind === "rect") return { x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height };
+  if (geometry.kind === "circle") return { x: geometry.cx - geometry.r, y: geometry.cy - geometry.r, width: geometry.r * 2, height: geometry.r * 2 };
+  return {
+    x: geometry.x,
+    y: geometry.y,
+    width: Math.max(geometry.fontSize, geometry.text.length * geometry.fontSize * 0.62),
+    height: geometry.fontSize * 1.2,
+  };
+}
+
+function AnnotationSelectionIndicator({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {
+  const bounds = annotationSelectionBounds(geometry);
+  const padding = Math.max(6, geometry.kind === "text" ? geometry.fontSize * 0.14 : 6);
+  const x = bounds.x - padding, y = bounds.y - padding;
+  const width = bounds.width + padding * 2, height = bounds.height + padding * 2;
+  return <g className="campaign-map-annotation-selection-indicator" pointerEvents="none" aria-hidden="true">
+    <rect className="campaign-map-annotation-selection-shadow" x={x} y={y} width={width} height={height} rx="4" vectorEffect="non-scaling-stroke" />
+    <rect className="campaign-map-annotation-selection-box" x={x} y={y} width={width} height={height} rx="4" vectorEffect="non-scaling-stroke" />
+  </g>;
 }
 
 function AnnotationShape({ geometry, className, color, markerId }: { geometry: CampaignMapAnnotationGeometry; className: string; color: string; markerId?: string }) {
@@ -378,6 +486,7 @@ export function CampaignMapAnnotationLayer({ controller }: { controller: Campaig
         aria-label={interactive ? annotationAriaLabel(annotation, erasing ? "erase" : "select") : undefined}
         onPointerDown={e => actionPointer(e, annotation)} onKeyDown={e => actionKey(e, annotation)}>
         <AnnotationShape geometry={annotation.geometry} className="campaign-map-annotation" color={annotation.color} markerId={`${markerBase}-annotation-${index}`} />
+        {controller.selectedId === annotation.id && <AnnotationSelectionIndicator geometry={annotation.geometry} />}
         {interactive && <AnnotationHitShape geometry={annotation.geometry} />}
       </g>;
     })}

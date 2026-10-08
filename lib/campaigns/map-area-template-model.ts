@@ -107,6 +107,8 @@ export function campaignMapAreaTemplateContainsPoint(
     return Math.abs(local.x) <= half + EPSILON && Math.abs(local.y) <= half + EPSILON;
   }
   if (template.shape === "cone") {
+    // WWN's explicit cone example is as wide at the far end as it is long.
+    // TWE uses that proportion generically: full width at distance d is d.
     const length = size * unit;
     return local.x >= -EPSILON
       && local.x <= length + EPSILON

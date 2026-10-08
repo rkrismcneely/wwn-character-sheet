@@ -73,6 +73,27 @@ test("directional templates exclude their source cell from affected coverage", (
   assert.deepEqual(eastLine, ["3:2", "4:2", "5:2", "6:2"]);
 });
 
+test("grid-aware cone coverage stays nearly constant between cardinal and diagonal directions", () => {
+  const cardinal = { shape: "cone", x: 125, y: 125, sizeSpaces: 4, angleDegrees: 0 };
+  const diagonal = { ...cardinal, angleDegrees: 45 };
+  const cardinalCells = campaignMapAreaTemplateAffectedCells(cardinal, squareGrid, 500, 500);
+  const diagonalCells = campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 500, 500);
+
+  assert.equal(cardinalCells.length, 10);
+  assert.equal(diagonalCells.length, 9);
+  assert.ok(Math.abs(cardinalCells.length - diagonalCells.length) <= 1);
+});
+
+test("grid-aware line length follows TWE diagonal movement distance", () => {
+  const cardinal = { shape: "line", x: 125, y: 125, sizeSpaces: 4, widthSpaces: 1, angleDegrees: 0 };
+  const diagonal = { ...cardinal, angleDegrees: 45 };
+  const cardinalCells = campaignMapAreaTemplateAffectedCells(cardinal, squareGrid, 500, 500);
+  const diagonalCells = campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 500, 500);
+
+  assert.equal(cardinalCells.length, 4);
+  assert.equal(diagonalCells.length, 3);
+});
+
 test("area templates snap origins and directions to the active grid", () => {
   assert.deepEqual(
     snapCampaignMapAreaTemplateOrigin({ x: 121, y: 137 }, squareGrid, "radius", 4, 300, 300),

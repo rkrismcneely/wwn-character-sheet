@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { BestiaryBrowseItem } from "../app/campaigns/bestiary-browse.ts";
 import { builtInBestiaryCreatures, searchBestiaryCreatures } from "../lib/campaigns/bestiary.ts";
 
-test("GM Console is owner-gated and reuses the existing session, encounter, party, and roll components", async () => {
+test("GM Console is owner/admin-gated and reuses the existing session, encounter, party, and roll components", async () => {
   const [page, consoleUi, encounterRoute, detail, migration, threatMigration, styles, rollToolbarStyles] = await Promise.all([
     readFile(new URL("../app/campaigns/[id]/gm/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/gm-console.tsx", import.meta.url), "utf8"),
@@ -17,7 +17,7 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
     readFile(new URL("../app/campaigns/campaign-ui.css", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/gm-console-roll-toolbar.css", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /campaign\.ownerUserId !== actor\.userId/u);
+  assert.match(page, /canManageCampaignRuntime\(actor, campaign\)/u);
   assert.match(page, /notFound\(\)/u);
   assert.match(page, /gm-console-roll-toolbar\.css/u);
   assert.match(consoleUi, /useCampaignLiveSession/u);
@@ -144,7 +144,7 @@ test("GM Console is owner-gated and reuses the existing session, encounter, part
   assert.match(threatMigration, /ADD COLUMN attacks_per_main_action/u);
 });
 
-test("GM party route is owner-scoped and returns only a derived projection", async () => {
+test("GM party route is owner/admin-scoped and returns only a derived projection", async () => {
   const [route, service] = await Promise.all([
     readFile(new URL("../app/api/campaigns/[id]/gm/party/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/gm-party.ts", import.meta.url), "utf8"),
@@ -152,7 +152,7 @@ test("GM party route is owner-scoped and returns only a derived projection", asy
   assert.match(route, /getSessionActor\(request\)/u);
   assert.match(route, /listGmPartyCharacters/u);
   assert.match(route, /cache-control.*no-store/u);
-  assert.match(service, /campaign\.ownerUserId !== actor\.userId/u);
+  assert.match(service, /canManageCampaignRuntime\(actor, campaign\)/u);
   assert.match(service, /campaignGmPartyStatus/u);
   assert.doesNotMatch(service, /character:\s*data/u);
 });

@@ -88,9 +88,11 @@ export function snapCampaignMapAreaTemplateOrigin(
       || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return position;
 
   if (grid.type === "square") {
+    const directionalOnIntersection = shape === "cone" || shape === "line";
     const cubeOnIntersection = shape === "cube" && clampCampaignMapAreaTemplateSize(sizeSpaces) % 2 === 0;
-    const phaseX = grid.offsetX + (cubeOnIntersection ? 0 : grid.size / 2);
-    const phaseY = grid.offsetY + (cubeOnIntersection ? 0 : grid.size / 2);
+    const onIntersection = directionalOnIntersection || cubeOnIntersection;
+    const phaseX = grid.offsetX + (onIntersection ? 0 : grid.size / 2);
+    const phaseY = grid.offsetY + (onIntersection ? 0 : grid.size / 2);
     return {
       x: snapSquareAxis(position.x, phaseX, grid.size, maximumWidth),
       y: snapSquareAxis(position.y, phaseY, grid.size, maximumHeight),
@@ -195,6 +197,120 @@ export function campaignMapAreaTemplateContainsPoint(
     && Math.abs(local.y) <= halfWidth + EPSILON;
 }
 
+function rotateSquareCellQuarterTurns(
+  cell: CampaignMapGridCell,
+  quarterTurns: number,
+): CampaignMapGridCell {
+  const turns = ((quarterTurns % 4) + 4) % 4;
+  if (turns === 0) return cell;
+  if (turns === 1) return { q: -cell.r - 1, r: cell.q };
+  if (turns === 2) return { q: -cell.q - 1, r: -cell.r - 1 };
+  return { q: cell.r, r: -cell.q - 1 };
+}
+
+function squareConeLocalCells(sizeSpaces: number, angleDegrees: number): CampaignMapGridCell[] {
+  const size = clampCampaignMapAreaTemplateSize(sizeSpaces);
+  const angle = snapCampaignMapAreaTemplateAngle(angleDegrees, {
+    type: "square",
+    size: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const octant = Math.round(angle / 45) % 8;
+  const cells: CampaignMapGridCell[] = [];
+
+  if (octant % 2 === 0) {
+    // Cardinal cones use one forward band per grid space. Band widths grow
+    // 1, 2, 3... so an N-space cone contains N(N+1)/2 whole squares.
+    for (let forward = 0; forward < size; forward += 1) {
+      const width = forward + 1;
+      const firstSide = -Math.floor(width / 2);
+      for (let side = 0; side < width; side += 1) {
+        cells.push({ q: forward, r: firstSide + side });
+      }
+    }
+    return cells.map(cell => rotateSquareCellQuarterTurns(cell, octant / 2));
+  }
+
+  // Diagonal cones use the matching triangular staircase mask. This keeps
+  // their whole-square area identical to cardinal cones while aiming the
+  // template through a grid corner rather than penalizing diagonal rotation.
+  for (let q = 0; q < size; q += 1) {
+    for (let r = 0; r < size - q; r += 1) cells.push({ q, r });
+  }
+  return cells.map(cell => rotateSquareCellQuarterTurns(cell, (octant - 1) / 2));
+}
+
+function squareGridIntersectionIndex(value: number, offset: number, size: number): number {
+  return Math.round((value - offset) / size);
+}
+
+function squareConeCells(
+  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  grid: CampaignMapGrid,
+): CampaignMapGridCell[] {
+  const originQ = squareGridIntersectionIndex(template.x, grid.offsetX, grid.size);
+  const originR = squareGridIntersectionIndex(template.y, grid.offsetY, grid.size);
+  return squareConeLocalCells(template.sizeSpaces, template.angleDegrees)
+    .map(cell => ({ q: originQ + cell.q, r: originR + cell.r }));
+}
+
+function squareCellBoundaryPath(cells: CampaignMapGridCell[], grid: CampaignMapGrid): string {
+  if (grid.type !== "square" || cells.length === 0) return "";
+
+  type Vertex = { q: number; r: number };
+  type Edge = { start: Vertex; end: Vertex };
+  const edgeKey = (first: Vertex, second: Vertex) => {
+    const a = `${first.q}:${first.r}`;
+    const b = `${second.q}:${second.r}`;
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  };
+  const directed = new Map<string, Edge>();
+
+  for (const cell of cells) {
+    const topLeft = { q: cell.q, r: cell.r };
+    const topRight = { q: cell.q + 1, r: cell.r };
+    const bottomRight = { q: cell.q + 1, r: cell.r + 1 };
+    const bottomLeft = { q: cell.q, r: cell.r + 1 };
+    const edges: Edge[] = [
+      { start: topLeft, end: topRight },
+      { start: topRight, end: bottomRight },
+      { start: bottomRight, end: bottomLeft },
+      { start: bottomLeft, end: topLeft },
+    ];
+    for (const edge of edges) {
+      const key = edgeKey(edge.start, edge.end);
+      if (directed.has(key)) directed.delete(key);
+      else directed.set(key, edge);
+    }
+  }
+
+  const remaining = [...directed.values()];
+  if (remaining.length === 0) return "";
+  const paths: string[] = [];
+  while (remaining.length > 0) {
+    const first = remaining.shift() as Edge;
+    const vertices: Vertex[] = [first.start, first.end];
+    let current = first.end;
+    while (current.q !== first.start.q || current.r !== first.start.r) {
+      const nextIndex = remaining.findIndex(edge => edge.start.q === current.q && edge.start.r === current.r);
+      if (nextIndex < 0) break;
+      const next = remaining.splice(nextIndex, 1)[0];
+      vertices.push(next.end);
+      current = next.end;
+    }
+    const pixel = (vertex: Vertex) => ({
+      x: grid.offsetX + vertex.q * grid.size,
+      y: grid.offsetY + vertex.r * grid.size,
+    });
+    paths.push(vertices.map((vertex, index) => {
+      const point = pixel(vertex);
+      return `${index ? "L" : "M"} ${point.x} ${point.y}`;
+    }).join(" ") + " Z");
+  }
+  return paths.join(" ");
+}
+
 function gridDistanceSpaces(
   source: CampaignMapGridCell,
   target: CampaignMapGridCell,
@@ -277,6 +393,12 @@ export function campaignMapAreaTemplateAffectedCells(
   mapHeight: number,
 ): CampaignMapGridCell[] {
   if (![mapWidth, mapHeight, template.x, template.y].every(Number.isFinite) || mapWidth <= 0 || mapHeight <= 0) return [];
+  if (grid.type === "square" && template.shape === "cone") {
+    return squareConeCells(template, grid).filter(cell => {
+      const center = gridCellCenter(cell, grid);
+      return center.x >= 0 && center.x <= mapWidth && center.y >= 0 && center.y <= mapHeight;
+    });
+  }
   const radius = campaignMapAreaTemplateBoundingRadius(template, grid);
   if (!radius) return [];
   const candidates = gridCellsInRectangle(
@@ -328,6 +450,7 @@ export function campaignMapAreaTemplateOutlinePath(
     return points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + " Z";
   }
   if (template.shape === "cone") {
+    if (grid.type === "square") return squareCellBoundaryPath(squareConeCells(template, grid), grid);
     const length = size * unit;
     const points = [
       origin,

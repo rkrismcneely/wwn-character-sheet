@@ -4,6 +4,7 @@ import type { CampaignActor } from "./types.ts";
 import {
   isCampaignMapAnnotationKind,
   isCampaignMapAnnotationVisibility,
+  parseCampaignMapAnnotationColor,
   parseCampaignMapAnnotationGeometry,
   type CampaignMapAnnotation,
   type CampaignMapAnnotationGeometry,
@@ -65,12 +66,14 @@ function mapDimensions(map: AnnotationMapRow): { width: number; height: number }
 
 function annotationFromRow(row: AnnotationRow, width: number, height: number): CampaignMapAnnotation | null {
   try {
-    const geometry = parseCampaignMapAnnotationGeometry(row.kind, JSON.parse(row.geometryJson), width, height);
+    const raw = JSON.parse(row.geometryJson) as Record<string, unknown>;
+    const geometry = parseCampaignMapAnnotationGeometry(row.kind, raw, width, height);
     if (!geometry) return null;
     return {
       id: row.id,
       kind: row.kind,
       visibility: row.visibility,
+      color: parseCampaignMapAnnotationColor(raw.color, row.visibility),
       geometry,
       createdAt: row.createdAt,
     };
@@ -127,6 +130,7 @@ export async function createCampaignMapAnnotation(
   if (!isCampaignMapAnnotationVisibility(input.visibility)) throw new CampaignServiceError("Drawing visibility is invalid.", 422);
   const geometry = parseCampaignMapAnnotationGeometry(input.kind, input.geometry, width, height);
   if (!geometry) throw new CampaignServiceError("Drawing geometry is invalid or outside the map.", 422);
+  const color = parseCampaignMapAnnotationColor(input.color, input.visibility);
 
   const count = await db.prepare("SELECT COUNT(*) AS count FROM campaign_map_annotations WHERE map_id = ?")
     .bind(map.id).first<{ count: number }>();
@@ -144,7 +148,7 @@ export async function createCampaignMapAnnotation(
       map.id,
       input.kind,
       input.visibility,
-      JSON.stringify(geometry),
+      JSON.stringify({ ...geometry, color }),
       now,
     ).run();
 
@@ -152,6 +156,7 @@ export async function createCampaignMapAnnotation(
     id,
     kind: input.kind,
     visibility: input.visibility,
+    color,
     geometry: geometry as CampaignMapAnnotationGeometry,
     createdAt: now,
   };

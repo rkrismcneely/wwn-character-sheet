@@ -1139,8 +1139,13 @@
   font: 700 .67rem/1 var(--font-ui, sans-serif);
   text-transform: uppercase;
 }
-.campaign-map-text-size input {
-  width: 5rem;
+.campaign-map-text-size-slider {
+  width: clamp(7rem, 18vw, 13rem);
+  accent-color: currentColor;
+  cursor: ew-resize;
+}
+.campaign-map-text-size-number {
+  width: 4.8rem;
   min-height: 2rem;
   border: 1px solid color-mix(in srgb, var(--border, #725f47) 72%, transparent);
   border-radius: 7px;
@@ -1157,13 +1162,29 @@
   cursor: cell;
 }
 .campaign-map-annotation-group.is-selected .campaign-map-annotation {
-  filter: drop-shadow(0 0 4px rgba(255,255,255,.95)) drop-shadow(0 0 8px rgba(0,0,0,.9));
+  filter: drop-shadow(0 0 3px rgba(255,255,255,.7)) drop-shadow(0 0 7px rgba(0,0,0,.85));
 }
-.campaign-map-annotation-group.is-selected .campaign-map-annotation:not(.campaign-map-annotation-text) {
-  stroke-width: 6;
+.campaign-map-annotation-selection-shadow,
+.campaign-map-annotation-selection-box {
+  fill: rgba(255,255,255,.025);
+  pointer-events: none;
+}
+.campaign-map-annotation-selection-shadow {
+  stroke: rgba(0,0,0,.92);
+  stroke-width: 5;
+}
+.campaign-map-annotation-selection-box {
+  stroke: #fff4c7;
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+  animation: campaign-map-selection-march 1.2s linear infinite;
+}
+@keyframes campaign-map-selection-march {
+  to { stroke-dashoffset: -24; }
 }
 @media (max-width: 720px) {
-  .campaign-map-text-size input { min-height: 44px; }
+  .campaign-map-text-size-number { min-height: 44px; }
+  .campaign-map-text-size-slider { min-height: 44px; }
   .campaign-map-selection-options,
   .campaign-map-text-controls { align-items: stretch; }
 }

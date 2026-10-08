@@ -1,3 +1,4 @@
+import { canManageCampaignRuntime } from "./authorization.ts";
 import { campaignGmPartyStatus, type CampaignCharacterCardData, type CampaignGmPartyStatus } from "./character-card.ts";
 import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
@@ -13,14 +14,14 @@ interface GmPartyRow {
 
 export type GmPartyCharacterPayload = CampaignGmPartyStatus;
 
-/** Minimal owner-only projection for the GM Console Party tab; never exposes raw character data. */
+/** Minimal owner/admin projection for the GM Console Party tab; never exposes raw character data. */
 export async function listGmPartyCharacters(
   db: D1Database,
   actor: CampaignActor,
   campaignPublicId: string,
 ): Promise<GmPartyCharacterPayload[]> {
   const { campaign } = await loadCampaignAccess(db, actor, campaignPublicId);
-  if (campaign.ownerUserId !== actor.userId) throw new CampaignServiceError("Not permitted.", 403);
+  if (!canManageCampaignRuntime(actor, campaign)) throw new CampaignServiceError("Not permitted.", 403);
   const result = await db.prepare(
     `SELECT ch.public_id AS publicId, ch.name, ch.player, ch.class_label AS classLabel,
             ch.level, ch.data

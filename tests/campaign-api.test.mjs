@@ -164,12 +164,11 @@ async function fixture() {
   return { sqlite, db: new TestD1(sqlite) };
 }
 
-test("live sessions preserve owner-only lifecycle, member participation, and historical restart", async () => {
+test("live sessions allow owner/admin runtime management, member participation, and historical restart", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Session Company" }, now);
   await addMember(sqlite, campaign.id, player);
   await expectServiceError(startLiveSession(db, player, campaign.id, now), 403);
-  await expectServiceError(startLiveSession(db, admin, campaign.id, now), 403);
   const started = await startLiveSession(db, owner, campaign.id, now);
   assert.ok(started.state.session);
   assert.equal(started.state.session.participants.length, 1);
@@ -177,17 +176,20 @@ test("live sessions preserve owner-only lifecycle, member participation, and his
   const duplicateStart = await startLiveSession(db, owner, campaign.id, now);
   assert.equal(duplicateStart.state.session.id, started.state.session.id);
   await expectServiceError(joinLiveSession(db, outsider, campaign.id, now), 404);
-  await expectServiceError(joinLiveSession(db, admin, campaign.id, now), 403);
   const joined = await joinLiveSession(db, player, campaign.id, now);
   assert.equal(joined.state.session.participants.length, 2);
   assert.equal(joined.state.permissions.joined, true);
   assert.equal(joined.state.permissions.canJoin, false);
+  const joinedAdmin = await joinLiveSession(db, admin, campaign.id, now);
+  assert.equal(joinedAdmin.state.permissions.joined, true);
+  assert.equal(joinedAdmin.state.permissions.canEnd, true);
   await joinLiveSession(db, player, campaign.id, now);
   const encounterManagement = await authorizeEncounterManagement(db, owner, campaign.id);
   assert.equal(encounterManagement.sessionId, started.state.session.id);
+  const adminEncounterManagement = await authorizeEncounterManagement(db, admin, campaign.id);
+  assert.equal(adminEncounterManagement.sessionId, started.state.session.id);
   await expectServiceError(authorizeEncounterManagement(db, player, campaign.id), 403);
-  await expectServiceError(authorizeEncounterManagement(db, admin, campaign.id), 403);
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_session_participants").get().count, 2);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_session_participants").get().count, 3);
   const connection = await authorizeLiveSessionConnection(db, player, campaign.id);
   assert.equal(connection.sessionId, started.state.session.id);
   assert.match(connection.participantKey, /^cspt_[0-9a-f]{32}$/u);
@@ -241,21 +243,22 @@ test("shared rolls require a joined participant's own linked character", async (
   await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
 });
 
-test("live-session state keeps non-member administrators read-only but lets admin members join as players", async () => {
+test("non-member administrators receive live-session runtime access and may join with their own linked character", async () => {
   const { sqlite, db } = await fixture();
-  const campaign = await createCampaign(db, owner, { name: "Read only session" }, now);
+  const campaign = await createCampaign(db, owner, { name: "Admin runtime session" }, now);
   await addMember(sqlite, campaign.id, player);
   await startLiveSession(db, owner, campaign.id, now);
   const memberState = await readLiveSession(db, player, campaign.id);
   assert.equal(memberState.permissions.canJoin, true);
   assert.ok(memberState.session.participants.every(participant => participant.character === null));
   assert.equal(Object.hasOwn(memberState.session.participants[0], "userId"), false);
-  const adminState = await readLiveSession(db, admin, campaign.id);
-  assert.equal(adminState.permissions.adminReadOnly, true);
-  assert.equal(adminState.permissions.canJoin, false);
-  assert.equal(adminState.permissions.canStart, false);
 
-  await addMember(sqlite, campaign.id, admin);
+  const adminState = await readLiveSession(db, admin, campaign.id);
+  assert.equal(adminState.permissions.adminReadOnly, false);
+  assert.equal(adminState.permissions.canJoin, true);
+  assert.equal(adminState.permissions.canStart, true);
+  assert.equal(adminState.permissions.canEnd, true);
+
   sqlite.prepare("INSERT INTO characters (id, owner_user_id, public_id, visibility, name, class_label, level, data) VALUES (?, ?, ?, 'private', ?, ?, ?, ?)")
     .run("character-admin", admin.userId, "chr_adminplayer000000000001", "Admin Player", "Expert", 2, JSON.stringify({
       level: 2, classMode: "full", classOne: "Expert", attrs: { DEX: 10, CON: 10 },
@@ -265,22 +268,19 @@ test("live-session state keeps non-member administrators read-only but lets admi
   sqlite.prepare("INSERT INTO campaign_characters (campaign_id, character_id, added_at) VALUES (?, ?, ?)")
     .run(campaignRow.id, "character-admin", now);
 
-  const adminMemberState = await readLiveSession(db, admin, campaign.id);
-  assert.equal(adminMemberState.permissions.adminReadOnly, false);
-  assert.equal(adminMemberState.permissions.canJoin, true);
-  assert.equal(adminMemberState.permissions.canStart, false);
   const joinedAdmin = await joinLiveSession(db, admin, campaign.id, now);
   assert.equal(joinedAdmin.state.permissions.joined, true);
   assert.equal(joinedAdmin.state.permissions.adminReadOnly, false);
+  assert.equal(joinedAdmin.state.permissions.canManageEncounter, true);
   assert.equal(joinedAdmin.state.session.participants.find(participant => participant.character?.id === "chr_adminplayer000000000001")?.character?.name, "Admin Player");
   const connection = await authorizeLiveSessionConnection(db, admin, campaign.id);
   assert.equal(connection.sessionId, joinedAdmin.state.session.id);
   const rollAuthorization = await authorizeLiveSessionRoll(db, admin, campaign.id, "chr_adminplayer000000000001");
   assert.equal(rollAuthorization.character.name, "Admin Player");
-  await expectServiceError(authorizeEncounterManagement(db, admin, campaign.id), 403);
+  assert.equal((await authorizeEncounterManagement(db, admin, campaign.id)).sessionId, joinedAdmin.state.session.id);
 });
 
-test("NPC templates are owner-only, campaign-scoped, and seed independent encounter instances", async () => {
+test("NPC templates are owner/admin managed, campaign-scoped, and seed independent encounter instances", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "NPC Company" }, now);
   await addMember(sqlite, campaign.id, player);
@@ -295,8 +295,8 @@ test("NPC templates are owner-only, campaign-scoped, and seed independent encoun
   assert.equal(npc.hitDice, 2);
   assert.equal(npc.attacks[0].shock, "2/AC 13");
   await expectServiceError(listCampaignNpcTemplates(db, player, campaign.id), 403);
-  await expectServiceError(listCampaignNpcTemplates(db, admin, campaign.id), 403);
-  const duplicate = await duplicateCampaignNpcTemplate(db, owner, campaign.id, npc.id, now);
+  assert.equal((await listCampaignNpcTemplates(db, admin, campaign.id))[0].name, "Orc Warrior");
+  const duplicate = await duplicateCampaignNpcTemplate(db, admin, campaign.id, npc.id, now);
   assert.equal(duplicate.name, "Orc Warrior Copy");
   assert.deepEqual(duplicate.inventory, [itemSnapshot]);
   const updated = await updateCampaignNpcTemplate(db, owner, campaign.id, npc.id, { ...draft, hpMax: 18, notes: "Updated template" }, now);
@@ -632,9 +632,10 @@ test("campaign descriptions stay bounded plain text and owner/GM mutation is pro
   assert.equal(updated.description, "Meet at dusk.");
   assert.equal(updated.version, 2);
   await expectServiceError(updateCampaignDescription(db, player, campaign.id, { description: "No", version: 2 }), 404);
-  await expectServiceError(updateCampaignDescription(db, admin, campaign.id, { description: "No", version: 2 }), 403);
+  const adminUpdated = await updateCampaignDescription(db, admin, campaign.id, { description: "Admin briefing.", version: 2 }, now);
+  assert.equal(adminUpdated.description, "Admin briefing.");
   const playerView = await readCampaign(db, gm, campaign.id);
-  assert.equal(playerView.description, "Meet at dusk.");
+  assert.equal(playerView.description, "Admin briefing.");
 });
 
 test("signed-in creation atomically establishes the creator as owner and GM", async () => {
@@ -647,6 +648,7 @@ test("signed-in creation atomically establishes the creator as owner and GM", as
   assert.deepEqual(campaign.permissions, {
     canManageSettings: true,
     canManageContent: true,
+    canUseGmConsole: true,
     canDelete: true,
     canArchive: true,
     canRestore: false,
@@ -676,7 +678,7 @@ test("new and existing campaigns with no resources return a valid empty list", a
   assert.deepEqual(await listCampaignResources(db, player, campaign.id), []);
 });
 
-test("campaign resources are private, ordered, and mutable only by owner or GM", async () => {
+test("campaign resources are private and mutable by owner, GM, or site admin", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Resources" }, now);
   await addMember(sqlite, campaign.id, gm, "gm");
@@ -689,7 +691,6 @@ test("campaign resources are private, ordered, and mutable only by owner or GM",
   const playerResources = await listCampaignResources(db, player, campaign.id);
   assert.deepEqual(playerResources.map(resource => resource.title), ["Discord", "Briefing"]);
   await expectServiceError(createCampaignResource(db, player, campaign.id, { title: "No", type: "text", content: "No" }), 403);
-  await expectServiceError(createCampaignResource(db, admin, campaign.id, { title: "No", type: "text", content: "No" }), 403);
   await expectServiceError(listCampaignResources(db, outsider, campaign.id), 404);
   const moved = await reorderCampaignResource(db, gm, campaign.id, playerResources[1].resourceKey, "up");
   assert.deepEqual(moved.map(resource => resource.title), ["Briefing", "Discord"]);
@@ -697,6 +698,8 @@ test("campaign resources are private, ordered, and mutable only by owner or GM",
   assert.equal(edited[0].title, "Session Notes");
   const deleted = await deleteCampaignResource(db, owner, campaign.id, moved[1].resourceKey);
   assert.deepEqual(deleted.map(resource => resource.title), ["Session Notes"]);
+  const adminAdded = await createCampaignResource(db, admin, campaign.id, { title: "Admin Note", type: "text", content: "Visible to the table." }, now);
+  assert.deepEqual(adminAdded.map(resource => resource.title), ["Session Notes", "Admin Note"]);
   await assert.rejects(() => createCampaignResource(db, owner, campaign.id, { title: "Unsafe", type: "link", content: "javascript:alert(1)" }), CampaignServiceError);
 });
 
@@ -743,11 +746,13 @@ test("owner, member, and site admin can read while outsiders cannot enumerate", 
   assert.equal((await readCampaign(db, owner, campaign.id)).isOwner, true);
   assert.equal((await readCampaign(db, player, campaign.id)).membershipRole, "player");
   const adminView = await readCampaign(db, admin, campaign.id);
-  assert.equal(adminView.permissions.adminReadOnly, true);
+  assert.equal(adminView.permissions.adminReadOnly, false);
   assert.equal(adminView.permissions.canManageSettings, false);
-  assert.equal(adminView.permissions.canManageContent, false);
-  assert.equal(adminView.permissions.canInviteMembers, false);
-  assert.equal(adminView.permissions.canRemovePlayers, false);
+  assert.equal(adminView.permissions.canManageContent, true);
+  assert.equal(adminView.permissions.canUseGmConsole, true);
+  assert.equal(adminView.permissions.canInviteMembers, true);
+  assert.equal(adminView.permissions.canRemovePlayers, true);
+  assert.equal(adminView.permissions.canLinkCharacters, true);
   assert.equal(adminView.permissions.canLeave, false);
   await expectServiceError(readCampaign(db, outsider, campaign.id), 404);
   await expectServiceError(readCampaign(db, null, campaign.id), 401);
@@ -763,6 +768,7 @@ test("campaign ownership remains authoritative when the owner also has the site-
   assert.equal(ownerView.membershipRole, "gm");
   assert.equal(ownerView.permissions.canInviteMembers, true);
   assert.equal(ownerView.permissions.canManageContent, true);
+  assert.equal(ownerView.permissions.canUseGmConsole, true);
   assert.equal(ownerView.permissions.canLinkCharacters, true);
   assert.equal(ownerView.permissions.adminReadOnly, false);
 
@@ -925,12 +931,14 @@ test("privacy-safe roster keys support authorized removal without exposing user 
   ).get(player.userId).count, 0);
 });
 
-test("players and site admins cannot remove members or the owner", async () => {
+test("players cannot remove members; site admins may remove players but never the owner", async () => {
   const { sqlite, db } = await fixture();
   const campaign = await createCampaign(db, owner, { name: "Roster" }, now);
   await addMember(sqlite, campaign.id, player);
   await expectServiceError(removeCampaignMember(db, player, campaign.id, owner.userId), 403);
-  await expectServiceError(removeCampaignMember(db, admin, campaign.id, player.userId), 403);
+  await removeCampaignMember(db, admin, campaign.id, player.userId);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM campaign_members WHERE user_id = ?").get(player.userId).count, 0);
+  await expectServiceError(removeCampaignMember(db, admin, campaign.id, owner.userId), 403);
   await expectServiceError(removeCampaignMember(db, owner, campaign.id, owner.userId), 403);
 });
 

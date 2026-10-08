@@ -10,6 +10,8 @@ import {
   canEditCampaignLinkedCharacter,
   canInviteCampaignMembers,
   canLeaveCampaign,
+  canManageCampaignContent,
+  canManageCampaignRuntime,
   canManageCampaignSettings,
   canRemoveCampaignMember,
   canTransferCampaignLinkedCharacterOwnership,
@@ -148,13 +150,16 @@ test("campaign settings and deletion remain owner-only", () => {
   }
 });
 
-test("owners and GMs can manage players without gaining owner powers", () => {
+test("owners, GMs, and site admins can manage players without gaining owner powers", () => {
   assert.equal(canInviteCampaignMembers(owner, campaign, ownerMembership), true);
   assert.equal(canInviteCampaignMembers(gm, campaign, gmMembership), true);
   assert.equal(canInviteCampaignMembers(player, campaign, playerMembership), false);
-  assert.equal(canInviteCampaignMembers(admin, campaign, null), false);
+  assert.equal(canInviteCampaignMembers(admin, campaign, null), true);
+  assert.equal(canManageCampaignContent(admin, campaign, null), true);
+  assert.equal(canManageCampaignRuntime(admin, campaign), true);
   assert.equal(canRemoveCampaignMember(owner, campaign, ownerMembership, playerMembership), true);
   assert.equal(canRemoveCampaignMember(gm, campaign, gmMembership, playerMembership), true);
+  assert.equal(canRemoveCampaignMember(admin, campaign, null, playerMembership), true);
   assert.equal(canRemoveCampaignMember(player, campaign, playerMembership, gmMembership), false);
   assert.equal(canRemoveCampaignMember(gm, campaign, gmMembership, ownerMembership), false);
   assert.equal(canRemoveCampaignMember(owner, campaign, ownerMembership, gmMembership), false);

@@ -97,7 +97,7 @@ test("shared session transport keeps party status authoritative, realtime, and r
   assert.match(route, /npcRollRequest/u);
   assert.match(route, /toPublicNpcCampaignSharedRoll/u);
   assert.match(route, /resolveRoll\(rollRequest\)/u);
-  assert.match(liveSessionService, /requireOwner\(actor, campaign\.ownerUserId\)/u);
+  assert.match(liveSessionService, /requireRuntimeManager\(actor, campaign\)/u);
   assert.match(characterRoute, /activeCharacterStatusTargets/u);
   assert.match(characterRoute, /announceCharacterStatus/u);
   assert.match(durable, /INSERT OR IGNORE INTO session_rolls/u);

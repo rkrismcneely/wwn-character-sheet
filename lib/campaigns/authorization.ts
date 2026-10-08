@@ -31,9 +31,11 @@ function isCampaignParticipant(
   campaign: CampaignAccessRecord,
   membership: CampaignMembershipRecord | null,
 ): boolean {
-  return (
-    isCampaignOwner(actor, campaign) ||
-    membershipMatches(actor, campaign, membership)
+  return Boolean(
+    actor &&
+      (actor.role === "admin" ||
+        isCampaignOwner(actor, campaign) ||
+        membershipMatches(actor, campaign, membership)),
   );
 }
 
@@ -62,17 +64,25 @@ export function canManageCampaignSettings(
 }
 
 /**
- * Campaign description and resource content is managed by the owner or a GM
- * member. Site-admin status is additive: an admin who is actually a campaign
- * GM keeps the same GM permissions instead of being forced into read-only mode.
+ * Campaign description and resource content is managed by the owner, a GM
+ * member, or a site admin. Admin status is an explicit feature-access override:
+ * admins do not need a campaign membership row to exercise GM/content tools.
  */
 export function canManageCampaignContent(
   actor: CampaignActor | null,
   campaign: CampaignAccessRecord,
   membership: CampaignMembershipRecord | null,
 ): boolean {
+  if (actor?.role === "admin") return true;
   if (isCampaignOwner(actor, campaign)) return true;
   return canInviteCampaignMembers(actor, campaign, membership);
+}
+
+export function canManageCampaignRuntime(
+  actor: CampaignActor | null,
+  campaign: CampaignAccessRecord,
+): boolean {
+  return actor?.role === "admin" || isCampaignOwner(actor, campaign);
 }
 
 export function canDeleteCampaign(
@@ -87,6 +97,7 @@ export function canInviteCampaignMembers(
   campaign: CampaignAccessRecord,
   membership: CampaignMembershipRecord | null,
 ): boolean {
+  if (actor?.role === "admin") return true;
   if (isCampaignOwner(actor, campaign)) return true;
   return Boolean(
     membershipMatches(actor, campaign, membership) &&

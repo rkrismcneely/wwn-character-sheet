@@ -43,6 +43,7 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
     "canInviteMembers",
     "canManageSettings",
     "canManageContent",
+    "canUseGmConsole",
     "canRemovePlayers",
     "canLeave",
     "canDelete",
@@ -53,7 +54,7 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
   ]) {
     assert.equal(detail.includes(`campaign.permissions.${permission}`), true, permission);
   }
-  assert.match(detail, /Administrator read-only view/u);
+  assert.match(detail, /campaign\.permissions\.canUseGmConsole/u);
   assert.match(detail, /Campaign members/u);
   assert.match(detail, /Owner · Game Master/u);
   assert.match(
@@ -101,6 +102,7 @@ test("campaign overview and resources stay member-readable with owner/GM control
   );
   assert.match(types, /description: string \| null/u);
   assert.match(types, /canManageContent: boolean/u);
+  assert.match(types, /canUseGmConsole: boolean/u);
   assert.match(resourceList, /getSessionActor\(request\)/u);
   assert.match(resourceItem, /reorderCampaignResource/u);
   assert.match(resourceItem, /deleteCampaignResource/u);

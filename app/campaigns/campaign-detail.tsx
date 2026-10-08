@@ -472,7 +472,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               <p>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
             </div>
             <div className="campaign-hero-actions">
-              {campaign.isOwner && !campaign.archivedAt && <Link className="campaign-secondary" href={`/campaigns/${campaign.id}/gm`}>Open GM Console</Link>}
+              {campaign.permissions.canUseGmConsole && !campaign.archivedAt && <Link className="campaign-secondary" href={`/campaigns/${campaign.id}/gm`}>Open GM Console</Link>}
               {campaign.permissions.canInviteMembers && (
                 <button type="button" className="campaign-primary" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>
               )}

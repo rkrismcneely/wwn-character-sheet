@@ -207,10 +207,13 @@ test("eligible characters are restricted to the current member's owned, unlinked
   assert.equal(eligible.every(character => character.isMine), true);
   assert.equal(JSON.stringify(eligible).includes("user-player"), false);
   assert.equal(JSON.stringify(eligible).includes("@example.invalid"), false);
-  assert.deepEqual(await listEligibleCampaignCharacters(db, admin, campaign.id), []);
+  assert.deepEqual(
+    (await listEligibleCampaignCharacters(db, admin, campaign.id)).map(character => character.id),
+    [ids.admin],
+  );
 });
 
-test("campaign owners, including owner-admins, members, and GMs link only their own characters", async () => {
+test("campaign owners, site admins, members, and GMs link only their own characters", async () => {
   const { sqlite, db, campaign, ids } = await fixture();
   const ownerAsAdmin = { ...owner, role: "admin" };
   sqlite.prepare("DELETE FROM campaign_members WHERE campaign_id = ? AND user_id = ?")
@@ -250,7 +253,8 @@ test("campaign owners, including owner-admins, members, and GMs link only their 
   await expectServiceError(linkCharacterToCampaign(db, gm, campaign.id, ids.player), 403);
   await expectServiceError(linkCharacterToCampaign(db, player, campaign.id, ids.outsider), 403);
   await expectServiceError(linkCharacterToCampaign(db, outsider, campaign.id, ids.outsider), 404);
-  await expectServiceError(linkCharacterToCampaign(db, admin, campaign.id, ids.admin), 403);
+  assert.equal((await linkCharacterToCampaign(db, admin, campaign.id, ids.admin, now)).id, ids.admin);
+  await expectServiceError(linkCharacterToCampaign(db, admin, campaign.id, ids.player), 403);
   await expectServiceError(linkCharacterToCampaign(db, null, campaign.id, ids.player), 401);
 });
 

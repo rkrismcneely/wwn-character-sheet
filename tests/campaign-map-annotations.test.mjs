@@ -115,6 +115,10 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /Selected .*toolLabel/u);
   assert.match(controller, /Selected annotation colour/u);
   assert.match(controller, /Text size/u);
+  assert.match(controller, /type="range"/u);
+  assert.match(controller, /commitTextSize/u);
+  assert.match(controller, /textSizeEditingRef/u);
+  assert.match(controller, /setAnnotations\(current => current\.map/u);
   assert.match(controller, /beginMove/u);
   assert.match(controller, /annotation\.canEdit/u);
   assert.match(controller, /Clear all/u);
@@ -129,6 +133,9 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(css, /\.campaign-map-annotation-group\.is-gm/u);
   assert.match(css, /\.campaign-map-drawing-color/u);
   assert.match(css, /\.campaign-map-annotation-text/u);
+  assert.match(css, /\.campaign-map-annotation-selection-box/u);
+  assert.match(css, /campaign-map-selection-march/u);
+  assert.doesNotMatch(css, /is-selected[\s\S]{0,180}stroke-width:\s*6/u);
   assert.match(css, /min-height:\s*44px/u);
   assert.match(migrationScript, /0025_campaign_map_annotations\.sql/u);
   assert.match(migrationScript, /0026_campaign_map_annotation_text\.sql/u);
@@ -152,6 +159,8 @@ test("map drawing uses SVG map-space geometry with touch-sized erase targets", a
   assert.match(controller, /getScreenCTM/u);
   assert.match(controller, /matrixTransform\(matrix\.inverse\(\)\)/u);
   assert.match(controller, /vectorEffect="non-scaling-stroke"/u);
+  assert.match(controller, /AnnotationSelectionIndicator/u);
+  assert.match(controller, /annotationSelectionBounds/u);
   assert.match(css, /\.campaign-map-annotation-hit[\s\S]*stroke-width:\s*22px/u);
   assert.match(launcher, /viewBox=/u);
   assert.match(css, /touch-action:\s*none/u);

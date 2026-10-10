@@ -93,13 +93,11 @@ html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header 
   flex:0 0 auto;
 }
 
-/* All desktop map presentations prefer one horizontal toolbar row. Internal
-   wrapper rows are flattened so title and controls share the same flex line;
-   wrapping happens only when their real minimum widths no longer fit. */
+/* Fullscreen, Picture-in-Picture and standalone map toolbars prefer one
+   horizontal row. The side drawer has a separate grid layout. */
 .campaign-map-host-fullscreen .campaign-map-toolbar,
 .campaign-map-pip-host .campaign-map-toolbar,
-.campaign-map-host-standalone .campaign-map-toolbar,
-.campaign-map-host-drawer .campaign-map-toolbar {
+.campaign-map-host-standalone .campaign-map-toolbar {
   display:flex;
   align-items:center;
   justify-content:flex-start;
@@ -113,9 +111,7 @@ html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header 
 .campaign-map-pip-host .campaign-map-toolbar-primary,
 .campaign-map-pip-host .campaign-map-toolbar-actions,
 .campaign-map-host-standalone .campaign-map-toolbar-primary,
-.campaign-map-host-standalone .campaign-map-toolbar-actions,
-.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-primary,
-.campaign-map-host-drawer .campaign-map-toolbar > .campaign-map-toolbar-actions {
+.campaign-map-host-standalone .campaign-map-toolbar-actions {
   display:contents;
 }
 
@@ -127,55 +123,8 @@ html[data-campaign-store-drawer][data-campaign-store-pane="narrow"] .app-header 
   max-width:none;
 }
 
-/* The side drawer keeps the same one-row-first behavior, but unlike the prior
-   forced single-row version it may naturally wrap onto a second or third row
-   once the drawer is genuinely too narrow for the controls. */
-.campaign-map-host-drawer .campaign-map-toolbar {
-  gap:.4rem;
-  padding:.5rem .65rem;
-  overflow:visible;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-title-block {
-  order:1;
-  flex:1 1 7rem;
-  min-width:7rem;
-  max-width:none;
-  overflow:hidden;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-title-block h2 {
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-mode-controls {
-  order:2;
-  flex:0 0 auto;
-  width:auto;
-  margin-left:0;
-  justify-content:flex-start;
-  flex-wrap:nowrap;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-presentation-picker,
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-dock-control,
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-control-group,
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-toolbar-actions {
-  flex:0 0 auto;
-  width:auto;
-  max-width:none;
-  flex-wrap:nowrap;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-control-group[aria-label="Map view controls"] {
-  order:3;
-}
-
-.campaign-map-host-drawer .campaign-map-toolbar .campaign-map-control-group[aria-label="Table controls"] {
-  order:4;
-}
+/* The drawer's map picker and toolbar layout are defined in
+   campaigns/campaign-map.css; do not flatten its structural wrappers here. */
 
 .campaign-map-host-fullscreen .campaign-map-control-group[aria-label="Map view controls"],
 .campaign-map-pip-host .campaign-map-control-group[aria-label="Map view controls"],

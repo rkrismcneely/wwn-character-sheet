@@ -100,3 +100,19 @@ test("the compact drawer keeps its map selector left of the action buttons", asy
   assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*grid-column: 2;/u);
   assert.match(css, /\.campaign-map-quick-tooltip\[data-tooltip\]:is\(:hover, :focus-visible, :focus-within\)::after/u);
 });
+
+
+test("the drawer map selector stays ahead of the tools without legacy layout overrides", async () => {
+  const [launcher, css, polish] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/map-layout-polish.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.ok(launcher.indexOf('className="campaign-map-toolbar-primary"') < launcher.indexOf('className="campaign-map-toolbar-actions"'));
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar \{\s*display: grid;\s*grid-template-columns: clamp\(7\.5rem, 25%, 11rem\) minmax\(0, 1fr\);/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-primary \{\s*grid-column: 1;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*grid-column: 2;/u);
+  assert.doesNotMatch(polish, /\.campaign-map-host-drawer \.campaign-map-toolbar/u,
+    "global layout polish must not flatten the drawer toolbar into display: contents");
+});

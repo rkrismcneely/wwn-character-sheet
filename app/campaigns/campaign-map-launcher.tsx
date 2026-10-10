@@ -555,7 +555,6 @@ export function CampaignMapWorkspace({
     setAddOpen(false);
     setFogMode(null);
     stopMeasuring();
-    setSettingsOpen(false);
     await loadMap(false, mapId);
   }
   async function renameMap() { if (!map || mapNameDraft.trim() === map.name) return; await mapAction({ action: "rename", mapId: map.id, version: map.version, name: mapNameDraft.trim() }); }

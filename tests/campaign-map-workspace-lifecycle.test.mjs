@@ -52,3 +52,14 @@ test("map controls expose Picture-in-Picture and a real open/close toggle", asyn
   assert.match(control, /mapIsOpen \? "Close Map" : "Map"/u);
   assert.match(events, /action\?: "open" \| "close"/u);
 });
+
+test("switching maps keeps the Edit Map panel open", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  const selectMapBody = launcher.match(/async function selectMap\(mapId: string\) \{([\s\S]*?)\n  \}/u)?.[1];
+
+  assert.ok(selectMapBody, "expected a map-switch handler");
+  assert.match(selectMapBody, /await loadMap\(false, mapId\)/u);
+  assert.doesNotMatch(selectMapBody, /setSettingsOpen\(false\)/u);
+  assert.match(launcher, /aria-label="Current campaign map"[\s\S]*?onChange=\{event => void selectMap\(event\.target\.value\)\}/u);
+  assert.match(launcher, /className="campaign-map-library-list"[\s\S]*?onClick=\{\(\) => void selectMap\(candidate\.id\)\}/u);
+});

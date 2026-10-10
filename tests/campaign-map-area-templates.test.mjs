@@ -7,6 +7,7 @@ import {
   campaignMapAreaTemplateOutlinePath,
   campaignMapAreaTemplateSizeLabel,
   campaignMapGridSpacePixels,
+  campaignMapSquareConeOverlapFraction,
   normalizeCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateOrigin,
@@ -38,16 +39,16 @@ test("one-space spell radius covers the origin hex and all six adjacent hexes", 
   assert.ok(Math.abs(campaignMapGridSpacePixels(hexGrid) - Math.sqrt(3) * 30) < 0.0001);
 });
 
-test("square-grid cones use canonical whole-square masks when rotated", () => {
+test("square-grid cones include exactly the squares at least half covered by the triangle", () => {
   const east = { shape: "cone", x: 100, y: 100, sizeSpaces: 3, angleDegrees: 0 };
   const southeast = { ...east, angleDegrees: 45 };
   assert.deepEqual(
     keys(campaignMapAreaTemplateAffectedCells(east, squareGrid, 400, 400)),
-    ["2:2", "3:1", "3:2", "4:1", "4:2", "4:3"],
+    ["3:1", "3:2", "4:1", "4:2"],
   );
   assert.deepEqual(
     keys(campaignMapAreaTemplateAffectedCells(southeast, squareGrid, 400, 400)),
-    ["2:2", "2:3", "2:4", "3:2", "3:3", "4:2"],
+    ["2:2", "2:3", "3:2", "3:3", "3:4", "4:3"],
   );
 });
 
@@ -60,25 +61,33 @@ test("rotated cones also recalculate discrete coverage on hex grids", () => {
   );
 });
 
-test("square-grid cone origins are grid corners, while line coverage still excludes its origin-side cell", () => {
-  const cone = { shape: "cone", x: 100, y: 100, sizeSpaces: 3, angleDegrees: 0 };
-  assert.ok(keys(campaignMapAreaTemplateAffectedCells(cone, squareGrid, 400, 400)).includes("2:2"));
+test("square-grid cone origins stay on grid intersections and exact 50-percent overlaps count", () => {
+  const cone = { shape: "cone", x: 100, y: 100, sizeSpaces: 4, angleDegrees: 45 };
+  const exactlyHalf = campaignMapSquareConeOverlapFraction(cone, { q: 2, r: 3 }, squareGrid);
+  const belowHalf = campaignMapSquareConeOverlapFraction(cone, { q: 2, r: 4 }, squareGrid);
+  assert.ok(Math.abs(exactlyHalf - 0.5) < 0.0001);
+  assert.ok(belowHalf < 0.5);
+  const covered = keys(campaignMapAreaTemplateAffectedCells(cone, squareGrid, 500, 500));
+  assert.ok(covered.includes("2:3"));
+  assert.ok(!covered.includes("2:4"));
 
   const line = { shape: "line", x: 100, y: 100, sizeSpaces: 4, widthSpaces: 1, angleDegrees: 0 };
   assert.ok(!keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400)).includes("2:2"));
 });
 
-test("square-grid cone area is orientation-invariant and follows whole-square triangular templates", () => {
-  for (const sizeSpaces of [3, 4, 6, 12]) {
-    const expected = sizeSpaces * (sizeSpaces + 1) / 2;
+test("50-percent cone coverage is derived from geometric overlap rather than a fixed staircase mask", () => {
+  const expectedCounts = new Map([
+    [3, [4, 6]],
+    [4, [8, 9]],
+    [6, [18, 20]],
+    [12, [72, 72]],
+  ]);
+  for (const [sizeSpaces, [cardinalCount, diagonalCount]] of expectedCounts) {
     const cardinal = { shape: "cone", x: 300, y: 300, sizeSpaces, angleDegrees: 0 };
     const diagonal = { ...cardinal, angleDegrees: 45 };
-    assert.equal(campaignMapAreaTemplateAffectedCells(cardinal, squareGrid, 1200, 1200).length, expected);
-    assert.equal(campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 1200, 1200).length, expected);
+    assert.equal(campaignMapAreaTemplateAffectedCells(cardinal, squareGrid, 1200, 1200).length, cardinalCount);
+    assert.equal(campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 1200, 1200).length, diagonalCount);
   }
-  assert.equal(3 * 4 / 2, 6);   // 15-foot cone
-  assert.equal(6 * 7 / 2, 21);  // 30-foot cone
-  assert.equal(12 * 13 / 2, 78); // 60-foot cone
 });
 
 test("grid-aware line length follows TWE diagonal movement distance", () => {
@@ -118,13 +127,13 @@ test("area templates snap origins and directions to the active grid", () => {
   assert.equal(snapCampaignMapAreaTemplateAngle(359, hexGrid), 0);
 });
 
-test("square-grid cone outline follows the stepped whole-square boundary", () => {
+test("square-grid cone outline remains the true WWN triangle while coverage uses overlap area", () => {
   const template = { shape: "cone", x: 100, y: 100, sizeSpaces: 4, angleDegrees: 0 };
   const outline = campaignMapAreaTemplateOutlinePath(template, squareGrid);
-  assert.match(outline, /^M /u);
-  assert.ok((outline.match(/ L /gu) ?? []).length > 4);
+  assert.match(outline, /^M 100 100 L /u);
+  assert.equal((outline.match(/ L /gu) ?? []).length, 2);
   assert.doesNotMatch(outline, / A /u);
-  assert.equal(campaignMapAreaTemplateAffectedCells(template, squareGrid, 500, 500).length, 10);
+  assert.equal(campaignMapAreaTemplateAffectedCells(template, squareGrid, 500, 500).length, 8);
 });
 
 test("line templates support explicit WWN-style widths instead of assuming one grid space", () => {
@@ -188,9 +197,9 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(model, /snapCampaignMapAreaTemplateOrigin/u);
   assert.match(model, /snapCampaignMapAreaTemplateAngle/u);
   assert.match(model, /widthSpaces/u);
-  assert.match(model, /squareConeLocalCells/u);
-  assert.match(model, /squareCellBoundaryPath/u);
-  assert.match(model, /N\(N\+1\)\/2 whole squares/u);
+  assert.match(model, /campaignMapSquareConeOverlapFraction/u);
+  assert.match(model, /clipPolygonAtAxis/u);
+  assert.match(model, /polygonArea/u);
   assert.match(service, /access\.canManage \|\| creatorUserId === actor\.userId/u);
   assert.match(service, /You can only edit your own area templates/u);
   assert.match(service, /You can only remove your own area templates/u);
@@ -205,7 +214,7 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, />Select</u);
   assert.match(controller, /beginRotate/u);
   assert.match(controller, /Line width/u);
-  assert.match(controller, /whole-square stepped template/u);
+  assert.match(controller, /at least 50% of that square is covered by the triangle/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);
   assert.match(launcher, />Area</u);

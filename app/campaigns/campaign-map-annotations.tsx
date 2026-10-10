@@ -82,8 +82,9 @@ function draftGeometry(draft: DrawingDraft, width: number, height: number): Camp
   return r < 1 ? null : { kind: "circle", cx: draft.start.x, cy: draft.start.y, r };
 }
 
-export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, height, open, canManage, onChanged }: {
+export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, height, open, canManage, onChanged, onEdited }: {
   campaignId: string; mapId: string | null; mapName: string; width: number | null; height: number | null; open: boolean; canManage: boolean; onChanged?: () => void;
+  onEdited?: (before: CampaignMapAnnotation | null, after: CampaignMapAnnotation | null) => void;
 }): CampaignMapAnnotationController {
   const [annotations, setAnnotations] = useState<CampaignMapAnnotation[]>([]);
   const [draftState, setDraftState] = useState<DrawingDraft | null>(null);
@@ -95,6 +96,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
   const [textValue, setTextValue] = useState("");
   const [textSize, setTextSizeState] = useState(32);
   const textSizeEditingRef = useRef(false);
+  const originalTextAnnotationRef = useRef<CampaignMapAnnotation | null>(null);
   const pendingReloadRef = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -134,7 +136,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     return () => channel.close();
   }, [campaignId, open, reload]);
 
-  const saveUpdate = useCallback(async (annotation: CampaignMapAnnotation, geometry: CampaignMapAnnotationGeometry, nextColor = annotation.color) => {
+  const saveUpdate = useCallback(async (annotation: CampaignMapAnnotation, geometry: CampaignMapAnnotationGeometry, nextColor = annotation.color, previous = annotation) => {
     if (!mapId || !annotation.canEdit) return;
     setAnnotations(current => current.map(a => a.id === annotation.id ? { ...a, geometry, color: nextColor } : a));
     setError("");
@@ -146,9 +148,10 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const body = await response.json() as AnnotationResponse;
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be updated.");
       setAnnotations(current => current.map(a => a.id === annotation.id ? body.annotation as CampaignMapAnnotation : a));
+      if (JSON.stringify(previous.geometry) !== JSON.stringify(body.annotation.geometry) || previous.color !== body.annotation.color) onEdited?.(previous, body.annotation);
       onChanged?.();
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be updated."); void reload(); }
-  }, [campaignId, mapId, onChanged, reload]);
+  }, [campaignId, mapId, onChanged, onEdited, reload]);
 
   const persistAnnotation = useCallback(async (geometry: CampaignMapAnnotationGeometry) => {
     if (!mapId) return;
@@ -161,11 +164,12 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const body = await response.json() as AnnotationResponse;
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be saved.");
       setAnnotations(current => [...current.filter(a => a.id !== body.annotation?.id), body.annotation as CampaignMapAnnotation]);
+      onEdited?.(null, body.annotation);
       if (geometry.kind === "text") setTextValue("");
       onChanged?.();
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be saved."); void reload(); }
     finally { setBusy(false); }
-  }, [campaignId, canManage, color, mapId, onChanged, reload, visibility]);
+  }, [campaignId, canManage, color, mapId, onChanged, onEdited, reload, visibility]);
 
   const duplicateSelected = useCallback(async () => {
     if (!selected?.canEdit || !mapId || !width || !height || busy) return;
@@ -186,6 +190,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be duplicated.");
       setAnnotations(current => [...current, body.annotation as CampaignMapAnnotation]);
       setSelectedId(body.annotation.id);
+      onEdited?.(null, body.annotation);
       onChanged?.();
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : "Annotation could not be duplicated.");
@@ -193,7 +198,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     } finally {
       setBusy(false);
     }
-  }, [busy, campaignId, height, mapId, onChanged, reload, selected, width]);
+  }, [busy, campaignId, height, mapId, onChanged, onEdited, reload, selected, width]);
 
   const eraseAnnotation = useCallback(async (id: string) => {
     const annotation = annotations.find(a => a.id === id);
@@ -206,10 +211,10 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       });
       const body = await response.json() as AnnotationResponse;
       if (!response.ok || !body.ok) throw new Error(body.error || "Annotation could not be erased.");
-      setAnnotations(current => current.filter(a => a.id !== id)); setSelectedId(current => current === id ? null : current); onChanged?.();
+      setAnnotations(current => current.filter(a => a.id !== id)); setSelectedId(current => current === id ? null : current); onEdited?.(annotation, null); onChanged?.();
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be erased."); void reload(); }
     finally { setBusy(false); }
-  }, [annotations, busy, campaignId, mapId, onChanged, reload]);
+  }, [annotations, busy, campaignId, mapId, onChanged, onEdited, reload]);
 
   const clearAnnotations = useCallback(async () => {
     if (!canManage || !mapId || busy || !annotations.length || !window.confirm(`Clear all annotations from “${mapName}”? This cannot be undone.`)) return;
@@ -228,6 +233,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     const annotation = annotations.find(a => a.id === id);
     if (!annotation?.canEdit) return;
     textSizeEditingRef.current = false;
+    originalTextAnnotationRef.current = null;
     pendingReloadRef.current = false;
     setSelectedId(id); setColorState(annotation.color);
     if (annotation.geometry.kind === "text") setTextSizeState(annotation.geometry.fontSize);
@@ -244,6 +250,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     if (selected?.canEdit && selected.geometry.kind === "text" && width && height) {
       const geometry = parseCampaignMapAnnotationGeometry("text", { ...selected.geometry, fontSize: size }, width, height);
       if (geometry) {
+        if (!textSizeEditingRef.current) originalTextAnnotationRef.current = selected;
         textSizeEditingRef.current = true;
         setAnnotations(current => current.map(annotation => annotation.id === selected.id
           ? { ...annotation, geometry }
@@ -257,7 +264,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     textSizeEditingRef.current = false;
     const annotation = annotations.find(candidate => candidate.id === selectedId);
     if (annotation?.canEdit && annotation.geometry.kind === "text") {
-      await saveUpdate(annotation, annotation.geometry);
+      await saveUpdate(annotation, annotation.geometry, annotation.color, originalTextAnnotationRef.current ?? annotation);
+      originalTextAnnotationRef.current = null;
     }
     if (pendingReloadRef.current) {
       pendingReloadRef.current = false;
@@ -326,7 +334,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const annotation = annotations.find(a => a.id === move.id);
       const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
       const moved = point ? translateCampaignMapAnnotationGeometry(move.geometry, point.x - move.start.x, point.y - move.start.y, width, height) : null;
-      if (annotation) void saveUpdate(annotation, moved ?? annotation.geometry);
+      if (annotation) void saveUpdate(annotation, moved ?? annotation.geometry, annotation.color, { ...annotation, geometry: move.geometry });
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault(); return true;
     }

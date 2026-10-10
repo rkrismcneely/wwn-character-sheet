@@ -214,7 +214,7 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, />Select</u);
   assert.match(controller, /beginRotate/u);
   assert.match(controller, /Line width/u);
-  assert.match(controller, /whole-square stepped template/u);
+  assert.match(controller, /at least 50% of that square is covered by the triangle/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);
   assert.match(launcher, />Area</u);

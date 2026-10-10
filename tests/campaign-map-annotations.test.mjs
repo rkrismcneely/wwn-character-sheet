@@ -106,7 +106,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /"freehand", "line", "arrow", "rect", "circle", "text", "erase"/u);
   assert.match(controller, /const selecting = interactionEnabled && \(!controller\.tool \|\| controller\.tool === "select"\)/u);
   assert.match(launcher, /campaign-map-object-inspector/u);
-  assert.match(controller, /New annotations/u);
+  assert.match(controller, /aria-label="Create annotation"/u);
   assert.match(controller, /type="color"/u);
   assert.match(controller, /aria-label="Annotation colour"/u);
   assert.match(controller, /Label text/u);
@@ -114,8 +114,8 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /color=\{annotation\.color\}/u);
   assert.match(controller, />Players</u);
   assert.match(controller, />GM only</u);
-  assert.match(controller, /Selected .*toolLabel/u);
-  assert.match(controller, /Selected annotation colour/u);
+  assert.match(controller, /campaign-map-creation-name/u);
+  assert.match(controller, /aria-label="Annotation colour"/u);
   assert.match(controller, /Text size/u);
   assert.match(controller, /type="range"/u);
   assert.match(controller, /commitTextSize/u);
@@ -124,7 +124,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /beginMove/u);
   assert.match(controller, /annotation\.canEdit/u);
   assert.match(controller, /Clear all/u);
-  assert.match(controller, /Tap or click one of your editable annotations to erase it/u);
+  assert.match(controller, /controller\.stopDrawing/u);
   assert.match(launcher, />\+ Add</u);
   assert.match(launcher, />Fog</u);
   assert.match(launcher, />Measure</u);

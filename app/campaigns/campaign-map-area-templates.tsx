@@ -743,19 +743,6 @@ function AreaTemplateAngleControl({
   </div>;
 }
 
-function areaTemplateDescription(
-  shape: CampaignMapAreaTemplateShape,
-  sizeSpaces: number,
-  widthSpaces: number,
-  grid: CampaignMapGrid,
-): string {
-  const size = campaignMapAreaTemplateSizeLabel(sizeSpaces, grid);
-  if (shape === "radius") return `Radius: ${size}.`;
-  if (shape === "cube") return `Cube footprint: ${size} on each side.`;
-  if (shape === "cone") return `Cone: ${size} long and the same width at its far end.`;
-  return `Line: ${size} long and ${campaignMapAreaTemplateSizeLabel(widthSpaces, grid)} wide.`;
-}
-
 export function CampaignMapAreaTemplatePalette({
   controller,
   grid,
@@ -764,33 +751,40 @@ export function CampaignMapAreaTemplatePalette({
   grid: CampaignMapGrid;
 }) {
   if (!controller.open) return null;
-  const shapes: CampaignMapAreaTemplateShape[] = ["radius", "cube", "cone", "line"];
-  return <div className="campaign-map-area-palette" role="toolbar" aria-label="Spell area template tools">
-    <div className="campaign-map-area-mode">
-      <button type="button" className={controller.mode === "place" ? "is-active" : ""} aria-pressed={controller.mode === "place"} onClick={() => controller.setMode("place")}>Place</button>
-      <button type="button" className={controller.mode === "select" ? "is-active" : ""} aria-pressed={controller.mode === "select"} onClick={() => controller.setMode("select")}>Select</button>
-    </div>
-    {!controller.selected && <div className="campaign-map-area-shapes">
-      {shapes.map(shape => <button type="button" key={shape} className={controller.shape === shape ? "is-active" : ""} aria-pressed={controller.shape === shape} onClick={() => controller.setShape(shape)}>{shapeLabel(shape)}</button>)}
-    </div>}
-    {controller.selected && <strong>Selected {shapeLabel(controller.selected.shape)}</strong>}
-    <AreaTemplateSizeControl controller={controller} grid={grid} />
-    <AreaTemplateWidthControl controller={controller} grid={grid} />
-    <AreaTemplateAngleControl controller={controller} grid={grid} />
-    <AreaTemplateConeTipControl controller={controller} grid={grid} />
-    <label className="campaign-map-area-color">
-      <span>Colour</span>
-      <input type="color" value={controller.color} aria-label="Area template colour" onChange={event => controller.setColor(event.target.value)} />
+  return <div className="campaign-map-area-palette campaign-map-creation-strip" role="toolbar" aria-label="Create spell area">
+    <label className="campaign-map-creation-field">
+      <span className="sr-only">Spell area shape</span>
+      <select aria-label="Spell area shape" value={controller.shape}
+        onChange={event => controller.setShape(event.target.value as CampaignMapAreaTemplateShape)}>
+        <option value="radius">Radius</option>
+        <option value="cube">Cube</option>
+        <option value="cone">Cone</option>
+        <option value="line">Line</option>
+      </select>
     </label>
-    <small>{areaTemplateDescription(controller.shape, controller.sizeSpaces, controller.widthSpaces, grid)}</small>
-    <small>WWN does not define a battle-grid translation rule. On square maps, TWE includes squares covered at least 50% by the WWN cone; one near-origin square is also included at 0°, 90°, 180°, and 270° to close the cardinal cone tip. The visible outline follows the included squares.</small>
-    {controller.selected && <div className="campaign-map-area-selected-actions">
-      <button type="button" className="campaign-danger" disabled={controller.busy} onClick={() => void controller.deleteSelected()}>Remove Template</button>
-    </div>}
-    <div className="campaign-map-area-actions"><button type="button" onClick={controller.close}>Done</button></div>
-    {controller.mode === "place" && !controller.selected && <small>Click or tap the map to place the template.</small>}
-    {controller.mode === "select" && !controller.selected && <small>Select a template to move, resize, recolour, or rotate it.</small>}
-    {controller.selected && controller.shape !== "radius" && <small>Drag the round handle to rotate in {campaignMapAreaTemplateAngleStep(grid)}° grid steps, or use the angle controls.</small>}
+    <label className="campaign-map-creation-field campaign-map-creation-size">
+      <span>Size</span>
+      <input type="number" aria-label="Spell area size in grid spaces"
+        min={campaignMapAreaTemplateMinSize} max={campaignMapAreaTemplateMaxSize} step="1"
+        value={controller.sizeSpaces}
+        onChange={event => controller.setSizeSpaces(Number(event.target.value))} />
+      <span>{grid.type === "square" ? "× 5 ft" : "hexes"}</span>
+    </label>
+    <label className="campaign-map-area-color" title="Spell area colour">
+      <span className="sr-only">Colour</span>
+      <input type="color" value={controller.color} aria-label="Spell area colour"
+        onChange={event => controller.setColor(event.target.value)} />
+    </label>
+    {controller.shape !== "radius" && <details className="campaign-map-creation-details">
+      <summary>More</summary>
+      <div className="campaign-map-creation-extra">
+        <AreaTemplateSizeControl controller={controller} grid={grid} />
+        <AreaTemplateWidthControl controller={controller} grid={grid} />
+        <AreaTemplateAngleControl controller={controller} grid={grid} />
+        <AreaTemplateConeTipControl controller={controller} grid={grid} />
+      </div>
+    </details>}
+    <button type="button" className="campaign-map-creation-done" onClick={controller.close}>Done</button>
     {controller.error && <p className="campaign-map-area-error" role="alert">{controller.error}</p>}
   </div>;
 }

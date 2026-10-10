@@ -265,7 +265,8 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(route, /body\.action === "update"/u);
   assert.match(route, /body\.action === "delete"/u);
   assert.match(route, /announceMapChanged/u);
-  assert.match(controller, /"radius", "cube", "cone", "line"/u);
+  assert.match(controller, /<option value="radius">Radius<\/option>/u);
+  assert.match(controller, /<option value="cone">Cone<\/option>/u);
   assert.match(controller, /aria-label="Create spell area"/u);
   assert.match(controller, /campaign-map-creation-field/u);
   assert.match(controller, /beginRotate/u);

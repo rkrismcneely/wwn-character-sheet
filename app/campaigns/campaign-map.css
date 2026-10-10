@@ -1217,6 +1217,7 @@
 .campaign-map-area-mode,
 .campaign-map-area-shapes,
 .campaign-map-area-angle,
+.campaign-map-area-tip-flip,
 .campaign-map-area-selected-actions,
 .campaign-map-area-actions {
   display: flex;
@@ -1256,7 +1257,8 @@
 }
 
 .campaign-map-area-palette > small,
-.campaign-map-area-size small {
+.campaign-map-area-size small,
+.campaign-map-area-tip-flip small {
   color: var(--text-muted, #b9ad9b);
   font-size: .72rem;
 }

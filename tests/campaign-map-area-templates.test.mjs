@@ -271,7 +271,7 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, /beginRotate/u);
   assert.match(controller, /Line width/u);
   assert.match(controller, /one near-origin square is also included at 0°, 90°, 180°, and 270°/u);
-  assert.match(controller, />Flip Tip</u);
+  assert.match(controller, /Flip Tip/u);
   assert.match(controller, /tipFlip: template\.tipFlip/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);

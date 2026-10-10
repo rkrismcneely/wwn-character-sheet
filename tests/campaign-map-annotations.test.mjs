@@ -128,7 +128,10 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(launcher, />\+ Add</u);
   assert.match(launcher, />Fog</u);
   assert.match(launcher, />Measure</u);
-  assert.match(launcher, />⋯ More</u);
+  assert.match(launcher, />Edit Map/u);
+  assert.match(launcher, /campaign-map-edit-button/u);
+  assert.doesNotMatch(launcher, /⋯ More|More map options|Fit to Map/u);
+  assert.equal((launcher.match(/onClick=\{resetView\}>Fit/g) ?? []).length, 1);
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);

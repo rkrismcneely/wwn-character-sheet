@@ -22,19 +22,19 @@ test("published campaign rolls are exposed to the map without rerolling", async 
   assert.doesNotMatch(mapDice, /Math\.random|crypto\.getRandomValues|rollDiceExpression/u);
 });
 
-test("live map dice respect GM, viewer, open-map, and reduced-motion controls", async () => {
+test("live map dice use each viewer's account preference without a map toolbar toggle", async () => {
   const [mapDice, launcher] = await Promise.all([
     read("app/campaigns/campaign-map-shared-dice.tsx"),
     read("app/campaigns/campaign-map-launcher.tsx"),
   ]);
 
-  assert.match(mapDice, /!open \|\| !sharedRollDiceEnabled \|\| !virtualDiceEnabled \|\| reducedMotion/u);
+  assert.match(mapDice, /useVirtualDicePreference\(\)/u);
+  assert.match(mapDice, /!open \|\| !virtualDiceEnabled \|\| reducedMotion/u);
   assert.match(mapDice, /prefers-reduced-motion: reduce/u);
-  assert.match(mapDice, /action: "set_shared_roll_dice"/u);
-  assert.match(mapDice, /Live Dice: \{sharedRollDiceEnabled \? "On" : "Off"\}/u);
-  assert.match(mapDice, /canManage && <button/u);
+  assert.match(mapDice, /canManage && roll\.character\.id === "npc"/u);
+  assert.doesNotMatch(mapDice, /sharedRollDiceEnabled|set_shared_roll_dice|Live Dice:|<button/u);
   assert.match(launcher, /CampaignMapSharedDice/u);
-  assert.match(launcher, /mapId=\{map\.id\} open=\{open\} canManage=\{canManage\}/u);
+  assert.match(launcher, /campaignId=\{campaignId\} open=\{open\} canManage=\{canManage\}/u);
 });
 
 test("shared map dice preference is durable and migration-owned", async () => {

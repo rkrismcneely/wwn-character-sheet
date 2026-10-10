@@ -42,10 +42,10 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(launcher, /mapDrawerWidthStorageKey/u);
   assert.match(launcher, /handleDrawerResizeStart/u);
   assert.match(launcher, /Resize map side drawer/u);
-  assert.match(launcher, /Dock<\/span>/u);
+  assert.match(launcher, /aria-label="Side drawer position"/u);
   assert.match(launcher, />Left<\/button>/u);
   assert.match(launcher, />Right<\/button>/u);
-  assert.match(launcher, /aria-label="Map view"/u);
+  assert.match(launcher, /aria-label="Map view and window controls"/u);
   assert.match(launcher, /campaign-map-quick-actions/u);
   assert.match(launcher, />\+ Add</u);
   assert.match(launcher, />Fog</u);

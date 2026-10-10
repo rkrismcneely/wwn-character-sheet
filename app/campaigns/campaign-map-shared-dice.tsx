@@ -1,17 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import { useDisplayTheme } from "../theme-provider";
 import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "../virtual-dice-overlay";
 import { useDiceStylePreference, useVirtualDicePreference } from "../virtual-dice-preference";
 import { readRollHistory } from "../roll-history";
-import { campaignMapChangedEvent, campaignSharedRollEvent, useCampaignLiveSession } from "./use-live-session";
-
-type InteractionResponse = {
-  interactions?: { sharedRollDiceEnabled?: boolean };
-  error?: string;
-};
+import { campaignSharedRollEvent, useCampaignLiveSession } from "./use-live-session";
 
 type SharedRollEventDetail = {
   campaignId?: string;
@@ -31,50 +26,31 @@ function locallyAnimatedRoll(rollId: string): boolean {
   return readRollHistory().some(entry => entry.id === rollId);
 }
 
+/**
+ * Shared campaign rolls animate on the map using the viewer's existing account
+ * Virtual Dice and dice-style preferences. This renders no extra map toolbar
+ * toggle and does not override another user's animation preferences.
+ */
 export function CampaignMapSharedDice({
   campaignId,
-  mapId,
   open,
   canManage,
 }: {
   campaignId: string;
-  mapId: string;
   open: boolean;
   canManage: boolean;
 }) {
   const overlay = useRef<VirtualDiceOverlayHandle>(null);
   const seenRollIds = useRef(new Set<string>());
   const animationQueue = useRef<Promise<void>>(Promise.resolve());
-  const [sharedRollDiceEnabled, setSharedRollDiceEnabled] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const { theme } = useDisplayTheme();
   const { enabled: virtualDiceEnabled } = useVirtualDicePreference();
   const { style } = useDiceStylePreference();
 
-  // The map establishes its own live-session connection while open. This keeps
-  // map dice route-independent even when another page panel is not connected to
-  // this campaign (for example, a character linked to multiple active games).
+  // The map establishes its own session connection even when the character
+  // sheet or GM Console is not on the current page.
   useCampaignLiveSession(campaignId, open);
-
-  const loadPreference = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({ mapId });
-      const response = await fetch(`/api/campaigns/${campaignId}/map/interactions?${params.toString()}`, { cache: "no-store" });
-      const body = await response.json() as InteractionResponse;
-      if (!response.ok || !body.interactions) throw new Error(body.error || "Live dice settings could not be loaded.");
-      setSharedRollDiceEnabled(body.interactions.sharedRollDiceEnabled !== false);
-      setError("");
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Live dice settings could not be loaded.");
-    }
-  }, [campaignId, mapId]);
-
-  useEffect(() => {
-    const initialLoad = window.setTimeout(() => void loadPreference(), 0);
-    return () => window.clearTimeout(initialLoad);
-  }, [loadPreference]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -85,34 +61,20 @@ export function CampaignMapSharedDice({
   }, []);
 
   useEffect(() => {
-    const onMapChanged = (event: Event) => {
-      const detail = (event as CustomEvent<{ campaignId?: string }>).detail;
-      if (detail?.campaignId === campaignId) void loadPreference();
-    };
-    window.addEventListener(campaignMapChangedEvent, onMapChanged);
-    return () => window.removeEventListener(campaignMapChangedEvent, onMapChanged);
-  }, [campaignId, loadPreference]);
-
-  useEffect(() => {
-    if (!open || !sharedRollDiceEnabled || !virtualDiceEnabled || reducedMotion) return;
+    if (!open || !virtualDiceEnabled || reducedMotion) return;
     const onSharedRoll = (event: Event) => {
       const detail = (event as CustomEvent<SharedRollEventDetail>).detail;
       const roll = detail?.roll;
       if (detail?.campaignId !== campaignId || !roll || seenRollIds.current.has(roll.id)) return;
 
-      // NPC rolls initiated from the GM Console are already animated by the
-      // console before they are published. The authoritative public NPC roll
-      // uses the reserved "npc" identity, so the GM's map must not replay it.
-      // Player-facing maps still animate that published roll normally.
+      // The initiating GM Console already animates its own NPC rolls. Players
+      // should still see the published result when their preference allows it.
       if (canManage && roll.character.id === "npc") {
         seenRollIds.current.add(roll.id);
         return;
       }
 
-      // A character-sheet roll is animated before it is published to the live
-      // session, and is written to this tab's roll history before the publish
-      // event comes back through the map. Treat that ID as already animated so
-      // opening the map cannot replay the exact same local roll a second time.
+      // Do not reanimate a roll already shown on this tab's character sheet.
       if (locallyAnimatedRoll(roll.id)) {
         seenRollIds.current.add(roll.id);
         return;
@@ -134,43 +96,9 @@ export function CampaignMapSharedDice({
     };
     window.addEventListener(campaignSharedRollEvent, onSharedRoll);
     return () => window.removeEventListener(campaignSharedRollEvent, onSharedRoll);
-  }, [campaignId, canManage, open, reducedMotion, sharedRollDiceEnabled, style, virtualDiceEnabled]);
+  }, [campaignId, canManage, open, reducedMotion, style, virtualDiceEnabled]);
 
   useEffect(() => () => overlay.current?.cancel(), []);
 
-  async function toggleSharedRollDice() {
-    const enabled = !sharedRollDiceEnabled;
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "set_shared_roll_dice", mapId, enabled }),
-      });
-      const body = await response.json() as InteractionResponse;
-      if (!response.ok || !body.interactions) throw new Error(body.error || "Live dice settings could not be updated.");
-      setSharedRollDiceEnabled(body.interactions.sharedRollDiceEnabled !== false);
-    } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : "Live dice settings could not be updated.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const title = error || (virtualDiceEnabled
-    ? "Animate each published campaign roll using its already-authoritative dice results."
-    : "Shared map dice are enabled, but this browser's Virtual Dice preference is Off.");
-
-  return <>
-    <VirtualDiceOverlay ref={overlay} theme={theme} />
-    {canManage && <button
-      type="button"
-      className={sharedRollDiceEnabled ? "campaign-primary" : "campaign-secondary"}
-      disabled={busy}
-      aria-pressed={sharedRollDiceEnabled}
-      title={title}
-      onClick={() => void toggleSharedRollDice()}
-    >Live Dice: {sharedRollDiceEnabled ? "On" : "Off"}</button>}
-  </>;
+  return <VirtualDiceOverlay ref={overlay} theme={theme} />;
 }

@@ -42,10 +42,10 @@ test("map controls expose Picture-in-Picture and a real open/close toggle", asyn
     readFile(new URL("../app/campaigns/campaign-map-events.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(launcher, /presentation === "pip" && <button[\s\S]*?>Return to Page</u);
+  assert.match(launcher, /presentation === "pip" && <button[\s\S]*?>Return<\/button>/u);
   assert.match(launcher, /<option value="pip">Picture-in-Picture<\/option>/u);
   assert.doesNotMatch(launcher, /Separate Window|campaign-map-window-menu|move-to-popout/u);
-  assert.match(launcher, /Close Map Window/u);
+  assert.match(launcher, /aria-label=\{presentation === "standalone" \? "Close map window"/u);
   assert.doesNotMatch(launcher, /function choosePresentation[\s\S]{0,280}loadMap\(/u);
   assert.match(control, /campaignMapStateEvent/u);
   assert.match(control, /mapIsOpen \? "close" : "open"/u);

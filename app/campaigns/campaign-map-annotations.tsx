@@ -45,6 +45,7 @@ export type CampaignMapAnnotationController = {
   setTextSize: (size: number) => void;
   commitTextSize: () => Promise<void>;
   updateSelectedText: (text: string) => Promise<void>;
+  duplicateSelected: () => Promise<void>;
   selectAnnotation: (id: string | null) => void;
   beginMove: (event: ReactPointerEvent<SVGGElement>, id: string) => void;
   stopDrawing: () => void;
@@ -165,6 +166,34 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be saved."); void reload(); }
     finally { setBusy(false); }
   }, [campaignId, canManage, color, mapId, onChanged, reload, visibility]);
+
+  const duplicateSelected = useCallback(async () => {
+    if (!selected?.canEdit || !mapId || !width || !height || busy) return;
+    const geometry = translateCampaignMapAnnotationGeometry(
+      selected.geometry, 16, 16, width, height,
+    ) ?? selected.geometry;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/map/annotations`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "create", mapId, kind: selected.kind,
+          visibility: selected.visibility, color: selected.color, geometry,
+        }),
+      });
+      const body = await response.json() as AnnotationResponse;
+      if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be duplicated.");
+      setAnnotations(current => [...current, body.annotation as CampaignMapAnnotation]);
+      setSelectedId(body.annotation.id);
+      onChanged?.();
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Annotation could not be duplicated.");
+      void reload();
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, campaignId, height, mapId, onChanged, reload, selected, width]);
 
   const eraseAnnotation = useCallback(async (id: string) => {
     const annotation = annotations.find(a => a.id === id);
@@ -320,7 +349,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     toggleDrawing: () => setToolState(current => current ? null : "freehand"),
     setTool: next => { setToolState(next); if (next !== "select") setSelectedId(null); },
     setVisibility: next => setVisibilityState(canManage ? next : "players"),
-    setColor, setTextValue, setTextSize, commitTextSize, updateSelectedText, selectAnnotation, beginMove,
+    setColor, setTextValue, setTextSize, commitTextSize, updateSelectedText, duplicateSelected, selectAnnotation, beginMove,
     stopDrawing: () => { textSizeEditingRef.current = false; pendingReloadRef.current = false; setToolState(null); setSelectedId(null); setDraft(null); moveRef.current = null; },
     clearAnnotations, eraseAnnotation, handlePointerDown, handlePointerMove, handlePointerEnd,
   };

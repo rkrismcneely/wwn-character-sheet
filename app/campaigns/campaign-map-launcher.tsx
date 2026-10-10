@@ -766,7 +766,7 @@ export function CampaignMapWorkspace({
     <header ref={mapToolbarRef} className="campaign-map-toolbar" aria-label="Campaign map tools">
       <div className="campaign-map-toolbar-primary">
         <div className="campaign-map-title-block">
-          {canManage && maps.length > 0 ? <label className="campaign-map-picker">
+          {canManage && maps.length > 0 ? <label id="campaign-map-title" className="campaign-map-picker">
             <span className="sr-only">Current campaign map</span>
             <select aria-label="Current campaign map" value={map?.id ?? ""}
               disabled={busy || loading} onChange={event => void selectMap(event.target.value)}>

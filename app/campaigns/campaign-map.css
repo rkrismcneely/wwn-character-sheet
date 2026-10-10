@@ -2336,3 +2336,49 @@
   font: 600 .74rem/1.25 var(--font-ui, sans-serif);
   pointer-events: none;
 }
+
+/* Edit Map is intentionally one focused section at a time. */
+.campaign-map-edit-tabs {
+  display: flex;
+  align-items: center;
+  gap: .28rem;
+  padding: .24rem;
+  border: 1px solid rgba(180, 155, 110, .3);
+  border-radius: 9px;
+  background: rgba(12, 17, 23, .16);
+}
+.campaign-map-edit-tabs button {
+  flex: 1;
+  min-height: 2.25rem;
+  padding: .4rem .55rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted, #b9ad9b);
+  font: 650 .81rem/1.2 var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.campaign-map-edit-tabs button.is-active {
+  background: rgba(161, 110, 45, .26);
+  color: var(--text, #f4ead8);
+  border-color: rgba(199, 159, 97, .58);
+}
+.campaign-map-edit-tabs button:focus-visible { outline: 2px solid #e4b76d; outline-offset: 2px; }
+.campaign-map-settings[data-edit-section="maps"] .campaign-map-table-controls,
+.campaign-map-settings[data-edit-section="maps"] .campaign-map-grid-settings,
+.campaign-map-settings[data-edit-section="maps"] .campaign-map-token-settings,
+.campaign-map-settings[data-edit-section="grid"] .campaign-map-library,
+.campaign-map-settings[data-edit-section="grid"] .campaign-map-background-settings,
+.campaign-map-settings[data-edit-section="grid"] .campaign-map-token-settings,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-table-controls,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-library,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-background-settings,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-grid-settings { display: none; }
+.campaign-map-maintenance {
+  margin: .65rem 0;
+  padding: .6rem;
+  border: 1px solid rgba(183,153,108,.24);
+  border-radius: 8px;
+}
+.campaign-map-maintenance summary { cursor: pointer; font-size: .83rem; }
+.campaign-map-maintenance button { margin-top: .75rem; }

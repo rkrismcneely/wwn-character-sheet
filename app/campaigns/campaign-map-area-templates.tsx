@@ -1,5 +1,6 @@
 "use client";
 
+import { MapObjectActionIcon } from "./map-object-action-icon";
 import {
   useCallback,
   useEffect,
@@ -15,7 +16,6 @@ import {
   campaignMapAreaTemplateMaxSize,
   campaignMapAreaTemplateMinSize,
   campaignMapAreaTemplateOutlinePath,
-  campaignMapAreaTemplateSizeLabel,
   clampCampaignMapAreaTemplateSize,
   normalizeCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateAngle,
@@ -614,6 +614,14 @@ export function useCampaignMapAreaTemplates({
   };
 }
 
+function mapAreaDistanceUnit(grid: CampaignMapGrid) {
+  return grid.type === "square" ? { perSpace: 5, name: "feet" } : { perSpace: 10, name: "km" };
+}
+function mapAreaDistanceLabel(spaces: number, grid: CampaignMapGrid) {
+  const unit = mapAreaDistanceUnit(grid);
+  return `${spaces * unit.perSpace} ${unit.name}`;
+}
+
 function AreaTemplateSizeControl({
   controller,
   grid,
@@ -637,19 +645,20 @@ function AreaTemplateSizeControl({
       />
     </label>
     <label>
-      <span>Spaces</span>
+      <span>Distance</span>
       <input
         type="number"
-        min={campaignMapAreaTemplateMinSize}
-        max={campaignMapAreaTemplateMaxSize}
-        step="1"
-        value={controller.sizeSpaces}
-        onChange={event => controller.setSizeSpaces(Number(event.target.value))}
+        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
+        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
+        step={mapAreaDistanceUnit(grid).perSpace}
+        value={controller.sizeSpaces * mapAreaDistanceUnit(grid).perSpace}
+        aria-label="Area size in distance units"
+        onChange={event => controller.setSizeSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
         onBlur={finish}
         onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
       />
     </label>
-    <small>{campaignMapAreaTemplateSizeLabel(controller.sizeSpaces, grid)}</small>
+    <small>{mapAreaDistanceLabel(controller.sizeSpaces, grid)}</small>
   </div>;
 }
 
@@ -677,19 +686,20 @@ function AreaTemplateWidthControl({
       />
     </label>
     <label>
-      <span>Spaces</span>
+      <span>Distance</span>
       <input
         type="number"
-        min={campaignMapAreaTemplateMinSize}
-        max={campaignMapAreaTemplateMaxSize}
-        step="1"
-        value={controller.widthSpaces}
-        onChange={event => controller.setWidthSpaces(Number(event.target.value))}
+        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
+        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
+        step={mapAreaDistanceUnit(grid).perSpace}
+        value={controller.widthSpaces * mapAreaDistanceUnit(grid).perSpace}
+        aria-label="Line width in distance units"
+        onChange={event => controller.setWidthSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
         onBlur={finish}
         onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
       />
     </label>
-    <small>{campaignMapAreaTemplateSizeLabel(controller.widthSpaces, grid)}</small>
+    <small>{mapAreaDistanceLabel(controller.widthSpaces, grid)}</small>
   </div>;
 }
 
@@ -776,11 +786,13 @@ export function CampaignMapAreaTemplatePalette({
     </label>
     <label className="campaign-map-creation-field campaign-map-creation-size">
       <span>Size</span>
-      <input type="number" aria-label="Spell area size in grid spaces"
-        min={campaignMapAreaTemplateMinSize} max={campaignMapAreaTemplateMaxSize} step="1"
-        value={controller.sizeSpaces}
-        onChange={event => controller.setSizeSpaces(Number(event.target.value))} />
-      <span>{grid.type === "square" ? "× 5 ft" : "hexes"}</span>
+      <input type="number" aria-label="Spell area distance"
+        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
+        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
+        step={mapAreaDistanceUnit(grid).perSpace}
+        value={controller.sizeSpaces * mapAreaDistanceUnit(grid).perSpace}
+        onChange={event => controller.setSizeSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))} />
+      <span>{mapAreaDistanceUnit(grid).name}</span>
     </label>
     <label className="campaign-map-area-color" title="Spell area colour">
       <span className="sr-only">Colour</span>
@@ -809,7 +821,7 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
   const step = campaignMapAreaTemplateAngleStep(grid);
   const cardinalCone = grid.type === "square" && controller.shape === "cone" &&
     Math.abs(normalizeCampaignMapAreaTemplateAngle(controller.angleDegrees) % 90) < 0.0001;
-  const unitFeet = grid.type === "square" ? 5 : null;
+
   return <div className="campaign-map-context-actions" aria-label="Selected spell area settings">
     <label className="campaign-map-context-select">
       <span className="sr-only">Area shape</span>
@@ -822,22 +834,27 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
       </select>
     </label>
     <label className="campaign-map-context-size">
-      <span className="sr-only">Area size in grid spaces</span>
-      <input type="number" aria-label="Area size in grid spaces"
-        min={campaignMapAreaTemplateMinSize} max={campaignMapAreaTemplateMaxSize}
-        value={controller.sizeSpaces} disabled={controller.busy}
-        onChange={event => controller.setSizeSpaces(Number(event.target.value))}
+      <span className="sr-only">Area distance</span>
+      <input type="number" aria-label="Area distance"
+        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
+        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
+        step={mapAreaDistanceUnit(grid).perSpace}
+        value={controller.sizeSpaces * mapAreaDistanceUnit(grid).perSpace} disabled={controller.busy}
+        onChange={event => controller.setSizeSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
         onBlur={() => void controller.commitSelected()}
         onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
-      <span>{unitFeet ? `× ${unitFeet} ft` : "hexes"}</span>
+      <span>{mapAreaDistanceUnit(grid).name}</span>
     </label>
     {controller.shape === "line" && <label className="campaign-map-context-size">
       <span>Width</span>
-      <input type="number" aria-label="Line width in grid spaces" min="1" max={campaignMapAreaTemplateMaxSize}
-        value={controller.widthSpaces} disabled={controller.busy}
-        onChange={event => controller.setWidthSpaces(Number(event.target.value))}
+      <input type="number" aria-label="Line width" min={mapAreaDistanceUnit(grid).perSpace}
+        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
+        step={mapAreaDistanceUnit(grid).perSpace}
+        value={controller.widthSpaces * mapAreaDistanceUnit(grid).perSpace} disabled={controller.busy}
+        onChange={event => controller.setWidthSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
         onBlur={() => void controller.commitSelected()}
         onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+      <span>{mapAreaDistanceUnit(grid).name}</span>
     </label>}
     {controller.shape !== "radius" && <>
       <span className="campaign-map-context-separator" aria-hidden="true" />
@@ -850,15 +867,15 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
       title="Flip which near-origin square completes the cone tip"
       disabled={controller.busy} onClick={controller.flipTip}>↕ Flip Tip</button>}
     <span className="campaign-map-context-separator" aria-hidden="true" />
-    <label className="campaign-map-context-swatch" title="Area colour">
+    <label className="campaign-map-context-swatch campaign-map-quick-tooltip" data-tooltip="Colour">
       <span className="sr-only">Area colour</span>
       <input type="color" aria-label="Area colour" value={controller.color}
         disabled={controller.busy} onChange={event => controller.setColor(event.target.value)} />
     </label>
-    <button type="button" aria-label="Duplicate area" title="Duplicate area"
-      disabled={controller.busy} onClick={() => void controller.duplicateSelected()}>▢</button>
-    <button type="button" className="campaign-map-context-danger" aria-label="Delete area" title="Delete area"
-      disabled={controller.busy} onClick={() => void controller.deleteSelected()}>▤</button>
+    <button type="button" className="campaign-map-quick-tooltip" data-tooltip="Duplicate" aria-label="Duplicate area"
+      disabled={controller.busy} onClick={() => void controller.duplicateSelected()}><MapObjectActionIcon kind="duplicate" /></button>
+    <button type="button" className="campaign-map-context-danger campaign-map-quick-tooltip" data-tooltip="Delete" aria-label="Delete area"
+      disabled={controller.busy} onClick={() => void controller.deleteSelected()}><MapObjectActionIcon kind="delete" /></button>
     {controller.error && <span role="alert" className="campaign-map-context-error">{controller.error}</span>}
   </div>;
 }

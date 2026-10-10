@@ -16,12 +16,14 @@ import {
   campaignMapAreaTemplateMaxSize,
   campaignMapAreaTemplateMinSize,
   campaignMapAreaTemplateOutlinePath,
+  campaignMapAreaTemplateMotionEffects,
   clampCampaignMapAreaTemplateSize,
   normalizeCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateOrigin,
   type CampaignMapAreaTemplate,
   type CampaignMapAreaTemplateShape,
+  type CampaignMapAreaTemplateMotionEffect,
 } from "@/lib/campaigns/map-area-template-model";
 import type { CampaignMapGrid, CampaignMapGridPosition } from "@/lib/campaigns/map-grid";
 import { campaignMapChangedEvent } from "./use-live-session";
@@ -66,6 +68,7 @@ export type CampaignMapAreaTemplateController = {
   tipFlip: boolean;
   angleDegrees: number;
   color: string;
+  motionEffect: CampaignMapAreaTemplateMotionEffect;
   busy: boolean;
   error: string;
   toggle: () => void;
@@ -78,6 +81,7 @@ export type CampaignMapAreaTemplateController = {
   setAngleDegrees: (value: number) => void;
   nudgeAngle: (delta: number) => void;
   setColor: (value: string) => void;
+  setMotionEffect: (effect: CampaignMapAreaTemplateMotionEffect) => void;
   commitSelected: () => Promise<void>;
   selectTemplate: (id: string | null) => void;
   beginMove: (event: ReactPointerEvent<SVGGElement>, id: string) => void;
@@ -106,6 +110,11 @@ function pointFromEvent(
     y: Math.max(0, Math.min(height, Math.round(mapped.y * 100) / 100)),
   };
 }
+
+const motionEffectLabels: Record<CampaignMapAreaTemplateMotionEffect, string> = {
+  none: "None", fire: "Fire", acid: "Acid", sound: "Sound", poison: "Poison",
+  ice: "Ice", lightning: "Lightning", darkness: "Darkness",
+};
 
 function shapeLabel(shape: CampaignMapAreaTemplateShape): string {
   if (shape === "radius") return "Radius";
@@ -142,6 +151,7 @@ export function useCampaignMapAreaTemplates({
   const [tipFlip, setTipFlipState] = useState(false);
   const [angleDegrees, setAngleDegreesState] = useState(0);
   const [color, setColorState] = useState(campaignMapAreaTemplateDefaultColor);
+  const [motionEffect, setMotionEffectState] = useState<CampaignMapAreaTemplateMotionEffect>("none");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const loadSequence = useRef(0);
@@ -231,6 +241,7 @@ export function useCampaignMapAreaTemplates({
           tipFlip: template.tipFlip,
           angleDegrees: template.angleDegrees,
           color: template.color,
+          motionEffect: template.motionEffect,
         }),
       });
       const body = await response.json() as AreaTemplateResponse;
@@ -274,6 +285,7 @@ export function useCampaignMapAreaTemplates({
     setTipFlipState(template.tipFlip);
     setAngleDegreesState(template.angleDegrees);
     setColorState(template.color);
+    setMotionEffectState(template.motionEffect);
     setModeState("select");
   }, [templates]);
 
@@ -332,6 +344,14 @@ export function useCampaignMapAreaTemplates({
     void saveTemplate(next, selected);
   }, [saveTemplate, selected]);
 
+  const setMotionEffect = useCallback((value: CampaignMapAreaTemplateMotionEffect) => {
+    setMotionEffectState(value);
+    if (!selected?.canEdit) return;
+    const updated = { ...selected, motionEffect: value };
+    setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
+    void saveTemplate(updated, selected);
+  }, [saveTemplate, selected]);
+
   const createAt = useCallback(async (point: CampaignMapGridPosition) => {
     if (!mapId || !grid || !width || !height || busy) return;
     const snappedPoint = snapCampaignMapAreaTemplateOrigin(point, grid, shape, sizeSpaces, width, height);
@@ -353,6 +373,7 @@ export function useCampaignMapAreaTemplates({
           tipFlip,
           angleDegrees: snappedAngle,
           color,
+          motionEffect,
         }),
       });
       const body = await response.json() as AreaTemplateResponse;
@@ -369,7 +390,7 @@ export function useCampaignMapAreaTemplates({
     } finally {
       setBusy(false);
     }
-  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, onEdited, publishLocal, reload, shape, sizeSpaces, tipFlip, width, widthSpaces]);
+  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, motionEffect, onEdited, publishLocal, reload, shape, sizeSpaces, tipFlip, width, widthSpaces]);
 
   const duplicateSelected = useCallback(async () => {
     if (!selected?.canEdit || !mapId || !grid || !width || !height || busy) return;
@@ -388,6 +409,7 @@ export function useCampaignMapAreaTemplates({
           x: position.x, y: position.y, sizeSpaces: selected.sizeSpaces,
           widthSpaces: selected.widthSpaces, tipFlip: selected.tipFlip,
           angleDegrees: selected.angleDegrees, color: selected.color,
+          motionEffect: selected.motionEffect,
         }),
       });
       const body = await response.json() as AreaTemplateResponse;
@@ -573,6 +595,7 @@ export function useCampaignMapAreaTemplates({
     tipFlip,
     angleDegrees,
     color,
+    motionEffect,
     busy,
     error,
     toggle: () => {
@@ -602,6 +625,7 @@ export function useCampaignMapAreaTemplates({
     setAngleDegrees,
     nudgeAngle,
     setColor,
+    setMotionEffect,
     commitSelected,
     selectTemplate,
     beginMove,
@@ -799,6 +823,14 @@ export function CampaignMapAreaTemplatePalette({
       <input type="color" value={controller.color} aria-label="Spell area colour"
         onChange={event => controller.setColor(event.target.value)} />
     </label>
+    <label className="campaign-map-creation-field campaign-map-effect-picker">
+      <span className="sr-only">Spell area motion effect</span>
+      <select aria-label="Spell area motion effect" value={controller.motionEffect}
+        onChange={event => controller.setMotionEffect(event.target.value as CampaignMapAreaTemplateMotionEffect)}>
+        {campaignMapAreaTemplateMotionEffects.map(effect =>
+          <option key={effect} value={effect}>{motionEffectLabels[effect]}</option>)}
+      </select>
+    </label>
     {controller.shape !== "radius" && <details className="campaign-map-creation-details">
       <summary>More</summary>
       <div className="campaign-map-creation-extra">
@@ -872,6 +904,14 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
       <input type="color" aria-label="Area colour" value={controller.color}
         disabled={controller.busy} onChange={event => controller.setColor(event.target.value)} />
     </label>
+    <label className="campaign-map-context-select campaign-map-effect-picker">
+      <span className="sr-only">Area motion effect</span>
+      <select aria-label="Area motion effect" value={controller.motionEffect} disabled={controller.busy}
+        onChange={event => controller.setMotionEffect(event.target.value as CampaignMapAreaTemplateMotionEffect)}>
+        {campaignMapAreaTemplateMotionEffects.map(effect =>
+          <option key={effect} value={effect}>{motionEffectLabels[effect]}</option>)}
+      </select>
+    </label>
     <button type="button" className="campaign-map-quick-tooltip" data-tooltip="Duplicate" aria-label="Duplicate area"
       disabled={controller.busy} onClick={() => void controller.duplicateSelected()}><MapObjectActionIcon kind="duplicate" /></button>
     <button type="button" className="campaign-map-context-danger campaign-map-quick-tooltip" data-tooltip="Delete" aria-label="Delete area"
@@ -905,7 +945,7 @@ export function CampaignMapAreaTemplateLayer({
       const direction = campaignMapAreaTemplateDirectionPoint(template, grid);
       return <g
         key={template.id}
-        className={`campaign-map-area-template${selected ? " is-selected" : ""}${interactive ? " is-editable" : ""}`}
+        className={`campaign-map-area-template${selected ? " is-selected" : ""}${interactive ? " is-editable" : ""}${template.motionEffect !== "none" ? ` is-motion-${template.motionEffect}` : ""}`}
         role={interactive ? "button" : undefined}
         tabIndex={interactive ? 0 : undefined}
         aria-label={interactive ? `Select ${shapeLabel(template.shape)} area template` : undefined}
@@ -920,6 +960,10 @@ export function CampaignMapAreaTemplateLayer({
         <path className="campaign-map-area-affected" d={affected} fill={template.color} />
         <path className="campaign-map-area-outline-fill" d={outline} fill={template.color} />
         <path className="campaign-map-area-outline" d={outline} stroke={template.color} vectorEffect="non-scaling-stroke" />
+        {template.motionEffect !== "none" && <>
+          <path className="campaign-map-area-motion-wash" d={outline} pointerEvents="none" aria-hidden="true" />
+          <path className="campaign-map-area-motion-edge" d={outline} vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />
+        </>}
         {selected && <>
           <circle className="campaign-map-area-origin" cx={template.x} cy={template.y} r="7" vectorEffect="non-scaling-stroke" />
           {template.shape !== "radius" && <>

@@ -608,7 +608,7 @@ export function CampaignMapWorkspace({
           ...(entry.currentId ? { templateId: entry.currentId } : {}),
           shape: area.shape, x: area.x, y: area.y, sizeSpaces: area.sizeSpaces,
           widthSpaces: area.widthSpaces, tipFlip: area.tipFlip, angleDegrees: area.angleDegrees,
-          color: area.color };
+          color: area.color, motionEffect: area.motionEffect };
       }
       const result = await postKeyboardEdit<{ annotation?: CampaignMapAnnotation; template?: CampaignMapAreaTemplate; error?: string }>(category, payload);
       entry.currentId = saved ? (result.annotation?.id ?? result.template?.id ?? entry.currentId) : null;

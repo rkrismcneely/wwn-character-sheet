@@ -2523,3 +2523,87 @@
     flex-wrap: wrap;
   }
 }
+
+
+/* Unified border geometry for map selector, visibility and HUD action buttons. */
+.campaign-map-toolbar .campaign-map-picker select,
+.campaign-map-toolbar .campaign-map-sharing,
+.campaign-map-toolbar .campaign-map-share-button,
+.campaign-map-toolbar .campaign-map-quick-actions > button,
+.campaign-map-toolbar .campaign-map-quick-actions > .campaign-map-menu-wrap > button {
+  border: 1px solid rgba(209, 173, 121, .55);
+  border-radius: 7px;
+  box-sizing: border-box;
+}
+.campaign-map-toolbar .campaign-map-quick-actions > button:hover,
+.campaign-map-toolbar .campaign-map-quick-actions > .campaign-map-menu-wrap > button:hover,
+.campaign-map-toolbar .campaign-map-quick-actions > button:focus-visible,
+.campaign-map-toolbar .campaign-map-quick-actions > .campaign-map-menu-wrap > button:focus-visible {
+  border-color: #e8bb78;
+}
+.campaign-map-toolbar .campaign-map-quick-actions > button.is-active,
+.campaign-map-toolbar .campaign-map-quick-actions > .campaign-map-menu-wrap > button[aria-expanded="true"] {
+  border-color: #efc57c;
+}
+.campaign-map-effect-picker select { max-width: 8rem; }
+
+/* Subtle spell effects use a faint wash and thin moving boundary only.
+   No visual hit targets: spell coverage and token visibility never change. */
+.campaign-map-area-motion-wash,
+.campaign-map-area-motion-edge { pointer-events: none; }
+.campaign-map-area-motion-wash {
+  fill: var(--map-area-fx, transparent);
+  fill-opacity: .025;
+  stroke: none;
+  animation: map-area-fx-breathe 6s ease-in-out infinite;
+}
+.campaign-map-area-motion-edge {
+  fill: none;
+  stroke: var(--map-area-fx, #f9e4c2);
+  stroke-width: 2px;
+  stroke-opacity: .42;
+  stroke-dasharray: 8 20;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: map-area-fx-flow var(--map-area-fx-duration, 8s) linear infinite;
+}
+.campaign-map-area-template.is-motion-fire { --map-area-fx: #ffbd73; --map-area-fx-duration: 5.8s; }
+.campaign-map-area-template.is-motion-acid { --map-area-fx: #b2ee70; --map-area-fx-duration: 9s; }
+.campaign-map-area-template.is-motion-sound { --map-area-fx: #a7d6f8; --map-area-fx-duration: 10s; }
+.campaign-map-area-template.is-motion-poison { --map-area-fx: #c7a5ee; --map-area-fx-duration: 12s; }
+.campaign-map-area-template.is-motion-ice { --map-area-fx: #d8f5ff; --map-area-fx-duration: 14s; }
+.campaign-map-area-template.is-motion-lightning { --map-area-fx: #f9e78c; --map-area-fx-duration: 4s; }
+.campaign-map-area-template.is-motion-darkness { --map-area-fx: #9c9bb5; --map-area-fx-duration: 15s; }
+
+.campaign-map-area-template.is-motion-fire .campaign-map-area-motion-edge { stroke-dasharray: 5 12 2 15; }
+.campaign-map-area-template.is-motion-acid .campaign-map-area-motion-edge { stroke-dasharray: 2 14; }
+.campaign-map-area-template.is-motion-sound .campaign-map-area-motion-edge { stroke-dasharray: 25 18; stroke-opacity: .32; }
+.campaign-map-area-template.is-motion-poison .campaign-map-area-motion-wash { fill-opacity: .04; }
+.campaign-map-area-template.is-motion-poison .campaign-map-area-motion-edge { stroke-dasharray: 14 28; stroke-opacity: .3; }
+.campaign-map-area-template.is-motion-ice .campaign-map-area-motion-edge { stroke-dasharray: 2 36; stroke-width: 3px; }
+.campaign-map-area-template.is-motion-lightning .campaign-map-area-motion-edge {
+  stroke-dasharray: 2 9 12 29;
+  animation-name: map-area-fx-spark;
+}
+.campaign-map-area-template.is-motion-darkness .campaign-map-area-motion-wash { fill-opacity: .05; }
+.campaign-map-area-template.is-motion-darkness .campaign-map-area-motion-edge {
+  stroke-dasharray: 30 42;
+  stroke-opacity: .27;
+}
+@keyframes map-area-fx-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -100; }
+}
+@keyframes map-area-fx-breathe {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+@keyframes map-area-fx-spark {
+  0%, 12%, 18%, 60%, 100% { stroke-opacity: .15; stroke-dashoffset: 0; }
+  13%, 17%, 61%, 64% { stroke-opacity: .62; stroke-dashoffset: -18; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .campaign-map-area-motion-wash,
+  .campaign-map-area-motion-edge { animation: none !important; }
+  .campaign-map-area-motion-edge { stroke-opacity: .25; }
+}

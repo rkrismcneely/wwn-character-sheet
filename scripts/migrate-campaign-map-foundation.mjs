@@ -16,6 +16,7 @@ const migrationNames = [
   "0028_campaign_map_area_templates.sql",
   "0029_campaign_map_area_template_width.sql",
   "0030_campaign_map_area_template_tip_flip.sql",
+  "0031_campaign_map_area_template_motion.sql",
 ];
 const wrangler = join(process.cwd(), "node_modules/.bin/wrangler");
 const environment = {
@@ -187,7 +188,7 @@ if (Number(invalidAnnotationRows) !== 0) {
 const areaTemplateColumns = new Set(query("PRAGMA table_info(campaign_map_area_templates)").map(row => row.name));
 for (const column of [
   "id", "campaign_id", "map_id", "creator_user_id", "shape", "x", "y",
-  "size_spaces", "width_spaces", "tip_flip", "angle_degrees", "color", "created_at", "updated_at",
+  "size_spaces", "width_spaces", "tip_flip", "angle_degrees", "color", "motion_effect", "created_at", "updated_at",
 ]) {
   if (!areaTemplateColumns.has(column)) throw new Error(`campaign_map_area_templates is missing ${column}.`);
 }
@@ -199,7 +200,8 @@ const invalidAreaTemplateRows = query(`SELECT COUNT(*) AS count FROM campaign_ma
   WHERE shape NOT IN ('radius', 'cube', 'cone', 'line')
      OR size_spaces < 1 OR size_spaces > 60
      OR width_spaces < 1 OR width_spaces > 60
-     OR tip_flip NOT IN (0, 1)`)[0]?.count ?? 0;
+     OR tip_flip NOT IN (0, 1)
+     OR motion_effect NOT IN ('none', 'fire', 'acid', 'sound', 'poison', 'ice', 'lightning', 'darkness')`)[0]?.count ?? 0;
 if (Number(invalidAreaTemplateRows) !== 0) {
   throw new Error("campaign_map_area_templates contains an unsupported shape or size.");
 }

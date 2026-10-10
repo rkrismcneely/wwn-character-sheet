@@ -1495,3 +1495,62 @@
   .campaign-map-object-inspector button,
   .campaign-map-object-inspector input { min-height: 44px; }
 }
+
+
+/* Compact at-the-table map toolbar */
+.campaign-map-quick-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.campaign-map-menu-wrap { position: relative; }
+.campaign-map-popover {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + .4rem);
+  left: 0;
+  width: max-content;
+  min-width: 10rem;
+  max-width: min(20rem, calc(100vw - 2rem));
+  max-height: min(27rem, 70vh);
+  overflow-y: auto;
+  display: grid;
+  gap: .2rem;
+  padding: .4rem;
+  border: 1px solid color-mix(in srgb, var(--border, #725f47) 80%, transparent);
+  border-radius: 10px;
+  background: var(--surface, #17130f);
+  box-shadow: 0 14px 32px rgba(0,0,0,.58);
+}
+.campaign-map-popover.is-right { left: auto; right: 0; }
+.campaign-map-popover button {
+  display: block;
+  width: 100%;
+  min-height: 2.25rem;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text, #f4ead8);
+  padding: .48rem .65rem;
+  cursor: pointer;
+}
+.campaign-map-popover button:hover,
+.campaign-map-popover button:focus-visible,
+.campaign-map-popover button.is-active {
+  background: color-mix(in srgb, var(--accent, #d3a96a) 20%, var(--surface, #17130f));
+  border-color: var(--border, #725f47);
+}
+.campaign-map-measure-text {
+  fill: #ffe3a3;
+  stroke: rgba(0,0,0,.9);
+  stroke-width: 3;
+  paint-order: stroke;
+  font: 700 18px/1 var(--font-ui, sans-serif);
+}
+@media (max-width: 820px) {
+  .campaign-map-quick-actions > button,
+  .campaign-map-quick-actions .campaign-map-menu-wrap > button { min-height: 44px; }
+  .campaign-map-popover button { min-height: 44px; }
+}

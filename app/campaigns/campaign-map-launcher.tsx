@@ -274,7 +274,6 @@ export function CampaignMapWorkspace({
   const [fogMode, setFogMode] = useState<FogMode | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [measureEnabled, setMeasureEnabled] = useState(false);
   const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
@@ -319,7 +318,7 @@ export function CampaignMapWorkspace({
       if (event.key === "Escape") {
         annotations.stopDrawing(); areaTemplates.close(); setFogMode(null);
         annotations.selectAnnotation(null); areaTemplates.selectTemplate(null);
-        setSelectedTokenId(null); setAddOpen(false); setMoreOpen(false);
+        setSelectedTokenId(null); setAddOpen(false); setSettingsOpen(false);
         setMeasureEnabled(false); setMeasureStart(null); setMeasureEnd(null);
       }
     };
@@ -461,7 +460,7 @@ export function CampaignMapWorkspace({
         </div>}
         {map && <div className="campaign-map-quick-actions">
           {map.backgroundUrl && <div className="campaign-map-menu-wrap">
-            <button type="button" className="campaign-primary" aria-expanded={addOpen} onClick={() => { setAddOpen(current => !current); setMoreOpen(false); }}>+ Add</button>
+            <button type="button" className="campaign-primary" aria-expanded={addOpen} onClick={() => setAddOpen(current => !current)}>+ Add</button>
             {addOpen && <div className="campaign-map-popover" role="menu" aria-label="Add map object">
               {(["freehand","line","arrow","rect","circle","text"] as const).map(kind => <button type="button" role="menuitem" key={kind} onClick={() => {
                 areaTemplates.close(); setFogMode(null); setMeasureEnabled(false); setMeasureStart(null);
@@ -489,14 +488,14 @@ export function CampaignMapWorkspace({
             annotations.stopDrawing(); areaTemplates.close(); setFogMode(null); clearFogPreview();
             setMeasureEnabled(current => !current); setMeasureStart(null); setMeasureEnd(null);
           }}>Measure</button>}
-          <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />
-          <div className="campaign-map-menu-wrap">
-            <button type="button" className="campaign-secondary" aria-expanded={moreOpen} onClick={() => { setMoreOpen(current => !current); setAddOpen(false); }}>⋯ More</button>
-            {moreOpen && <div className="campaign-map-popover is-right" role="menu" aria-label="More map options">
-              {canManage && <button type="button" role="menuitem" onClick={() => { setSettingsOpen(true); setMoreOpen(false); }}>Edit Map</button>}
-              <button type="button" role="menuitem" onClick={() => { resetView(); setMoreOpen(false); }}>Fit to Map</button>
-            </div>}
-          </div>
+          <CampaignMapSharedDice campaignId={campaignId} open={open} canManage={canManage} />
+          {canManage && <button type="button"
+            className={`campaign-map-edit-button campaign-secondary${settingsOpen ? " is-active" : ""}`}
+            aria-expanded={settingsOpen}
+            aria-controls="campaign-map-settings"
+            onClick={() => { setAddOpen(false); setSettingsOpen(current => !current); }}>
+            Edit Map
+          </button>}
         </div>}
       </div></header>
     {error && <div className="campaign-error campaign-map-error" role="alert">{error}</div>}
@@ -535,7 +534,7 @@ export function CampaignMapWorkspace({
           <button type="button" className="campaign-secondary" disabled={busy || (tokenSizes[token.id] ?? 1) >= 12} onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1)+1)}>Larger</button>
           <button type="button" className="campaign-danger" disabled={busy} onClick={() => { void tokenAction({ action: "remove", tokenId: token.id }); setSelectedTokenId(null); }}>Remove</button></div>}</div>)}
       </aside>}
-      {settingsOpen && canManage && <aside className="campaign-map-settings" aria-label="Campaign map settings"><div className="campaign-map-settings-heading"><div><p className="campaign-kicker">GM CONTROLS</p><h3>Map Settings</h3></div><button type="button" className="campaign-quiet" onClick={() => setSettingsOpen(false)}>Hide</button></div>
+      {settingsOpen && canManage && <aside id="campaign-map-settings" className="campaign-map-settings" aria-label="Campaign map settings"><div className="campaign-map-settings-heading"><div><p className="campaign-kicker">GM CONTROLS</p><h3>Map Settings</h3></div><button type="button" className="campaign-quiet" onClick={() => setSettingsOpen(false)}>Hide</button></div>
         {map && <section className="campaign-map-table-controls"><h4>At the Table</h4><p>Controls used during play stay here. Alignment and map-library work are kept below.</p><div className="campaign-map-table-actions"><button type="button" className={`campaign-secondary${annotations.tool ? " is-active" : ""}`} aria-pressed={Boolean(annotations.tool)} onClick={() => { areaTemplates.close(); setFogMode(null); clearFogPreview(); annotations.toggleDrawing(); }}>Draw / Annotate</button><button type="button" className={`campaign-secondary${areaTemplates.open ? " is-active" : ""}`} aria-pressed={areaTemplates.open} onClick={() => { annotations.stopDrawing(); setFogMode(null); clearFogPreview(); areaTemplates.toggle(); }}>Spell Area</button><button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "hide" ? null : "hide"); clearFogPreview(); }}>Hide Area</button><button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "reveal" ? null : "reveal"); clearFogPreview(); }}>Reveal Area</button></div><label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label><label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label><button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Table Controls</button>{fogMode && <small>Drag across the map to {fogMode} whole {grid.type === "hex" ? "hexes" : "cells"}. Up to 500 cells are changed at once.</small>}</section>}
         <section className="campaign-map-library"><h4>Maps</h4><p>Prepare as many maps as you need. Only the map marked Visible to Players is shared with the party.</p><label className="campaign-map-upload campaign-primary"><span>Upload New Map</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={uploadNewMap} /></label>{maps.length > 0 && <div className="campaign-map-library-list">{maps.map(candidate => <button type="button" key={candidate.id} className={`campaign-map-library-item${candidate.id === map?.id ? " is-selected" : ""}`} disabled={busy} onClick={() => void selectMap(candidate.id)}><span>{candidate.name}</span>{candidate.isActive ? <small>Visible to Players</small> : <small>GM only</small>}</button>)}</div>}{map && <div className="campaign-map-selected-controls"><div className="campaign-map-player-visibility" aria-label="Player visibility"><strong className="campaign-map-setting-label">Player Visibility</strong>{map.isActive ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div> : <><div className="campaign-map-hidden-status"><strong>GM Only</strong><span>Players continue to see the map currently marked Visible to Players.</span></div><button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Make Visible to Players</button></>}<small>Only one campaign map is visible to players at a time.</small></div><label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft} onChange={event => setMapNameDraft(event.target.value)} /></label><button type="button" className="campaign-secondary" disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name} onClick={() => void renameMap()}>Save Name</button><button type="button" className="campaign-danger" disabled={busy} onClick={() => void deleteMap()}>Delete Map</button></div>}</section>
         {map && <><section className="campaign-map-background-settings"><h4>Background</h4><p>JPG or PNG · up to 15 MB.</p><label className="campaign-map-upload campaign-secondary"><span>{map.backgroundUrl ? "Replace Map Image" : "Add Map Image"}</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={replaceBackground} /></label>{map.backgroundUrl && <button type="button" className="campaign-danger" disabled={busy} onClick={() => void removeBackground()}>Remove Map Image</button>}</section>

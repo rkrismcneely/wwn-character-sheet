@@ -62,6 +62,7 @@ export type CampaignMapAreaTemplateController = {
   shape: CampaignMapAreaTemplateShape;
   sizeSpaces: number;
   widthSpaces: number;
+  tipFlip: boolean;
   angleDegrees: number;
   color: string;
   busy: boolean;
@@ -72,6 +73,7 @@ export type CampaignMapAreaTemplateController = {
   setShape: (shape: CampaignMapAreaTemplateShape) => void;
   setSizeSpaces: (value: number) => void;
   setWidthSpaces: (value: number) => void;
+  flipTip: () => void;
   setAngleDegrees: (value: number) => void;
   nudgeAngle: (delta: number) => void;
   setColor: (value: string) => void;
@@ -133,6 +135,7 @@ export function useCampaignMapAreaTemplates({
   const [shape, setShapeState] = useState<CampaignMapAreaTemplateShape>("radius");
   const [sizeSpaces, setSizeSpacesState] = useState(4);
   const [widthSpaces, setWidthSpacesState] = useState(1);
+  const [tipFlip, setTipFlipState] = useState(false);
   const [angleDegrees, setAngleDegreesState] = useState(0);
   const [color, setColorState] = useState(campaignMapAreaTemplateDefaultColor);
   const [busy, setBusy] = useState(false);
@@ -220,6 +223,7 @@ export function useCampaignMapAreaTemplates({
           y: template.y,
           sizeSpaces: template.sizeSpaces,
           widthSpaces: template.widthSpaces,
+          tipFlip: template.tipFlip,
           angleDegrees: template.angleDegrees,
           color: template.color,
         }),
@@ -259,6 +263,7 @@ export function useCampaignMapAreaTemplates({
     setShapeState(template.shape);
     setSizeSpacesState(template.sizeSpaces);
     setWidthSpacesState(template.widthSpaces);
+    setTipFlipState(template.tipFlip);
     setAngleDegreesState(template.angleDegrees);
     setColorState(template.color);
     setModeState("select");
@@ -283,6 +288,15 @@ export function useCampaignMapAreaTemplates({
     setWidthSpacesState(next);
     if (selected?.canEdit) setSelectedLocal({ widthSpaces: next });
   }, [selected, setSelectedLocal]);
+
+  const flipTip = useCallback(() => {
+    const next = !tipFlip;
+    setTipFlipState(next);
+    if (!selected?.canEdit) return;
+    const updated = { ...selected, tipFlip: next };
+    setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
+    void saveTemplate(updated);
+  }, [saveTemplate, selected, tipFlip]);
 
   const setAngleDegrees = useCallback((value: number) => {
     const next = grid ? snapCampaignMapAreaTemplateAngle(value, grid) : normalizeCampaignMapAreaTemplateAngle(value);
@@ -327,6 +341,7 @@ export function useCampaignMapAreaTemplates({
           y: snappedPoint.y,
           sizeSpaces,
           widthSpaces,
+          tipFlip,
           angleDegrees: snappedAngle,
           color,
         }),
@@ -343,7 +358,7 @@ export function useCampaignMapAreaTemplates({
     } finally {
       setBusy(false);
     }
-  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, publishLocal, reload, shape, sizeSpaces, width, widthSpaces]);
+  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, publishLocal, reload, shape, sizeSpaces, tipFlip, width, widthSpaces]);
 
   const deleteSelected = useCallback(async () => {
     const template = templates.find(candidate => candidate.id === selectedId);
@@ -514,6 +529,7 @@ export function useCampaignMapAreaTemplates({
     shape,
     sizeSpaces,
     widthSpaces,
+    tipFlip,
     angleDegrees,
     color,
     busy,
@@ -537,6 +553,7 @@ export function useCampaignMapAreaTemplates({
     },
     setSizeSpaces,
     setWidthSpaces,
+    flipTip,
     setAngleDegrees,
     nudgeAngle,
     setColor,
@@ -630,6 +647,29 @@ function AreaTemplateWidthControl({
   </div>;
 }
 
+function AreaTemplateConeTipControl({
+  controller,
+  grid,
+}: {
+  controller: CampaignMapAreaTemplateController;
+  grid: CampaignMapGrid;
+}) {
+  if (grid.type !== "square" || controller.shape !== "cone") return null;
+  const normalized = normalizeCampaignMapAreaTemplateAngle(controller.angleDegrees);
+  const cardinal = Math.abs(normalized % 90) < 0.0001;
+  return <div className="campaign-map-area-tip-flip">
+    <button
+      type="button"
+      disabled={!cardinal || controller.busy}
+      onClick={controller.flipTip}
+      title={cardinal ? "Swap which near-origin square completes the cardinal cone tip." : "Flip Tip applies only at 0°, 90°, 180°, and 270°."}
+    >
+      Flip Tip
+    </button>
+    <small>{cardinal ? `Tip side: ${controller.tipFlip ? "B" : "A"}` : "Tip flipping applies only at cardinal angles."}</small>
+  </div>;
+}
+
 function AreaTemplateAngleControl({
   controller,
   grid,
@@ -703,6 +743,7 @@ export function CampaignMapAreaTemplatePalette({
     <AreaTemplateSizeControl controller={controller} grid={grid} />
     <AreaTemplateWidthControl controller={controller} grid={grid} />
     <AreaTemplateAngleControl controller={controller} grid={grid} />
+    <AreaTemplateConeTipControl controller={controller} grid={grid} />
     <label className="campaign-map-area-color">
       <span>Colour</span>
       <input type="color" value={controller.color} aria-label="Area template colour" onChange={event => controller.setColor(event.target.value)} />

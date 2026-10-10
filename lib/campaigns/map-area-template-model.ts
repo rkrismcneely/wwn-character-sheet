@@ -273,6 +273,101 @@ export function campaignMapSquareConeOverlapFraction(
   return squareArea > 0 ? Math.min(1, Math.max(0, polygonArea(clipped) / squareArea)) : 0;
 }
 
+function squareConeCardinalBonusCell(
+  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "angleDegrees">,
+  grid: CampaignMapGrid,
+): CampaignMapGridCell | null {
+  if (grid.type !== "square" || !Number.isFinite(grid.size) || grid.size <= 0) return null;
+  const angle = normalizeCampaignMapAreaTemplateAngle(template.angleDegrees);
+  const quarterTurn = Math.round(angle / 90) % 4;
+  if (angularDifferenceDegrees(angle, quarterTurn * 90) > EPSILON) return null;
+
+  const originQ = Math.round((template.x - grid.offsetX) / grid.size);
+  const originR = Math.round((template.y - grid.offsetY) / grid.size);
+  if (quarterTurn === 0) return { q: originQ, r: originR };
+  if (quarterTurn === 1) return { q: originQ - 1, r: originR };
+  if (quarterTurn === 2) return { q: originQ - 1, r: originR - 1 };
+  return { q: originQ, r: originR - 1 };
+}
+
+function campaignMapSquareConeCells(
+  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  grid: CampaignMapGrid,
+): CampaignMapGridCell[] {
+  if (grid.type !== "square" || !Number.isFinite(grid.size) || grid.size <= 0) return [];
+  const unit = campaignMapGridSpacePixels(grid);
+  const size = clampCampaignMapAreaTemplateSize(template.sizeSpaces);
+  const radius = size * unit * Math.SQRT2 + unit;
+  const candidates = gridCellsInRectangle(
+    { x: template.x - radius, y: template.y - radius },
+    { x: template.x + radius, y: template.y + radius },
+    grid,
+    MAX_CANDIDATE_CELLS,
+  );
+  const bonus = squareConeCardinalBonusCell(template, grid);
+  return candidates.filter(cell =>
+    campaignMapSquareConeOverlapFraction(template, cell, grid) >= 0.5 - EPSILON
+    || (bonus !== null && cell.q === bonus.q && cell.r === bonus.r)
+  );
+}
+
+function squareCellBoundaryPath(cells: CampaignMapGridCell[], grid: CampaignMapGrid): string {
+  if (grid.type !== "square" || cells.length === 0) return "";
+
+  type Vertex = { q: number; r: number };
+  type Edge = { start: Vertex; end: Vertex };
+  const edgeKey = (first: Vertex, second: Vertex) => {
+    const a = `${first.q}:${first.r}`;
+    const b = `${second.q}:${second.r}`;
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  };
+  const boundaryEdges = new Map<string, Edge>();
+
+  for (const cell of cells) {
+    const topLeft = { q: cell.q, r: cell.r };
+    const topRight = { q: cell.q + 1, r: cell.r };
+    const bottomRight = { q: cell.q + 1, r: cell.r + 1 };
+    const bottomLeft = { q: cell.q, r: cell.r + 1 };
+    const edges: Edge[] = [
+      { start: topLeft, end: topRight },
+      { start: topRight, end: bottomRight },
+      { start: bottomRight, end: bottomLeft },
+      { start: bottomLeft, end: topLeft },
+    ];
+    for (const edge of edges) {
+      const key = edgeKey(edge.start, edge.end);
+      if (boundaryEdges.has(key)) boundaryEdges.delete(key);
+      else boundaryEdges.set(key, edge);
+    }
+  }
+
+  const remaining = [...boundaryEdges.values()];
+  const paths: string[] = [];
+  while (remaining.length > 0) {
+    const first = remaining.shift() as Edge;
+    const vertices: Vertex[] = [first.start, first.end];
+    let current = first.end;
+    while (current.q !== first.start.q || current.r !== first.start.r) {
+      const nextIndex = remaining.findIndex(edge =>
+        edge.start.q === current.q && edge.start.r === current.r
+      );
+      if (nextIndex < 0) break;
+      const next = remaining.splice(nextIndex, 1)[0];
+      vertices.push(next.end);
+      current = next.end;
+    }
+    const pixel = (vertex: Vertex) => ({
+      x: grid.offsetX + vertex.q * grid.size,
+      y: grid.offsetY + vertex.r * grid.size,
+    });
+    paths.push(vertices.map((vertex, index) => {
+      const point = pixel(vertex);
+      return `${index ? "L" : "M"} ${point.x} ${point.y}`;
+    }).join(" ") + " Z");
+  }
+  return paths.join(" ");
+}
+
 function gridDistanceSpaces(
   source: CampaignMapGridCell,
   target: CampaignMapGridCell,
@@ -302,7 +397,9 @@ function campaignMapAreaTemplateCellAffected(
 ): boolean {
   const center = gridCellCenter(cell, grid);
   if (template.shape === "cone" && grid.type === "square") {
-    return campaignMapSquareConeOverlapFraction(template, cell, grid) >= 0.5 - EPSILON;
+    const bonus = squareConeCardinalBonusCell(template, grid);
+    return campaignMapSquareConeOverlapFraction(template, cell, grid) >= 0.5 - EPSILON
+      || (bonus !== null && cell.q === bonus.q && cell.r === bonus.r);
   }
   if (template.shape !== "cone" && template.shape !== "line") {
     return campaignMapAreaTemplateContainsPoint(template, center, grid);
@@ -358,6 +455,12 @@ export function campaignMapAreaTemplateAffectedCells(
   mapHeight: number,
 ): CampaignMapGridCell[] {
   if (![mapWidth, mapHeight, template.x, template.y].every(Number.isFinite) || mapWidth <= 0 || mapHeight <= 0) return [];
+  if (template.shape === "cone" && grid.type === "square") {
+    return campaignMapSquareConeCells(template, grid).filter(cell => {
+      const center = gridCellCenter(cell, grid);
+      return center.x >= 0 && center.x <= mapWidth && center.y >= 0 && center.y <= mapHeight;
+    });
+  }
   const radius = campaignMapAreaTemplateBoundingRadius(template, grid);
   if (!radius) return [];
   const candidates = gridCellsInRectangle(
@@ -409,6 +512,7 @@ export function campaignMapAreaTemplateOutlinePath(
     return points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + " Z";
   }
   if (template.shape === "cone") {
+    if (grid.type === "square") return squareCellBoundaryPath(campaignMapSquareConeCells(template, grid), grid);
     const points = campaignMapConeTriangle(template, grid);
     return points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + " Z";
   }

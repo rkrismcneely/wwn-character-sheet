@@ -708,7 +708,7 @@ export function CampaignMapAreaTemplatePalette({
       <input type="color" value={controller.color} aria-label="Area template colour" onChange={event => controller.setColor(event.target.value)} />
     </label>
     <small>{areaTemplateDescription(controller.shape, controller.sizeSpaces, controller.widthSpaces, grid)}</small>
-    <small>WWN does not define a battle-grid translation rule. On square maps, TWE draws the true WWN cone triangle and includes a square when at least 50% of that square is covered by the triangle.</small>
+    <small>WWN does not define a battle-grid translation rule. On square maps, TWE includes squares covered at least 50% by the WWN cone; one near-origin square is also included at 0°, 90°, 180°, and 270° to close the cardinal cone tip. The visible outline follows the included squares.</small>
     {controller.selected && <div className="campaign-map-area-selected-actions">
       <button type="button" className="campaign-danger" disabled={controller.busy} onClick={() => void controller.deleteSelected()}>Remove Template</button>
     </div>}

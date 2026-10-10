@@ -39,12 +39,12 @@ test("one-space spell radius covers the origin hex and all six adjacent hexes", 
   assert.ok(Math.abs(campaignMapGridSpacePixels(hexGrid) - Math.sqrt(3) * 30) < 0.0001);
 });
 
-test("square-grid cones include exactly the squares at least half covered by the triangle", () => {
+test("square-grid cones use 50-percent coverage plus one cardinal tip square", () => {
   const east = { shape: "cone", x: 100, y: 100, sizeSpaces: 3, angleDegrees: 0 };
   const southeast = { ...east, angleDegrees: 45 };
   assert.deepEqual(
     keys(campaignMapAreaTemplateAffectedCells(east, squareGrid, 400, 400)),
-    ["3:1", "3:2", "4:1", "4:2"],
+    ["2:2", "3:1", "3:2", "4:1", "4:2"],
   );
   assert.deepEqual(
     keys(campaignMapAreaTemplateAffectedCells(southeast, squareGrid, 400, 400)),
@@ -75,12 +75,33 @@ test("square-grid cone origins stay on grid intersections and exact 50-percent o
   assert.ok(!keys(campaignMapAreaTemplateAffectedCells(line, squareGrid, 400, 400)).includes("2:2"));
 });
 
-test("50-percent cone coverage is derived from geometric overlap rather than a fixed staircase mask", () => {
+test("cardinal cones add exactly one near-origin square below the 50-percent threshold", () => {
+  const origin = { x: 300, y: 300 };
+  const bonusCells = new Map([
+    [0, "6:6"],
+    [90, "5:6"],
+    [180, "5:5"],
+    [270, "6:5"],
+  ]);
+  for (const [angleDegrees, bonusKey] of bonusCells) {
+    const template = { shape: "cone", ...origin, sizeSpaces: 4, angleDegrees };
+    const cells = keys(campaignMapAreaTemplateAffectedCells(template, squareGrid, 1200, 1200));
+    assert.equal(cells.length, 9);
+    assert.ok(cells.includes(bonusKey));
+    const [q, r] = bonusKey.split(":").map(Number);
+    assert.ok(Math.abs(campaignMapSquareConeOverlapFraction(template, { q, r }, squareGrid) - 0.25) < 0.0001);
+  }
+
+  const diagonal = { shape: "cone", ...origin, sizeSpaces: 4, angleDegrees: 45 };
+  assert.equal(campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 1200, 1200).length, 9);
+});
+
+test("non-cardinal cone coverage remains governed only by the 50-percent overlap rule", () => {
   const expectedCounts = new Map([
-    [3, [4, 6]],
-    [4, [8, 9]],
-    [6, [18, 20]],
-    [12, [72, 72]],
+    [3, [5, 6]],
+    [4, [9, 9]],
+    [6, [19, 20]],
+    [12, [73, 72]],
   ]);
   for (const [sizeSpaces, [cardinalCount, diagonalCount]] of expectedCounts) {
     const cardinal = { shape: "cone", x: 300, y: 300, sizeSpaces, angleDegrees: 0 };
@@ -127,13 +148,13 @@ test("area templates snap origins and directions to the active grid", () => {
   assert.equal(snapCampaignMapAreaTemplateAngle(359, hexGrid), 0);
 });
 
-test("square-grid cone outline remains the true WWN triangle while coverage uses overlap area", () => {
+test("square-grid cone outline traces the included squares instead of the perfect triangle", () => {
   const template = { shape: "cone", x: 100, y: 100, sizeSpaces: 4, angleDegrees: 0 };
   const outline = campaignMapAreaTemplateOutlinePath(template, squareGrid);
-  assert.match(outline, /^M 100 100 L /u);
-  assert.equal((outline.match(/ L /gu) ?? []).length, 2);
+  assert.match(outline, /^M /u);
+  assert.ok((outline.match(/ L /gu) ?? []).length > 4);
   assert.doesNotMatch(outline, / A /u);
-  assert.equal(campaignMapAreaTemplateAffectedCells(template, squareGrid, 500, 500).length, 8);
+  assert.equal(campaignMapAreaTemplateAffectedCells(template, squareGrid, 500, 500).length, 9);
 });
 
 test("line templates support explicit WWN-style widths instead of assuming one grid space", () => {
@@ -200,6 +221,8 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(model, /campaignMapSquareConeOverlapFraction/u);
   assert.match(model, /clipPolygonAtAxis/u);
   assert.match(model, /polygonArea/u);
+  assert.match(model, /squareConeCardinalBonusCell/u);
+  assert.match(model, /squareCellBoundaryPath/u);
   assert.match(service, /access\.canManage \|\| creatorUserId === actor\.userId/u);
   assert.match(service, /You can only edit your own area templates/u);
   assert.match(service, /You can only remove your own area templates/u);
@@ -214,7 +237,7 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, />Select</u);
   assert.match(controller, /beginRotate/u);
   assert.match(controller, /Line width/u);
-  assert.match(controller, /at least 50% of that square is covered by the triangle/u);
+  assert.match(controller, /one near-origin square is also included at 0°, 90°, 180°, and 270°/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);
   assert.match(launcher, />Area</u);

@@ -408,37 +408,30 @@ function CampaignMapTextSizeControl({ controller, selected }: { controller: Camp
 
 export function CampaignMapDrawingPalette({ controller }: { controller: CampaignMapAnnotationController }) {
   if (!controller.tool) return null;
-  const tools: CampaignMapDrawingTool[] = ["freehand", "line", "arrow", "rect", "circle", "text", "erase"];
-  const selectedText = controller.selected?.geometry.kind === "text";
-  return <div className="campaign-map-drawing-palette" role="toolbar" aria-label="Map annotation tools">
-    <div className="campaign-map-drawing-tools">{tools.map(tool => <button type="button" key={tool}
-      className={`campaign-map-drawing-tool${controller.tool === tool ? " is-active" : ""}`} aria-pressed={controller.tool === tool}
-      disabled={controller.busy} onClick={() => controller.setTool(tool)}>{toolLabel(tool)}</button>)}</div>
-    {controller.selected ? <div className="campaign-map-selection-options">
-      <strong>Selected {toolLabel(controller.selected.kind)}</strong>
-      <label className="campaign-map-drawing-color"><span>Colour</span><input type="color" value={controller.color} aria-label="Selected annotation colour" onChange={e => controller.setColor(e.target.value)} /></label>
-      {selectedText && <CampaignMapTextSizeControl key={controller.selected?.id ?? "selected-text"} controller={controller} selected />}
-      <small>Drag the selected annotation on the map to move it.</small>
-    </div> : <>
-      <div className="campaign-map-drawing-options">
-        <span>New annotations</span>
-        {controller.canManage && <><button type="button" className={controller.visibility === "players" ? "is-active" : ""} aria-pressed={controller.visibility === "players"} onClick={() => controller.setVisibility("players")}>Players</button>
-        <button type="button" className={controller.visibility === "gm" ? "is-active" : ""} aria-pressed={controller.visibility === "gm"} onClick={() => controller.setVisibility("gm")}>GM only</button></>}
-        <label className="campaign-map-drawing-color"><span>Colour</span><input type="color" value={controller.color} aria-label="Annotation colour" onChange={e => controller.setColor(e.target.value)} /></label>
-      </div>
-      {controller.tool === "text" && <div className="campaign-map-text-controls">
-        <label className="campaign-map-text-entry"><span>Label text</span><input type="text" value={controller.textValue} onChange={e => controller.setTextValue(e.target.value)} maxLength={120} placeholder="Enter a map label…" autoFocus /></label>
+  return <div className="campaign-map-drawing-palette campaign-map-creation-strip" role="toolbar" aria-label="Create annotation">
+    <strong className="campaign-map-creation-name">{toolLabel(controller.tool)}</strong>
+    {controller.canManage && <label className="campaign-map-creation-field">
+      <span className="sr-only">Who can see this annotation?</span>
+      <select value={controller.visibility} aria-label="Annotation visibility"
+        onChange={event => controller.setVisibility(event.target.value as CampaignMapAnnotationVisibility)}>
+        <option value="players">Players</option>
+        <option value="gm">GM only</option>
+      </select>
+    </label>}
+    {controller.tool !== "erase" && <label className="campaign-map-drawing-color" title="Annotation colour">
+      <span className="sr-only">Colour</span>
+      <input type="color" value={controller.color} aria-label="Annotation colour"
+        onChange={event => controller.setColor(event.target.value)} />
+    </label>}
+    {controller.tool === "text" && <>
+      <label className="campaign-map-text-entry"><span className="sr-only">Label text</span>
+        <input type="text" value={controller.textValue} onChange={event => controller.setTextValue(event.target.value)}
+          maxLength={120} placeholder="Label text" aria-label="Label text" autoFocus /></label>
+      <details className="campaign-map-creation-details"><summary>Size</summary>
         <CampaignMapTextSizeControl controller={controller} selected={false} />
-      </div>}
+      </details>
     </>}
-    <div className="campaign-map-drawing-actions">
-      {controller.canManage && <button type="button" disabled={controller.busy || !controller.annotations.length} onClick={() => void controller.clearAnnotations()}>Clear all</button>}
-      <button type="button" onClick={controller.stopDrawing}>Done</button>
-    </div>
-    {controller.tool === "select" && !controller.selected && <small>Select an annotation to change it or drag it to a new position.</small>}
-    {controller.tool === "erase" && <small>Tap or click one of your editable annotations to erase it.</small>}
-    {controller.tool === "circle" && <small>Drag from the circle’s center outward.</small>}
-    {controller.tool === "text" && !controller.selected && <small>Choose text and size, then click or tap the map where the label should begin.</small>}
+    <button type="button" className="campaign-map-creation-done" onClick={controller.stopDrawing}>Done</button>
     {controller.error && <p className="campaign-map-drawing-error" role="alert">{controller.error}</p>}
   </div>;
 }

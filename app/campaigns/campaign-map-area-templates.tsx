@@ -729,7 +729,7 @@ export function CampaignMapAreaTemplatePalette({
   controller: CampaignMapAreaTemplateController;
   grid: CampaignMapGrid;
 }) {
-  if (!controller.open || controller.mode !== "place") return null;
+  if (!controller.open) return null;
   const shapes: CampaignMapAreaTemplateShape[] = ["radius", "cube", "cone", "line"];
   return <div className="campaign-map-area-palette" role="toolbar" aria-label="Spell area template tools">
     <div className="campaign-map-area-mode">

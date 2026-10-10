@@ -52,6 +52,7 @@ import {
   type CampaignMapOpenDetail,
 } from "./campaign-map-events";
 import { CampaignMapSharedDice } from "./campaign-map-shared-dice";
+import { MapObjectActionIcon } from "./map-object-action-icon";
 import {
   CampaignMapAnnotationLayer,
   CampaignMapDrawingPalette,
@@ -190,6 +191,14 @@ function clamp(value: number, min: number, max: number): number {
 
 function tokenKindLabel(kind: CampaignMapToken["kind"]): string {
   return kind === "pc" ? "PC" : kind === "companion" ? "Companion" : "NPC";
+}
+
+/** Conventional square-grid creature footprints; larger tokens retain their precise footprint. */
+function tokenFootprintSizeLabel(size: number): string {
+  if (size <= 1) return "Medium";
+  if (size === 2) return "Large";
+  if (size === 3) return "Huge";
+  return size === 4 ? "Gargantuan" : `Gargantuan (${size}×${size})`;
 }
 
 function tokenAriaKind(kind: CampaignMapToken["kind"]): string {
@@ -871,18 +880,18 @@ export function CampaignMapWorkspace({
                 onBlur={event => { if (event.target.value.trim()) void annotations.updateSelectedText(event.target.value); }}
                 onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
               <label className="campaign-map-context-size"><span className="sr-only">Text size</span>
-                <input type="number" min={8} max={200} aria-label="Label font size" value={annotations.textSize}
+                <input type="number" min={8} max={200} step={1} aria-label="Label font size" value={annotations.textSize}
                   onChange={event => annotations.setTextSize(Number(event.target.value))}
                   onBlur={() => void annotations.commitTextSize()} /></label>
             </>}
             <span className="campaign-map-context-separator" aria-hidden="true" />
-            <label className="campaign-map-context-swatch" title="Annotation colour"><span className="sr-only">Colour</span>
+            <label className="campaign-map-context-swatch campaign-map-quick-tooltip" data-tooltip="Colour"><span className="sr-only">Colour</span>
               <input type="color" aria-label="Annotation colour" value={annotations.color}
                 onChange={event => annotations.setColor(event.target.value)} /></label>
-            <button type="button" title="Duplicate annotation" aria-label="Duplicate annotation"
-              disabled={annotations.busy} onClick={() => void annotations.duplicateSelected()}>▢</button>
-            <button type="button" className="campaign-map-context-danger" title="Delete annotation" aria-label="Delete annotation"
-              disabled={annotations.busy} onClick={() => { if (annotations.selected) void annotations.eraseAnnotation(annotations.selected.id); }}>▤</button>
+            <button type="button" className="campaign-map-quick-tooltip" data-tooltip="Duplicate" aria-label="Duplicate annotation"
+              disabled={annotations.busy} onClick={() => void annotations.duplicateSelected()}><MapObjectActionIcon kind="duplicate" /></button>
+            <button type="button" className="campaign-map-context-danger campaign-map-quick-tooltip" data-tooltip="Delete" aria-label="Delete annotation"
+              disabled={annotations.busy} onClick={() => { if (annotations.selected) void annotations.eraseAnnotation(annotations.selected.id); }}><MapObjectActionIcon kind="delete" /></button>
             {annotations.error && <span className="campaign-map-context-error" role="alert">{annotations.error}</span>}
           </div>}
           {selectedTokenId && !annotations.selected && !areaTemplates.selected && map.tokens.filter(token => token.id === selectedTokenId).map(token =>
@@ -894,13 +903,13 @@ export function CampaignMapWorkspace({
                 <button type="button" title="Reduce token size" aria-label="Reduce token size"
                   disabled={busy || (tokenSizes[token.id] ?? 1) <= 1}
                   onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1) - 1)}>−</button>
-                <span className="campaign-map-context-value">{tokenSizes[token.id] ?? 1}×</span>
+                <span className="campaign-map-context-value" title={`${tokenSizes[token.id] ?? 1}×${tokenSizes[token.id] ?? 1} grid spaces`}>{tokenFootprintSizeLabel(tokenSizes[token.id] ?? 1)}</span>
                 <button type="button" title="Increase token size" aria-label="Increase token size"
                   disabled={busy || (tokenSizes[token.id] ?? 1) >= 12}
                   onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1) + 1)}>+</button>
                 <span className="campaign-map-context-separator" aria-hidden="true" />
-                <button type="button" className="campaign-map-context-danger" title="Remove token" aria-label="Remove token"
-                  disabled={busy} onClick={() => { void tokenAction({ action: "remove", tokenId: token.id }); setSelectedTokenId(null); }}>▤</button>
+                <button type="button" className="campaign-map-context-danger campaign-map-quick-tooltip" data-tooltip="Remove token" aria-label="Remove token"
+                  disabled={busy} onClick={() => { void tokenAction({ action: "remove", tokenId: token.id }); setSelectedTokenId(null); }}><MapObjectActionIcon kind="delete" /></button>
               </>}
             </div>)}
           <button type="button" className="campaign-map-context-dismiss" onClick={() => {

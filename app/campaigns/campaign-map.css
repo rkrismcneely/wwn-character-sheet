@@ -2320,3 +2320,19 @@
     min-height: 2.7rem;
   }
 }
+
+.campaign-map-keyboard-feedback {
+  position: absolute;
+  z-index: 24;
+  left: .65rem;
+  bottom: .65rem;
+  max-width: min(22rem, calc(100% - 1.3rem));
+  padding: .4rem .65rem;
+  border: 1px solid rgba(176, 184, 202, .35);
+  border-radius: 8px;
+  background: rgba(13, 18, 27, .94);
+  box-shadow: 0 6px 17px rgba(0,0,0,.4);
+  color: #e8dfcf;
+  font: 600 .74rem/1.25 var(--font-ui, sans-serif);
+  pointer-events: none;
+}

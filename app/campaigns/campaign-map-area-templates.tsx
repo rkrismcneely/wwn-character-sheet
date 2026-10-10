@@ -351,6 +351,7 @@ export function useCampaignMapAreaTemplates({
       setTemplates(current => [...current.filter(template => template.id !== body.template?.id), body.template as CampaignMapAreaTemplate]);
       setSelectedId(body.template.id);
       setModeState("select");
+      setOpen(false);
       publishLocal();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Area template could not be created.");
@@ -386,7 +387,7 @@ export function useCampaignMapAreaTemplates({
   }, [busy, campaignId, mapId, publishLocal, reload, selectedId, templates]);
 
   const beginMove = useCallback((event: ReactPointerEvent<SVGGElement>, id: string) => {
-    if (mode !== "select" || !width || !height) return;
+    if ((open && mode !== "select") || !width || !height) return;
     const template = templates.find(candidate => candidate.id === id);
     const svg = event.currentTarget.ownerSVGElement;
     if (!template?.canEdit || !svg) return;
@@ -406,10 +407,10 @@ export function useCampaignMapAreaTemplates({
       latestY: template.y,
     };
     svg.setPointerCapture(event.pointerId);
-  }, [height, mode, selectTemplate, templates, width]);
+  }, [height, mode, open, selectTemplate, templates, width]);
 
   const beginRotate = useCallback((event: ReactPointerEvent<SVGCircleElement>, id: string) => {
-    if (mode !== "select" || !width || !height) return;
+    if ((open && mode !== "select") || !width || !height) return;
     const template = templates.find(candidate => candidate.id === id);
     const svg = event.currentTarget.ownerSVGElement;
     if (!template?.canEdit || !svg) return;
@@ -425,15 +426,10 @@ export function useCampaignMapAreaTemplates({
       angleDegrees: template.angleDegrees,
     };
     svg.setPointerCapture(event.pointerId);
-  }, [height, mode, selectTemplate, templates, width]);
+  }, [height, mode, open, selectTemplate, templates, width]);
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
-    if (!open || !width || !height || busy || event.button !== 0) return false;
-    if (mode === "select") {
-      setSelectedId(null);
-      event.preventDefault();
-      return true;
-    }
+    if (!open || mode !== "place" || !width || !height || busy || event.button !== 0) return false;
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
     if (!point) return true;
     event.preventDefault();
@@ -549,7 +545,11 @@ export function useCampaignMapAreaTemplates({
     },
     setShape: next => {
       setShapeState(next);
-      if (selected?.canEdit) setSelectedLocal({ shape: next });
+      if (selected?.canEdit) {
+        const updated = { ...selected, shape: next };
+        setTemplates(current => current.map(item => item.id === selected.id ? updated : item));
+        void saveTemplate(updated);
+      }
     },
     setSizeSpaces,
     setWidthSpaces,
@@ -761,23 +761,55 @@ export function CampaignMapAreaTemplatePalette({
   </div>;
 }
 
+export function CampaignMapAreaTemplateInspector({ controller, grid }: {
+  controller: CampaignMapAreaTemplateController;
+  grid: CampaignMapGrid;
+}) {
+  if (!controller.selected?.canEdit) return null;
+  const shapes: CampaignMapAreaTemplateShape[] = ["radius", "cube", "cone", "line"];
+  return <div className="campaign-map-object-fields" aria-label="Selected spell area settings">
+    <div className="campaign-map-area-shapes" role="group" aria-label="Shape">
+      {shapes.map(shape => <button type="button" key={shape}
+        className={controller.shape === shape ? "is-active" : ""}
+        aria-pressed={controller.shape === shape}
+        onClick={() => controller.setShape(shape)}>{shapeLabel(shape)}</button>)}
+    </div>
+    <AreaTemplateSizeControl controller={controller} grid={grid} />
+    <AreaTemplateWidthControl controller={controller} grid={grid} />
+    <AreaTemplateAngleControl controller={controller} grid={grid} />
+    <AreaTemplateConeTipControl controller={controller} grid={grid} />
+    <label className="campaign-map-area-color"><span>Colour</span>
+      <input type="color" value={controller.color} aria-label="Selected spell area colour"
+        onChange={event => controller.setColor(event.target.value)} />
+    </label>
+    <button type="button" className="campaign-danger" disabled={controller.busy}
+      onClick={() => void controller.deleteSelected()}>Delete Area</button>
+    {controller.error && <p className="campaign-map-area-error" role="alert">{controller.error}</p>}
+  </div>;
+}
+
 export function CampaignMapAreaTemplateLayer({
   controller,
   grid,
   width,
   height,
+  interactionEnabled = true,
+  onSelect,
 }: {
   controller: CampaignMapAreaTemplateController;
   grid: CampaignMapGrid;
   width: number;
   height: number;
+  interactionEnabled?: boolean;
+  onSelect?: (id: string) => void;
 }) {
-  return <g className={`campaign-map-area-layer${controller.open ? " is-open" : ""}${controller.mode === "select" ? " is-selecting" : ""}`}>
+  const selecting = interactionEnabled && (!controller.open || controller.mode === "select");
+  return <g className={`campaign-map-area-layer${controller.open ? " is-open" : ""}${selecting ? " is-selecting" : ""}`}>
     {controller.templates.map(template => {
       const affected = campaignMapAreaTemplateAffectedPath(template, grid, width, height);
       const outline = campaignMapAreaTemplateOutlinePath(template, grid);
       const selected = controller.selectedId === template.id;
-      const interactive = controller.open && controller.mode === "select" && template.canEdit;
+      const interactive = selecting && template.canEdit;
       const direction = campaignMapAreaTemplateDirectionPoint(template, grid);
       return <g
         key={template.id}
@@ -785,10 +817,11 @@ export function CampaignMapAreaTemplateLayer({
         role={interactive ? "button" : undefined}
         tabIndex={interactive ? 0 : undefined}
         aria-label={interactive ? `Select ${shapeLabel(template.shape)} area template` : undefined}
-        onPointerDown={event => { if (interactive) controller.beginMove(event, template.id); }}
+        onPointerDown={event => { if (interactive) { onSelect?.(template.id); controller.beginMove(event, template.id); } }}
         onKeyDown={event => {
           if (!interactive || (event.key !== "Enter" && event.key !== " ")) return;
           event.preventDefault();
+          onSelect?.(template.id);
           controller.selectTemplate(template.id);
         }}
       >
@@ -810,7 +843,7 @@ export function CampaignMapAreaTemplateLayer({
               aria-valuemin={0}
               aria-valuemax={359}
               aria-valuenow={Math.round(template.angleDegrees)}
-              onPointerDown={event => controller.beginRotate(event, template.id)}
+              onPointerDown={event => { onSelect?.(template.id); controller.beginRotate(event, template.id); }}
             />
           </>}
         </>}

@@ -103,7 +103,9 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(route, /body\.action === "delete"/u);
   assert.match(route, /body\.action === "clear"/u);
   assert.match(route, /announceMapChanged/u);
-  assert.match(controller, /"select", "freehand", "line", "arrow", "rect", "circle", "text", "erase"/u);
+  assert.match(controller, /"freehand", "line", "arrow", "rect", "circle", "text", "erase"/u);
+  assert.match(controller, /const selecting = interactionEnabled && \(!controller\.tool \|\| controller\.tool === "select"\)/u);
+  assert.match(launcher, /campaign-map-object-inspector/u);
   assert.match(controller, /New annotations/u);
   assert.match(controller, /type="color"/u);
   assert.match(controller, /aria-label="Annotation colour"/u);

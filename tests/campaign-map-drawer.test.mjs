@@ -45,8 +45,11 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.match(launcher, /Dock<\/span>/u);
   assert.match(launcher, />Left<\/button>/u);
   assert.match(launcher, />Right<\/button>/u);
-  assert.match(launcher, /campaign-map-control-label">Map/u);
-  assert.match(launcher, /campaign-map-control-label">Table/u);
+  assert.match(launcher, /aria-label="Map view"/u);
+  assert.match(launcher, /campaign-map-quick-actions/u);
+  assert.match(launcher, />\+ Add</u);
+  assert.match(launcher, />Fog</u);
+  assert.match(launcher, />Measure</u);
   assert.match(launcher, /<option value="pip">Picture-in-Picture<\/option>/u);
   assert.match(launcher, /campaign-map-drawer-collapse/u);
   assert.match(launcher, /aria-label="Close map; drag horizontally to resize side drawer"/u);

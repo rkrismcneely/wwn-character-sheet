@@ -82,6 +82,7 @@ export type CampaignMapAreaTemplateController = {
   beginMove: (event: ReactPointerEvent<SVGGElement>, id: string) => void;
   beginRotate: (event: ReactPointerEvent<SVGCircleElement>, id: string) => void;
   deleteSelected: () => Promise<void>;
+  duplicateSelected: () => Promise<void>;
   handlePointerDown: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
   handlePointerMove: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
   handlePointerEnd: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
@@ -361,6 +362,38 @@ export function useCampaignMapAreaTemplates({
     }
   }, [angleDegrees, busy, campaignId, color, grid, height, mapId, publishLocal, reload, shape, sizeSpaces, tipFlip, width, widthSpaces]);
 
+  const duplicateSelected = useCallback(async () => {
+    if (!selected?.canEdit || !mapId || !grid || !width || !height || busy) return;
+    const position = snapCampaignMapAreaTemplateOrigin(
+      { x: Math.min(width, selected.x + grid.size), y: Math.min(height, selected.y + grid.size) },
+      grid, selected.shape, selected.sizeSpaces, width, height,
+    );
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/map/templates`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "create", mapId, shape: selected.shape,
+          x: position.x, y: position.y, sizeSpaces: selected.sizeSpaces,
+          widthSpaces: selected.widthSpaces, tipFlip: selected.tipFlip,
+          angleDegrees: selected.angleDegrees, color: selected.color,
+        }),
+      });
+      const body = await response.json() as AreaTemplateResponse;
+      if (!response.ok || !body.template) throw new Error(body.error || "Area template could not be duplicated.");
+      setTemplates(current => [...current, body.template as CampaignMapAreaTemplate]);
+      setSelectedId(body.template.id);
+      publishLocal();
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Area template could not be duplicated.");
+      void reload();
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, campaignId, grid, height, mapId, publishLocal, reload, selected, width]);
+
   const deleteSelected = useCallback(async () => {
     const template = templates.find(candidate => candidate.id === selectedId);
     if (!template?.canEdit || !mapId || busy) return;
@@ -562,6 +595,7 @@ export function useCampaignMapAreaTemplates({
     beginMove,
     beginRotate,
     deleteSelected,
+    duplicateSelected,
     handlePointerDown,
     handlePointerMove,
     handlePointerEnd,
@@ -766,25 +800,60 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
   grid: CampaignMapGrid;
 }) {
   if (!controller.selected?.canEdit) return null;
-  const shapes: CampaignMapAreaTemplateShape[] = ["radius", "cube", "cone", "line"];
-  return <div className="campaign-map-object-fields" aria-label="Selected spell area settings">
-    <div className="campaign-map-area-shapes" role="group" aria-label="Shape">
-      {shapes.map(shape => <button type="button" key={shape}
-        className={controller.shape === shape ? "is-active" : ""}
-        aria-pressed={controller.shape === shape}
-        onClick={() => controller.setShape(shape)}>{shapeLabel(shape)}</button>)}
-    </div>
-    <AreaTemplateSizeControl controller={controller} grid={grid} />
-    <AreaTemplateWidthControl controller={controller} grid={grid} />
-    <AreaTemplateAngleControl controller={controller} grid={grid} />
-    <AreaTemplateConeTipControl controller={controller} grid={grid} />
-    <label className="campaign-map-area-color"><span>Colour</span>
-      <input type="color" value={controller.color} aria-label="Selected spell area colour"
-        onChange={event => controller.setColor(event.target.value)} />
+  const step = campaignMapAreaTemplateAngleStep(grid);
+  const cardinalCone = grid.type === "square" && controller.shape === "cone" &&
+    Math.abs(normalizeCampaignMapAreaTemplateAngle(controller.angleDegrees) % 90) < 0.0001;
+  const unitFeet = grid.type === "square" ? 5 : null;
+  return <div className="campaign-map-context-actions" aria-label="Selected spell area settings">
+    <label className="campaign-map-context-select">
+      <span className="sr-only">Area shape</span>
+      <select aria-label="Area shape" value={controller.shape} disabled={controller.busy}
+        onChange={event => controller.setShape(event.target.value as CampaignMapAreaTemplateShape)}>
+        <option value="radius">◯ Radius</option>
+        <option value="cube">□ Cube</option>
+        <option value="cone">◁ Cone</option>
+        <option value="line">▱ Line</option>
+      </select>
     </label>
-    <button type="button" className="campaign-danger" disabled={controller.busy}
-      onClick={() => void controller.deleteSelected()}>Delete Area</button>
-    {controller.error && <p className="campaign-map-area-error" role="alert">{controller.error}</p>}
+    <label className="campaign-map-context-size">
+      <span className="sr-only">Area size in grid spaces</span>
+      <input type="number" aria-label="Area size in grid spaces"
+        min={campaignMapAreaTemplateMinSize} max={campaignMapAreaTemplateMaxSize}
+        value={controller.sizeSpaces} disabled={controller.busy}
+        onChange={event => controller.setSizeSpaces(Number(event.target.value))}
+        onBlur={() => void controller.commitSelected()}
+        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+      <span>{unitFeet ? `× ${unitFeet} ft` : "hexes"}</span>
+    </label>
+    {controller.shape === "line" && <label className="campaign-map-context-size">
+      <span>Width</span>
+      <input type="number" aria-label="Line width in grid spaces" min="1" max={campaignMapAreaTemplateMaxSize}
+        value={controller.widthSpaces} disabled={controller.busy}
+        onChange={event => controller.setWidthSpaces(Number(event.target.value))}
+        onBlur={() => void controller.commitSelected()}
+        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+    </label>}
+    {controller.shape !== "radius" && <>
+      <span className="campaign-map-context-separator" aria-hidden="true" />
+      <button type="button" title={`Rotate ${step}° left`} aria-label={`Rotate ${step} degrees left`}
+        disabled={controller.busy} onClick={() => controller.nudgeAngle(-step)}>↶</button>
+      <button type="button" title={`Rotate ${step}° right`} aria-label={`Rotate ${step} degrees right`}
+        disabled={controller.busy} onClick={() => controller.nudgeAngle(step)}>↷</button>
+    </>}
+    {cardinalCone && <button type="button" className="campaign-map-context-tip"
+      title="Flip which near-origin square completes the cone tip"
+      disabled={controller.busy} onClick={controller.flipTip}>↕ Flip Tip</button>}
+    <span className="campaign-map-context-separator" aria-hidden="true" />
+    <label className="campaign-map-context-swatch" title="Area colour">
+      <span className="sr-only">Area colour</span>
+      <input type="color" aria-label="Area colour" value={controller.color}
+        disabled={controller.busy} onChange={event => controller.setColor(event.target.value)} />
+    </label>
+    <button type="button" aria-label="Duplicate area" title="Duplicate area"
+      disabled={controller.busy} onClick={() => void controller.duplicateSelected()}>▢</button>
+    <button type="button" className="campaign-map-context-danger" aria-label="Delete area" title="Delete area"
+      disabled={controller.busy} onClick={() => void controller.deleteSelected()}>▤</button>
+    {controller.error && <span role="alert" className="campaign-map-context-error">{controller.error}</span>}
   </div>;
 }
 

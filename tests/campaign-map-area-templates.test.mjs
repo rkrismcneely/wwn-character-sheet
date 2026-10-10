@@ -275,7 +275,7 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, /tipFlip: template\.tipFlip/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);
-  assert.match(launcher, />Area</u);
+  assert.match(launcher, />\+ Add</u);
   assert.match(launcher, />Spell Area</u);
   assert.match(launcher, /CampaignMapAreaTemplatePalette/u);
   assert.match(launcher, /CampaignMapAreaTemplateLayer/u);

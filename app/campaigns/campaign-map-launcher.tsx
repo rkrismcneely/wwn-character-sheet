@@ -273,6 +273,13 @@ export function CampaignMapWorkspace({
   const [tokenDragOrigin, setTokenDragOrigin] = useState<TokenDragOrigin | null>(null);
   const [fogMode, setFogMode] = useState<FogMode | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [measureEnabled, setMeasureEnabled] = useState(false);
+  const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
+  const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
+  const measureDragRef = useRef<{ pointerId: number } | null>(null);
+  const spacePanRef = useRef(false);
   const publishMapInvalidation = useCallback(() => {
     mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId });
   }, [campaignId]);
@@ -303,6 +310,31 @@ export function CampaignMapWorkspace({
   }, [campaignId, presentation]);
 
   useCampaignLiveSession(campaignId, open);
+  useEffect(() => {
+    if (!open) return;
+    const keyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (event.code === "Space") { spacePanRef.current = true; event.preventDefault(); }
+      if (event.key === "Escape") {
+        annotations.stopDrawing(); areaTemplates.close(); setFogMode(null);
+        annotations.selectAnnotation(null); areaTemplates.selectTemplate(null);
+        setSelectedTokenId(null); setAddOpen(false); setMoreOpen(false);
+        setMeasureEnabled(false); setMeasureStart(null); setMeasureEnd(null);
+      }
+    };
+    const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") spacePanRef.current = false; };
+    const reset = () => { spacePanRef.current = false; };
+    window.addEventListener("keydown", keyDown);
+    window.addEventListener("keyup", keyUp);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
+      window.removeEventListener("blur", reset);
+      spacePanRef.current = false;
+    };
+  }, [open, annotations, areaTemplates]);
 
   useEffect(() => { if (!open || !map || !view) return; try { window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view)); } catch {} }, [campaignId, map, open, presentation, view]);
   useEffect(() => { try { window.localStorage.setItem(mapDrawerDockStorageKey, drawerDock); window.localStorage.setItem(mapDrawerWidthStorageKey, String(drawerWidth)); } catch {} }, [drawerDock, drawerWidth]);
@@ -356,14 +388,37 @@ export function CampaignMapWorkspace({
   function scheduleFogPreview(mode: FogMode) { if (fogPreviewFrameRef.current !== null) return; fogPreviewFrameRef.current = window.requestAnimationFrame(() => { fogPreviewFrameRef.current = null; const drag = fogDragRef.current; if (!drag) return; const cells = selectedFogCells(drag.start, drag.latest); fogPreviewRef.current = cells; renderFogPreview(cells, mode); }); }
   async function saveFogCells(mode: FogMode, cells: CampaignMapGridCell[]) { if (!map || !cells.length) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_fog", mapId: map.id, mode, cells }) }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.map) throw new Error(body.error || "Map visibility could not be updated."); setMap(body.map); publishMapInvalidation(); } catch (fogError) { setError(fogError instanceof Error ? fogError.message : "Map visibility could not be updated."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { setBusy(false); } }
 
-  function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) { if (!view || event.button !== 0 || tokenDragRef.current) return; if (areaTemplates.handlePointerDown(event)) return; if (annotations.handlePointerDown(event)) return;
+  function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) { if (!view || event.button !== 0 || tokenDragRef.current) return;
+    if (!spacePanRef.current && measureEnabled && svgRef.current) {
+      const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
+      if (point) {
+        measureDragRef.current = { pointerId: event.pointerId };
+        setMeasureStart(point); setMeasureEnd(point);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+      return;
+    }
+    if (!spacePanRef.current && areaTemplates.handlePointerDown(event)) return;
+    if (!spacePanRef.current && annotations.handlePointerDown(event)) return;
     annotations.selectAnnotation(null); areaTemplates.selectTemplate(null); setSelectedTokenId(null);
-    if (fogMode && canManage && svgRef.current) { const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!point) return; fogDragRef.current = { pointerId: event.pointerId, start: point, latest: point }; const cells = selectedFogCells(point, point); fogPreviewRef.current = cells; renderFogPreview(cells, fogMode); event.currentTarget.setPointerCapture(event.pointerId); return; } dragRef.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, view, latestView: view }; event.currentTarget.setPointerCapture(event.pointerId); }
-  function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) { if (areaTemplates.handlePointerMove(event)) return; if (annotations.handlePointerMove(event)) return; const fogDrag = fogDragRef.current; if (fogDrag?.pointerId === event.pointerId && svgRef.current) { const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (point && fogMode) { fogDrag.latest = point; scheduleFogPreview(fogMode); } return; } const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return; const rect = event.currentTarget.getBoundingClientRect(); if (!rect.width || !rect.height) return; const dx = (event.clientX - drag.clientX) * (drag.view.width / rect.width); const dy = (event.clientY - drag.clientY) * (drag.view.height / rect.height); const nextView = { ...drag.view, x: drag.view.x - dx, y: drag.view.y - dy }; drag.latestView = nextView; event.currentTarget.setAttribute("viewBox", `${nextView.x} ${nextView.y} ${nextView.width} ${nextView.height}`); }
-  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) { if (areaTemplates.handlePointerEnd(event)) return; if (annotations.handlePointerEnd(event)) return; const fogDrag = fogDragRef.current; if (fogDrag?.pointerId === event.pointerId) { const endPoint = svgRef.current ? clientPointToSvg(svgRef.current, event.clientX, event.clientY) : null; const cells = selectedFogCells(fogDrag.start, endPoint ?? fogDrag.latest); const mode = fogMode; fogDragRef.current = null; clearFogPreview(); setFogMode(null); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (mode && cells.length) void saveFogCells(mode, cells); return; } const drag = dragRef.current; if (drag?.pointerId === event.pointerId) { dragRef.current = null; const finalView = drag.latestView; setView(current => sameView(current, finalView) ? current : finalView); } if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }
+    if (!spacePanRef.current && fogMode && canManage && svgRef.current) { const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!point) return; fogDragRef.current = { pointerId: event.pointerId, start: point, latest: point }; const cells = selectedFogCells(point, point); fogPreviewRef.current = cells; renderFogPreview(cells, fogMode); event.currentTarget.setPointerCapture(event.pointerId); return; } dragRef.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, view, latestView: view }; event.currentTarget.setPointerCapture(event.pointerId); }
+  function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    if (measureDragRef.current?.pointerId === event.pointerId && svgRef.current) {
+      const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
+      if (point) setMeasureEnd(point);
+      return;
+    }
+    if (areaTemplates.handlePointerMove(event)) return; if (annotations.handlePointerMove(event)) return; const fogDrag = fogDragRef.current; if (fogDrag?.pointerId === event.pointerId && svgRef.current) { const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (point && fogMode) { fogDrag.latest = point; scheduleFogPreview(fogMode); } return; } const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return; const rect = event.currentTarget.getBoundingClientRect(); if (!rect.width || !rect.height) return; const dx = (event.clientX - drag.clientX) * (drag.view.width / rect.width); const dy = (event.clientY - drag.clientY) * (drag.view.height / rect.height); const nextView = { ...drag.view, x: drag.view.x - dx, y: drag.view.y - dy }; drag.latestView = nextView; event.currentTarget.setAttribute("viewBox", `${nextView.x} ${nextView.y} ${nextView.width} ${nextView.height}`); }
+  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+    if (measureDragRef.current?.pointerId === event.pointerId) {
+      measureDragRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      return;
+    }
+    if (areaTemplates.handlePointerEnd(event)) return; if (annotations.handlePointerEnd(event)) return; const fogDrag = fogDragRef.current; if (fogDrag?.pointerId === event.pointerId) { const endPoint = svgRef.current ? clientPointToSvg(svgRef.current, event.clientX, event.clientY) : null; const cells = selectedFogCells(fogDrag.start, endPoint ?? fogDrag.latest); const mode = fogMode; fogDragRef.current = null; clearFogPreview(); setFogMode(null); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (mode && cells.length) void saveFogCells(mode, cells); return; } const drag = dragRef.current; if (drag?.pointerId === event.pointerId) { dragRef.current = null; const finalView = drag.latestView; setView(current => sameView(current, finalView) ? current : finalView); } if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }
 
   function handleTokenPointerDown(event: ReactPointerEvent<SVGGElement>, token: CampaignMapToken) {
-    if (!view || event.button !== 0 || !svgRef.current || annotations.tool || areaTemplates.open || fogMode) return;
+    if (!view || event.button !== 0 || !svgRef.current || annotations.tool || areaTemplates.open || fogMode || measureEnabled || spacePanRef.current) return;
     event.stopPropagation(); setSelectedTokenId(token.id); annotations.selectAnnotation(null); areaTemplates.selectTemplate(null);
     if (!token.canMove) return; const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!pointer) return;
     tokenDragRef.current = { pointerId: event.pointerId, tokenId: token.id, version: token.version, pointerMapX: pointer.x, pointerMapY: pointer.y, x: token.x, y: token.y, latestX: token.x, latestY: token.y, element: event.currentTarget, distanceElement: null };
@@ -398,7 +453,52 @@ export function CampaignMapWorkspace({
   const mapSurface = open ? <section ref={drawerElementRef} className={`campaign-map-dialog campaign-map-host-${presentation}${presentation === "drawer" ? ` campaign-map-drawer-${drawerDock}` : ""}`} role="dialog" aria-modal={presentation === "fullscreen"} aria-labelledby="campaign-map-title" style={presentation === "drawer" ? { "--campaign-map-drawer-width": `${drawerWidth}px` } as CSSProperties : undefined}>
     {presentation === "drawer" && <div className="campaign-map-drawer-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize map side drawer" onPointerDown={handleDrawerResizeStart} onPointerMove={handleDrawerResizeMove} onPointerUp={handleDrawerResizeEnd} onPointerCancel={handleDrawerResizeEnd} />}
     <header className="campaign-map-toolbar"><div className="campaign-map-toolbar-primary"><div className="campaign-map-title-block"><p className="campaign-kicker">CAMPAIGN MAP</p><h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>{canManage && map && <small className={map.isActive ? "campaign-map-live-label" : "campaign-map-private-label"}>{map.isActive ? "Visible to players" : "GM preview — players still see the active map"}</small>}</div><div className="campaign-map-mode-controls">{inPageHost && <label className="campaign-map-presentation-picker"><span>View</span><select value={workspace.inPagePresentation} onChange={event => handlePresentationSelect(event.target.value)}><option value="fullscreen">Full screen</option><option value="drawer">Side drawer</option><option value="pip">Picture-in-Picture</option></select></label>}{presentation === "drawer" && <div className="campaign-map-dock-control" role="group" aria-label="Side drawer position"><span>Dock</span><button type="button" className={`campaign-quiet${drawerDock === "left" ? " is-active" : ""}`} aria-pressed={drawerDock === "left"} onClick={() => chooseDrawerDock("left")}>Left</button><button type="button" className={`campaign-quiet${drawerDock === "right" ? " is-active" : ""}`} aria-pressed={drawerDock === "right"} onClick={() => chooseDrawerDock("right")}>Right</button></div>}{presentation === "pip" && <button type="button" className="campaign-secondary" onClick={returnFromPictureInPicture}>Return to Page</button>}{presentation !== "drawer" && <button type="button" className="campaign-secondary campaign-map-close-button" onClick={closeMap}>{presentation === "standalone" ? "Close Map Window" : "Close Map"}</button>}</div></div>
-      <div className="campaign-map-toolbar-actions">{map?.backgroundUrl && <div className="campaign-map-control-group" aria-label="Map view controls"><span className="campaign-map-control-label">Map</span><button type="button" className="campaign-quiet" onClick={() => zoom(1.2)} aria-label="Zoom out">−</button><button type="button" className="campaign-quiet" onClick={() => zoom(0.82)} aria-label="Zoom in">+</button><button type="button" className="campaign-secondary" onClick={resetView}>Fit</button></div>}{map && <div className="campaign-map-control-group" aria-label="Table controls"><span className="campaign-map-control-label">Table</span><CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />{map.backgroundUrl && <><button type="button" className={`campaign-secondary${annotations.tool ? " is-active" : ""}`} aria-pressed={Boolean(annotations.tool)} onClick={() => { areaTemplates.close(); setFogMode(null); clearFogPreview(); annotations.toggleDrawing(); }}>Annotate</button><button type="button" className={`campaign-secondary${areaTemplates.open ? " is-active" : ""}`} aria-pressed={areaTemplates.open} onClick={() => { annotations.stopDrawing(); setFogMode(null); clearFogPreview(); areaTemplates.toggle(); }}>Area</button></>}{canManage && map.backgroundUrl && <><button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "hide" ? null : "hide"); clearFogPreview(); }}>Hide</button><button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "reveal" ? null : "reveal"); clearFogPreview(); }}>Reveal</button></>}{canManage && <button type="button" className={`campaign-secondary${settingsOpen ? " is-active" : ""}`} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(current => !current)}>Settings</button>}</div>}</div></header>
+      <div className="campaign-map-toolbar-actions">
+        {map?.backgroundUrl && <div className="campaign-map-control-group" aria-label="Map view">
+          <button type="button" className="campaign-quiet" onClick={() => zoom(1.2)} aria-label="Zoom out">−</button>
+          <button type="button" className="campaign-quiet" onClick={() => zoom(0.82)} aria-label="Zoom in">+</button>
+          <button type="button" className="campaign-secondary" onClick={resetView}>Fit</button>
+        </div>}
+        {map && <div className="campaign-map-quick-actions">
+          {map.backgroundUrl && <div className="campaign-map-menu-wrap">
+            <button type="button" className="campaign-primary" aria-expanded={addOpen} onClick={() => { setAddOpen(current => !current); setMoreOpen(false); }}>+ Add</button>
+            {addOpen && <div className="campaign-map-popover" role="menu" aria-label="Add map object">
+              {(["freehand","line","arrow","rect","circle","text"] as const).map(kind => <button type="button" role="menuitem" key={kind} onClick={() => {
+                areaTemplates.close(); setFogMode(null); setMeasureEnabled(false); setMeasureStart(null);
+                annotations.setTool(kind); setAddOpen(false);
+              }}>{kind === "freehand" ? "Pen" : kind === "rect" ? "Rectangle" : kind === "text" ? "Note / Label" : kind[0].toUpperCase()+kind.slice(1)}</button>)}
+              <button type="button" role="menuitem" onClick={() => {
+                annotations.stopDrawing(); setFogMode(null); setMeasureEnabled(false); setMeasureStart(null);
+                areaTemplates.setMode("place"); if (!areaTemplates.open) areaTemplates.toggle(); setAddOpen(false);
+              }}>Spell Area</button>
+              {canManage && <button type="button" role="menuitem" onClick={() => { setSettingsOpen(true); setAddOpen(false); }}>Add Tokens…</button>}
+            </div>}
+          </div>}
+          {canManage && map.backgroundUrl && <div className="campaign-map-menu-wrap">
+            <button type="button" className={fogMode ? "campaign-secondary is-active" : "campaign-secondary"} aria-expanded={Boolean(fogMode)} onClick={() => {
+              annotations.stopDrawing(); areaTemplates.close(); setMeasureEnabled(false); setMeasureStart(null);
+              setFogMode(current => current ? null : "hide"); clearFogPreview();
+            }}>Fog</button>
+            {fogMode && <div className="campaign-map-popover" role="group" aria-label="Fog actions">
+              <button type="button" className={fogMode === "hide" ? "is-active" : ""} onClick={() => setFogMode("hide")}>Hide</button>
+              <button type="button" className={fogMode === "reveal" ? "is-active" : ""} onClick={() => setFogMode("reveal")}>Reveal</button>
+              <button type="button" onClick={() => { setFogMode(null); clearFogPreview(); }}>Done</button>
+            </div>}
+          </div>}
+          {map.backgroundUrl && <button type="button" className={measureEnabled ? "campaign-secondary is-active" : "campaign-secondary"} aria-pressed={measureEnabled} onClick={() => {
+            annotations.stopDrawing(); areaTemplates.close(); setFogMode(null); clearFogPreview();
+            setMeasureEnabled(current => !current); setMeasureStart(null); setMeasureEnd(null);
+          }}>Measure</button>}
+          <CampaignMapSharedDice campaignId={campaignId} mapId={map.id} open={open} canManage={canManage} />
+          <div className="campaign-map-menu-wrap">
+            <button type="button" className="campaign-secondary" aria-expanded={moreOpen} onClick={() => { setMoreOpen(current => !current); setAddOpen(false); }}>⋯ More</button>
+            {moreOpen && <div className="campaign-map-popover is-right" role="menu" aria-label="More map options">
+              {canManage && <button type="button" role="menuitem" onClick={() => { setSettingsOpen(true); setMoreOpen(false); }}>Edit Map</button>}
+              <button type="button" role="menuitem" onClick={() => { resetView(); setMoreOpen(false); }}>Fit to Map</button>
+            </div>}
+          </div>
+        </div>}
+      </div></header>
     {error && <div className="campaign-error campaign-map-error" role="alert">{error}</div>}
     <div className={`campaign-map-workspace${settingsOpen && canManage ? " settings-open" : ""}`}><div className="campaign-map-stage" aria-busy={loading || busy || annotations.busy || areaTemplates.busy}>{loading && <div className="campaign-map-empty" role="status">Loading campaign map…</div>}{!loading && !map?.backgroundUrl && <div className="campaign-map-empty"><h3>{map ? "No map image" : "No campaign maps yet"}</h3><p>{canManage ? "Open Map Settings to upload a new map." : "The GM has not shared a campaign map yet."}</p></div>}
       {map?.backgroundUrl && <CampaignMapDrawingPalette controller={annotations} />}
@@ -406,10 +506,14 @@ export function CampaignMapWorkspace({
       {!loading && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan; drag an allowed token to move it; use the mouse wheel or toolbar buttons to zoom.">
         <defs>{map.grid.type === "hex" ? (() => { const pattern = hexPatternSize(map.grid.size); return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>{hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}</pattern>; })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}><path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" /></pattern>}</defs>
         <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />{map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
-        {!canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !annotations.tool && !areaTemplates.open} onSelect={() => { areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
+        {!canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
         <g className="campaign-map-fog-layer" pointerEvents="none">{map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}<g ref={fogPreviewLayerRef} /></g>
-        {canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !annotations.tool && !areaTemplates.open} onSelect={() => { areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
-        <CampaignMapAreaTemplateLayer controller={areaTemplates} grid={map.grid} width={map.backgroundWidth} height={map.backgroundHeight} interactionEnabled={!fogMode && !annotations.tool && !areaTemplates.open} onSelect={() => { annotations.selectAnnotation(null); setSelectedTokenId(null); }} />
+        {canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
+        <CampaignMapAreaTemplateLayer controller={areaTemplates} grid={map.grid} width={map.backgroundWidth} height={map.backgroundHeight} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { annotations.selectAnnotation(null); setSelectedTokenId(null); }} />
+        {measureStart && measureEnd && <g className="campaign-map-measure-layer" pointerEvents="none">
+          <line x1={measureStart.x} y1={measureStart.y} x2={measureEnd.x} y2={measureEnd.y} stroke="#f4cd75" strokeWidth="3" strokeDasharray="8 5" vectorEffect="non-scaling-stroke" />
+          <text className="campaign-map-measure-text" x={(measureStart.x + measureEnd.x)/2} y={(measureStart.y + measureEnd.y)/2-12} textAnchor="middle">{gridMovementDistanceLabel(measureStart.x,measureStart.y,measureEnd.x,measureEnd.y,map.grid)}</text>
+        </g>}
         <g className="campaign-map-token-layer">{tokenDragOrigin && (() => { const token = map.tokens.find(candidate => candidate.id === tokenDragOrigin.tokenId); if (!token || (Math.abs(token.x - tokenDragOrigin.x) < 0.01 && Math.abs(token.y - tokenDragOrigin.y) < 0.01)) return null; const sizeCells = tokenSizes[token.id] ?? 1; const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells); return <g className={`campaign-map-token campaign-map-token-${token.kind} campaign-map-token-drag-origin`} transform={`translate(${tokenDragOrigin.x} ${tokenDragOrigin.y})`} opacity={0.5} pointerEvents="none" aria-hidden="true"><circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" /><text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text><text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text></g>; })()}
           {map.tokens.map(token => { const sizeCells = tokenSizes[token.id] ?? 1; const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells); return <g key={token.id} className={`campaign-map-token campaign-map-token-${token.kind}${token.canMove ? " is-movable" : ""}${selectedTokenId === token.id ? " is-selected" : ""}`} transform={`translate(${token.x} ${token.y})`} onPointerDown={event => handleTokenPointerDown(event, token)} onPointerMove={handleTokenPointerMove} onPointerUp={handleTokenPointerEnd} onPointerCancel={handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${token.canMove ? ", draggable" : ""}`}><title>{token.name}</title><circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" /><text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text>{tokenDragMeasurement?.tokenId === token.id && <text className="campaign-map-token-distance" textAnchor="middle" y={-(tokenVisualRadius + Math.max(14, tokenVisualRadius * 0.5))} fontSize={Math.max(12, tokenVisualRadius * 0.44)}>{tokenDragMeasurement.distance}</text>}<text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text></g>; })}</g>
       </svg>}</div>

@@ -89,3 +89,14 @@ test("map drawer presents compact grouped controls and supports both docks", asy
   assert.ok(headerCss.includes(`html[data-campaign-map-drawer][data-campaign-map-pane="compact"] .app-header`));
   assert.ok(headerCss.includes(`html[data-campaign-map-drawer][data-campaign-map-pane="narrow"] .app-header`));
 });
+
+
+test("the compact drawer keeps its map selector left of the action buttons", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
+  assert.match(launcher, /id="campaign-map-title" className="campaign-map-picker"/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar \{\s*display: grid;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-primary \{\s*grid-column: 1;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*grid-column: 2;/u);
+  assert.match(css, /\.campaign-map-quick-tooltip\[data-tooltip\]:is\(:hover, :focus-visible, :focus-within\)::after/u);
+});

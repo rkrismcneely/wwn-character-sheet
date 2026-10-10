@@ -450,10 +450,7 @@ export function CampaignMapWorkspace({
 
   // Keep the contextual editing bar next to the actual selected SVG object.
   useEffect(() => {
-    if (!open || (!annotations.selected && !areaTemplates.selected && !selectedTokenId)) {
-      setInspectorAnchor(null);
-      return;
-    }
+    if (!open || (!annotations.selected && !areaTemplates.selected && !selectedTokenId)) return;
     const updateAnchor = () => {
       const stage = stageRef.current;
       const svg = svgRef.current;

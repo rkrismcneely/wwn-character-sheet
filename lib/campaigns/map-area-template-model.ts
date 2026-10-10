@@ -18,6 +18,7 @@ export type CampaignMapAreaTemplate = {
   y: number;
   sizeSpaces: number;
   widthSpaces: number;
+  tipFlip: boolean;
   angleDegrees: number;
   color: string;
   canEdit: boolean;
@@ -166,7 +167,7 @@ function worldPoint(
 }
 
 export function campaignMapAreaTemplateContainsPoint(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   point: CampaignMapGridPosition,
   grid: CampaignMapGrid,
 ): boolean {
@@ -274,7 +275,7 @@ export function campaignMapSquareConeOverlapFraction(
 }
 
 function squareConeCardinalBonusCell(
-  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "tipFlip">>,
   grid: CampaignMapGrid,
 ): CampaignMapGridCell | null {
   if (grid.type !== "square" || !Number.isFinite(grid.size) || grid.size <= 0) return null;
@@ -284,14 +285,15 @@ function squareConeCardinalBonusCell(
 
   const originQ = Math.round((template.x - grid.offsetX) / grid.size);
   const originR = Math.round((template.y - grid.offsetY) / grid.size);
-  if (quarterTurn === 0) return { q: originQ, r: originR };
-  if (quarterTurn === 1) return { q: originQ - 1, r: originR };
-  if (quarterTurn === 2) return { q: originQ - 1, r: originR - 1 };
-  return { q: originQ, r: originR - 1 };
+  const flipped = template.tipFlip === true;
+  if (quarterTurn === 0) return flipped ? { q: originQ, r: originR - 1 } : { q: originQ, r: originR };
+  if (quarterTurn === 1) return flipped ? { q: originQ, r: originR } : { q: originQ - 1, r: originR };
+  if (quarterTurn === 2) return flipped ? { q: originQ - 1, r: originR } : { q: originQ - 1, r: originR - 1 };
+  return flipped ? { q: originQ - 1, r: originR - 1 } : { q: originQ, r: originR - 1 };
 }
 
 function campaignMapSquareConeCells(
-  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "sizeSpaces" | "angleDegrees">,
+  template: Pick<CampaignMapAreaTemplate, "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "tipFlip">>,
   grid: CampaignMapGrid,
 ): CampaignMapGridCell[] {
   if (grid.type !== "square" || !Number.isFinite(grid.size) || grid.size <= 0) return [];
@@ -391,7 +393,7 @@ function angularDifferenceDegrees(first: number, second: number): number {
 }
 
 function campaignMapAreaTemplateCellAffected(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   cell: CampaignMapGridCell,
   grid: CampaignMapGrid,
 ): boolean {
@@ -436,7 +438,7 @@ function campaignMapAreaTemplateCellAffected(
 }
 
 function campaignMapAreaTemplateBoundingRadius(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "sizeSpaces"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "sizeSpaces"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   grid: CampaignMapGrid,
 ): number {
   const unit = campaignMapGridSpacePixels(grid);
@@ -449,7 +451,7 @@ function campaignMapAreaTemplateBoundingRadius(
 }
 
 export function campaignMapAreaTemplateAffectedCells(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   grid: CampaignMapGrid,
   mapWidth: number,
   mapHeight: number,
@@ -478,7 +480,7 @@ export function campaignMapAreaTemplateAffectedCells(
 }
 
 export function campaignMapAreaTemplateAffectedPath(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   grid: CampaignMapGrid,
   mapWidth: number,
   mapHeight: number,
@@ -489,7 +491,7 @@ export function campaignMapAreaTemplateAffectedPath(
 }
 
 export function campaignMapAreaTemplateOutlinePath(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   grid: CampaignMapGrid,
 ): string {
   const unit = campaignMapGridSpacePixels(grid);
@@ -528,7 +530,7 @@ export function campaignMapAreaTemplateOutlinePath(
 }
 
 export function campaignMapAreaTemplateDirectionPoint(
-  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces">>,
+  template: Pick<CampaignMapAreaTemplate, "shape" | "x" | "y" | "sizeSpaces" | "angleDegrees"> & Partial<Pick<CampaignMapAreaTemplate, "widthSpaces" | "tipFlip">>,
   grid: CampaignMapGrid,
 ): CampaignMapGridPosition {
   const unit = campaignMapGridSpacePixels(grid);

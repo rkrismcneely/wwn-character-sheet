@@ -128,6 +128,14 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(launcher, />\+ Add</u);
   assert.match(launcher, />Fog</u);
   assert.match(launcher, />Measure</u);
+  assert.match(launcher, /function toggleMeasuring\(\)/u);
+  assert.match(launcher, /if \(measureEnabled\) \{\s*stopMeasuring\(\);\s*return;/u);
+  assert.match(launcher, /setMeasureEnabled\(true\)/u);
+  assert.match(launcher, /function stopMeasuring\(\)/u);
+  assert.match(launcher, /svg\.releasePointerCapture\(capturedPointer\)/u);
+  assert.match(launcher, /setMeasureStart\(null\);\s*setMeasureEnd\(null\);/u);
+  assert.match(launcher, /aria-pressed=\{measureEnabled\}/u);
+  assert.match(launcher, /onClick=\{event => \{ event\.stopPropagation\(\); toggleMeasuring\(\); \}\}/u);
   assert.match(launcher, />\s*Edit Map/u);
   assert.match(launcher, /campaign-map-edit-button/u);
   assert.doesNotMatch(launcher, /⋯ More|More map options|Fit to Map/u);

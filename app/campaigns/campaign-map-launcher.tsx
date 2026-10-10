@@ -390,6 +390,33 @@ export function CampaignMapWorkspace({
   function scheduleFogPreview(mode: FogMode) { if (fogPreviewFrameRef.current !== null) return; fogPreviewFrameRef.current = window.requestAnimationFrame(() => { fogPreviewFrameRef.current = null; const drag = fogDragRef.current; if (!drag) return; const cells = selectedFogCells(drag.start, drag.latest); fogPreviewRef.current = cells; renderFogPreview(cells, mode); }); }
   async function saveFogCells(mode: FogMode, cells: CampaignMapGridCell[]) { if (!map || !cells.length) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_fog", mapId: map.id, mode, cells }) }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.map) throw new Error(body.error || "Map visibility could not be updated."); setMap(body.map); publishMapInvalidation(); } catch (fogError) { setError(fogError instanceof Error ? fogError.message : "Map visibility could not be updated."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { setBusy(false); } }
 
+  function stopMeasuring() {
+    const capturedPointer = measureDragRef.current?.pointerId;
+    const svg = svgRef.current;
+    measureDragRef.current = null;
+    if (capturedPointer !== undefined && svg?.hasPointerCapture(capturedPointer)) {
+      svg.releasePointerCapture(capturedPointer);
+    }
+    setMeasureEnabled(false);
+    setMeasureStart(null);
+    setMeasureEnd(null);
+  }
+
+  function toggleMeasuring() {
+    if (measureEnabled) {
+      stopMeasuring();
+      return;
+    }
+    annotations.stopDrawing();
+    areaTemplates.close();
+    setFogMode(null);
+    clearFogPreview();
+    setAddOpen(false);
+    setMeasureStart(null);
+    setMeasureEnd(null);
+    setMeasureEnabled(true);
+  }
+
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) { if (!view || event.button !== 0 || tokenDragRef.current) return;
     if (!spacePanRef.current && measureEnabled && svgRef.current) {
       const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
@@ -529,10 +556,14 @@ export function CampaignMapWorkspace({
               <button type="button" onClick={() => { setFogMode(null); clearFogPreview(); }}>Done</button>
             </div>}
           </div>}
-          {map.backgroundUrl && <button type="button" className={measureEnabled ? "campaign-secondary is-active" : "campaign-secondary"} aria-pressed={measureEnabled} onClick={() => {
-            annotations.stopDrawing(); areaTemplates.close(); setFogMode(null); clearFogPreview();
-            setMeasureEnabled(current => !current); setMeasureStart(null); setMeasureEnd(null);
-          }}>Measure</button>}
+          {map.backgroundUrl && <button type="button"
+            className={measureEnabled ? "campaign-secondary is-active" : "campaign-secondary"}
+            aria-pressed={measureEnabled}
+            aria-label={measureEnabled ? "Turn off measuring" : "Start measuring"}
+            title={measureEnabled ? "Click to turn off measuring" : "Measure a distance on the map"}
+            onPointerDown={event => event.stopPropagation()}
+            onClick={event => { event.stopPropagation(); toggleMeasuring(); }}
+          >Measure</button>}
           <CampaignMapSharedDice campaignId={campaignId} open={open} canManage={canManage} />
           {canManage && <button type="button"
             className={`campaign-map-edit-button campaign-secondary${settingsOpen ? " is-active" : ""}`}

@@ -296,3 +296,16 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(deploy, /0029_campaign_map_area_template_width/u);
   assert.match(deploy, /0030_campaign_map_area_template_tip_flip/u);
 });
+
+
+test("AoE editor displays measured distances without exposing grid multipliers", async () => {
+  const controls = await readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8");
+  assert.match(controls, /perSpace: 5, name: "feet"/u);
+  assert.match(controls, /perSpace: 10, name: "km"/u);
+  assert.match(controls, /value=\{controller\.sizeSpaces \* mapAreaDistanceUnit\(grid\)\.perSpace\}/u);
+  assert.match(controls, /value=\{controller\.widthSpaces \* mapAreaDistanceUnit\(grid\)\.perSpace\}/u);
+  assert.match(controls, /setSizeSpaces\(Math\.round\(Number\(event\.target\.value\) \/ mapAreaDistanceUnit\(grid\)\.perSpace\)\)/u);
+  assert.doesNotMatch(controls, /× 5 ft|size in grid spaces/u);
+  assert.match(controls, /MapObjectActionIcon kind="duplicate"/u);
+  assert.match(controls, /MapObjectActionIcon kind="delete"/u);
+});

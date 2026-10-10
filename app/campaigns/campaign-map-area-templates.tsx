@@ -51,6 +51,7 @@ type RotateDraft = {
   x: number;
   y: number;
   angleDegrees: number;
+  initialAngle: number;
 };
 
 export type CampaignMapAreaTemplateController = {
@@ -120,6 +121,7 @@ export function useCampaignMapAreaTemplates({
   grid,
   openMap,
   onChanged,
+  onEdited,
 }: {
   campaignId: string;
   mapId: string | null;
@@ -128,6 +130,7 @@ export function useCampaignMapAreaTemplates({
   grid: CampaignMapGrid | null;
   openMap: boolean;
   onChanged?: () => void;
+  onEdited?: (before: CampaignMapAreaTemplate | null, after: CampaignMapAreaTemplate | null) => void;
 }): CampaignMapAreaTemplateController {
   const [templates, setTemplates] = useState<CampaignMapAreaTemplate[]>([]);
   const [open, setOpen] = useState(false);
@@ -143,6 +146,7 @@ export function useCampaignMapAreaTemplates({
   const [error, setError] = useState("");
   const loadSequence = useRef(0);
   const editingRef = useRef(false);
+  const editingBeforeRef = useRef<CampaignMapAreaTemplate | null>(null);
   const pendingReloadRef = useRef(false);
   const moveRef = useRef<MoveDraft | null>(null);
   const rotateRef = useRef<RotateDraft | null>(null);
@@ -208,7 +212,7 @@ export function useCampaignMapAreaTemplates({
     onChanged?.();
   }, [campaignId, onChanged]);
 
-  const saveTemplate = useCallback(async (template: CampaignMapAreaTemplate) => {
+  const saveTemplate = useCallback(async (template: CampaignMapAreaTemplate, previous = template) => {
     if (!mapId || !template.canEdit) return;
     setError("");
     try {
@@ -232,12 +236,13 @@ export function useCampaignMapAreaTemplates({
       const body = await response.json() as AreaTemplateResponse;
       if (!response.ok || !body.template) throw new Error(body.error || "Area template could not be updated.");
       setTemplates(current => current.map(candidate => candidate.id === template.id ? body.template as CampaignMapAreaTemplate : candidate));
+      if (JSON.stringify({ ...previous, updatedAt: null }) !== JSON.stringify({ ...body.template, updatedAt: null })) onEdited?.(previous, body.template);
       publishLocal();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Area template could not be updated.");
       void reload();
     }
-  }, [campaignId, mapId, publishLocal, reload]);
+  }, [campaignId, mapId, onEdited, publishLocal, reload]);
 
   const flushDeferredReload = useCallback(async () => {
     if (!pendingReloadRef.current) return;
@@ -247,12 +252,14 @@ export function useCampaignMapAreaTemplates({
 
   const setSelectedLocal = useCallback((changes: Partial<CampaignMapAreaTemplate>) => {
     if (!selectedId) return;
+    if (!editingBeforeRef.current) editingBeforeRef.current = templates.find(item => item.id === selectedId) ?? null;
     editingRef.current = true;
     setTemplates(current => current.map(template => template.id === selectedId ? { ...template, ...changes } : template));
-  }, [selectedId]);
+  }, [selectedId, templates]);
 
   const selectTemplate = useCallback((id: string | null) => {
     editingRef.current = false;
+    editingBeforeRef.current = null;
     pendingReloadRef.current = false;
     if (!id) {
       setSelectedId(null);
@@ -274,7 +281,8 @@ export function useCampaignMapAreaTemplates({
     if (!selectedId) return;
     const template = templates.find(candidate => candidate.id === selectedId);
     editingRef.current = false;
-    if (template?.canEdit) await saveTemplate(template);
+    if (template?.canEdit) await saveTemplate(template, editingBeforeRef.current ?? template);
+    editingBeforeRef.current = null;
     await flushDeferredReload();
   }, [flushDeferredReload, saveTemplate, selectedId, templates]);
 
@@ -296,7 +304,7 @@ export function useCampaignMapAreaTemplates({
     if (!selected?.canEdit) return;
     const updated = { ...selected, tipFlip: next };
     setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
-    void saveTemplate(updated);
+    void saveTemplate(updated, selected);
   }, [saveTemplate, selected, tipFlip]);
 
   const setAngleDegrees = useCallback((value: number) => {
@@ -313,7 +321,7 @@ export function useCampaignMapAreaTemplates({
     if (!selected?.canEdit) return;
     const updated = { ...selected, angleDegrees: next };
     setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
-    void saveTemplate(updated);
+    void saveTemplate(updated, selected);
   }, [angleDegrees, grid, saveTemplate, selected]);
 
   const setColor = useCallback((value: string) => {
@@ -321,7 +329,7 @@ export function useCampaignMapAreaTemplates({
     if (!selected?.canEdit) return;
     const next = { ...selected, color: value };
     setTemplates(current => current.map(template => template.id === selected.id ? next : template));
-    void saveTemplate(next);
+    void saveTemplate(next, selected);
   }, [saveTemplate, selected]);
 
   const createAt = useCallback(async (point: CampaignMapGridPosition) => {
@@ -350,6 +358,7 @@ export function useCampaignMapAreaTemplates({
       const body = await response.json() as AreaTemplateResponse;
       if (!response.ok || !body.template) throw new Error(body.error || "Area template could not be created.");
       setTemplates(current => [...current.filter(template => template.id !== body.template?.id), body.template as CampaignMapAreaTemplate]);
+      onEdited?.(null, body.template);
       setSelectedId(body.template.id);
       setModeState("select");
       setOpen(false);
@@ -360,7 +369,7 @@ export function useCampaignMapAreaTemplates({
     } finally {
       setBusy(false);
     }
-  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, publishLocal, reload, shape, sizeSpaces, tipFlip, width, widthSpaces]);
+  }, [angleDegrees, busy, campaignId, color, grid, height, mapId, onEdited, publishLocal, reload, shape, sizeSpaces, tipFlip, width, widthSpaces]);
 
   const duplicateSelected = useCallback(async () => {
     if (!selected?.canEdit || !mapId || !grid || !width || !height || busy) return;
@@ -384,6 +393,7 @@ export function useCampaignMapAreaTemplates({
       const body = await response.json() as AreaTemplateResponse;
       if (!response.ok || !body.template) throw new Error(body.error || "Area template could not be duplicated.");
       setTemplates(current => [...current, body.template as CampaignMapAreaTemplate]);
+      onEdited?.(null, body.template);
       setSelectedId(body.template.id);
       publishLocal();
     } catch (copyError) {
@@ -392,7 +402,7 @@ export function useCampaignMapAreaTemplates({
     } finally {
       setBusy(false);
     }
-  }, [busy, campaignId, grid, height, mapId, publishLocal, reload, selected, width]);
+  }, [busy, campaignId, grid, height, mapId, onEdited, publishLocal, reload, selected, width]);
 
   const deleteSelected = useCallback(async () => {
     const template = templates.find(candidate => candidate.id === selectedId);
@@ -408,6 +418,7 @@ export function useCampaignMapAreaTemplates({
       const body = await response.json() as AreaTemplateResponse;
       if (!response.ok || !body.ok) throw new Error(body.error || "Area template could not be removed.");
       setTemplates(current => current.filter(candidate => candidate.id !== template.id));
+      onEdited?.(template, null);
       setSelectedId(null);
       setModeState("place");
       publishLocal();
@@ -417,7 +428,7 @@ export function useCampaignMapAreaTemplates({
     } finally {
       setBusy(false);
     }
-  }, [busy, campaignId, mapId, publishLocal, reload, selectedId, templates]);
+  }, [busy, campaignId, mapId, onEdited, publishLocal, reload, selectedId, templates]);
 
   const beginMove = useCallback((event: ReactPointerEvent<SVGGElement>, id: string) => {
     if ((open && mode !== "select") || !width || !height) return;
@@ -457,6 +468,7 @@ export function useCampaignMapAreaTemplates({
       x: template.x,
       y: template.y,
       angleDegrees: template.angleDegrees,
+      initialAngle: template.angleDegrees,
     };
     svg.setPointerCapture(event.pointerId);
   }, [height, mode, open, selectTemplate, templates, width]);
@@ -516,7 +528,7 @@ export function useCampaignMapAreaTemplates({
       if (template?.canEdit) {
         const updated = { ...template, x: move.latestX, y: move.latestY };
         setTemplates(current => current.map(candidate => candidate.id === move.id ? updated : candidate));
-        void saveTemplate(updated).then(flushDeferredReload);
+        void saveTemplate(updated, { ...template, x: move.x, y: move.y }).then(flushDeferredReload);
       }
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault();
@@ -531,7 +543,7 @@ export function useCampaignMapAreaTemplates({
         const updated = { ...template, angleDegrees: rotate.angleDegrees };
         setTemplates(current => current.map(candidate => candidate.id === rotate.id ? updated : candidate));
         setAngleDegreesState(rotate.angleDegrees);
-        void saveTemplate(updated).then(flushDeferredReload);
+        void saveTemplate(updated, { ...template, angleDegrees: rotate.initialAngle }).then(flushDeferredReload);
       }
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault();
@@ -743,19 +755,6 @@ function AreaTemplateAngleControl({
   </div>;
 }
 
-function areaTemplateDescription(
-  shape: CampaignMapAreaTemplateShape,
-  sizeSpaces: number,
-  widthSpaces: number,
-  grid: CampaignMapGrid,
-): string {
-  const size = campaignMapAreaTemplateSizeLabel(sizeSpaces, grid);
-  if (shape === "radius") return `Radius: ${size}.`;
-  if (shape === "cube") return `Cube footprint: ${size} on each side.`;
-  if (shape === "cone") return `Cone: ${size} long and the same width at its far end.`;
-  return `Line: ${size} long and ${campaignMapAreaTemplateSizeLabel(widthSpaces, grid)} wide.`;
-}
-
 export function CampaignMapAreaTemplatePalette({
   controller,
   grid,
@@ -764,33 +763,40 @@ export function CampaignMapAreaTemplatePalette({
   grid: CampaignMapGrid;
 }) {
   if (!controller.open) return null;
-  const shapes: CampaignMapAreaTemplateShape[] = ["radius", "cube", "cone", "line"];
-  return <div className="campaign-map-area-palette" role="toolbar" aria-label="Spell area template tools">
-    <div className="campaign-map-area-mode">
-      <button type="button" className={controller.mode === "place" ? "is-active" : ""} aria-pressed={controller.mode === "place"} onClick={() => controller.setMode("place")}>Place</button>
-      <button type="button" className={controller.mode === "select" ? "is-active" : ""} aria-pressed={controller.mode === "select"} onClick={() => controller.setMode("select")}>Select</button>
-    </div>
-    {!controller.selected && <div className="campaign-map-area-shapes">
-      {shapes.map(shape => <button type="button" key={shape} className={controller.shape === shape ? "is-active" : ""} aria-pressed={controller.shape === shape} onClick={() => controller.setShape(shape)}>{shapeLabel(shape)}</button>)}
-    </div>}
-    {controller.selected && <strong>Selected {shapeLabel(controller.selected.shape)}</strong>}
-    <AreaTemplateSizeControl controller={controller} grid={grid} />
-    <AreaTemplateWidthControl controller={controller} grid={grid} />
-    <AreaTemplateAngleControl controller={controller} grid={grid} />
-    <AreaTemplateConeTipControl controller={controller} grid={grid} />
-    <label className="campaign-map-area-color">
-      <span>Colour</span>
-      <input type="color" value={controller.color} aria-label="Area template colour" onChange={event => controller.setColor(event.target.value)} />
+  return <div className="campaign-map-area-palette campaign-map-creation-strip" role="toolbar" aria-label="Create spell area">
+    <label className="campaign-map-creation-field">
+      <span className="sr-only">Spell area shape</span>
+      <select aria-label="Spell area shape" value={controller.shape}
+        onChange={event => controller.setShape(event.target.value as CampaignMapAreaTemplateShape)}>
+        <option value="radius">Radius</option>
+        <option value="cube">Cube</option>
+        <option value="cone">Cone</option>
+        <option value="line">Line</option>
+      </select>
     </label>
-    <small>{areaTemplateDescription(controller.shape, controller.sizeSpaces, controller.widthSpaces, grid)}</small>
-    <small>WWN does not define a battle-grid translation rule. On square maps, TWE includes squares covered at least 50% by the WWN cone; one near-origin square is also included at 0°, 90°, 180°, and 270° to close the cardinal cone tip. The visible outline follows the included squares.</small>
-    {controller.selected && <div className="campaign-map-area-selected-actions">
-      <button type="button" className="campaign-danger" disabled={controller.busy} onClick={() => void controller.deleteSelected()}>Remove Template</button>
-    </div>}
-    <div className="campaign-map-area-actions"><button type="button" onClick={controller.close}>Done</button></div>
-    {controller.mode === "place" && !controller.selected && <small>Click or tap the map to place the template.</small>}
-    {controller.mode === "select" && !controller.selected && <small>Select a template to move, resize, recolour, or rotate it.</small>}
-    {controller.selected && controller.shape !== "radius" && <small>Drag the round handle to rotate in {campaignMapAreaTemplateAngleStep(grid)}° grid steps, or use the angle controls.</small>}
+    <label className="campaign-map-creation-field campaign-map-creation-size">
+      <span>Size</span>
+      <input type="number" aria-label="Spell area size in grid spaces"
+        min={campaignMapAreaTemplateMinSize} max={campaignMapAreaTemplateMaxSize} step="1"
+        value={controller.sizeSpaces}
+        onChange={event => controller.setSizeSpaces(Number(event.target.value))} />
+      <span>{grid.type === "square" ? "× 5 ft" : "hexes"}</span>
+    </label>
+    <label className="campaign-map-area-color" title="Spell area colour">
+      <span className="sr-only">Colour</span>
+      <input type="color" value={controller.color} aria-label="Spell area colour"
+        onChange={event => controller.setColor(event.target.value)} />
+    </label>
+    {controller.shape !== "radius" && <details className="campaign-map-creation-details">
+      <summary>More</summary>
+      <div className="campaign-map-creation-extra">
+        <AreaTemplateSizeControl controller={controller} grid={grid} />
+        <AreaTemplateWidthControl controller={controller} grid={grid} />
+        <AreaTemplateAngleControl controller={controller} grid={grid} />
+        <AreaTemplateConeTipControl controller={controller} grid={grid} />
+      </div>
+    </details>}
+    <button type="button" className="campaign-map-creation-done" onClick={controller.close}>Done</button>
     {controller.error && <p className="campaign-map-area-error" role="alert">{controller.error}</p>}
   </div>;
 }

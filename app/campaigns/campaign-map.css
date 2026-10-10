@@ -2145,3 +2145,240 @@
   }
   .campaign-map-context-tip { min-width: 4.75rem !important; }
 }
+
+
+/* Map-first navigation and compact tool setup (HUD height measured at runtime). */
+.campaign-map-toolbar-primary { order: -1; margin-right: auto; min-width: 0; }
+.campaign-map-title-block { flex-wrap: wrap; align-items: center; gap: .38rem .55rem; }
+.campaign-map-picker { display: inline-flex; min-width: 0; max-width: min(18rem, 48vw); }
+.campaign-map-picker select {
+  width: 100%;
+  min-width: 6.5rem;
+  max-width: 18rem;
+  min-height: 2.35rem;
+  border: 1px solid rgba(213, 167, 98, .48);
+  border-radius: 8px;
+  padding: .4rem 1.4rem .4rem .7rem;
+  background: rgba(11, 17, 25, .93);
+  color: #fff5e4;
+  font: 700 .92rem/1.15 Georgia, serif;
+  text-overflow: ellipsis;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .34);
+  cursor: pointer;
+}
+.campaign-map-sharing,
+.campaign-map-share-button {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  min-height: 2.15rem;
+  padding: .35rem .65rem;
+  border: 1px solid rgba(164, 185, 174, .32);
+  border-radius: 7px;
+  background: rgba(13, 21, 24, .85);
+  color: #daebdc;
+  font: 600 .74rem/1.1 var(--font-ui, sans-serif);
+}
+.campaign-map-share-button {
+  color: #f0cf92;
+  border-color: rgba(231, 178, 92, .6);
+  cursor: pointer;
+}
+.campaign-map-share-button:hover,
+.campaign-map-share-button:focus-visible {
+  background: rgba(132, 87, 34, .9);
+  color: #fff;
+}
+.campaign-map-share-button:disabled { opacity: .48; cursor: not-allowed; }
+.campaign-map-drawing-palette.campaign-map-creation-strip,
+.campaign-map-area-palette.campaign-map-creation-strip {
+  position: absolute;
+  top: calc(var(--map-hud-height, 4.25rem) + .4rem);
+  left: .7rem;
+  right: auto;
+  bottom: auto;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .38rem;
+  width: max-content;
+  max-width: calc(100% - 1.4rem);
+  max-height: min(65vh, calc(100% - var(--map-hud-height, 4.25rem) - .8rem));
+  overflow: visible;
+  padding: .38rem .45rem;
+  border: 1px solid rgba(154, 167, 186, .4);
+  border-radius: 9px;
+  background: rgba(12, 18, 26, .96);
+  color: #eef0f5;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .58);
+  backdrop-filter: blur(15px);
+}
+.campaign-map-creation-name {
+  margin: 0 .35rem;
+  color: #f1d9a8;
+  font-size: .81rem;
+  text-transform: capitalize;
+}
+.campaign-map-creation-field,
+.campaign-map-creation-strip .campaign-map-drawing-color,
+.campaign-map-creation-strip .campaign-map-area-color,
+.campaign-map-creation-strip .campaign-map-text-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  margin: 0;
+  padding: 0;
+  font: 500 .76rem/1 var(--font-ui, sans-serif);
+  letter-spacing: normal;
+  text-transform: none;
+  color: #dce1eb;
+}
+.campaign-map-creation-field select,
+.campaign-map-creation-field input,
+.campaign-map-creation-strip .campaign-map-text-entry input {
+  width: auto;
+  min-width: 0;
+  min-height: 2.05rem;
+  padding: .35rem .5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(175, 188, 207, .3);
+  background: rgba(30, 39, 51, .91);
+  color: #f2f2f5;
+  font: inherit;
+}
+.campaign-map-creation-field select { max-width: 8.5rem; }
+.campaign-map-creation-size input[type="number"] { width: 3.35rem; text-align: center; }
+.campaign-map-creation-strip .campaign-map-text-entry input { width: min(13rem, 43vw); }
+.campaign-map-creation-strip .campaign-map-drawing-color input[type="color"],
+.campaign-map-creation-strip .campaign-map-area-color input[type="color"] {
+  width: 2.15rem;
+  height: 2.05rem;
+  min-height: 2.05rem;
+  padding: .12rem;
+}
+.campaign-map-creation-strip .campaign-map-creation-done {
+  background: rgba(156, 117, 57, .21);
+  border: 1px solid rgba(208, 168, 101, .46);
+  color: #f4d6a4;
+}
+.campaign-map-creation-details { position: relative; }
+.campaign-map-creation-details > summary {
+  min-height: 2.08rem;
+  padding: .55rem .5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(175, 188, 207, .3);
+  color: #dce1eb;
+  cursor: pointer;
+  list-style: none;
+  font: 600 .76rem/1 var(--font-ui, sans-serif);
+}
+.campaign-map-creation-details > summary::-webkit-details-marker { display: none; }
+.campaign-map-creation-details[open] > summary { color: #f6d69d; border-color: #a88856; }
+.campaign-map-creation-extra,
+.campaign-map-creation-details > .campaign-map-text-size {
+  position: absolute;
+  top: calc(100% + .48rem);
+  left: 0;
+  z-index: 28;
+  display: grid;
+  gap: .55rem;
+  width: min(20rem, 75vw);
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: .7rem;
+  border: 1px solid rgba(154, 167, 186, .48);
+  border-radius: 9px;
+  background: rgba(13, 18, 27, .98);
+  box-shadow: 0 11px 28px rgba(0, 0, 0, .62);
+}
+.campaign-map-creation-extra .campaign-map-area-size {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: .3rem 0;
+}
+.campaign-map-creation-extra .campaign-map-area-size input[type="range"] { min-width: 0; }
+.campaign-map-creation-strip .campaign-map-drawing-error,
+.campaign-map-creation-strip .campaign-map-area-error { margin: .1rem; max-width: 20rem; font-size: .72rem; }
+.campaign-map-picker select:focus-visible,
+.campaign-map-creation-field select:focus-visible,
+.campaign-map-creation-details > summary:focus-visible {
+  outline: 2px solid #e4b76d;
+  outline-offset: 2px;
+}
+@media (max-width: 820px) {
+  .campaign-map-toolbar-primary { max-width: 100%; }
+  .campaign-map-picker select { max-width: 13rem; font-size: .81rem; }
+  .campaign-map-sharing, .campaign-map-share-button { font-size: .67rem; padding-inline: .45rem; }
+  .campaign-map-drawing-palette.campaign-map-creation-strip,
+  .campaign-map-area-palette.campaign-map-creation-strip {
+    left: .4rem;
+    max-width: calc(100% - .8rem);
+    gap: .28rem;
+  }
+  .campaign-map-creation-details > summary,
+  .campaign-map-creation-strip .campaign-map-creation-done {
+    min-height: 2.7rem;
+  }
+}
+
+.campaign-map-keyboard-feedback {
+  position: absolute;
+  z-index: 24;
+  left: .65rem;
+  bottom: .65rem;
+  max-width: min(22rem, calc(100% - 1.3rem));
+  padding: .4rem .65rem;
+  border: 1px solid rgba(176, 184, 202, .35);
+  border-radius: 8px;
+  background: rgba(13, 18, 27, .94);
+  box-shadow: 0 6px 17px rgba(0,0,0,.4);
+  color: #e8dfcf;
+  font: 600 .74rem/1.25 var(--font-ui, sans-serif);
+  pointer-events: none;
+}
+
+/* Edit Map is intentionally one focused section at a time. */
+.campaign-map-edit-tabs {
+  display: flex;
+  align-items: center;
+  gap: .28rem;
+  padding: .24rem;
+  border: 1px solid rgba(180, 155, 110, .3);
+  border-radius: 9px;
+  background: rgba(12, 17, 23, .16);
+}
+.campaign-map-edit-tabs button {
+  flex: 1;
+  min-height: 2.25rem;
+  padding: .4rem .55rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted, #b9ad9b);
+  font: 650 .81rem/1.2 var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.campaign-map-edit-tabs button.is-active {
+  background: rgba(161, 110, 45, .26);
+  color: var(--text, #f4ead8);
+  border-color: rgba(199, 159, 97, .58);
+}
+.campaign-map-edit-tabs button:focus-visible { outline: 2px solid #e4b76d; outline-offset: 2px; }
+.campaign-map-settings[data-edit-section="maps"] .campaign-map-table-controls,
+.campaign-map-settings[data-edit-section="maps"] .campaign-map-grid-settings,
+.campaign-map-settings[data-edit-section="maps"] .campaign-map-token-settings,
+.campaign-map-settings[data-edit-section="grid"] .campaign-map-library,
+.campaign-map-settings[data-edit-section="grid"] .campaign-map-background-settings,
+.campaign-map-settings[data-edit-section="grid"] .campaign-map-token-settings,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-table-controls,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-library,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-background-settings,
+.campaign-map-settings[data-edit-section="tokens"] .campaign-map-grid-settings { display: none; }
+.campaign-map-maintenance {
+  margin: .65rem 0;
+  padding: .6rem;
+  border: 1px solid rgba(183,153,108,.24);
+  border-radius: 8px;
+}
+.campaign-map-maintenance summary { cursor: pointer; font-size: .83rem; }
+.campaign-map-maintenance button { margin-top: .75rem; }

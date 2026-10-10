@@ -82,8 +82,9 @@ function draftGeometry(draft: DrawingDraft, width: number, height: number): Camp
   return r < 1 ? null : { kind: "circle", cx: draft.start.x, cy: draft.start.y, r };
 }
 
-export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, height, open, canManage, onChanged }: {
+export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, height, open, canManage, onChanged, onEdited }: {
   campaignId: string; mapId: string | null; mapName: string; width: number | null; height: number | null; open: boolean; canManage: boolean; onChanged?: () => void;
+  onEdited?: (before: CampaignMapAnnotation | null, after: CampaignMapAnnotation | null) => void;
 }): CampaignMapAnnotationController {
   const [annotations, setAnnotations] = useState<CampaignMapAnnotation[]>([]);
   const [draftState, setDraftState] = useState<DrawingDraft | null>(null);
@@ -95,6 +96,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
   const [textValue, setTextValue] = useState("");
   const [textSize, setTextSizeState] = useState(32);
   const textSizeEditingRef = useRef(false);
+  const originalTextAnnotationRef = useRef<CampaignMapAnnotation | null>(null);
   const pendingReloadRef = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -134,7 +136,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     return () => channel.close();
   }, [campaignId, open, reload]);
 
-  const saveUpdate = useCallback(async (annotation: CampaignMapAnnotation, geometry: CampaignMapAnnotationGeometry, nextColor = annotation.color) => {
+  const saveUpdate = useCallback(async (annotation: CampaignMapAnnotation, geometry: CampaignMapAnnotationGeometry, nextColor = annotation.color, previous = annotation) => {
     if (!mapId || !annotation.canEdit) return;
     setAnnotations(current => current.map(a => a.id === annotation.id ? { ...a, geometry, color: nextColor } : a));
     setError("");
@@ -146,9 +148,10 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const body = await response.json() as AnnotationResponse;
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be updated.");
       setAnnotations(current => current.map(a => a.id === annotation.id ? body.annotation as CampaignMapAnnotation : a));
+      if (JSON.stringify(previous.geometry) !== JSON.stringify(body.annotation.geometry) || previous.color !== body.annotation.color) onEdited?.(previous, body.annotation);
       onChanged?.();
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be updated."); void reload(); }
-  }, [campaignId, mapId, onChanged, reload]);
+  }, [campaignId, mapId, onChanged, onEdited, reload]);
 
   const persistAnnotation = useCallback(async (geometry: CampaignMapAnnotationGeometry) => {
     if (!mapId) return;
@@ -161,11 +164,12 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const body = await response.json() as AnnotationResponse;
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be saved.");
       setAnnotations(current => [...current.filter(a => a.id !== body.annotation?.id), body.annotation as CampaignMapAnnotation]);
+      onEdited?.(null, body.annotation);
       if (geometry.kind === "text") setTextValue("");
       onChanged?.();
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be saved."); void reload(); }
     finally { setBusy(false); }
-  }, [campaignId, canManage, color, mapId, onChanged, reload, visibility]);
+  }, [campaignId, canManage, color, mapId, onChanged, onEdited, reload, visibility]);
 
   const duplicateSelected = useCallback(async () => {
     if (!selected?.canEdit || !mapId || !width || !height || busy) return;
@@ -186,6 +190,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be duplicated.");
       setAnnotations(current => [...current, body.annotation as CampaignMapAnnotation]);
       setSelectedId(body.annotation.id);
+      onEdited?.(null, body.annotation);
       onChanged?.();
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : "Annotation could not be duplicated.");
@@ -193,7 +198,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     } finally {
       setBusy(false);
     }
-  }, [busy, campaignId, height, mapId, onChanged, reload, selected, width]);
+  }, [busy, campaignId, height, mapId, onChanged, onEdited, reload, selected, width]);
 
   const eraseAnnotation = useCallback(async (id: string) => {
     const annotation = annotations.find(a => a.id === id);
@@ -206,10 +211,10 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       });
       const body = await response.json() as AnnotationResponse;
       if (!response.ok || !body.ok) throw new Error(body.error || "Annotation could not be erased.");
-      setAnnotations(current => current.filter(a => a.id !== id)); setSelectedId(current => current === id ? null : current); onChanged?.();
+      setAnnotations(current => current.filter(a => a.id !== id)); setSelectedId(current => current === id ? null : current); onEdited?.(annotation, null); onChanged?.();
     } catch (e) { setError(e instanceof Error ? e.message : "Annotation could not be erased."); void reload(); }
     finally { setBusy(false); }
-  }, [annotations, busy, campaignId, mapId, onChanged, reload]);
+  }, [annotations, busy, campaignId, mapId, onChanged, onEdited, reload]);
 
   const clearAnnotations = useCallback(async () => {
     if (!canManage || !mapId || busy || !annotations.length || !window.confirm(`Clear all annotations from “${mapName}”? This cannot be undone.`)) return;
@@ -228,6 +233,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     const annotation = annotations.find(a => a.id === id);
     if (!annotation?.canEdit) return;
     textSizeEditingRef.current = false;
+    originalTextAnnotationRef.current = null;
     pendingReloadRef.current = false;
     setSelectedId(id); setColorState(annotation.color);
     if (annotation.geometry.kind === "text") setTextSizeState(annotation.geometry.fontSize);
@@ -244,6 +250,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     if (selected?.canEdit && selected.geometry.kind === "text" && width && height) {
       const geometry = parseCampaignMapAnnotationGeometry("text", { ...selected.geometry, fontSize: size }, width, height);
       if (geometry) {
+        if (!textSizeEditingRef.current) originalTextAnnotationRef.current = selected;
         textSizeEditingRef.current = true;
         setAnnotations(current => current.map(annotation => annotation.id === selected.id
           ? { ...annotation, geometry }
@@ -257,7 +264,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     textSizeEditingRef.current = false;
     const annotation = annotations.find(candidate => candidate.id === selectedId);
     if (annotation?.canEdit && annotation.geometry.kind === "text") {
-      await saveUpdate(annotation, annotation.geometry);
+      await saveUpdate(annotation, annotation.geometry, annotation.color, originalTextAnnotationRef.current ?? annotation);
+      originalTextAnnotationRef.current = null;
     }
     if (pendingReloadRef.current) {
       pendingReloadRef.current = false;
@@ -326,7 +334,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       const annotation = annotations.find(a => a.id === move.id);
       const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
       const moved = point ? translateCampaignMapAnnotationGeometry(move.geometry, point.x - move.start.x, point.y - move.start.y, width, height) : null;
-      if (annotation) void saveUpdate(annotation, moved ?? annotation.geometry);
+      if (annotation) void saveUpdate(annotation, moved ?? annotation.geometry, annotation.color, { ...annotation, geometry: move.geometry });
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       event.preventDefault(); return true;
     }
@@ -408,37 +416,30 @@ function CampaignMapTextSizeControl({ controller, selected }: { controller: Camp
 
 export function CampaignMapDrawingPalette({ controller }: { controller: CampaignMapAnnotationController }) {
   if (!controller.tool) return null;
-  const tools: CampaignMapDrawingTool[] = ["freehand", "line", "arrow", "rect", "circle", "text", "erase"];
-  const selectedText = controller.selected?.geometry.kind === "text";
-  return <div className="campaign-map-drawing-palette" role="toolbar" aria-label="Map annotation tools">
-    <div className="campaign-map-drawing-tools">{tools.map(tool => <button type="button" key={tool}
-      className={`campaign-map-drawing-tool${controller.tool === tool ? " is-active" : ""}`} aria-pressed={controller.tool === tool}
-      disabled={controller.busy} onClick={() => controller.setTool(tool)}>{toolLabel(tool)}</button>)}</div>
-    {controller.selected ? <div className="campaign-map-selection-options">
-      <strong>Selected {toolLabel(controller.selected.kind)}</strong>
-      <label className="campaign-map-drawing-color"><span>Colour</span><input type="color" value={controller.color} aria-label="Selected annotation colour" onChange={e => controller.setColor(e.target.value)} /></label>
-      {selectedText && <CampaignMapTextSizeControl key={controller.selected?.id ?? "selected-text"} controller={controller} selected />}
-      <small>Drag the selected annotation on the map to move it.</small>
-    </div> : <>
-      <div className="campaign-map-drawing-options">
-        <span>New annotations</span>
-        {controller.canManage && <><button type="button" className={controller.visibility === "players" ? "is-active" : ""} aria-pressed={controller.visibility === "players"} onClick={() => controller.setVisibility("players")}>Players</button>
-        <button type="button" className={controller.visibility === "gm" ? "is-active" : ""} aria-pressed={controller.visibility === "gm"} onClick={() => controller.setVisibility("gm")}>GM only</button></>}
-        <label className="campaign-map-drawing-color"><span>Colour</span><input type="color" value={controller.color} aria-label="Annotation colour" onChange={e => controller.setColor(e.target.value)} /></label>
-      </div>
-      {controller.tool === "text" && <div className="campaign-map-text-controls">
-        <label className="campaign-map-text-entry"><span>Label text</span><input type="text" value={controller.textValue} onChange={e => controller.setTextValue(e.target.value)} maxLength={120} placeholder="Enter a map label…" autoFocus /></label>
+  return <div className="campaign-map-drawing-palette campaign-map-creation-strip" role="toolbar" aria-label="Create annotation">
+    <strong className="campaign-map-creation-name">{toolLabel(controller.tool)}</strong>
+    {controller.canManage && <label className="campaign-map-creation-field">
+      <span className="sr-only">Who can see this annotation?</span>
+      <select value={controller.visibility} aria-label="Annotation visibility"
+        onChange={event => controller.setVisibility(event.target.value as CampaignMapAnnotationVisibility)}>
+        <option value="players">Players</option>
+        <option value="gm">GM only</option>
+      </select>
+    </label>}
+    {controller.tool !== "erase" && <label className="campaign-map-drawing-color" title="Annotation colour">
+      <span className="sr-only">Colour</span>
+      <input type="color" value={controller.color} aria-label="Annotation colour"
+        onChange={event => controller.setColor(event.target.value)} />
+    </label>}
+    {controller.tool === "text" && <>
+      <label className="campaign-map-text-entry"><span className="sr-only">Label text</span>
+        <input type="text" value={controller.textValue} onChange={event => controller.setTextValue(event.target.value)}
+          maxLength={120} placeholder="Label text" aria-label="Label text" autoFocus /></label>
+      <details className="campaign-map-creation-details"><summary>Size</summary>
         <CampaignMapTextSizeControl controller={controller} selected={false} />
-      </div>}
+      </details>
     </>}
-    <div className="campaign-map-drawing-actions">
-      {controller.canManage && <button type="button" disabled={controller.busy || !controller.annotations.length} onClick={() => void controller.clearAnnotations()}>Clear all</button>}
-      <button type="button" onClick={controller.stopDrawing}>Done</button>
-    </div>
-    {controller.tool === "select" && !controller.selected && <small>Select an annotation to change it or drag it to a new position.</small>}
-    {controller.tool === "erase" && <small>Tap or click one of your editable annotations to erase it.</small>}
-    {controller.tool === "circle" && <small>Drag from the circle’s center outward.</small>}
-    {controller.tool === "text" && !controller.selected && <small>Choose text and size, then click or tap the map where the label should begin.</small>}
+    <button type="button" className="campaign-map-creation-done" onClick={controller.stopDrawing}>Done</button>
     {controller.error && <p className="campaign-map-drawing-error" role="alert">{controller.error}</p>}
   </div>;
 }

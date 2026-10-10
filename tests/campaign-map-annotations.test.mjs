@@ -103,10 +103,10 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(route, /body\.action === "delete"/u);
   assert.match(route, /body\.action === "clear"/u);
   assert.match(route, /announceMapChanged/u);
-  assert.match(controller, /"freehand", "line", "arrow", "rect", "circle", "text", "erase"/u);
+  assert.match(controller, /campaign-map-creation-strip/u);
   assert.match(controller, /const selecting = interactionEnabled && \(!controller\.tool \|\| controller\.tool === "select"\)/u);
   assert.match(launcher, /campaign-map-object-inspector/u);
-  assert.match(controller, /New annotations/u);
+  assert.match(controller, /aria-label="Create annotation"/u);
   assert.match(controller, /type="color"/u);
   assert.match(controller, /aria-label="Annotation colour"/u);
   assert.match(controller, /Label text/u);
@@ -114,8 +114,8 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /color=\{annotation\.color\}/u);
   assert.match(controller, />Players</u);
   assert.match(controller, />GM only</u);
-  assert.match(controller, /Selected .*toolLabel/u);
-  assert.match(controller, /Selected annotation colour/u);
+  assert.match(controller, /campaign-map-creation-name/u);
+  assert.match(controller, /aria-label="Annotation colour"/u);
   assert.match(controller, /Text size/u);
   assert.match(controller, /type="range"/u);
   assert.match(controller, /commitTextSize/u);
@@ -124,7 +124,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /beginMove/u);
   assert.match(controller, /annotation\.canEdit/u);
   assert.match(controller, /Clear all/u);
-  assert.match(controller, /Tap or click one of your editable annotations to erase it/u);
+  assert.match(controller, /controller\.stopDrawing/u);
   assert.match(launcher, />\+ Add</u);
   assert.match(launcher, />Fog</u);
   assert.match(launcher, />Measure</u);
@@ -203,4 +203,47 @@ test("map mockup HUD keeps context controls on canvas while preserving edit perm
   assert.match(css, /\.campaign-map-toolbar \{[\s\S]*?position: absolute;/u);
   assert.match(css, /\.campaign-map-object-inspector\.campaign-map-context-bar/u);
   assert.doesNotMatch(launcher, /⋯ More|Live Dice: On|Live Dice: Off/u);
+});
+
+
+test("map editor keeps map selector and creation controls clear of the floating toolbar", async () => {
+  const [launcher, annotations, areas, css] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(launcher, /aria-label="Current campaign map"/u);
+  assert.match(launcher, /maps\.map\(candidate => <option/u);
+  assert.match(launcher, /Show to players<\/button>/u);
+  assert.match(launcher, /action: "activate", mapId: map\.id/u);
+  assert.match(launcher, /ResizeObserver\(update\)/u);
+  assert.match(launcher, /--map-hud-height/u);
+  assert.match(css, /top: calc\(var\(--map-hud-height/u);
+  assert.match(annotations, /campaign-map-creation-strip/u);
+  assert.match(areas, /campaign-map-creation-strip/u);
+  assert.match(launcher, /campaign-map-edit-tabs/u);
+  assert.match(launcher, /"maps" \| "grid" \| "tokens"/u);
+  assert.match(css, /data-edit-section="tokens"/u);
+});
+
+test("keyboard map edits support copy cut paste delete and reversible persistence", async () => {
+  const [launcher, annotations, areas] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(launcher, /runMapKeyboardCommand/u);
+  assert.match(launcher, /"copy" \| "cut" \| "paste" \| "undo" \| "redo" \| "delete"/u);
+  assert.match(launcher, /event\.metaKey \|\| event\.ctrlKey/u);
+  assert.match(launcher, /key === "z"/u);
+  assert.match(launcher, /key === "y"/u);
+  assert.match(launcher, /key === "delete" \|\| key === "backspace"/u);
+  assert.match(launcher, /target\?\.closest\?\.\("input, textarea, select,/u);
+  assert.match(launcher, /history\.undo\.pop\(\); history\.redo\.push\(entry\)/u);
+  assert.match(launcher, /history\.redo\.pop\(\); history\.undo\.push\(entry\)/u);
+  assert.match(launcher, /postKeyboardEdit/u);
+  assert.match(launcher, /campaignMapChangedEvent/u);
+  assert.match(annotations, /onEdited\?\.\(null, body\.annotation\)/u);
+  assert.match(areas, /onEdited\?\.\(null, body\.template\)/u);
 });

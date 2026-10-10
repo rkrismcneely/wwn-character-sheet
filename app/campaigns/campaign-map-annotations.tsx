@@ -44,6 +44,7 @@ export type CampaignMapAnnotationController = {
   setTextValue: (value: string) => void;
   setTextSize: (size: number) => void;
   commitTextSize: () => Promise<void>;
+  updateSelectedText: (text: string) => Promise<void>;
   selectAnnotation: (id: string | null) => void;
   beginMove: (event: ReactPointerEvent<SVGGElement>, id: string) => void;
   stopDrawing: () => void;
@@ -235,10 +236,16 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     }
   }, [annotations, reload, saveUpdate, selectedId]);
 
+  const updateSelectedText = useCallback(async (text: string) => {
+    if (!selected?.canEdit || selected.geometry.kind !== "text" || !width || !height) return;
+    const geometry = parseCampaignMapAnnotationGeometry("text", { ...selected.geometry, text }, width, height);
+    if (geometry) await saveUpdate(selected, geometry);
+  }, [height, saveUpdate, selected, width]);
+
   const setDraft = useCallback((next: DrawingDraft | null) => { draftRef.current = next; setDraftState(next); }, []);
 
   const beginMove = useCallback((event: ReactPointerEvent<SVGGElement>, id: string) => {
-    if (tool !== "select" || !width || !height) return;
+    if ((tool && tool !== "select") || !width || !height) return;
     const annotation = annotations.find(a => a.id === id);
     const svg = event.currentTarget.ownerSVGElement;
     if (!annotation?.canEdit || !svg) return;
@@ -310,10 +317,10 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
   return {
     annotations, draft: draftState && draftState.mapId === mapId && width && height ? draftGeometry(draftState, width, height) : null,
     tool, visibility, color, textValue, textSize, selectedId, selected, canManage, busy, error,
-    toggleDrawing: () => setToolState(current => current ? null : "select"),
+    toggleDrawing: () => setToolState(current => current ? null : "freehand"),
     setTool: next => { setToolState(next); if (next !== "select") setSelectedId(null); },
     setVisibility: next => setVisibilityState(canManage ? next : "players"),
-    setColor, setTextValue, setTextSize, commitTextSize, selectAnnotation, beginMove,
+    setColor, setTextValue, setTextSize, commitTextSize, updateSelectedText, selectAnnotation, beginMove,
     stopDrawing: () => { textSizeEditingRef.current = false; pendingReloadRef.current = false; setToolState(null); setSelectedId(null); setDraft(null); moveRef.current = null; },
     clearAnnotations, eraseAnnotation, handlePointerDown, handlePointerMove, handlePointerEnd,
   };
@@ -372,7 +379,7 @@ function CampaignMapTextSizeControl({ controller, selected }: { controller: Camp
 
 export function CampaignMapDrawingPalette({ controller }: { controller: CampaignMapAnnotationController }) {
   if (!controller.tool) return null;
-  const tools: CampaignMapDrawingTool[] = ["select", "freehand", "line", "arrow", "rect", "circle", "text", "erase"];
+  const tools: CampaignMapDrawingTool[] = ["freehand", "line", "arrow", "rect", "circle", "text", "erase"];
   const selectedText = controller.selected?.geometry.kind === "text";
   return <div className="campaign-map-drawing-palette" role="toolbar" aria-label="Map annotation tools">
     <div className="campaign-map-drawing-tools">{tools.map(tool => <button type="button" key={tool}
@@ -470,18 +477,23 @@ function AnnotationHitShape({ geometry }: { geometry: CampaignMapAnnotationGeome
   return null;
 }
 
-export function CampaignMapAnnotationLayer({ controller }: { controller: CampaignMapAnnotationController }) {
+export function CampaignMapAnnotationLayer({ controller, interactionEnabled = true, onSelect }: {
+  controller: CampaignMapAnnotationController;
+  interactionEnabled?: boolean;
+  onSelect?: (id: string) => void;
+}) {
   const markerBase = useId().replaceAll(":", "");
-  const selecting = controller.tool === "select", erasing = controller.tool === "erase";
+  const selecting = interactionEnabled && (!controller.tool || controller.tool === "select");
+  const erasing = controller.tool === "erase";
   const actionPointer = (event: ReactPointerEvent<SVGGElement>, annotation: CampaignMapAnnotation) => {
     if (!annotation.canEdit) return;
     if (erasing) { event.preventDefault(); event.stopPropagation(); void controller.eraseAnnotation(annotation.id); }
-    else if (selecting) controller.beginMove(event, annotation.id);
+    else if (selecting) { onSelect?.(annotation.id); controller.beginMove(event, annotation.id); }
   };
   const actionKey = (event: ReactKeyboardEvent<SVGGElement>, annotation: CampaignMapAnnotation) => {
     if (!annotation.canEdit || (event.key !== "Enter" && event.key !== " " && event.key !== "Delete" && event.key !== "Backspace")) return;
     if (erasing || event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); void controller.eraseAnnotation(annotation.id); }
-    else if (selecting) { event.preventDefault(); controller.selectAnnotation(annotation.id); }
+    else if (selecting) { event.preventDefault(); onSelect?.(annotation.id); controller.selectAnnotation(annotation.id); }
   };
   return <g className={`campaign-map-annotation-layer${selecting ? " is-selecting" : ""}${erasing ? " is-erasing" : ""}`}>
     {controller.annotations.map((annotation, index) => {

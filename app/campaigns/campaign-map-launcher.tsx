@@ -472,6 +472,7 @@ export function CampaignMapWorkspace({
   }
 
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) { if (!view || event.button !== 0 || tokenDragRef.current) return;
+    stageRef.current?.focus({ preventScroll: true });
     if (!spacePanRef.current && measureEnabled && svgRef.current) {
       const point = clientPointToSvg(svgRef.current, event.clientX, event.clientY);
       if (point) {
@@ -502,7 +503,7 @@ export function CampaignMapWorkspace({
 
   function handleTokenPointerDown(event: ReactPointerEvent<SVGGElement>, token: CampaignMapToken) {
     if (!view || event.button !== 0 || !svgRef.current || annotations.tool || areaTemplates.open || fogMode || measureEnabled || spacePanRef.current) return;
-    event.stopPropagation(); setSelectedTokenId(token.id); annotations.selectAnnotation(null); areaTemplates.selectTemplate(null);
+    event.stopPropagation(); stageRef.current?.focus({ preventScroll: true }); setSelectedTokenId(token.id); annotations.selectAnnotation(null); areaTemplates.selectTemplate(null);
     if (!token.canMove) return; const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!pointer) return;
     tokenDragRef.current = { pointerId: event.pointerId, tokenId: token.id, version: token.version, pointerMapX: pointer.x, pointerMapY: pointer.y, x: token.x, y: token.y, latestX: token.x, latestY: token.y, element: event.currentTarget, distanceElement: null };
     setTokenDragMeasurement({ tokenId: token.id, distance: "0 ft" }); setTokenDragOrigin({ tokenId: token.id, x: token.x, y: token.y }); event.currentTarget.setPointerCapture(event.pointerId);
@@ -541,6 +542,162 @@ export function CampaignMapWorkspace({
   }
   async function renameMap() { if (!map || mapNameDraft.trim() === map.name) return; await mapAction({ action: "rename", mapId: map.id, version: map.version, name: mapNameDraft.trim() }); }
   async function showToPlayers() { if (!map || map.isActive) return; await mapAction({ action: "activate", mapId: map.id }); }
+  function selectedEditableObject(): MapHistoryEdit | null {
+    if (!map) return null;
+    if (annotations.selected?.canEdit)
+      return { kind: "annotation", mapId: map.id, before: annotations.selected, after: null, currentId: annotations.selected.id };
+    if (areaTemplates.selected?.canEdit)
+      return { kind: "area", mapId: map.id, before: areaTemplates.selected, after: null, currentId: areaTemplates.selected.id };
+    return null;
+  }
+
+  async function postKeyboardEdit<T extends { error?: string }>(kind: "annotations" | "templates" | "tokens", body: Record<string, unknown>): Promise<T> {
+    const response = await fetch(`/api/campaigns/${campaignId}/map/${kind}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    const result = await response.json() as T;
+    if (!response.ok) throw new Error(result.error || "Unable to save the map edit.");
+    return result;
+  }
+
+  async function replayMapEdit(entry: MapHistoryEdit, direction: "before" | "after") {
+    if (!map || entry.mapId !== map.id) throw new Error("The history belongs to a different map.");
+    if (entry.kind === "token-move") {
+      const current = map.tokens.find(token => token.id === entry.currentId);
+      if (!current?.canMove) throw new Error("That token is no longer movable.");
+      const position = entry[direction];
+      const result = await postKeyboardEdit<{ map?: CampaignMapPayload; error?: string }>("tokens", {
+        action: "move", mapId: map.id, tokenId: current.id, version: current.version,
+        x: position.x, y: position.y,
+      });
+      if (!result.map) throw new Error("Token movement could not be restored.");
+      setMap(result.map);
+    } else {
+      const saved = entry[direction];
+      const category = entry.kind === "annotation" ? "annotations" : "templates";
+      let payload: Record<string, unknown>;
+      if (!saved) {
+        if (!entry.currentId) return;
+        payload = { action: "delete", mapId: map.id,
+          [entry.kind === "annotation" ? "annotationId" : "templateId"]: entry.currentId };
+      } else if (entry.kind === "annotation") {
+        const annotation = saved as CampaignMapAnnotation;
+        payload = { action: entry.currentId ? "update" : "create", mapId: map.id,
+          ...(entry.currentId ? { annotationId: entry.currentId } : { kind: annotation.kind, visibility: annotation.visibility }),
+          geometry: annotation.geometry, color: annotation.color };
+      } else {
+        const area = saved as CampaignMapAreaTemplate;
+        payload = { action: entry.currentId ? "update" : "create", mapId: map.id,
+          ...(entry.currentId ? { templateId: entry.currentId } : {}),
+          shape: area.shape, x: area.x, y: area.y, sizeSpaces: area.sizeSpaces,
+          widthSpaces: area.widthSpaces, tipFlip: area.tipFlip, angleDegrees: area.angleDegrees,
+          color: area.color };
+      }
+      const result = await postKeyboardEdit<{ annotation?: CampaignMapAnnotation; template?: CampaignMapAreaTemplate; error?: string }>(category, payload);
+      entry.currentId = saved ? (result.annotation?.id ?? result.template?.id ?? entry.currentId) : null;
+      annotations.selectAnnotation(null);
+      areaTemplates.selectTemplate(null);
+      window.dispatchEvent(new CustomEvent(campaignMapChangedEvent, { detail: { campaignId } }));
+    }
+    publishMapInvalidation();
+  }
+
+  async function runMapKeyboardCommand(command: "copy" | "cut" | "paste" | "undo" | "redo" | "delete") {
+    if (!map || loading || busy || annotations.busy || areaTemplates.busy || editInProgressRef.current) return;
+    const selected = selectedEditableObject();
+    if (command === "copy" || command === "cut") {
+      if (!selected || !selected.before || selected.kind === "token-move") {
+        setKeyboardFeedback("Select an editable drawing or spell area.");
+        return;
+      }
+      editClipboardRef.current = selected.kind === "annotation"
+        ? { kind: "annotation", object: selected.before, copies: 0 }
+        : { kind: "area", object: selected.before, copies: 0 };
+      if (command === "copy") {
+        setKeyboardFeedback("Copied map object.");
+        return;
+      }
+    }
+    if (editHistoryRef.current.mapId !== map.id)
+      editHistoryRef.current = { mapId: map.id, undo: [], redo: [] };
+    const history = editHistoryRef.current;
+    let entry: MapHistoryEdit | null = null;
+    if (command === "undo") entry = history.undo.at(-1) ?? null;
+    else if (command === "redo") entry = history.redo.at(-1) ?? null;
+    else if (command === "cut" || command === "delete") entry = selected;
+    else if (command === "paste") {
+      const clipboard = editClipboardRef.current;
+      if (!clipboard || !map.backgroundWidth || !map.backgroundHeight) {
+        setKeyboardFeedback("Copy a drawing or spell area first.");
+        return;
+      }
+      const offset = (clipboard.copies + 1) * (clipboard.kind === "area" ? map.grid.size : 16);
+      if (clipboard.kind === "annotation") {
+        const geometry = translateCampaignMapAnnotationGeometry(clipboard.object.geometry, offset, offset, map.backgroundWidth, map.backgroundHeight);
+        if (!geometry) { setKeyboardFeedback("No room to paste on this map."); return; }
+        entry = { kind: "annotation", mapId: map.id, before: null,
+          after: { ...clipboard.object, geometry }, currentId: null };
+      } else {
+        entry = { kind: "area", mapId: map.id, before: null, after: {
+          ...clipboard.object,
+          x: Math.min(map.backgroundWidth, clipboard.object.x + offset),
+          y: Math.min(map.backgroundHeight, clipboard.object.y + offset),
+        }, currentId: null };
+      }
+    }
+    if (!entry) {
+      if (command === "delete" && selectedTokenId && canManage) {
+        if (!window.confirm("Remove this token? This action cannot yet be undone.")) return;
+        const removed = await tokenAction({ action: "remove", tokenId: selectedTokenId });
+        if (removed) { setSelectedTokenId(null); setKeyboardFeedback("Removed token."); }
+      } else setKeyboardFeedback(command === "undo" || command === "redo"
+        ? "Nothing to " + command + "." : "Select an editable drawing or spell area.");
+      return;
+    }
+    editInProgressRef.current = true;
+    try {
+      await replayMapEdit(entry, command === "undo" ? "before" : command === "redo" || command === "paste" ? "after" : "after");
+      if (command === "undo") { history.undo.pop(); history.redo.push(entry); }
+      else if (command === "redo") { history.redo.pop(); history.undo.push(entry); }
+      else {
+        recordMapEdit(entry);
+        if (command === "paste" && editClipboardRef.current) editClipboardRef.current.copies++;
+      }
+      setKeyboardFeedback(command === "undo" ? "Undone." : command === "redo" ? "Redone." :
+        command === "paste" ? "Pasted object." : command === "cut" ? "Cut object." : "Deleted object.");
+    } catch (editError) {
+      setKeyboardFeedback(editError instanceof Error ? editError.message : "Unable to save the change.");
+    } finally { editInProgressRef.current = false; }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const keyWindow = drawerElementRef.current?.ownerDocument.defaultView ?? window;
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      if (!target || !drawerElementRef.current?.contains(target)) return;
+      const modifier = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
+      let command: "copy" | "cut" | "paste" | "undo" | "redo" | "delete" | null = null;
+      if (modifier && !event.altKey) {
+        if (key === "c" && !event.shiftKey) command = "copy";
+        if (key === "x" && !event.shiftKey) command = "cut";
+        if (key === "v" && !event.shiftKey) command = "paste";
+        if (key === "z") command = event.shiftKey ? "redo" : "undo";
+        if (key === "y") command = "redo";
+      } else if (!modifier && !event.altKey && (key === "delete" || key === "backspace"))
+        command = "delete";
+      if (!command) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void runMapKeyboardCommand(command);
+    };
+    keyWindow.addEventListener("keydown", keyDown);
+    return () => keyWindow.removeEventListener("keydown", keyDown);
+  }, [open, pipDocument, map, annotations, areaTemplates, busy, canManage, loading, selectedTokenId, campaignId]);
+
   async function deleteMap() { if (!map || !window.confirm(`Delete “${map.name}” and all of its token placements? This cannot be undone.`)) return; await mapAction({ action: "delete", mapId: map.id }, false); }
 
   // Keep the contextual editing bar next to the actual selected SVG object.
@@ -654,16 +811,16 @@ export function CampaignMapWorkspace({
         </div>}
       </div></header>
     {error && <div className="campaign-error campaign-map-error" role="alert">{error}</div>}
-    <div className={`campaign-map-workspace${settingsOpen && canManage ? " settings-open" : ""}`}><div ref={stageRef} className="campaign-map-stage" aria-busy={loading || busy || annotations.busy || areaTemplates.busy}>{loading && <div className="campaign-map-empty" role="status">Loading campaign map…</div>}{!loading && !map?.backgroundUrl && <div className="campaign-map-empty"><h3>{map ? "No map image" : "No campaign maps yet"}</h3><p>{canManage ? "Open Map Settings to upload a new map." : "The GM has not shared a campaign map yet."}</p></div>}
+    <div className={`campaign-map-workspace${settingsOpen && canManage ? " settings-open" : ""}`}><div ref={stageRef} className="campaign-map-stage" tabIndex={-1} aria-busy={loading || busy || annotations.busy || areaTemplates.busy}>{loading && <div className="campaign-map-empty" role="status">Loading campaign map…</div>}{!loading && !map?.backgroundUrl && <div className="campaign-map-empty"><h3>{map ? "No map image" : "No campaign maps yet"}</h3><p>{canManage ? "Open Map Settings to upload a new map." : "The GM has not shared a campaign map yet."}</p></div>}
       {map?.backgroundUrl && <CampaignMapDrawingPalette controller={annotations} />}
       {map?.backgroundUrl && <CampaignMapAreaTemplatePalette controller={areaTemplates} grid={map.grid} />}
       {!loading && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan; drag an allowed token to move it; use the mouse wheel or toolbar buttons to zoom.">
         <defs>{map.grid.type === "hex" ? (() => { const pattern = hexPatternSize(map.grid.size); return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>{hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}</pattern>; })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}><path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" /></pattern>}</defs>
         <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />{map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
-        {!canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
+        {!canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
         <g className="campaign-map-fog-layer" pointerEvents="none">{map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}<g ref={fogPreviewLayerRef} /></g>
-        {canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
-        <CampaignMapAreaTemplateLayer controller={areaTemplates} grid={map.grid} width={map.backgroundWidth} height={map.backgroundHeight} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { annotations.selectAnnotation(null); setSelectedTokenId(null); }} />
+        {canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
+        <CampaignMapAreaTemplateLayer controller={areaTemplates} grid={map.grid} width={map.backgroundWidth} height={map.backgroundHeight} interactionEnabled={!fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); annotations.selectAnnotation(null); setSelectedTokenId(null); }} />
         {measureStart && measureEnd && <g className="campaign-map-measure-layer" pointerEvents="none">
           <line x1={measureStart.x} y1={measureStart.y} x2={measureEnd.x} y2={measureEnd.y} stroke="#f4cd75" strokeWidth="3" strokeDasharray="8 5" vectorEffect="non-scaling-stroke" />
           <text className="campaign-map-measure-text" x={(measureStart.x + measureEnd.x)/2} y={(measureStart.y + measureEnd.y)/2-12} textAnchor="middle">{gridMovementDistanceLabel(measureStart.x,measureStart.y,measureEnd.x,measureEnd.y,map.grid)}</text>
@@ -741,6 +898,7 @@ export function CampaignMapWorkspace({
             annotations.selectAnnotation(null); areaTemplates.selectTemplate(null); setSelectedTokenId(null);
           }} aria-label="Deselect map object" title="Deselect">✕</button>
         </aside>}
+      {keyboardFeedback && <div className="campaign-map-keyboard-feedback" role="status">{keyboardFeedback}</div>}
       {settingsOpen && canManage && <aside id="campaign-map-settings" className="campaign-map-settings" aria-label="Campaign map settings"><div className="campaign-map-settings-heading"><div><p className="campaign-kicker">GM CONTROLS</p><h3>Map Settings</h3></div><button type="button" className="campaign-quiet" onClick={() => setSettingsOpen(false)}>Hide</button></div>
         {map && <section className="campaign-map-table-controls"><h4>At the Table</h4><p>Controls used during play stay here. Alignment and map-library work are kept below.</p><div className="campaign-map-table-actions"><button type="button" className={`campaign-secondary${annotations.tool ? " is-active" : ""}`} aria-pressed={Boolean(annotations.tool)} onClick={() => { areaTemplates.close(); setFogMode(null); clearFogPreview(); annotations.toggleDrawing(); }}>Draw / Annotate</button><button type="button" className={`campaign-secondary${areaTemplates.open ? " is-active" : ""}`} aria-pressed={areaTemplates.open} onClick={() => { annotations.stopDrawing(); setFogMode(null); clearFogPreview(); areaTemplates.toggle(); }}>Spell Area</button><button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "hide" ? null : "hide"); clearFogPreview(); }}>Hide Area</button><button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "reveal" ? null : "reveal"); clearFogPreview(); }}>Reveal Area</button></div><label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label><label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label><button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Table Controls</button>{fogMode && <small>Drag across the map to {fogMode} whole {grid.type === "hex" ? "hexes" : "cells"}. Up to 500 cells are changed at once.</small>}</section>}
         <section className="campaign-map-library"><h4>Maps</h4><p>Prepare as many maps as you need. Only the map marked Visible to Players is shared with the party.</p><label className="campaign-map-upload campaign-primary"><span>Upload New Map</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={uploadNewMap} /></label>{maps.length > 0 && <div className="campaign-map-library-list">{maps.map(candidate => <button type="button" key={candidate.id} className={`campaign-map-library-item${candidate.id === map?.id ? " is-selected" : ""}`} disabled={busy} onClick={() => void selectMap(candidate.id)}><span>{candidate.name}</span>{candidate.isActive ? <small>Visible to Players</small> : <small>GM only</small>}</button>)}</div>}{map && <div className="campaign-map-selected-controls"><div className="campaign-map-player-visibility" aria-label="Player visibility"><strong className="campaign-map-setting-label">Player Visibility</strong>{map.isActive ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div> : <><div className="campaign-map-hidden-status"><strong>GM Only</strong><span>Players continue to see the map currently marked Visible to Players.</span></div><button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Make Visible to Players</button></>}<small>Only one campaign map is visible to players at a time.</small></div><label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft} onChange={event => setMapNameDraft(event.target.value)} /></label><button type="button" className="campaign-secondary" disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name} onClick={() => void renameMap()}>Save Name</button><button type="button" className="campaign-danger" disabled={busy} onClick={() => void deleteMap()}>Delete Map</button></div>}</section>

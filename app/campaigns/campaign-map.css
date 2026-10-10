@@ -1554,3 +1554,211 @@
   .campaign-map-quick-actions .campaign-map-menu-wrap > button { min-height: 44px; }
   .campaign-map-popover button { min-height: 44px; }
 }
+
+
+/* Map command deck: compact, map-first presentation with TWE's amber-codex accents.
+   Keep administrative controls separate from the tools used during play. */
+.campaign-map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 1rem;
+  row-gap: .55rem;
+  padding: .62rem .9rem;
+  background:
+    linear-gradient(120deg, rgba(132, 94, 41, .1), transparent 42%),
+    color-mix(in srgb, var(--surface, #17130f) 96%, #050505 4%);
+  border-bottom: 1px solid rgba(184, 146, 83, .35);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, .25);
+}
+.campaign-map-toolbar-primary {
+  flex: 1 1 22rem;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .55rem 1rem;
+}
+.campaign-map-title-block { min-width: 0; }
+.campaign-map-title-block h2 {
+  font-family: var(--font-heading, Georgia, serif);
+  font-size: clamp(1.05rem, 1.2vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: .005em;
+  line-height: 1.15;
+}
+.campaign-map-toolbar .campaign-kicker {
+  color: #cbaa76;
+  font-size: .65rem;
+  letter-spacing: .15em;
+}
+.campaign-map-toolbar .campaign-map-live-label,
+.campaign-map-toolbar .campaign-map-private-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-top: .3rem;
+  padding: .2rem .5rem;
+  border: 1px solid rgba(197, 164, 107, .24);
+  border-radius: 100px;
+  background: rgba(132, 94, 41, .1);
+  line-height: 1.25;
+}
+.campaign-map-live-label::before,
+.campaign-map-private-label::before {
+  content: "";
+  width: .4rem;
+  height: .4rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .8;
+}
+.campaign-map-toolbar-actions {
+  flex: 1 1 25rem;
+  justify-content: flex-end;
+  gap: .6rem;
+}
+.campaign-map-quick-actions {
+  order: 0;
+  gap: .35rem;
+  padding: .24rem;
+  border: 1px solid rgba(191, 154, 92, .27);
+  border-radius: 12px;
+  background: rgba(4, 5, 8, .22);
+}
+.campaign-map-toolbar-actions > .campaign-map-control-group {
+  order: 1;
+  padding: .24rem;
+  border: 1px solid rgba(191, 154, 92, .27);
+  border-radius: 12px;
+  background: rgba(4, 5, 8, .22);
+}
+.campaign-map-quick-actions > button,
+.campaign-map-quick-actions > .campaign-map-menu-wrap > button {
+  min-height: 2.25rem;
+  padding: .43rem .8rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+.campaign-map-quick-actions .campaign-primary {
+  background: linear-gradient(160deg, #b58b49, #835d29);
+  border: 1px solid rgba(241, 203, 139, .55);
+  color: #fff8e7;
+  box-shadow: 0 2px 9px rgba(0, 0, 0, .22);
+}
+.campaign-map-quick-actions .campaign-secondary {
+  background: transparent;
+  border: 1px solid transparent;
+}
+.campaign-map-quick-actions .campaign-secondary:hover,
+.campaign-map-quick-actions .campaign-secondary:focus-visible,
+.campaign-map-quick-actions .campaign-secondary.is-active {
+  border-color: rgba(211, 169, 100, .5);
+  background: rgba(188, 137, 60, .16);
+}
+.campaign-map-quick-actions .campaign-map-edit-button {
+  margin-left: .16rem;
+  border-left: 1px solid rgba(191, 154, 92, .5);
+  border-radius: 4px 8px 8px 4px;
+  padding-left: .95rem;
+  color: #e8cc99;
+}
+.campaign-map-popover {
+  padding: .38rem;
+  border-color: rgba(219, 177, 112, .45);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface, #17130f) 97%, #050505 3%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .57);
+}
+.campaign-map-popover button { border-radius: 8px; }
+.campaign-map-workspace { position: relative; }
+.campaign-map-stage {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(46, 40, 31, .24), transparent 65%),
+    #0b0d0f;
+}
+.campaign-map-object-inspector,
+.campaign-map-area-palette,
+.campaign-map-drawing-palette {
+  border-radius: 13px;
+  border-color: rgba(206, 167, 104, .5);
+  background: color-mix(in srgb, var(--surface, #17130f) 96%, #080808 4%);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(12px);
+}
+.campaign-map-object-inspector {
+  padding: .8rem;
+  gap: .65rem;
+  width: min(21rem, calc(100% - 1.5rem));
+}
+.campaign-map-object-inspector > header {
+  padding-bottom: .5rem;
+  border-bottom: 1px solid rgba(201, 161, 98, .3);
+}
+.campaign-map-object-inspector > header strong {
+  color: #f0d29b;
+  font-family: var(--font-heading, Georgia, serif);
+  font-size: 1.05rem;
+}
+.campaign-map-workspace.settings-open .campaign-map-object-inspector {
+  right: calc(350px + .75rem);
+}
+.campaign-map-object-fields label {
+  color: var(--text-muted, #c6bbaa);
+  font-size: .86rem;
+}
+.campaign-map-drawing-palette,
+.campaign-map-area-palette {
+  width: min(36rem, calc(100% - 1.5rem));
+}
+.campaign-map-toolbar button:focus-visible,
+.campaign-map-popover button:focus-visible,
+.campaign-map-object-inspector button:focus-visible {
+  outline: 2px solid #e6be7b;
+  outline-offset: 2px;
+}
+.campaign-map-host-drawer .campaign-map-toolbar {
+  align-items: stretch;
+  padding: .65rem;
+}
+.campaign-map-host-drawer .campaign-map-toolbar-primary,
+.campaign-map-host-drawer .campaign-map-toolbar-actions {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+@media (max-width: 1100px) {
+  .campaign-map-toolbar-actions { justify-content: flex-start; }
+  .campaign-map-workspace.settings-open .campaign-map-object-inspector {
+    right: .75rem;
+  }
+}
+@media (max-width: 820px) {
+  .campaign-map-toolbar { padding: .5rem; gap: .4rem; }
+  .campaign-map-toolbar-primary { gap: .4rem; }
+  .campaign-map-title-block h2 { font-size: 1.05rem; }
+  .campaign-map-toolbar-actions {
+    width: 100%;
+    flex: 1 1 100%;
+    gap: .35rem;
+  }
+  .campaign-map-quick-actions {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+  }
+  .campaign-map-quick-actions > button,
+  .campaign-map-quick-actions > .campaign-map-menu-wrap > button {
+    min-height: 44px;
+    padding-inline: .68rem;
+  }
+  .campaign-map-toolbar-actions > .campaign-map-control-group { margin-left: auto; }
+  .campaign-map-object-inspector { width: min(18rem, calc(100% - 1rem)); }
+  .campaign-map-drawing-palette,
+  .campaign-map-area-palette { width: calc(100% - 1.1rem); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .campaign-map-object-inspector,
+  .campaign-map-area-palette,
+  .campaign-map-drawing-palette { backdrop-filter: none; }
+}

@@ -583,24 +583,57 @@ export function CampaignMapWorkspace({
           {presentation !== "drawer" && <button type="button" className="campaign-quiet campaign-map-close-button"
             onClick={closeMap} aria-label={presentation === "standalone" ? "Close map window" : "Close map"} title="Close map">✕</button>}
         </div></div>
-      {map && !annotations.tool && !areaTemplates.open && (annotations.selected || areaTemplates.selected || selectedTokenId) && <aside className="campaign-map-object-inspector" aria-label="Selected map object">
-        <header><strong>{annotations.selected ? `Selected ${annotations.selected.kind}` : areaTemplates.selected ? `Selected ${areaTemplates.selected.shape} area` : map.tokens.find(token => token.id === selectedTokenId)?.name}</strong>
-          <button type="button" className="campaign-quiet" onClick={() => { annotations.selectAnnotation(null); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} aria-label="Deselect map object">✕</button></header>
-        {annotations.selected && <div className="campaign-map-object-fields">
-          <label>Colour <input type="color" value={annotations.color} aria-label="Selected annotation colour" onChange={event => annotations.setColor(event.target.value)} /></label>
-          {annotations.selected.geometry.kind === "text" && <>
-            <label>Text <input type="text" key={annotations.selected.id} maxLength={120} defaultValue={annotations.selected.geometry.text} onBlur={event => { if (event.target.value.trim()) void annotations.updateSelectedText(event.target.value); }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>
-            <label>Size <input type="number" min={8} max={200} value={annotations.textSize} onChange={event => annotations.setTextSize(Number(event.target.value))} onBlur={() => void annotations.commitTextSize()} /></label>
-          </>}
-          <button type="button" className="campaign-danger" disabled={annotations.busy} onClick={() => { if (annotations.selected) void annotations.eraseAnnotation(annotations.selected.id); }}>Delete Annotation</button>
-        </div>}
-        {areaTemplates.selected && <CampaignMapAreaTemplateInspector controller={areaTemplates} grid={map.grid} />}
-        {selectedTokenId && !annotations.selected && !areaTemplates.selected && map.tokens.filter(token => token.id === selectedTokenId).map(token => <div className="campaign-map-object-fields" key={token.id}>
-          <span>{tokenKindLabel(token.kind)}</span>{canManage && <div className="campaign-map-object-buttons">
-          <button type="button" className="campaign-secondary" disabled={busy || (tokenSizes[token.id] ?? 1) <= 1} onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1)-1)}>Smaller</button>
-          <button type="button" className="campaign-secondary" disabled={busy || (tokenSizes[token.id] ?? 1) >= 12} onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1)+1)}>Larger</button>
-          <button type="button" className="campaign-danger" disabled={busy} onClick={() => { void tokenAction({ action: "remove", tokenId: token.id }); setSelectedTokenId(null); }}>Remove</button></div>}</div>)}
-      </aside>}
+      {map && !annotations.tool && !areaTemplates.open &&
+        (annotations.selected || areaTemplates.selected || (selectedTokenId && map.tokens.some(token => token.id === selectedTokenId))) &&
+        <aside ref={inspectorRef}
+          className={`campaign-map-object-inspector campaign-map-context-bar${inspectorAnchor?.below ? " is-below" : ""}`}
+          aria-label="Selected map object controls"
+          style={inspectorAnchor ? { left: inspectorAnchor.left, top: inspectorAnchor.top, visibility: "visible" } : { visibility: "hidden" }}>
+          {areaTemplates.selected && <CampaignMapAreaTemplateInspector controller={areaTemplates} grid={map.grid} />}
+          {annotations.selected && <div className="campaign-map-context-actions">
+            <strong className="campaign-map-context-name">{annotations.selected.geometry.kind === "text" ? "Label" : annotations.selected.kind}</strong>
+            {annotations.selected.geometry.kind === "text" && <>
+              <input className="campaign-map-context-text" type="text" key={annotations.selected.id}
+                aria-label="Selected label text" maxLength={120} defaultValue={annotations.selected.geometry.text}
+                onBlur={event => { if (event.target.value.trim()) void annotations.updateSelectedText(event.target.value); }}
+                onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+              <label className="campaign-map-context-size"><span className="sr-only">Text size</span>
+                <input type="number" min={8} max={200} aria-label="Label font size" value={annotations.textSize}
+                  onChange={event => annotations.setTextSize(Number(event.target.value))}
+                  onBlur={() => void annotations.commitTextSize()} /></label>
+            </>}
+            <span className="campaign-map-context-separator" aria-hidden="true" />
+            <label className="campaign-map-context-swatch" title="Annotation colour"><span className="sr-only">Colour</span>
+              <input type="color" aria-label="Annotation colour" value={annotations.color}
+                onChange={event => annotations.setColor(event.target.value)} /></label>
+            <button type="button" title="Duplicate annotation" aria-label="Duplicate annotation"
+              disabled={annotations.busy} onClick={() => void annotations.duplicateSelected()}>▢</button>
+            <button type="button" className="campaign-map-context-danger" title="Delete annotation" aria-label="Delete annotation"
+              disabled={annotations.busy} onClick={() => { if (annotations.selected) void annotations.eraseAnnotation(annotations.selected.id); }}>▤</button>
+            {annotations.error && <span className="campaign-map-context-error" role="alert">{annotations.error}</span>}
+          </div>}
+          {selectedTokenId && !annotations.selected && !areaTemplates.selected && map.tokens.filter(token => token.id === selectedTokenId).map(token =>
+            <div className="campaign-map-context-actions" key={token.id}>
+              <strong className="campaign-map-context-name">{token.name}</strong>
+              <span className="campaign-map-context-kind">{tokenKindLabel(token.kind)}</span>
+              {canManage && <>
+                <span className="campaign-map-context-separator" aria-hidden="true" />
+                <button type="button" title="Reduce token size" aria-label="Reduce token size"
+                  disabled={busy || (tokenSizes[token.id] ?? 1) <= 1}
+                  onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1) - 1)}>−</button>
+                <span className="campaign-map-context-value">{tokenSizes[token.id] ?? 1}×</span>
+                <button type="button" title="Increase token size" aria-label="Increase token size"
+                  disabled={busy || (tokenSizes[token.id] ?? 1) >= 12}
+                  onClick={() => void resizeToken(token, (tokenSizes[token.id] ?? 1) + 1)}>+</button>
+                <span className="campaign-map-context-separator" aria-hidden="true" />
+                <button type="button" className="campaign-map-context-danger" title="Remove token" aria-label="Remove token"
+                  disabled={busy} onClick={() => { void tokenAction({ action: "remove", tokenId: token.id }); setSelectedTokenId(null); }}>▤</button>
+              </>}
+            </div>)}
+          <button type="button" className="campaign-map-context-dismiss" onClick={() => {
+            annotations.selectAnnotation(null); areaTemplates.selectTemplate(null); setSelectedTokenId(null);
+          }} aria-label="Deselect map object" title="Deselect">✕</button>
+        </aside>}
       {settingsOpen && canManage && <aside id="campaign-map-settings" className="campaign-map-settings" aria-label="Campaign map settings"><div className="campaign-map-settings-heading"><div><p className="campaign-kicker">GM CONTROLS</p><h3>Map Settings</h3></div><button type="button" className="campaign-quiet" onClick={() => setSettingsOpen(false)}>Hide</button></div>
         {map && <section className="campaign-map-table-controls"><h4>At the Table</h4><p>Controls used during play stay here. Alignment and map-library work are kept below.</p><div className="campaign-map-table-actions"><button type="button" className={`campaign-secondary${annotations.tool ? " is-active" : ""}`} aria-pressed={Boolean(annotations.tool)} onClick={() => { areaTemplates.close(); setFogMode(null); clearFogPreview(); annotations.toggleDrawing(); }}>Draw / Annotate</button><button type="button" className={`campaign-secondary${areaTemplates.open ? " is-active" : ""}`} aria-pressed={areaTemplates.open} onClick={() => { annotations.stopDrawing(); setFogMode(null); clearFogPreview(); areaTemplates.toggle(); }}>Spell Area</button><button type="button" className={`campaign-secondary${fogMode === "hide" ? " is-active" : ""}`} aria-pressed={fogMode === "hide"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "hide" ? null : "hide"); clearFogPreview(); }}>Hide Area</button><button type="button" className={`campaign-secondary${fogMode === "reveal" ? " is-active" : ""}`} aria-pressed={fogMode === "reveal"} onClick={() => { annotations.stopDrawing(); areaTemplates.close(); setFogMode(current => current === "reveal" ? null : "reveal"); clearFogPreview(); }}>Reveal Area</button></div><label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label><label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label><button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Table Controls</button>{fogMode && <small>Drag across the map to {fogMode} whole {grid.type === "hex" ? "hexes" : "cells"}. Up to 500 cells are changed at once.</small>}</section>}
         <section className="campaign-map-library"><h4>Maps</h4><p>Prepare as many maps as you need. Only the map marked Visible to Players is shared with the party.</p><label className="campaign-map-upload campaign-primary"><span>Upload New Map</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={uploadNewMap} /></label>{maps.length > 0 && <div className="campaign-map-library-list">{maps.map(candidate => <button type="button" key={candidate.id} className={`campaign-map-library-item${candidate.id === map?.id ? " is-selected" : ""}`} disabled={busy} onClick={() => void selectMap(candidate.id)}><span>{candidate.name}</span>{candidate.isActive ? <small>Visible to Players</small> : <small>GM only</small>}</button>)}</div>}{map && <div className="campaign-map-selected-controls"><div className="campaign-map-player-visibility" aria-label="Player visibility"><strong className="campaign-map-setting-label">Player Visibility</strong>{map.isActive ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div> : <><div className="campaign-map-hidden-status"><strong>GM Only</strong><span>Players continue to see the map currently marked Visible to Players.</span></div><button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Make Visible to Players</button></>}<small>Only one campaign map is visible to players at a time.</small></div><label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft} onChange={event => setMapNameDraft(event.target.value)} /></label><button type="button" className="campaign-secondary" disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name} onClick={() => void renameMap()}>Save Name</button><button type="button" className="campaign-danger" disabled={busy} onClick={() => void deleteMap()}>Delete Map</button></div>}</section>

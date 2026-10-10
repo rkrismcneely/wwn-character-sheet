@@ -16,6 +16,7 @@ on:
       - "drizzle/0028_campaign_map_area_templates.sql"
       - "drizzle/0029_campaign_map_area_template_width.sql"
       - "drizzle/0030_campaign_map_area_template_tip_flip.sql"
+      - "drizzle/0031_campaign_map_area_template_motion.sql"
       - "scripts/migrate-campaign-map-foundation.mjs"
       - ".github/workflows/migrate-campaign-map-foundation.yml"
   workflow_dispatch:

@@ -10,6 +10,19 @@ import {
 } from "./map-grid.ts";
 
 export type CampaignMapAreaTemplateShape = "radius" | "cube" | "cone" | "line";
+export const campaignMapAreaTemplateMotionEffects = [
+  "none", "fire", "acid", "sound", "poison", "ice", "lightning", "darkness",
+] as const;
+export type CampaignMapAreaTemplateMotionEffect = (typeof campaignMapAreaTemplateMotionEffects)[number];
+
+export function isCampaignMapAreaTemplateMotionEffect(value: unknown): value is CampaignMapAreaTemplateMotionEffect {
+  return typeof value === "string" && campaignMapAreaTemplateMotionEffects.some(effect => effect === value);
+}
+
+export function parseCampaignMapAreaTemplateMotionEffect(value: unknown): CampaignMapAreaTemplateMotionEffect {
+  return isCampaignMapAreaTemplateMotionEffect(value) ? value : "none";
+}
+
 
 export type CampaignMapAreaTemplate = {
   id: string;
@@ -21,6 +34,7 @@ export type CampaignMapAreaTemplate = {
   tipFlip: boolean;
   angleDegrees: number;
   color: string;
+  motionEffect: CampaignMapAreaTemplateMotionEffect;
   canEdit: boolean;
   createdAt: string;
   updatedAt: string;

@@ -128,3 +128,11 @@ test("a wide drawer uses one compact row instead of squeezing and stacking contr
   assert.doesNotMatch(desktopDrawer, /grid-template-columns|max-width: 13rem|max-width: 12\.5rem/u);
   assert.match(launcher, /className="campaign-map-picker"[\s\S]*?className="campaign-map-sharing is-visible"/u);
 });
+
+test("map header button outlines have consistent thickness and shape", async () => {
+  const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
+  assert.match(css, /Unified border geometry for map selector/u);
+  assert.match(css, /\.campaign-map-toolbar \.campaign-map-quick-actions > button,/u);
+  assert.match(css, /\.campaign-map-toolbar \.campaign-map-quick-actions > \.campaign-map-menu-wrap > button \{\s*border: 1px solid rgba\(209, 173, 121, \.55\);\s*border-radius: 7px;/u);
+  assert.match(css, /border-color: #efc57c;/u);
+});

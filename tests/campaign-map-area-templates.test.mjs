@@ -309,3 +309,39 @@ test("AoE editor displays measured distances without exposing grid multipliers",
   assert.match(controls, /MapObjectActionIcon kind="duplicate"/u);
   assert.match(controls, /MapObjectActionIcon kind="delete"/u);
 });
+
+test("optional motion styles are saved with spell templates without obscuring the map", async () => {
+  const [model, service, ui, css, migration, runner, workflow, deploy, launcher] = await Promise.all([
+    readFile(new URL("../lib/campaigns/map-area-template-model.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/map-area-templates.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0031_campaign_map_area_template_motion.sql", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/migrate-campaign-map-foundation.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/migrate-campaign-map-foundation.yml", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/deploy-production.yml", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(model, /"none", "fire", "acid", "sound", "poison", "ice", "lightning", "darkness"/u);
+  assert.match(model, /motionEffect: CampaignMapAreaTemplateMotionEffect/u);
+  assert.match(migration, /ADD COLUMN `motion_effect` text NOT NULL DEFAULT 'none'/u);
+  assert.match(service, /motion_effect AS motionEffect/u);
+  assert.match(service, /validatedMotionEffect\(input\.motionEffect \?\? "none"\)/u);
+  assert.match(service, /validatedMotionEffect\(input\.motionEffect \?\? row\.motionEffect\)/u);
+  assert.match(service, /motion_effect = \?/u);
+  assert.match(service, /Spell area motion effect is invalid/u);
+  assert.match(ui, /aria-label="Spell area motion effect"/u);
+  assert.match(ui, /aria-label="Area motion effect"/u);
+  assert.match(ui, /motionEffect: template\.motionEffect/u);
+  assert.match(ui, /motionEffect: selected\.motionEffect/u);
+  assert.match(ui, /template\.motionEffect !== "none"/u);
+  assert.match(ui, /className="campaign-map-area-motion-edge"/u);
+  assert.match(ui, /pointerEvents="none" aria-hidden="true"/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.campaign-map-area-motion-wash,/u);
+  assert.match(css, /\.campaign-map-area-template\.is-motion-fire/u);
+  assert.match(css, /\.campaign-map-area-template\.is-motion-darkness/u);
+  assert.match(launcher, /color: area\.color, motionEffect: area\.motionEffect/u);
+  assert.match(runner, /0031_campaign_map_area_template_motion\.sql/u);
+  assert.match(workflow, /0031_campaign_map_area_template_motion\.sql/u);
+  assert.match(deploy, /0031_campaign_map_area_template_motion/u);
+});

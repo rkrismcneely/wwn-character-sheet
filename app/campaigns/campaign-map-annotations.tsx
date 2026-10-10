@@ -289,7 +289,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
   const setDraft = useCallback((next: DrawingDraft | null) => { draftRef.current = next; setDraftState(next); }, []);
 
   const beginMove = useCallback((event: ReactPointerEvent<SVGGElement>, id: string) => {
-    if ((tool && tool !== "select") || !width || !height) return;
+    // Existing drawings can be selected while the pen or a shape tool is active.
+    if (tool === "erase" || !width || !height) return;
     const annotation = annotations.find(a => a.id === id);
     const svg = event.currentTarget.ownerSVGElement;
     if (!annotation?.canEdit || !svg) return;
@@ -307,6 +308,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     if (tool === "erase" || busy) return true;
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
     if (!point || !mapId) return true;
+    // Clicking empty canvas starts a drawing instead of retaining the prior selection.
+    setSelectedId(null);
     if (tool === "text") {
       const text = textValue.trim();
       if (!text) { setError("Enter label text, then click or tap the map to place it."); return true; }
@@ -520,7 +523,9 @@ export function CampaignMapAnnotationLayer({ controller, interactionEnabled = tr
   onSelect?: (id: string) => void;
 }) {
   const markerBase = useId().replaceAll(":", "");
-  const selecting = interactionEnabled && (!controller.tool || controller.tool === "select");
+  // Keep hit targets active so completed strokes and shapes can be selected
+  // without leaving the current drawing tool.
+  const selecting = interactionEnabled && controller.tool !== "erase";
   const erasing = controller.tool === "erase";
   const actionPointer = (event: ReactPointerEvent<SVGGElement>, annotation: CampaignMapAnnotation) => {
     if (!annotation.canEdit) return;

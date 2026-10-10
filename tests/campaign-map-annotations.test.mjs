@@ -104,7 +104,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(route, /body\.action === "clear"/u);
   assert.match(route, /announceMapChanged/u);
   assert.match(controller, /campaign-map-creation-strip/u);
-  assert.match(controller, /const selecting = interactionEnabled && \(!controller\.tool \|\| controller\.tool === "select"\)/u);
+  assert.match(controller, /const selecting = interactionEnabled && controller\.tool !== "erase"/u);
   assert.match(launcher, /campaign-map-object-inspector/u);
   assert.match(controller, /aria-label="Create annotation"/u);
   assert.match(controller, /type="color"/u);
@@ -253,7 +253,7 @@ test("placing a note switches to edit mode with resizing immediately available",
   const annotations = await readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8");
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
   assert.match(annotations, /if \(geometry\.kind === "text"\) \{[\s\S]*?setToolState\(null\);[\s\S]*?setSelectedId\(body\.annotation\.id\)/u);
-  assert.match(annotations, /const selecting = interactionEnabled && \(!controller\.tool/u);
+  assert.match(annotations, /const selecting = interactionEnabled && controller\.tool !== "erase"/u);
   assert.match(launcher, /aria-label="Label font size"/u);
   assert.match(launcher, /annotations\.commitTextSize\(\)/u);
   assert.match(launcher, /MapObjectActionIcon kind="duplicate"/u);
@@ -261,4 +261,29 @@ test("placing a note switches to edit mode with resizing immediately available",
   assert.match(launcher, /tokenFootprintSizeLabel\(tokenSizes\[token\.id\] \?\? 1\)/u);
   assert.match(launcher, /if \(size === 2\) return "Large"/u);
   assert.match(launcher, /if \(size === 3\) return "Huge"/u);
+});
+
+test("pen and shape tools can select and delete prior drawings without Done", async () => {
+  const [annotations, launcher] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(annotations, /const selecting = interactionEnabled && controller\.tool !== "erase"/u);
+  assert.match(annotations, /const interactive = annotation\.canEdit && \(selecting \|\| erasing\)/u);
+  assert.match(annotations, /else if \(selecting\) \{ onSelect\?\.\(annotation\.id\); controller\.beginMove\(event, annotation\.id\); \}/u);
+  const moveStart = annotations.match(/const beginMove = useCallback\(\(event:[\s\S]*?\}, \[annotations, height, selectAnnotation, tool, width\]\)/u)?.[0];
+  assert.ok(moveStart, "expected annotation pointer-select handler");
+  assert.doesNotMatch(moveStart, /tool && tool !== "select"/u);
+  assert.match(moveStart, /selectAnnotation\(id\)/u);
+  assert.match(moveStart, /event\.stopPropagation\(\)/u);
+  assert.match(annotations, /setSelectedId\(null\);\s*if \(tool === "text"\)/u);
+  const layers = launcher.match(/<CampaignMapAnnotationLayer controller=\{annotations\} interactionEnabled=\{[^}]+\}/gu) ?? [];
+  assert.equal(layers.length, 2);
+  for (const layer of layers) {
+    assert.ok(layer.includes("!areaTemplates.open"));
+    assert.ok(!layer.includes("!annotations.tool"));
+  }
+  assert.match(launcher, /annotations\.selected && <div className="campaign-map-context-actions"/u);
+  assert.match(launcher, /annotations\.eraseAnnotation\(annotations\.selected\.id\)/u);
 });

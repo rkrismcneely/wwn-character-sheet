@@ -31,6 +31,7 @@ type AreaTemplateRow = {
   y: number;
   sizeSpaces: number;
   widthSpaces: number;
+  tipFlip: number;
   angleDegrees: number;
   color: string;
   creatorUserId: string;
@@ -103,6 +104,7 @@ function publicTemplate(
     y: row.y,
     sizeSpaces: row.sizeSpaces,
     widthSpaces: row.widthSpaces,
+    tipFlip: row.tipFlip === 1,
     angleDegrees: row.angleDegrees,
     color: parseCampaignMapAreaTemplateColor(row.color),
     canEdit: canEditAreaTemplate(access, actor, row.creatorUserId),
@@ -114,6 +116,11 @@ function publicTemplate(
 function validatedShape(value: unknown): CampaignMapAreaTemplateShape {
   if (!isCampaignMapAreaTemplateShape(value)) throw new CampaignServiceError("Area shape is invalid.", 422);
   return value;
+}
+
+function validatedTipFlip(value: unknown): number {
+  if (typeof value !== "boolean") throw new CampaignServiceError("Cone tip flip is invalid.", 422);
+  return value ? 1 : 0;
 }
 
 function validatedSize(value: unknown): number {
@@ -132,7 +139,7 @@ async function templateRow(
   templateIdValue: unknown,
 ): Promise<AreaTemplateRow> {
   const templateId = identifier(templateIdValue, "Area template");
-  const row = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces, width_spaces AS widthSpaces,
+  const row = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces, width_spaces AS widthSpaces, tip_flip AS tipFlip,
       angle_degrees AS angleDegrees, color, creator_user_id AS creatorUserId,
       created_at AS createdAt, updated_at AS updatedAt
     FROM campaign_map_area_templates
@@ -150,7 +157,7 @@ export async function readCampaignMapAreaTemplates(
 ): Promise<CampaignMapAreaTemplate[]> {
   const { access, map } = await areaTemplateMap(db, actor, publicId, mapIdValue);
   try {
-    const result = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces, width_spaces AS widthSpaces,
+    const result = await db.prepare(`SELECT id, shape, x, y, size_spaces AS sizeSpaces, width_spaces AS widthSpaces, tip_flip AS tipFlip,
         angle_degrees AS angleDegrees, color, creator_user_id AS creatorUserId,
         created_at AS createdAt, updated_at AS updatedAt
       FROM campaign_map_area_templates
@@ -183,6 +190,7 @@ export async function createCampaignMapAreaTemplate(
   const shape = validatedShape(input.shape);
   const sizeSpaces = validatedSize(input.sizeSpaces);
   const widthSpaces = validatedSize(input.widthSpaces ?? 1);
+  const tipFlip = validatedTipFlip(input.tipFlip ?? false);
   const grid = { type: map.gridType, size: map.gridSize, offsetX: map.gridOffsetX, offsetY: map.gridOffsetY };
   const rawPoint = {
     x: finitePoint(input.x, map.backgroundWidth as number, "Horizontal position"),
@@ -203,11 +211,11 @@ export async function createCampaignMapAreaTemplate(
   const id = `area_${crypto.randomUUID()}`;
 
   await db.prepare(`INSERT INTO campaign_map_area_templates
-      (id, campaign_id, map_id, creator_user_id, shape, x, y, size_spaces, width_spaces, angle_degrees, color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, access.campaignInternalId, map.id, actor.userId, shape, x, y, sizeSpaces, widthSpaces, angleDegrees, color, now, now).run();
+      (id, campaign_id, map_id, creator_user_id, shape, x, y, size_spaces, width_spaces, tip_flip, angle_degrees, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, access.campaignInternalId, map.id, actor.userId, shape, x, y, sizeSpaces, widthSpaces, tipFlip, angleDegrees, color, now, now).run();
 
-  return { id, shape, x, y, sizeSpaces, widthSpaces, angleDegrees, color, canEdit: true, createdAt: now, updatedAt: now };
+  return { id, shape, x, y, sizeSpaces, widthSpaces, tipFlip: tipFlip === 1, angleDegrees, color, canEdit: true, createdAt: now, updatedAt: now };
 }
 
 export async function updateCampaignMapAreaTemplate(
@@ -227,6 +235,7 @@ export async function updateCampaignMapAreaTemplate(
   const shape = validatedShape(input.shape ?? row.shape);
   const sizeSpaces = validatedSize(input.sizeSpaces ?? row.sizeSpaces);
   const widthSpaces = validatedSize(input.widthSpaces ?? row.widthSpaces);
+  const tipFlip = validatedTipFlip(input.tipFlip ?? (row.tipFlip === 1));
   const grid = { type: map.gridType, size: map.gridSize, offsetX: map.gridOffsetX, offsetY: map.gridOffsetY };
   const rawPoint = {
     x: finitePoint(input.x ?? row.x, map.backgroundWidth as number, "Horizontal position"),
@@ -246,9 +255,9 @@ export async function updateCampaignMapAreaTemplate(
   const color = parseCampaignMapAreaTemplateColor(input.color ?? row.color);
 
   const result = await db.prepare(`UPDATE campaign_map_area_templates
-    SET shape = ?, x = ?, y = ?, size_spaces = ?, width_spaces = ?, angle_degrees = ?, color = ?, updated_at = ?
+    SET shape = ?, x = ?, y = ?, size_spaces = ?, width_spaces = ?, tip_flip = ?, angle_degrees = ?, color = ?, updated_at = ?
     WHERE campaign_id = ? AND map_id = ? AND id = ?`)
-    .bind(shape, x, y, sizeSpaces, widthSpaces, angleDegrees, color, now, access.campaignInternalId, map.id, row.id).run();
+    .bind(shape, x, y, sizeSpaces, widthSpaces, tipFlip, angleDegrees, color, now, access.campaignInternalId, map.id, row.id).run();
   if (result.meta.changes !== 1) throw new CampaignServiceError("Area template could not be updated.", 409);
 
   return {
@@ -258,6 +267,7 @@ export async function updateCampaignMapAreaTemplate(
     y,
     sizeSpaces,
     widthSpaces,
+    tipFlip: tipFlip === 1,
     angleDegrees,
     color,
     canEdit: true,

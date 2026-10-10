@@ -2382,3 +2382,139 @@
 }
 .campaign-map-maintenance summary { cursor: pointer; font-size: .83rem; }
 .campaign-map-maintenance button { margin-top: .75rem; }
+
+
+/* Explicit drawer layout: map switcher stays left, creation tools stay right.
+   The title/visibility column can stack without pushing controls to a new
+   full-width row. Its measured height still controls creation strip clearance. */
+.campaign-map-host-drawer .campaign-map-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  justify-content: normal;
+  gap: .35rem;
+}
+.campaign-map-host-drawer .campaign-map-toolbar-primary {
+  grid-column: 1;
+  grid-row: 1;
+  order: 0;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex: none;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.campaign-map-host-drawer .campaign-map-title-block {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: .28rem;
+}
+.campaign-map-host-drawer .campaign-map-picker {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.campaign-map-host-drawer .campaign-map-picker select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding-right: 1.15rem;
+}
+.campaign-map-host-drawer .campaign-map-sharing,
+.campaign-map-host-drawer .campaign-map-share-button {
+  min-height: 1.75rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .67rem;
+}
+.campaign-map-host-drawer .campaign-map-toolbar-actions {
+  grid-column: 2;
+  grid-row: 1;
+  order: 1;
+  display: flex;
+  width: auto;
+  max-width: 13rem;
+  min-width: 0;
+  flex: none;
+  justify-content: flex-end;
+  align-items: flex-start;
+  margin: 0;
+}
+.campaign-map-host-drawer .campaign-map-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+  width: auto;
+  gap: .22rem;
+}
+.campaign-map-host-drawer .campaign-map-quick-actions > button,
+.campaign-map-host-drawer .campaign-map-quick-actions > .campaign-map-menu-wrap > button {
+  min-height: 2rem;
+  padding: .34rem .55rem;
+  font-size: .74rem;
+}
+/* Use our own mouseover labels: native title attributes have an OS delay. */
+.campaign-map-quick-tooltip {
+  position: relative;
+  cursor: pointer;
+}
+.campaign-map-context-actions {
+  overflow: visible;
+}
+.campaign-map-quick-tooltip[data-tooltip]:is(:hover, :focus-visible, :focus-within)::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + .45rem);
+  transform: translateX(-50%);
+  z-index: 50;
+  pointer-events: none;
+  display: block;
+  min-width: max-content;
+  max-width: 11rem;
+  padding: .35rem .55rem;
+  border: 1px solid rgba(167, 182, 209, .45);
+  border-radius: 6px;
+  background: #0d1420;
+  box-shadow: 0 4px 13px rgba(0, 0, 0, .65);
+  color: #f2f2f6;
+  font: 600 .73rem/1.2 var(--font-ui, sans-serif);
+  white-space: nowrap;
+}
+.campaign-map-context-actions > button svg {
+  display: block;
+  margin: auto;
+}
+.campaign-map-context-value {
+  min-width: max-content;
+  max-width: 10rem;
+  padding: 0 .3rem;
+  text-align: center;
+  color: #f2e2c6;
+}
+@media (max-width: 820px) {
+  .campaign-map-host-drawer .campaign-map-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    align-items: start;
+    gap: .28rem;
+    padding: .42rem;
+  }
+  .campaign-map-host-drawer .campaign-map-toolbar-actions {
+    width: auto;
+    max-width: 12.5rem;
+    flex: none;
+  }
+}

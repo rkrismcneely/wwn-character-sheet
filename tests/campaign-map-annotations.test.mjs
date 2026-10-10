@@ -247,3 +247,18 @@ test("keyboard map edits support copy cut paste delete and reversible persistenc
   assert.match(annotations, /onEdited\?\.\(null, body\.annotation\)/u);
   assert.match(areas, /onEdited\?\.\(null, body\.template\)/u);
 });
+
+
+test("placing a note switches to edit mode with resizing immediately available", async () => {
+  const annotations = await readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8");
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  assert.match(annotations, /if \(geometry\.kind === "text"\) \{[\s\S]*?setToolState\(null\);[\s\S]*?setSelectedId\(body\.annotation\.id\)/u);
+  assert.match(annotations, /const selecting = interactionEnabled && \(!controller\.tool/u);
+  assert.match(launcher, /aria-label="Label font size"/u);
+  assert.match(launcher, /annotations\.commitTextSize\(\)/u);
+  assert.match(launcher, /MapObjectActionIcon kind="duplicate"/u);
+  assert.match(launcher, /MapObjectActionIcon kind="delete"/u);
+  assert.match(launcher, /tokenFootprintSizeLabel\(tokenSizes\[token\.id\] \?\? 1\)/u);
+  assert.match(launcher, /if \(size === 2\) return "Large"/u);
+  assert.match(launcher, /if \(size === 3\) return "Huge"/u);
+});

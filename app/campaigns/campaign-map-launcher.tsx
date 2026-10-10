@@ -20,6 +20,8 @@ import type {
   CampaignMapToken,
 } from "@/lib/campaigns/map";
 import type { CampaignMapCompanionOption } from "@/lib/campaigns/map-companions";
+import { translateCampaignMapAnnotationGeometry, type CampaignMapAnnotation } from "@/lib/campaigns/map-annotation-model";
+import type { CampaignMapAreaTemplate } from "@/lib/campaigns/map-area-template-model";
 import {
   clampTokenSizeCells,
   gridCellPath,
@@ -70,6 +72,15 @@ type FogMode = "hide" | "reveal";
 type TokenDragMeasurement = { tokenId: string; distance: string };
 type TokenDragOrigin = { tokenId: string; x: number; y: number };
 type PipExitIntent = "close" | "return";
+
+type MapHistoryEdit =
+  | { kind: "annotation"; mapId: string; before: CampaignMapAnnotation | null; after: CampaignMapAnnotation | null; currentId: string | null }
+  | { kind: "area"; mapId: string; before: CampaignMapAreaTemplate | null; after: CampaignMapAreaTemplate | null; currentId: string | null }
+  | { kind: "token-move"; mapId: string; before: CampaignMapToken; after: CampaignMapToken; currentId: string };
+type MapClipboard =
+  | { kind: "annotation"; object: CampaignMapAnnotation; copies: number }
+  | { kind: "area"; object: CampaignMapAreaTemplate; copies: number };
+type MapEditHistory = { mapId: string | null; undo: MapHistoryEdit[]; redo: MapHistoryEdit[] };
 
 type DocumentPictureInPictureController = {
   requestWindow(options?: { width?: number; height?: number }): Promise<Window>;
@@ -237,6 +248,10 @@ export function CampaignMapWorkspace({
   const [inspectorAnchor, setInspectorAnchor] = useState<{ left: number; top: number; below: boolean } | null>(null);
   const drawerElementRef = useRef<HTMLElement>(null);
   const selectedMapIdRef = useRef<string | null>(null);
+  const editHistoryRef = useRef<MapEditHistory>({ mapId: null, undo: [], redo: [] });
+  const editClipboardRef = useRef<MapClipboard | null>(null);
+  const editInProgressRef = useRef(false);
+  const [keyboardFeedback, setKeyboardFeedback] = useState("");
   const canManageRef = useRef(initialCanManage);
   const dragRef = useRef<{ pointerId: number; clientX: number; clientY: number; view: ViewBox; latestView: ViewBox } | null>(null);
   const tokenDragRef = useRef<{
@@ -283,6 +298,27 @@ export function CampaignMapWorkspace({
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
   const measureDragRef = useRef<{ pointerId: number } | null>(null);
   const spacePanRef = useRef(false);
+  const recordMapEdit = useCallback((edit: MapHistoryEdit) => {
+    const history = editHistoryRef.current;
+    if (history.mapId !== edit.mapId) {
+      history.mapId = edit.mapId;
+      history.undo = [];
+      history.redo = [];
+    }
+    history.undo.push(edit);
+    if (history.undo.length > 75) history.undo.shift();
+    history.redo = [];
+  }, []);
+  const recordAnnotationEdit = useCallback((before: CampaignMapAnnotation | null, after: CampaignMapAnnotation | null) => {
+    const mapId = selectedMapIdRef.current;
+    if (!mapId || editInProgressRef.current) return;
+    recordMapEdit({ kind: "annotation", mapId, before, after, currentId: after?.id ?? null });
+  }, [recordMapEdit]);
+  const recordAreaEdit = useCallback((before: CampaignMapAreaTemplate | null, after: CampaignMapAreaTemplate | null) => {
+    const mapId = selectedMapIdRef.current;
+    if (!mapId || editInProgressRef.current) return;
+    recordMapEdit({ kind: "area", mapId, before, after, currentId: after?.id ?? null });
+  }, [recordMapEdit]);
   const publishMapInvalidation = useCallback(() => {
     mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId });
   }, [campaignId]);
@@ -295,6 +331,7 @@ export function CampaignMapWorkspace({
     open,
     canManage,
     onChanged: publishMapInvalidation,
+    onEdited: recordAnnotationEdit,
   });
   const areaTemplates = useCampaignMapAreaTemplates({
     campaignId,
@@ -304,6 +341,7 @@ export function CampaignMapWorkspace({
     grid: map?.grid ?? null,
     openMap: open,
     onChanged: publishMapInvalidation,
+    onEdited: recordAreaEdit,
   });
 
   const closeMap = useCallback(() => {
@@ -488,6 +526,8 @@ export function CampaignMapWorkspace({
   async function removeBackground() { if (!map?.backgroundUrl || !window.confirm(`Remove the image from “${map.name}”? Grid settings and token placements will be kept.`)) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "DELETE", headers: { "x-campaign-map-version": String(map.version) } }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be removed."); applyResponse(body, false); publishMapInvalidation(); } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "The map image could not be removed."); } finally { setBusy(false); } }
   async function selectMap(mapId: string) {
     if (mapId === map?.id || !canManage || busy) return;
+    editHistoryRef.current = { mapId, undo: [], redo: [] };
+    setKeyboardFeedback("");
     annotations.stopDrawing();
     areaTemplates.close();
     annotations.selectAnnotation(null);

@@ -95,9 +95,9 @@ test("the compact drawer keeps its map selector left of the action buttons", asy
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
   assert.match(launcher, /id="campaign-map-title" className="campaign-map-picker"/u);
-  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar \{\s*display: grid;/u);
-  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-primary \{\s*grid-column: 1;/u);
-  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*grid-column: 2;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar \{\s*display: flex;\s*flex-wrap: wrap;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-primary \{\s*order: 0;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*order: 1;/u);
   assert.match(css, /\.campaign-map-quick-tooltip\[data-tooltip\]:is\(:hover, :focus-visible, :focus-within\)::after/u);
 });
 
@@ -110,9 +110,21 @@ test("the drawer map selector stays ahead of the tools without legacy layout ove
   ]);
 
   assert.ok(launcher.indexOf('className="campaign-map-toolbar-primary"') < launcher.indexOf('className="campaign-map-toolbar-actions"'));
-  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar \{\s*display: grid;\s*grid-template-columns: clamp\(7\.5rem, 25%, 11rem\) minmax\(0, 1fr\);/u);
-  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-primary \{\s*grid-column: 1;/u);
-  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*grid-column: 2;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar \{\s*display: flex;\s*flex-wrap: wrap;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-primary \{\s*order: 0;/u);
+  assert.match(css, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{\s*order: 1;/u);
   assert.doesNotMatch(polish, /\.campaign-map-host-drawer \.campaign-map-toolbar/u,
     "global layout polish must not flatten the drawer toolbar into display: contents");
+});
+
+test("a wide drawer uses one compact row instead of squeezing and stacking controls", async () => {
+  const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  const desktopDrawer = css.slice(css.indexOf("/* Drawer toolbar: use the actual drawer width"), css.indexOf("/* Use our own mouseover labels:"));
+  assert.match(desktopDrawer, /\.campaign-map-host-drawer \.campaign-map-title-block \{[\s\S]*?flex-direction: row;[\s\S]*?flex-wrap: nowrap;/u);
+  assert.match(desktopDrawer, /\.campaign-map-host-drawer \.campaign-map-quick-actions \{[\s\S]*?flex-wrap: nowrap;/u);
+  assert.match(desktopDrawer, /\.campaign-map-host-drawer \.campaign-map-toolbar-actions \{[\s\S]*?flex: 0 0 auto;/u);
+  assert.match(desktopDrawer, /min-height: 2\.35rem;\s*padding: \.45rem \.75rem;\s*font-size: \.82rem;/u);
+  assert.doesNotMatch(desktopDrawer, /grid-template-columns|max-width: 13rem|max-width: 12\.5rem/u);
+  assert.match(launcher, /className="campaign-map-picker"[\s\S]*?className="campaign-map-sharing is-visible"/u);
 });

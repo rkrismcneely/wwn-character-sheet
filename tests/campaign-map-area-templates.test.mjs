@@ -96,6 +96,33 @@ test("cardinal cones add exactly one near-origin square below the 50-percent thr
   assert.equal(campaignMapAreaTemplateAffectedCells(diagonal, squareGrid, 1200, 1200).length, 9);
 });
 
+test("Flip Tip swaps only the cardinal near-origin exception square", () => {
+  const origin = { x: 300, y: 300 };
+  const cases = [
+    { angleDegrees: 0, defaultKey: "6:6", flippedKey: "6:5" },
+    { angleDegrees: 90, defaultKey: "5:6", flippedKey: "6:6" },
+    { angleDegrees: 180, defaultKey: "5:5", flippedKey: "5:6" },
+    { angleDegrees: 270, defaultKey: "6:5", flippedKey: "5:5" },
+  ];
+  for (const { angleDegrees, defaultKey, flippedKey } of cases) {
+    const base = { shape: "cone", ...origin, sizeSpaces: 4, angleDegrees };
+    const normal = keys(campaignMapAreaTemplateAffectedCells({ ...base, tipFlip: false }, squareGrid, 1200, 1200));
+    const flipped = keys(campaignMapAreaTemplateAffectedCells({ ...base, tipFlip: true }, squareGrid, 1200, 1200));
+    assert.equal(normal.length, 9);
+    assert.equal(flipped.length, 9);
+    assert.ok(normal.includes(defaultKey));
+    assert.ok(!normal.includes(flippedKey));
+    assert.ok(flipped.includes(flippedKey));
+    assert.ok(!flipped.includes(defaultKey));
+  }
+
+  const diagonal = { shape: "cone", ...origin, sizeSpaces: 4, angleDegrees: 45 };
+  assert.deepEqual(
+    keys(campaignMapAreaTemplateAffectedCells({ ...diagonal, tipFlip: false }, squareGrid, 1200, 1200)),
+    keys(campaignMapAreaTemplateAffectedCells({ ...diagonal, tipFlip: true }, squareGrid, 1200, 1200)),
+  );
+});
+
 test("non-cardinal cone coverage remains governed only by the 50-percent overlap rule", () => {
   const expectedCounts = new Map([
     [3, [5, 6]],
@@ -190,9 +217,10 @@ test("cube and line outlines rotate in continuous map space", () => {
 });
 
 test("spell area templates are durable, shared, owner-editable, and wired through the campaign map", async () => {
-  const [migration, widthMigration, model, service, route, controller, launcher, css, migrationScript, workflow, deploy] = await Promise.all([
+  const [migration, widthMigration, tipFlipMigration, model, service, route, controller, launcher, css, migrationScript, workflow, deploy] = await Promise.all([
     readFile(new URL("../drizzle/0028_campaign_map_area_templates.sql", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0029_campaign_map_area_template_width.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0030_campaign_map_area_template_tip_flip.sql", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map-area-template-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/map-area-templates.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/map/templates/route.ts", import.meta.url), "utf8"),
@@ -210,6 +238,8 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(migration, /size_spaces.*between 1 and 60/isu);
   assert.match(widthMigration, /ADD COLUMN `width_spaces`/u);
   assert.match(widthMigration, /width_spaces.*between 1 and 60/isu);
+  assert.match(tipFlipMigration, /ADD COLUMN `tip_flip`/u);
+  assert.match(tipFlipMigration, /tip_flip.*IN \(0, 1\)/isu);
   assert.match(model, /campaignMapAreaTemplateContainsPoint/u);
   assert.match(model, /gridCellCenter/u);
   assert.match(model, /local\.x \/ 2/u);
@@ -222,11 +252,14 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(model, /clipPolygonAtAxis/u);
   assert.match(model, /polygonArea/u);
   assert.match(model, /squareConeCardinalBonusCell/u);
+  assert.match(model, /template\.tipFlip === true/u);
   assert.match(model, /squareCellBoundaryPath/u);
   assert.match(service, /access\.canManage \|\| creatorUserId === actor\.userId/u);
   assert.match(service, /You can only edit your own area templates/u);
   assert.match(service, /You can only remove your own area templates/u);
   assert.match(service, /100-area-template limit/u);
+  assert.match(service, /tip_flip AS tipFlip/u);
+  assert.match(service, /Cone tip flip is invalid/u);
   assert.match(service, /missingAreaTemplateTable/u);
   assert.match(route, /body\.action === "create"/u);
   assert.match(route, /body\.action === "update"/u);
@@ -238,6 +271,8 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(controller, /beginRotate/u);
   assert.match(controller, /Line width/u);
   assert.match(controller, /one near-origin square is also included at 0°, 90°, 180°, and 270°/u);
+  assert.match(controller, />Flip Tip</u);
+  assert.match(controller, /tipFlip: template\.tipFlip/u);
   assert.match(controller, /campaignMapAreaTemplateAffectedPath/u);
   assert.match(controller, /campaignMapAreaTemplateDirectionPoint/u);
   assert.match(launcher, />Area</u);
@@ -250,9 +285,13 @@ test("spell area templates are durable, shared, owner-editable, and wired throug
   assert.match(css, /\.campaign-map-area-rotate-handle/u);
   assert.match(migrationScript, /0028_campaign_map_area_templates\.sql/u);
   assert.match(migrationScript, /0029_campaign_map_area_template_width\.sql/u);
+  assert.match(migrationScript, /0030_campaign_map_area_template_tip_flip\.sql/u);
+  assert.match(migrationScript, /"tip_flip"/u);
   assert.match(migrationScript, /campaign_map_area_templates_map_created_idx/u);
   assert.match(workflow, /0028_campaign_map_area_templates\.sql/u);
   assert.match(workflow, /0029_campaign_map_area_template_width\.sql/u);
+  assert.match(workflow, /0030_campaign_map_area_template_tip_flip\.sql/u);
   assert.match(deploy, /0028_campaign_map_area_templates/u);
   assert.match(deploy, /0029_campaign_map_area_template_width/u);
+  assert.match(deploy, /0030_campaign_map_area_template_tip_flip/u);
 });

@@ -125,7 +125,10 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(controller, /annotation\.canEdit/u);
   assert.match(controller, /Clear all/u);
   assert.match(controller, /Tap or click one of your editable annotations to erase it/u);
-  assert.match(launcher, />Annotate</u);
+  assert.match(launcher, />\+ Add</u);
+  assert.match(launcher, />Fog</u);
+  assert.match(launcher, />Measure</u);
+  assert.match(launcher, />⋯ More</u);
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);

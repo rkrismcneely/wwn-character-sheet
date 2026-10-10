@@ -97,7 +97,9 @@ test("campaign maps persist hidden-grid snapping and per-token sizes", async () 
   assert.match(tokenRoute, /snapCampaignMapTokenMove/u);
   assert.match(launcher, /Snap tokens to grid/u);
   assert.match(launcher, /Hex · 10 km per hex/u);
-  assert.match(launcher, /Hide Area/u);
+  assert.match(launcher, /aria-label="Fog actions"/u);
+  assert.match(launcher, /setFogMode\("hide"\)/u);
+  assert.match(launcher, /setFogMode\("reveal"\)/u);
   assert.match(launcher, /gridCellsInRectangle/u);
   assert.match(launcher, /gridMovementDistanceLabel/u);
   assert.match(launcher, /Snapping works whether or not grid lines are visible/u);

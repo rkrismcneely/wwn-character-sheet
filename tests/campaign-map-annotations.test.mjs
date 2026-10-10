@@ -131,7 +131,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(launcher, />\s*Edit Map/u);
   assert.match(launcher, /campaign-map-edit-button/u);
   assert.doesNotMatch(launcher, /⋯ More|More map options|Fit to Map/u);
-  assert.equal((launcher.match(/onClick=\{resetView\}>Fit/g) ?? []).length, 1);
+  assert.equal((launcher.match(/onClick=\{resetView\}[^>]*>Fit/g) ?? []).length, 1);
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);
@@ -172,4 +172,27 @@ test("map drawing uses SVG map-space geometry with touch-sized erase targets", a
   assert.match(css, /\.campaign-map-annotation-hit[\s\S]*stroke-width:\s*22px/u);
   assert.match(launcher, /viewBox=/u);
   assert.match(css, /touch-action:\s*none/u);
+});
+
+
+test("map mockup HUD keeps context controls on canvas while preserving edit permissions", async () => {
+  const [launcher, templates, annotations, css] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(launcher, /ref=\{stageRef\} className="campaign-map-stage"/u);
+  assert.match(launcher, /ref=\{inspectorRef\}/u);
+  assert.match(launcher, /getBoundingClientRect\(\)/u);
+  assert.match(launcher, /campaign-map-context-bar/u);
+  assert.match(launcher, /campaign-map-viewport-tools/u);
+  assert.match(templates, /aria-label="Duplicate area"/u);
+  assert.match(templates, /duplicateSelected = useCallback/u);
+  assert.match(annotations, /duplicateSelected = useCallback/u);
+  assert.match(templates, /selected\?\.canEdit/u);
+  assert.match(annotations, /selected\?\.canEdit/u);
+  assert.match(css, /\.campaign-map-toolbar \{[\s\S]*?position: absolute;/u);
+  assert.match(css, /\.campaign-map-object-inspector\.campaign-map-context-bar/u);
+  assert.doesNotMatch(launcher, /⋯ More|Live Dice: On|Live Dice: Off/u);
 });

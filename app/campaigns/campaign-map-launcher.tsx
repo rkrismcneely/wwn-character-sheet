@@ -232,6 +232,7 @@ export function CampaignMapWorkspace({
   const patternId = useId().replaceAll(":", "");
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const mapToolbarRef = useRef<HTMLElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
   const [inspectorAnchor, setInspectorAnchor] = useState<{ left: number; top: number; below: boolean } | null>(null);
   const drawerElementRef = useRef<HTMLElement>(null);
@@ -312,6 +313,21 @@ export function CampaignMapWorkspace({
   }, [campaignId, presentation]);
 
   useCampaignLiveSession(campaignId, open);
+  useEffect(() => {
+    if (!open || !mapToolbarRef.current || !drawerElementRef.current) return;
+    const header = mapToolbarRef.current;
+    const host = drawerElementRef.current;
+    const update = () => host.style.setProperty("--map-hud-height", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    update();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    observer?.observe(header);
+    window.addEventListener("resize", update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+      host.style.removeProperty("--map-hud-height");
+    };
+  }, [open, presentation]);
   useEffect(() => {
     if (!open) return;
     const keyDown = (event: KeyboardEvent) => {
@@ -470,7 +486,19 @@ export function CampaignMapWorkspace({
   async function uploadNewMap(event: ChangeEvent<HTMLInputElement>) { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ name: filenameMapName(file.name) }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "POST", headers: { "content-type": file.type }, body: file }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded."); applyResponse(body, false); await loadInteractions(body.map.id); setSettingsOpen(true); publishMapInvalidation(); } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded."); } finally { setBusy(false); } }
   async function replaceBackground(event: ChangeEvent<HTMLInputElement>) { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file || !map) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "POST", headers: { "content-type": file.type, "x-campaign-map-version": String(map.version) }, body: file }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded."); applyResponse(body, false); publishMapInvalidation(); } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded."); } finally { setBusy(false); } }
   async function removeBackground() { if (!map?.backgroundUrl || !window.confirm(`Remove the image from “${map.name}”? Grid settings and token placements will be kept.`)) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "DELETE", headers: { "x-campaign-map-version": String(map.version) } }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be removed."); applyResponse(body, false); publishMapInvalidation(); } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "The map image could not be removed."); } finally { setBusy(false); } }
-  async function selectMap(mapId: string) { if (mapId === map?.id) return; await loadMap(false, mapId); }
+  async function selectMap(mapId: string) {
+    if (mapId === map?.id || !canManage || busy) return;
+    annotations.stopDrawing();
+    areaTemplates.close();
+    annotations.selectAnnotation(null);
+    areaTemplates.selectTemplate(null);
+    setSelectedTokenId(null);
+    setAddOpen(false);
+    setFogMode(null);
+    stopMeasuring();
+    setSettingsOpen(false);
+    await loadMap(false, mapId);
+  }
   async function renameMap() { if (!map || mapNameDraft.trim() === map.name) return; await mapAction({ action: "rename", mapId: map.id, version: map.version, name: mapNameDraft.trim() }); }
   async function showToPlayers() { if (!map || map.isActive) return; await mapAction({ action: "activate", mapId: map.id }); }
   async function deleteMap() { if (!map || !window.confirm(`Delete “${map.name}” and all of its token placements? This cannot be undone.`)) return; await mapAction({ action: "delete", mapId: map.id }, false); }
@@ -520,13 +548,24 @@ export function CampaignMapWorkspace({
 
   const mapSurface = open ? <section ref={drawerElementRef} className={`campaign-map-dialog campaign-map-host-${presentation}${presentation === "drawer" ? ` campaign-map-drawer-${drawerDock}` : ""}`} role="dialog" aria-modal={presentation === "fullscreen"} aria-labelledby="campaign-map-title" style={presentation === "drawer" ? { "--campaign-map-drawer-width": `${drawerWidth}px` } as CSSProperties : undefined}>
     {presentation === "drawer" && <div className="campaign-map-drawer-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize map side drawer" onPointerDown={handleDrawerResizeStart} onPointerMove={handleDrawerResizeMove} onPointerUp={handleDrawerResizeEnd} onPointerCancel={handleDrawerResizeEnd} />}
-    <header className="campaign-map-toolbar" aria-label="Campaign map tools">
+    <header ref={mapToolbarRef} className="campaign-map-toolbar" aria-label="Campaign map tools">
       <div className="campaign-map-toolbar-primary">
         <div className="campaign-map-title-block">
-          <h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>
-          {map && <small className={map.isActive ? "campaign-map-live-label" : "campaign-map-private-label"}>
-            <span aria-hidden="true">◉</span>{map.isActive ? "Visible to players" : canManage ? "GM preview" : "Not shared"}
-          </small>}
+          {canManage && maps.length > 0 ? <label className="campaign-map-picker">
+            <span className="sr-only">Current campaign map</span>
+            <select aria-label="Current campaign map" value={map?.id ?? ""}
+              disabled={busy || loading} onChange={event => void selectMap(event.target.value)}>
+              {maps.map(candidate => <option key={candidate.id} value={candidate.id}>
+                {candidate.name}{candidate.isActive ? " · Visible" : ""}
+              </option>)}
+            </select>
+          </label> : <h2 id="campaign-map-title">{map?.name ?? campaignName}</h2>}
+          {canManage && map ? map.isActive
+            ? <span className="campaign-map-sharing is-visible" title="Players currently see this map">◉ Visible to players</span>
+            : <button type="button" className="campaign-map-share-button"
+                disabled={busy || loading} onClick={() => void showToPlayers()}
+                title="Make this the map your players see">Show to players</button>
+            : map && <span className="campaign-map-sharing is-visible">Visible to players</span>}
         </div>
       </div>
       <div className="campaign-map-toolbar-actions">

@@ -2907,6 +2907,9 @@
   gap: .8rem;
   padding-bottom: .9rem;
 }
+/* Legacy editor sections had hard-coded flex order values. Their order must
+   not reorder these focused panels or push Advanced actions to the top. */
+.campaign-map-edit-panel > * { order: 0; }
 .campaign-map-settings .campaign-map-edit-panel > section {
   display: grid;
   gap: .65rem;

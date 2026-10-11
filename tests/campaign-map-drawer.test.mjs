@@ -165,6 +165,7 @@ test("Edit Map keeps distinct functional tabs, separates tasks, and tucks destru
   assert.match(launcher, /onClick=\{\(\) => void saveGrid\(\)\}/u);
   assert.match(launcher, /onClick=\{\(\) => void tokenAction\(\{ action: "place_encounter" \}\)\}/u);
   assert.match(css, /\.campaign-map-edit-panel \{/u);
+  assert.match(css, /\.campaign-map-edit-panel > \* \{ order: 0; \}/u);
   assert.match(css, /\.campaign-map-grid-fields \{/u);
   assert.match(css, /@media \(max-width: 600px\)/u);
 });

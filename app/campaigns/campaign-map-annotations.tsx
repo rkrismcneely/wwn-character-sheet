@@ -49,6 +49,7 @@ export type CampaignMapAnnotationController = {
   selectAnnotation: (id: string | null) => void;
   beginMove: (event: ReactPointerEvent<SVGGElement>, id: string) => void;
   stopDrawing: () => void;
+  cancelPointerInteraction: () => void;
   clearAnnotations: () => Promise<void>;
   eraseAnnotation: (id: string) => Promise<void>;
   handlePointerDown: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
@@ -361,6 +362,17 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     return true;
   }, [annotations, height, mapId, persistAnnotation, saveUpdate, setDraft, width]);
 
+
+  // A second touch interrupts a stroke/move without saving a partial drawing.
+  // The selected tool stays open so users can resume after the pinch.
+  const cancelPointerInteraction = () => {
+    const move = moveRef.current;
+    moveRef.current = null;
+    setDraft(null);
+    if (move) setAnnotations(current => current.map(annotation =>
+      annotation.id === move.id ? { ...annotation, geometry: move.geometry } : annotation));
+  };
+
   return {
     annotations, draft: draftState && draftState.mapId === mapId && width && height ? draftGeometry(draftState, width, height) : null,
     tool, visibility, color, textValue, textSize, selectedId, selected, canManage, busy, error,
@@ -368,6 +380,7 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     setTool: next => { setToolState(next); if (next !== "select") setSelectedId(null); },
     setVisibility: next => setVisibilityState(canManage ? next : "players"),
     setColor, setTextValue, setTextSize, commitTextSize, updateSelectedText, duplicateSelected, selectAnnotation, beginMove,
+    cancelPointerInteraction,
     stopDrawing: () => { textSizeEditingRef.current = false; pendingReloadRef.current = false; setToolState(null); setSelectedId(null); setDraft(null); moveRef.current = null; },
     clearAnnotations, eraseAnnotation, handlePointerDown, handlePointerMove, handlePointerEnd,
   };

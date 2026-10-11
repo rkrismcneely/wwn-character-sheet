@@ -305,9 +305,10 @@ test("AoE editor displays measured distances without exposing grid multipliers",
   const controls = await readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8");
   assert.match(controls, /perSpace: 5, name: "feet"/u);
   assert.match(controls, /perSpace: 10, name: "km"/u);
-  assert.match(controls, /value=\{controller\.sizeSpaces \* mapAreaDistanceUnit\(grid\)\.perSpace\}/u);
-  assert.match(controls, /value=\{controller\.widthSpaces \* mapAreaDistanceUnit\(grid\)\.perSpace\}/u);
-  assert.match(controls, /setSizeSpaces\(Math\.round\(Number\(event\.target\.value\) \/ mapAreaDistanceUnit\(grid\)\.perSpace\)\)/u);
+  assert.match(controls, /spaces=\{controller\.sizeSpaces\} grid=\{grid\}/u);
+  assert.match(controls, /spaces=\{controller\.widthSpaces\} grid=\{grid\}/u);
+  assert.match(controls, /onCommit=\{controller\.commitSizeSpaces\}/u);
+  assert.match(controls, /onCommit=\{controller\.commitWidthSpaces\}/u);
   assert.doesNotMatch(controls, /× 5 ft|size in grid spaces/u);
   assert.match(controls, /MapObjectActionIcon kind="duplicate"/u);
   assert.match(controls, /MapObjectActionIcon kind="delete"/u);
@@ -413,4 +414,27 @@ test("every spell effect uses its own animated SVG motif, clipped to affected sq
   assert.match(css, /@keyframes map-area-frost-glint/u);
   assert.match(css, /@keyframes map-area-bolt-arcs/u);
   assert.match(css, /@keyframes map-area-shadow-swirl/u);
+});
+
+
+test("mobile spell distance fields preserve incomplete numeric typing and expose accessible steppers", async () => {
+  const controls = await readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
+  assert.match(controls, /function AreaTemplateDistanceInput\(/u);
+  assert.match(controls, /useState\(String\(spaces \* unit\.perSpace\)\)/u);
+  assert.match(controls, /input type="text" inputMode="numeric" pattern="\[0-9\]\*"/u);
+  assert.match(controls, /onChange=\{event => \{ if \(\/\^\\d\*\$\/\.test\(event\.target\.value\)\) setDraft\(event\.target\.value\); \}\}/u);
+  assert.match(controls, /onBlur=\{\(\) => \{ editingRef\.current = false; commitDraft\(\); \}\}/u);
+  assert.match(controls, /onFocus=\{event => \{ editingRef\.current = true; event\.currentTarget\.select\(\); \}\}/u);
+  assert.match(controls, /if \(event\.key === "Enter"\) event\.currentTarget\.blur\(\)/u);
+  assert.match(controls, /clampCampaignMapAreaTemplateSize\(Math\.round\(Number\(draft\) \/ unit\.perSpace\)\)/u);
+  assert.match(controls, /Decrease \$\{label\} by \$\{unit\.perSpace\}/u);
+  assert.match(controls, /Increase \$\{label\} by \$\{unit\.perSpace\}/u);
+  assert.match(controls, /const updated = \{ \.\.\.selected, sizeSpaces: next \}/u);
+  assert.match(controls, /const updated = \{ \.\.\.selected, widthSpaces: next \}/u);
+  assert.match(controls, /void saveTemplate\(updated, before\)\.then\(flushDeferredReload\)/u);
+  assert.match(controls, /label="Spell area distance"/u);
+  assert.match(controls, /label="Area distance"/u);
+  assert.match(controls, /label="Line width"/u);
+  assert.match(css, /\.campaign-map-distance-control/u);
 });

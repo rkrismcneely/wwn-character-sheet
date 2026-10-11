@@ -2774,3 +2774,78 @@
   .campaign-map-area-motion-cells { fill-opacity: .025; stroke-opacity: .07; }
   .campaign-map-area-motion-edge { stroke-opacity: .25; }
 }
+
+
+/* Native mobile number spinners are inconsistent, so spell-area distances
+   use a true editable draft and explicit, thumb-sized grid-step controls. */
+.campaign-map-distance-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: .24rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+.campaign-map-distance-control input[type="text"] {
+  width: 3.15rem;
+  min-width: 3.15rem;
+  min-height: 2.05rem;
+  box-sizing: border-box;
+  padding: .32rem .3rem;
+  border: 1px solid rgba(175, 188, 207, .42);
+  border-radius: 6px;
+  background: rgba(30, 39, 51, .91);
+  color: #f2f2f5;
+  text-align: center;
+  font: 600 .82rem/1.1 var(--font-ui, sans-serif);
+}
+.campaign-map-distance-control input:focus-visible {
+  outline: 2px solid #e4b76d;
+  outline-offset: 1px;
+}
+.campaign-map-distance-control > button {
+  display: inline-flex;
+  flex: 0 0 2.05rem;
+  justify-content: center;
+  align-items: center;
+  width: 2.05rem;
+  min-width: 2.05rem;
+  min-height: 2.05rem;
+  padding: 0;
+  border: 1px solid rgba(175, 188, 207, .45);
+  border-radius: 6px;
+  background: rgba(42, 52, 68, .93);
+  color: #f6e4c3;
+  font: 700 1.15rem/1 var(--font-ui, sans-serif);
+  cursor: pointer;
+}
+.campaign-map-distance-control > button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.campaign-map-distance-unit { font: 500 .72rem/1 var(--font-ui, sans-serif); }
+.campaign-map-distance-field {
+  display: grid;
+  gap: .25rem;
+  font: 700 .67rem/1 var(--font-ui, sans-serif);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-muted, #b9ad9b);
+}
+.campaign-map-context-size .campaign-map-distance-control input[type="text"] {
+  min-height: 2rem;
+  background: rgba(22, 28, 37, .92);
+}
+.campaign-map-creation-strip .campaign-map-distance-control > button {
+  min-height: 2.05rem;
+}
+@media (pointer: coarse) {
+  .campaign-map-distance-control > button {
+    min-height: 2.6rem;
+    min-width: 2.6rem;
+    width: 2.6rem;
+    flex-basis: 2.6rem;
+  }
+  .campaign-map-distance-control input[type="text"] { min-height: 2.6rem; }
+  .campaign-map-creation-strip .campaign-map-distance-control > button { min-height: 2.6rem; }
+}

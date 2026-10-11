@@ -68,7 +68,8 @@ test("map settings expose the selected map's player visibility explicitly", asyn
   assert.match(launcher, /campaign-map-player-visibility/u);
   assert.match(launcher, />Player Visibility<\/strong>/u);
   assert.match(launcher, />Make Visible to Players<\/button>/u);
-  assert.match(launcher, /Only one campaign map is visible to players at a time/u);
+  assert.match(launcher, /!map\.isActive && <button type="button" className="campaign-primary" disabled=\{busy\}/u);
+  assert.match(launcher, /onClick=\{\(\) => void showToPlayers\(\)\}/u);
   assert.match(route, /body\.action === "activate"/u);
   assert.match(route, /activateCampaignMap/u);
 });

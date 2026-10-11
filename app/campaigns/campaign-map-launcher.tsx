@@ -1083,14 +1083,14 @@ export function CampaignMapWorkspace({
                   ? <div className="campaign-map-visible-status"><strong>Visible to players</strong><span>This is the map your players see.</span></div>
                   : <div className="campaign-map-hidden-status"><strong>GM only</strong><span>Only you can see this map until you share it.</span></div>}
                 {!map.isActive && <button type="button" className="campaign-primary" disabled={busy}
-                  onClick={() => void showToPlayers()}>Make visible to players</button>}
+                  onClick={() => void showToPlayers()}>Make Visible to Players</button>}
               </div>
               <div className="campaign-map-edit-name">
                 <label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft}
                   onChange={event => setMapNameDraft(event.target.value)} /></label>
                 <button type="button" className="campaign-secondary"
                   disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name}
-                  onClick={() => void renameMap()}>Save name</button>
+                  onClick={() => void renameMap()}>Save Name</button>
               </div>
             </section>
             <section className="campaign-map-background-settings">
@@ -1109,7 +1109,7 @@ export function CampaignMapWorkspace({
             <div className="campaign-map-maintenance-content">
               <p>Destructive changes to this map and its annotations.</p>
               {map && <button type="button" className="campaign-danger" disabled={busy}
-                onClick={() => void deleteMap()}>Delete map…</button>}
+                onClick={() => void deleteMap()}>Delete Map…</button>}
               <button type="button" className="campaign-danger"
                 disabled={annotations.busy || !annotations.annotations.length}
                 onClick={() => void annotations.clearAnnotations()}>Clear all annotations…</button>

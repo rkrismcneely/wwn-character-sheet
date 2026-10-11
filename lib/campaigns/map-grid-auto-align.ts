@@ -1,14 +1,16 @@
 /** Browser-side image analysis for square grids baked into map artwork. */
 import { MAX_CAMPAIGN_MAP_GRID_SIZE } from "./map-grid.ts";
 
-export const autoGridScaleOptions = [0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+/** A detected large square can enclose many smaller printed map squares.
+ * Offer subdivisions rather than a long list of enlargement factors. */
+export const autoGridSubdivisionOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-/** Scale only the detected cell spacing. Keep X/Y origin on the detected
- * underlying lattice, so the coarse grid lines match every Nth fine line. */
-export function scaledDetectedGridSize(detectedSize: number, factor: number): number | null {
+/** Divide the detected spacing while preserving its original X/Y lattice origin.
+ * Fractional pixel sizes are needed: e.g. 420 px / 9 = 46.66667 px. */
+export function subdividedDetectedGridSize(detectedSize: number, count: number): number | null {
   if (!Number.isFinite(detectedSize) || detectedSize < 8
-    || !autoGridScaleOptions.some(value => value === factor)) return null;
-  const result = Math.round(detectedSize * factor);
+    || !autoGridSubdivisionOptions.some(value => value === count)) return null;
+  const result = Number((detectedSize / count).toFixed(5));
   return result >= 8 && result <= MAX_CAMPAIGN_MAP_GRID_SIZE ? result : null;
 }
 

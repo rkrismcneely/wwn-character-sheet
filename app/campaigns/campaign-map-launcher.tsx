@@ -458,13 +458,9 @@ export function CampaignMapWorkspace({
     const previousMapId = selectedMapIdRef.current; const nextMap = body.map ?? null; setMap(nextMap); selectedMapIdRef.current = nextMap?.id ?? null;
     if (body.maps) setMaps(body.maps); if (body.permissions) { const nextCanManage = Boolean(body.permissions.canManage); setCanManage(nextCanManage); canManageRef.current = nextCanManage; }
     if (body.characters) setCharacters(body.characters); if (body.companions) setCompanions(body.companions); if (typeof body.encounterAvailable === "boolean") setEncounterAvailable(body.encounterAvailable);
+    setAutoAlignPreview(false); setAutoAlignNotice("");
     setGrid(gridFor(nextMap)); setMapNameDraft(nextMap?.name ?? ""); setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : readMapView(campaignId, nextMap) ?? fullView(nextMap));
   }, [campaignId]);
-
-  useEffect(() => {
-    setAutoAlignPreview(false);
-    setAutoAlignNotice("");
-  }, [map?.id, map?.backgroundUrl]);
 
   const loadInteractions = useCallback(async (mapId: string) => { const params = new URLSearchParams({ mapId }); const response = await fetch(`/api/campaigns/${campaignId}/map/interactions?${params.toString()}`, { cache: "no-store" }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.interactions) throw new Error(body.error || "The map interaction settings could not be loaded."); setSnapToGrid(body.interactions.snapEnabled); setTokenSizes(body.interactions.tokenSizes); }, [campaignId]);
   const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null, showLoading = true) => { if (showLoading) setLoading(true); setError(""); try { const params = requestedMapId ? `?${new URLSearchParams({ mapId: requestedMapId }).toString()}` : ""; const response = await fetch(`/api/campaigns/${campaignId}/map${params}`, { cache: "no-store" }); const body = await response.json() as MapResponse; if (!response.ok) throw new Error(body.error || "The campaign map could not be loaded."); applyResponse(body, preserveView); if (body.map) await loadInteractions(body.map.id); else { setSnapToGrid(false); setTokenSizes({}); } } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded."); } finally { if (showLoading) setLoading(false); } }, [applyResponse, campaignId, loadInteractions]);

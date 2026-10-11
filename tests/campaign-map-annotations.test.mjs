@@ -144,7 +144,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);
   assert.match(launcher, /\(!canManage \|\| playerPreview\) && <CampaignMapAnnotationLayer/u);
-  assert.match(launcher, /canManage && <CampaignMapAnnotationLayer/u);
+  assert.match(launcher, /canManage && !playerPreview && <CampaignMapAnnotationLayer/u);
   assert.match(css, /\.campaign-map-drawing-palette/u);
   assert.match(css, /\.campaign-map-annotation-group\.is-gm/u);
   assert.match(css, /\.campaign-map-drawing-color/u);

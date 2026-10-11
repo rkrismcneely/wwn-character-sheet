@@ -190,7 +190,7 @@ test("Grid tab can analyze baked-in square lines without overwriting saved align
   assert.match(launcher, /Discard preview/u);
   assert.match(launcher, /setGrid\(gridFor\(map\)\)/u);
   assert.match(launcher, /Save alignment/u);
-  assert.match(launcher, /setAutoAlignPreview\(false\); setAutoAlignNotice\(""\)/u);
+  assert.match(launcher, /setAutoAlignPreview\(false\); setAutoAlignDetected\(null\); setAutoAlignScale\(1\); setAutoAlignNotice\(""\)/u);
   assert.match(css, /\.campaign-map-auto-align \{/u);
   assert.match(detector, /periodic|findPeriods/u);
 });

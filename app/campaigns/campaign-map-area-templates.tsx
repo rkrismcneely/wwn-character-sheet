@@ -1,9 +1,11 @@
 "use client";
 
 import { MapObjectActionIcon } from "./map-object-action-icon";
+import { CampaignMapMagicPattern } from "./campaign-map-magic-pattern";
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -942,6 +944,7 @@ export function CampaignMapAreaTemplateLayer({
   interactionEnabled?: boolean;
   onSelect?: (id: string) => void;
 }) {
+  const patternPrefix = useId().replace(/:/gu, "-");
   const selecting = interactionEnabled && (!controller.open || controller.mode === "select");
   return <g className={`campaign-map-area-layer${controller.open ? " is-open" : ""}${selecting ? " is-selecting" : ""}`}>
     {controller.templates.map(template => {
@@ -950,6 +953,7 @@ export function CampaignMapAreaTemplateLayer({
       const selected = controller.selectedId === template.id;
       const interactive = selecting && template.canEdit;
       const direction = campaignMapAreaTemplateDirectionPoint(template, grid);
+      const motionPatternId = `spell-motif-${patternPrefix}-${template.id}`;
       return <g
         key={template.id}
         className={`campaign-map-area-template${selected ? " is-selected" : ""}${interactive ? " is-editable" : ""}${template.motionEffect !== "none" ? ` is-motion-${template.motionEffect}` : ""}`}
@@ -969,6 +973,11 @@ export function CampaignMapAreaTemplateLayer({
         <path className="campaign-map-area-outline-fill" d={outline} fill={template.color} />
         <path className="campaign-map-area-outline" d={outline} stroke={template.color} vectorEffect="non-scaling-stroke" />
         {template.motionEffect !== "none" && <>
+          <defs>
+            <CampaignMapMagicPattern id={motionPatternId} effect={template.motionEffect} color={template.color} />
+          </defs>
+          <path className="campaign-map-area-motion-texture" d={affected} fill={`url(#${motionPatternId})`}
+            pointerEvents="none" aria-hidden="true" />
           <path className="campaign-map-area-motion-cells" d={affected} vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />
           <path className="campaign-map-area-motion-wash" d={outline} pointerEvents="none" aria-hidden="true" />
           <path className="campaign-map-area-motion-edge" d={outline} vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />

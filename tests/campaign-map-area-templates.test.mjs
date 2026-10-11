@@ -340,7 +340,7 @@ test("optional motion styles are saved with spell templates without obscuring th
   assert.match(ui, /template\.motionEffect !== "none"/u);
   assert.match(ui, /className="campaign-map-area-motion-edge"/u);
   assert.match(ui, /pointerEvents="none" aria-hidden="true"/u);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.campaign-map-area-motion-cells,\s*\.campaign-map-area-motion-wash,/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.campaign-map-magic-motifs \.campaign-map-motif-primary,/u);
   assert.match(css, /\.campaign-map-area-template\.is-motion-fire/u);
   assert.match(css, /\.campaign-map-area-template\.is-motion-darkness/u);
   assert.match(launcher, /color: area\.color, motionEffect: area\.motionEffect/u);
@@ -384,4 +384,33 @@ test("animated spell areas visibly affect translucent squares and their perimete
   assert.match(css, /@keyframes map-area-fx-cells-spark/u);
   assert.match(css, /\.campaign-map-area-motion-cells,[\s\S]*?\.campaign-map-area-motion-wash,[\s\S]*?\.campaign-map-area-motion-edge \{ animation: none !important; \}/u);
   assert.match(css, /\.campaign-map-area-motion-cells,[\s\S]*?\.campaign-map-area-motion-edge \{ pointer-events: none; \}/u);
+});
+
+
+test("every spell effect uses its own animated SVG motif, clipped to affected squares", async () => {
+  const [ui, motifs, css] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map-magic-pattern.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+  for (const effect of ["fire", "acid", "sound", "poison", "ice", "lightning", "darkness"]) {
+    assert.match(motifs, new RegExp(`effect === "${effect}"`, "u"));
+    assert.match(css, new RegExp(`\\.campaign-map-magic-motifs\\.is-${effect} \\.campaign-map-motif-primary`, "u"));
+  }
+  assert.match(ui, /const patternPrefix = useId\(\)\.replace\(\/:\/gu, "-"\)/u);
+  assert.match(ui, /const motionPatternId = `spell-motif-\$\{patternPrefix\}-\$\{template\.id\}`/u);
+  assert.match(ui, /<CampaignMapMagicPattern id=\{motionPatternId\} effect=\{template\.motionEffect\} color=\{template\.color\}/u);
+  assert.match(ui, /<path className="campaign-map-area-motion-texture" d=\{affected\} fill=\{`url\(#\$\{motionPatternId\}\)`\}/u);
+  assert.match(motifs, /patternUnits="userSpaceOnUse" width="84" height="84"/u);
+  assert.match(motifs, /stroke=\{color\}/u);
+  assert.match(css, /\.campaign-map-area-motion-texture,[\s\S]*?\{ pointer-events: none; \}/u);
+  assert.match(css, /\.campaign-map-magic-motifs \.campaign-map-motif-primary,[\s\S]*?\{ animation: none !important; opacity: \.55; \}/u);
+  assert.match(css, /\.campaign-map-area-motion-texture \{ fill-opacity: \.42; \}/u);
+  assert.match(css, /@keyframes map-area-flame-rise/u);
+  assert.match(css, /@keyframes map-area-bubble-rise/u);
+  assert.match(css, /@keyframes map-area-wave-expand/u);
+  assert.match(css, /@keyframes map-area-vapor-drift/u);
+  assert.match(css, /@keyframes map-area-frost-glint/u);
+  assert.match(css, /@keyframes map-area-bolt-arcs/u);
+  assert.match(css, /@keyframes map-area-shadow-swirl/u);
 });

@@ -2547,17 +2547,23 @@
 }
 .campaign-map-effect-picker select { max-width: 8rem; }
 
-/* Subtle effects extend into the translucent affected squares as well as the
-   perimeter. The overlay is hit-test transparent and never changes coverage. */
+/* Distinct animated symbols live in one repeating SVG tile per spell area.
+   All spell textures are hit-test transparent, including the tile's artwork.
+   The tile is clipped by the existing discrete affected-squares path. */
+.campaign-map-area-motion-texture,
 .campaign-map-area-motion-cells,
 .campaign-map-area-motion-wash,
 .campaign-map-area-motion-edge { pointer-events: none; }
+.campaign-map-area-motion-texture {
+  fill-opacity: .68;
+  stroke: none;
+}
 .campaign-map-area-motion-cells {
   fill: var(--map-area-fx, #c084fc);
-  fill-opacity: .015;
+  fill-opacity: .06;
   stroke: var(--map-area-fx, #c084fc);
-  stroke-opacity: .1;
-  stroke-width: .8px;
+  stroke-opacity: .18;
+  stroke-width: 1px;
   stroke-dasharray: 5 35;
   animation:
     map-area-fx-cells-breathe var(--map-area-cells-duration, 7s) ease-in-out infinite,
@@ -2565,7 +2571,7 @@
 }
 .campaign-map-area-motion-wash {
   fill: var(--map-area-fx, transparent);
-  fill-opacity: .025;
+  fill-opacity: .04;
   stroke: none;
   animation: map-area-fx-breathe 6s ease-in-out infinite;
 }
@@ -2573,7 +2579,7 @@
   fill: none;
   stroke: var(--map-area-fx, #f9e4c2);
   stroke-width: 2px;
-  stroke-opacity: .42;
+  stroke-opacity: .58;
   stroke-dasharray: 8 20;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2656,18 +2662,115 @@
   stroke-opacity: .065; stroke-dasharray: 20 60;
 }
 @keyframes map-area-fx-cells-breathe {
-  0%, 100% { fill-opacity: .012; }
-  50% { fill-opacity: .065; }
+  0%, 100% { fill-opacity: .035; }
+  50% { fill-opacity: .1; }
 }
 @keyframes map-area-fx-cells-spark {
-  0%, 11%, 15%, 52%, 58%, 100% { fill-opacity: .012; }
-  12%, 14%, 53%, 57% { fill-opacity: .095; }
+  0%, 11%, 15%, 52%, 58%, 100% { fill-opacity: .035; }
+  12%, 14%, 53%, 57% { fill-opacity: .13; }
+}
+
+
+/* Motifs describe the magical material: their movement is independent from
+   the slow ambient glow, with neither image assets nor animation timers. */
+.campaign-map-magic-motifs {
+  pointer-events: none;
+  opacity: .88;
+}
+.campaign-map-magic-motifs .campaign-map-motif-primary,
+.campaign-map-magic-motifs .campaign-map-motif-secondary {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.campaign-map-magic-motifs.is-fire .campaign-map-motif-primary {
+  animation: map-area-flame-rise 3.2s ease-in-out infinite;
+}
+.campaign-map-magic-motifs.is-fire .campaign-map-motif-secondary {
+  animation: map-area-ember-rise 4.2s ease-in infinite;
+}
+.campaign-map-magic-motifs.is-acid .campaign-map-motif-primary {
+  animation: map-area-bubble-rise 6s ease-in-out infinite;
+}
+.campaign-map-magic-motifs.is-acid .campaign-map-motif-secondary {
+  animation: map-area-bubble-rise 8s ease-in-out -3s infinite;
+}
+.campaign-map-magic-motifs.is-sound .campaign-map-motif-primary {
+  animation: map-area-wave-expand 4.8s ease-out infinite;
+}
+.campaign-map-magic-motifs.is-sound .campaign-map-motif-secondary {
+  animation: map-area-wave-expand 4.8s ease-out -2.4s infinite;
+}
+.campaign-map-magic-motifs.is-poison .campaign-map-motif-primary {
+  animation: map-area-vapor-drift 8.5s ease-in-out infinite alternate;
+}
+.campaign-map-magic-motifs.is-poison .campaign-map-motif-secondary {
+  animation: map-area-vapor-drift 10s ease-in-out -4s infinite alternate-reverse;
+}
+.campaign-map-magic-motifs.is-ice .campaign-map-motif-primary {
+  animation: map-area-frost-glint 9s ease-in-out infinite;
+}
+.campaign-map-magic-motifs.is-ice .campaign-map-motif-secondary {
+  animation: map-area-frost-glint 12s ease-in-out -5s infinite;
+}
+.campaign-map-magic-motifs.is-lightning .campaign-map-motif-primary {
+  animation: map-area-bolt-arcs 6s ease-in-out infinite;
+}
+.campaign-map-magic-motifs.is-lightning .campaign-map-motif-secondary {
+  animation: map-area-bolt-arcs 7.8s ease-in-out -3s infinite;
+}
+.campaign-map-magic-motifs.is-darkness .campaign-map-motif-primary {
+  animation: map-area-shadow-swirl 11s ease-in-out infinite alternate;
+}
+.campaign-map-magic-motifs.is-darkness .campaign-map-motif-secondary {
+  animation: map-area-shadow-swirl 14s ease-in-out -4s infinite alternate-reverse;
+}
+@keyframes map-area-flame-rise {
+  0%, 100% { transform: translateY(5px) scaleY(.84) skewX(-5deg); opacity: .5; }
+  40% { transform: translateY(-4px) scaleY(1.06) skewX(5deg); opacity: 1; }
+  70% { transform: translateY(-8px) scaleY(1.15) skewX(-3deg); opacity: .68; }
+}
+@keyframes map-area-ember-rise {
+  0% { transform: translateY(13px); opacity: .15; }
+  35% { opacity: .9; }
+  100% { transform: translateY(-16px); opacity: .15; }
+}
+@keyframes map-area-bubble-rise {
+  0%, 100% { transform: translateY(8px) scale(.87); opacity: .34; }
+  35%, 60% { transform: translateY(-4px) scale(1.04); opacity: 1; }
+  85% { transform: translateY(-13px) scale(1.12); opacity: .2; }
+}
+@keyframes map-area-wave-expand {
+  0% { transform: scale(.7); opacity: .2; }
+  35% { opacity: .95; }
+  100% { transform: scale(1.23); opacity: .1; }
+}
+@keyframes map-area-vapor-drift {
+  0% { transform: translate(-6px, 7px) rotate(-5deg); opacity: .3; }
+  50% { opacity: .9; }
+  100% { transform: translate(7px, -10px) rotate(7deg); opacity: .55; }
+}
+@keyframes map-area-frost-glint {
+  0%, 100% { opacity: .46; transform: scale(.98); }
+  42% { opacity: .95; transform: scale(1.04); }
+  55% { opacity: .54; transform: scale(1); }
+}
+@keyframes map-area-bolt-arcs {
+  0%, 8%, 18%, 45%, 57%, 100% { opacity: .22; transform: translateX(0); }
+  9%, 15%, 46%, 54% { opacity: 1; transform: translateX(2px); }
+}
+@keyframes map-area-shadow-swirl {
+  0% { transform: translate(-5px, 6px) rotate(-6deg); opacity: .38; }
+  50% { opacity: .78; }
+  100% { transform: translate(6px, -5px) rotate(7deg); opacity: .6; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .campaign-map-magic-motifs .campaign-map-motif-primary,
+  .campaign-map-magic-motifs .campaign-map-motif-secondary { animation: none !important; opacity: .55; }
+  .campaign-map-area-motion-texture { fill-opacity: .42; }
   .campaign-map-area-motion-cells,
   .campaign-map-area-motion-wash,
   .campaign-map-area-motion-edge { animation: none !important; }
-  .campaign-map-area-motion-cells { fill-opacity: .02; stroke-opacity: .06; }
+  .campaign-map-area-motion-cells { fill-opacity: .025; stroke-opacity: .07; }
   .campaign-map-area-motion-edge { stroke-opacity: .25; }
 }

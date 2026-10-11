@@ -80,7 +80,9 @@ export type CampaignMapAreaTemplateController = {
   setMode: (mode: CampaignMapAreaTemplateMode) => void;
   setShape: (shape: CampaignMapAreaTemplateShape) => void;
   setSizeSpaces: (value: number) => void;
+  commitSizeSpaces: (value: number) => void;
   setWidthSpaces: (value: number) => void;
+  commitWidthSpaces: (value: number) => void;
   flipTip: () => void;
   setAngleDegrees: (value: number) => void;
   nudgeAngle: (delta: number) => void;
@@ -315,6 +317,32 @@ export function useCampaignMapAreaTemplates({
     setWidthSpacesState(next);
     if (selected?.canEdit) setSelectedLocal({ widthSpaces: next });
   }, [selected, setSelectedLocal]);
+
+  // Commit a complete distance in one update. The old blur handler could read
+  // a stale selected template before React committed the last typed digit.
+  const commitSizeSpaces = useCallback((value: number) => {
+    const next = clampCampaignMapAreaTemplateSize(value);
+    setSizeSpacesState(next);
+    if (!selected?.canEdit) return;
+    const before = editingBeforeRef.current ?? selected;
+    editingBeforeRef.current = null;
+    editingRef.current = false;
+    const updated = { ...selected, sizeSpaces: next };
+    setTemplates(current => current.map(item => item.id === selected.id ? updated : item));
+    void saveTemplate(updated, before).then(flushDeferredReload);
+  }, [flushDeferredReload, saveTemplate, selected]);
+
+  const commitWidthSpaces = useCallback((value: number) => {
+    const next = clampCampaignMapAreaTemplateSize(value);
+    setWidthSpacesState(next);
+    if (!selected?.canEdit) return;
+    const before = editingBeforeRef.current ?? selected;
+    editingBeforeRef.current = null;
+    editingRef.current = false;
+    const updated = { ...selected, widthSpaces: next };
+    setTemplates(current => current.map(item => item.id === selected.id ? updated : item));
+    void saveTemplate(updated, before).then(flushDeferredReload);
+  }, [flushDeferredReload, saveTemplate, selected]);
 
   const flipTip = useCallback(() => {
     const next = !tipFlip;
@@ -674,7 +702,9 @@ export function useCampaignMapAreaTemplates({
       }
     },
     setSizeSpaces,
+    commitSizeSpaces,
     setWidthSpaces,
+    commitWidthSpaces,
     flipTip,
     setAngleDegrees,
     nudgeAngle,
@@ -700,6 +730,73 @@ function mapAreaDistanceLabel(spaces: number, grid: CampaignMapGrid) {
   return `${spaces * unit.perSpace} ${unit.name}`;
 }
 
+/**
+ * Maintain the user's literal digits until blur/Enter. In particular, typing
+ * "20" must not be converted from "2" back to the minimum 5 feet mid-entry.
+ * Explicit steppers are available on iOS, which hides native number spinners.
+ */
+function AreaTemplateDistanceInput({
+  label, spaces, grid, onCommit, disabled = false,
+}: {
+  label: string;
+  spaces: number;
+  grid: CampaignMapGrid;
+  onCommit: (spaces: number) => void;
+  disabled?: boolean;
+}) {
+  const unit = mapAreaDistanceUnit(grid);
+  const [draft, setDraft] = useState(String(spaces * unit.perSpace));
+  const editingRef = useRef(false);
+  const cancelBlurRef = useRef(false);
+  useEffect(() => {
+    if (!editingRef.current) setDraft(String(spaces * unit.perSpace));
+  }, [spaces, unit.perSpace]);
+
+  const apply = (nextSpaces: number) => {
+    const valid = clampCampaignMapAreaTemplateSize(nextSpaces);
+    setDraft(String(valid * unit.perSpace));
+    if (valid !== spaces) onCommit(valid);
+  };
+  const commitDraft = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(String(spaces * unit.perSpace));
+      return;
+    }
+    const next = /^\d+$/.test(draft.trim())
+      ? clampCampaignMapAreaTemplateSize(Math.round(Number(draft) / unit.perSpace))
+      : spaces;
+    apply(next);
+  };
+  const step = (delta: number) => {
+    const typed = /^\d+$/.test(draft.trim()) ? Number(draft) : spaces * unit.perSpace;
+    apply(Math.round(typed / unit.perSpace) + delta);
+  };
+  return <span className="campaign-map-distance-control" role="group" aria-label={label}>
+    <button type="button" aria-label={`Decrease ${label} by ${unit.perSpace} ${unit.name}`}
+      title={`Decrease ${unit.perSpace} ${unit.name}`}
+      disabled={disabled || spaces <= campaignMapAreaTemplateMinSize}
+      onClick={() => step(-1)}>−</button>
+    <input type="text" inputMode="numeric" pattern="[0-9]*"
+      aria-label={label} value={draft} disabled={disabled}
+      onFocus={event => { editingRef.current = true; event.currentTarget.select(); }}
+      onChange={event => { if (/^\d*$/.test(event.target.value)) setDraft(event.target.value); }}
+      onBlur={() => { editingRef.current = false; commitDraft(); }}
+      onKeyDown={event => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") {
+          cancelBlurRef.current = true;
+          event.currentTarget.blur();
+        }
+      }} />
+    <button type="button" aria-label={`Increase ${label} by ${unit.perSpace} ${unit.name}`}
+      title={`Increase ${unit.perSpace} ${unit.name}`}
+      disabled={disabled || spaces >= campaignMapAreaTemplateMaxSize}
+      onClick={() => step(1)}>+</button>
+    <span className="campaign-map-distance-unit">{unit.name}</span>
+  </span>;
+}
+
 function AreaTemplateSizeControl({
   controller,
   grid,
@@ -722,20 +819,11 @@ function AreaTemplateSizeControl({
         onKeyUp={finish}
       />
     </label>
-    <label>
+    <div className="campaign-map-distance-field">
       <span>Distance</span>
-      <input
-        type="number"
-        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
-        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
-        step={mapAreaDistanceUnit(grid).perSpace}
-        value={controller.sizeSpaces * mapAreaDistanceUnit(grid).perSpace}
-        aria-label="Area size in distance units"
-        onChange={event => controller.setSizeSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
-        onBlur={finish}
-        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
-      />
-    </label>
+      <AreaTemplateDistanceInput label="Area size in distance units"
+        spaces={controller.sizeSpaces} grid={grid} onCommit={controller.commitSizeSpaces} />
+    </div>
     <small>{mapAreaDistanceLabel(controller.sizeSpaces, grid)}</small>
   </div>;
 }
@@ -763,20 +851,11 @@ function AreaTemplateWidthControl({
         onKeyUp={finish}
       />
     </label>
-    <label>
+    <div className="campaign-map-distance-field">
       <span>Distance</span>
-      <input
-        type="number"
-        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
-        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
-        step={mapAreaDistanceUnit(grid).perSpace}
-        value={controller.widthSpaces * mapAreaDistanceUnit(grid).perSpace}
-        aria-label="Line width in distance units"
-        onChange={event => controller.setWidthSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
-        onBlur={finish}
-        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
-      />
-    </label>
+      <AreaTemplateDistanceInput label="Line width in distance units"
+        spaces={controller.widthSpaces} grid={grid} onCommit={controller.commitWidthSpaces} />
+    </div>
     <small>{mapAreaDistanceLabel(controller.widthSpaces, grid)}</small>
   </div>;
 }
@@ -862,16 +941,11 @@ export function CampaignMapAreaTemplatePalette({
         <option value="line">Line</option>
       </select>
     </label>
-    <label className="campaign-map-creation-field campaign-map-creation-size">
-      <span>Size</span>
-      <input type="number" aria-label="Spell area distance"
-        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
-        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
-        step={mapAreaDistanceUnit(grid).perSpace}
-        value={controller.sizeSpaces * mapAreaDistanceUnit(grid).perSpace}
-        onChange={event => controller.setSizeSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))} />
-      <span>{mapAreaDistanceUnit(grid).name}</span>
-    </label>
+    <div className="campaign-map-creation-field campaign-map-creation-size">
+      <AreaTemplateDistanceInput key={controller.selected?.id ?? "new-area"}
+        label="Spell area distance" spaces={controller.sizeSpaces}
+        grid={grid} onCommit={controller.commitSizeSpaces} />
+    </div>
     <label className="campaign-map-area-color" title="Spell area colour">
       <span className="sr-only">Colour</span>
       <input type="color" value={controller.color} aria-label="Spell area colour"
@@ -919,29 +993,16 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
         <option value="line">▱ Line</option>
       </select>
     </label>
-    <label className="campaign-map-context-size">
-      <span className="sr-only">Area distance</span>
-      <input type="number" aria-label="Area distance"
-        min={campaignMapAreaTemplateMinSize * mapAreaDistanceUnit(grid).perSpace}
-        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
-        step={mapAreaDistanceUnit(grid).perSpace}
-        value={controller.sizeSpaces * mapAreaDistanceUnit(grid).perSpace} disabled={controller.busy}
-        onChange={event => controller.setSizeSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
-        onBlur={() => void controller.commitSelected()}
-        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
-      <span>{mapAreaDistanceUnit(grid).name}</span>
-    </label>
-    {controller.shape === "line" && <label className="campaign-map-context-size">
-      <span>Width</span>
-      <input type="number" aria-label="Line width" min={mapAreaDistanceUnit(grid).perSpace}
-        max={campaignMapAreaTemplateMaxSize * mapAreaDistanceUnit(grid).perSpace}
-        step={mapAreaDistanceUnit(grid).perSpace}
-        value={controller.widthSpaces * mapAreaDistanceUnit(grid).perSpace} disabled={controller.busy}
-        onChange={event => controller.setWidthSpaces(Math.round(Number(event.target.value) / mapAreaDistanceUnit(grid).perSpace))}
-        onBlur={() => void controller.commitSelected()}
-        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
-      <span>{mapAreaDistanceUnit(grid).name}</span>
-    </label>}
+    <div className="campaign-map-context-size">
+      <AreaTemplateDistanceInput key={controller.selected.id}
+        label="Area distance" spaces={controller.sizeSpaces} grid={grid}
+        onCommit={controller.commitSizeSpaces} disabled={controller.busy} />
+    </div>
+    {controller.shape === "line" && <div className="campaign-map-context-size">
+      <AreaTemplateDistanceInput key={controller.selected.id}
+        label="Line width" spaces={controller.widthSpaces} grid={grid}
+        onCommit={controller.commitWidthSpaces} disabled={controller.busy} />
+    </div>}
     {controller.shape !== "radius" && <>
       <span className="campaign-map-context-separator" aria-hidden="true" />
       <button type="button" title={`Rotate ${step}° left`} aria-label={`Rotate ${step} degrees left`}

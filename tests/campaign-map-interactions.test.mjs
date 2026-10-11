@@ -102,7 +102,8 @@ test("campaign maps persist hidden-grid snapping and per-token sizes", async () 
   assert.match(launcher, /setFogMode\("reveal"\)/u);
   assert.match(launcher, /gridCellsInRectangle/u);
   assert.match(launcher, /gridMovementDistanceLabel/u);
-  assert.match(launcher, /Snapping works whether or not grid lines are visible/u);
+  assert.match(launcher, /checked=\{snapToGrid\}/u);
+  assert.match(launcher, /onChange=\{event => setSnapToGrid\(event\.target\.checked\)\}/u);
   assert.match(launcher, /if \(snapToGrid\)/u);
   assert.match(launcher, /gridTokenRadius\(map\.grid\.size, sizeCells\)/u);
   assert.match(launcher, /resizeToken\(token, sizeCells - 1\)/u);

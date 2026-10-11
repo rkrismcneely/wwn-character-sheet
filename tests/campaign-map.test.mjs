@@ -80,7 +80,8 @@ test("campaign map foundation supports a private GM map library with one player-
   assert.match(launcher, /Delete Map/u);
   assert.match(launcher, /<svg/u);
   assert.match(launcher, /patternUnits="userSpaceOnUse"/u);
-  assert.match(launcher, /Save Table Controls/u);
+  assert.match(launcher, /Save display options/u);
+  assert.match(launcher, /onClick=\{\(\) => void saveGrid\(\)\}/u);
   assert.match(campaignPage, /CampaignMapLauncher/u);
   assert.match(gmPage, /CampaignMapLauncher/u);
   assert.match(characterPage, /CampaignMapLauncher/u);
@@ -115,7 +116,8 @@ test("campaign map tokens are durable per map, permissioned, encounter-placeable
   assert.match(launcher, /Place Active Encounter/u);
   assert.match(launcher, /handleTokenPointerMove/u);
   assert.match(launcher, /action: "move", mapId: map\.id/u);
-  assert.match(launcher, /Token placements belong to this map/u);
+  assert.match(launcher, /<h4>Place tokens<\/h4>/u);
+  assert.match(launcher, /<h4>On this map<\/h4>/u);
   assert.match(launcher, /token\.canMove/u);
   assert.match(liveTypes, /session\.map-changed/u);
   assert.match(liveHook, /campaignMapChangedEvent/u);

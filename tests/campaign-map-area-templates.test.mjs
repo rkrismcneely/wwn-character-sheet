@@ -340,7 +340,7 @@ test("optional motion styles are saved with spell templates without obscuring th
   assert.match(ui, /template\.motionEffect !== "none"/u);
   assert.match(ui, /className="campaign-map-area-motion-edge"/u);
   assert.match(ui, /pointerEvents="none" aria-hidden="true"/u);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.campaign-map-area-motion-cells,\s*\.campaign-map-area-motion-wash,/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.campaign-map-magic-motifs \.campaign-map-motif-primary,/u);
   assert.match(css, /\.campaign-map-area-template\.is-motion-fire/u);
   assert.match(css, /\.campaign-map-area-template\.is-motion-darkness/u);
   assert.match(launcher, /color: area\.color, motionEffect: area\.motionEffect/u);

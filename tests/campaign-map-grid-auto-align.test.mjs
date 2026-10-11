@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectSquareGrid } from "../lib/campaigns/map-grid-auto-align.ts";
+import { autoGridScaleOptions, detectSquareGrid, scaledDetectedGridSize } from "../lib/campaigns/map-grid-auto-align.ts";
 
 function synthetic(width, height, options = {}) {
   const { step = 48, offsetX = 17, offsetY = 29, xLines = true, yLines = true } = options;
@@ -46,4 +46,23 @@ test("does not guess for blank, ungridded, one-axis, or malformed images", () =>
   assert.equal(detectSquareGrid(synthetic(width, height, { xLines: false }),
     width, height, width, height), null);
   assert.equal(detectSquareGrid(new Uint8ClampedArray(12), width, height, width, height), null);
+});
+
+
+test("grid scaling groups a nine-by-nine subdivision into one larger cell", () => {
+  assert.ok(autoGridScaleOptions.includes(9));
+  assert.equal(scaledDetectedGridSize(40, 9), 360);
+  assert.equal(scaledDetectedGridSize(48, 9), 432);
+  assert.equal(scaledDetectedGridSize(40, 1), 40);
+  assert.equal(scaledDetectedGridSize(40, 0.5), 20);
+  assert.equal(scaledDetectedGridSize(40, 12), 480);
+});
+
+test("detected grid scale rejects invalid or unrepresentable cell sizes", () => {
+  assert.equal(scaledDetectedGridSize(12, 0.5), null);
+  assert.equal(scaledDetectedGridSize(500, 9), null);
+  assert.equal(scaledDetectedGridSize(500, 8), 4000);
+  assert.equal(scaledDetectedGridSize(48, 0), null);
+  assert.equal(scaledDetectedGridSize(48, 1.25), null);
+  assert.equal(scaledDetectedGridSize(Number.NaN, 3), null);
 });

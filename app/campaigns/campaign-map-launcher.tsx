@@ -23,9 +23,10 @@ import type { CampaignMapCompanionOption } from "@/lib/campaigns/map-companions"
 import { translateCampaignMapAnnotationGeometry, type CampaignMapAnnotation } from "@/lib/campaigns/map-annotation-model";
 import type { CampaignMapAreaTemplate } from "@/lib/campaigns/map-area-template-model";
 import { pinchMapView, touchPairMetrics, type MapTouchPoint } from "@/lib/campaigns/map-pinch-zoom";
-import { detectSquareGrid } from "@/lib/campaigns/map-grid-auto-align";
+import { autoGridScaleOptions, detectSquareGrid, scaledDetectedGridSize, type SquareGridEstimate } from "@/lib/campaigns/map-grid-auto-align";
 import {
   clampTokenSizeCells,
+  MAX_CAMPAIGN_MAP_GRID_SIZE,
   gridCellPath,
   gridCellsInRectangle,
   gridMovementDistanceLabel,
@@ -302,6 +303,8 @@ export function CampaignMapWorkspace({
   const [grid, setGrid] = useState<GridDraft>(defaultGrid());
   const [autoAlignBusy, setAutoAlignBusy] = useState(false);
   const [autoAlignPreview, setAutoAlignPreview] = useState(false);
+  const [autoAlignDetected, setAutoAlignDetected] = useState<SquareGridEstimate | null>(null);
+  const [autoAlignScale, setAutoAlignScale] = useState(1);
   const [autoAlignNotice, setAutoAlignNotice] = useState("");
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [tokenSizes, setTokenSizes] = useState<Record<string, number>>({});
@@ -458,7 +461,7 @@ export function CampaignMapWorkspace({
     const previousMapId = selectedMapIdRef.current; const nextMap = body.map ?? null; setMap(nextMap); selectedMapIdRef.current = nextMap?.id ?? null;
     if (body.maps) setMaps(body.maps); if (body.permissions) { const nextCanManage = Boolean(body.permissions.canManage); setCanManage(nextCanManage); canManageRef.current = nextCanManage; }
     if (body.characters) setCharacters(body.characters); if (body.companions) setCompanions(body.companions); if (typeof body.encounterAvailable === "boolean") setEncounterAvailable(body.encounterAvailable);
-    setAutoAlignPreview(false); setAutoAlignNotice("");
+    setAutoAlignPreview(false); setAutoAlignDetected(null); setAutoAlignScale(1); setAutoAlignNotice("");
     setGrid(gridFor(nextMap)); setMapNameDraft(nextMap?.name ?? ""); setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : readMapView(campaignId, nextMap) ?? fullView(nextMap));
   }, [campaignId]);
 
@@ -704,6 +707,8 @@ export function CampaignMapWorkspace({
         }
         setGrid(current => ({ ...current, type: "square", size: estimate.size,
           offsetX: estimate.offsetX, offsetY: estimate.offsetY }));
+        setAutoAlignDetected(estimate);
+        setAutoAlignScale(1);
         setAutoAlignPreview(true);
         setAutoAlignNotice(`${estimate.confidence === "high" ? "Strong" : "Possible"} match: ${estimate.size}px squares. Check the turquoise overlay, adjust if needed, then Save alignment.`);
       } finally {
@@ -717,7 +722,16 @@ export function CampaignMapWorkspace({
     }
   }
 
-  async function saveGrid() { if (!map) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ mapId: map.id, version: map.version, gridEnabled: grid.enabled, gridType: grid.type, gridSize: Number(grid.size), gridOffsetX: Number(grid.offsetX), gridOffsetY: Number(grid.offsetY) }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The grid settings could not be saved."); applyResponse(body, true); const interactionResponse = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_snap", mapId: body.map.id, enabled: snapToGrid }) }); const interactionBody = await interactionResponse.json() as InteractionResponse; if (!interactionResponse.ok || !interactionBody.interactions) throw new Error(interactionBody.error || "The grid snapping setting could not be saved."); setSnapToGrid(interactionBody.interactions.snapEnabled); setTokenSizes(interactionBody.interactions.tokenSizes); setAutoAlignPreview(false); setAutoAlignNotice(""); publishMapInvalidation(); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "The grid settings could not be saved."); } finally { setBusy(false); } }
+  function setDetectedGridScale(factor: number) {
+    if (!autoAlignDetected || !autoAlignPreview) return;
+    const size = scaledDetectedGridSize(autoAlignDetected.size, factor);
+    if (size === null) return;
+    // Preserve any manually adjusted origins while changing cell size.
+    setGrid(current => ({ ...current, size }));
+    setAutoAlignScale(factor);
+  }
+
+  async function saveGrid() { if (!map) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ mapId: map.id, version: map.version, gridEnabled: grid.enabled, gridType: grid.type, gridSize: Number(grid.size), gridOffsetX: Number(grid.offsetX), gridOffsetY: Number(grid.offsetY) }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The grid settings could not be saved."); applyResponse(body, true); const interactionResponse = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_snap", mapId: body.map.id, enabled: snapToGrid }) }); const interactionBody = await interactionResponse.json() as InteractionResponse; if (!interactionResponse.ok || !interactionBody.interactions) throw new Error(interactionBody.error || "The grid snapping setting could not be saved."); setSnapToGrid(interactionBody.interactions.snapEnabled); setTokenSizes(interactionBody.interactions.tokenSizes); setAutoAlignPreview(false); setAutoAlignDetected(null); setAutoAlignScale(1); setAutoAlignNotice(""); publishMapInvalidation(); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "The grid settings could not be saved."); } finally { setBusy(false); } }
   async function uploadNewMap(event: ChangeEvent<HTMLInputElement>) { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ name: filenameMapName(file.name) }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "POST", headers: { "content-type": file.type }, body: file }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded."); applyResponse(body, false); await loadInteractions(body.map.id); setSettingsOpen(true); publishMapInvalidation(); } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded."); } finally { setBusy(false); } }
   async function replaceBackground(event: ChangeEvent<HTMLInputElement>) { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file || !map) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "POST", headers: { "content-type": file.type, "x-campaign-map-version": String(map.version) }, body: file }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded."); applyResponse(body, false); publishMapInvalidation(); } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded."); } finally { setBusy(false); } }
   async function removeBackground() { if (!map?.backgroundUrl || !window.confirm(`Remove the image from “${map.name}”? Grid settings and token placements will be kept.`)) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "DELETE", headers: { "x-campaign-map-version": String(map.version) } }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be removed."); applyResponse(body, false); publishMapInvalidation(); } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "The map image could not be removed."); } finally { setBusy(false); } }
@@ -1207,14 +1221,33 @@ export function CampaignMapWorkspace({
                   ? "Auto alignment currently supports square grids. Choose Square above."
                   : "Find lines already printed on the map. Review the preview before saving."}</small>
                 {autoAlignNotice && <p className="campaign-map-auto-align-notice" role="status">{autoAlignNotice}</p>}
-                {autoAlignPreview && <button type="button" className="campaign-quiet"
-                  onClick={() => { setGrid(gridFor(map)); setAutoAlignPreview(false); setAutoAlignNotice(""); }}>
-                  Discard preview
-                </button>}
+                {autoAlignPreview && autoAlignDetected && <>
+                  <div className="campaign-map-auto-align-scale">
+                    <label htmlFor="campaign-map-auto-grid-scale">Scale detected squares</label>
+                    <select id="campaign-map-auto-grid-scale" aria-label="Scale detected grid"
+                      value={autoAlignScale} disabled={busy || autoAlignBusy}
+                      onChange={event => setDetectedGridScale(Number(event.target.value))}>
+                      {autoGridScaleOptions.map(factor =>
+                        <option key={factor} value={factor}
+                          disabled={scaledDetectedGridSize(autoAlignDetected.size, factor) === null}>
+                          {factor === 0.5 ? "½× · smaller squares"
+                            : factor === 1 ? "1× · as detected"
+                            : `${factor}× · ${factor} by ${factor} detected squares`}
+                        </option>)}
+                    </select>
+                    <small>Detected: {autoAlignDetected.size}px per square · Preview: {grid.size}px.
+                      Use 9× to group a 9-by-9 block of detected squares into one.</small>
+                  </div>
+                  <button type="button" className="campaign-quiet"
+                    onClick={() => { setGrid(gridFor(map)); setAutoAlignPreview(false);
+                      setAutoAlignDetected(null); setAutoAlignScale(1); setAutoAlignNotice(""); }}>
+                    Discard preview
+                  </button>
+                </>}
               </div>
               <div className="campaign-map-grid-fields">
                 <label><span>{grid.type === "hex" ? "Hex height" : "Cell size"}</span>
-                  <input type="number" min="8" max="512" step="1" value={grid.size}
+                  <input type="number" min="8" max={MAX_CAMPAIGN_MAP_GRID_SIZE} step="1" value={grid.size}
                     onChange={event => setGrid(current => ({ ...current, size: Number(event.target.value) }))} /></label>
                 <label><span>Horizontal origin</span>
                   <input type="number" step="1" value={grid.offsetX}

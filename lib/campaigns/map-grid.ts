@@ -2,6 +2,8 @@ export const MIN_TOKEN_SIZE_CELLS = 1;
 export const MAX_TOKEN_SIZE_CELLS = 12;
 export const GRID_CELL_FEET = 5;
 export const HEX_CELL_KILOMETERS = 10;
+/** Large embedded tiles may contain a 9 × 9 or larger fine-grid subdivision. */
+export const MAX_CAMPAIGN_MAP_GRID_SIZE = 4096;
 
 export type CampaignMapGridType = "square" | "hex";
 

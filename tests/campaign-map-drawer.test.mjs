@@ -194,3 +194,25 @@ test("Grid tab can analyze baked-in square lines without overwriting saved align
   assert.match(css, /\.campaign-map-auto-align \{/u);
   assert.match(detector, /periodic|findPeriods/u);
 });
+
+
+test("Auto Align offers a reviewable scale selector including nine-by-nine coarse squares", async () => {
+  const [launcher, detector, api, css] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/map-grid-auto-align.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/map.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(launcher, /aria-label="Scale detected grid"/u);
+  assert.match(launcher, /autoGridScaleOptions\.map\(factor =>/u);
+  assert.match(launcher, /setDetectedGridScale\(Number\(event\.target\.value\)\)/u);
+  assert.match(launcher, /setGrid\(current => \(\{ \.\.\.current, size \}\)\)/u);
+  assert.match(launcher, /setAutoAlignDetected\(estimate\)/u);
+  assert.match(launcher, /setAutoAlignScale\(1\)/u);
+  assert.match(launcher, /Use 9× to group a 9-by-9 block/u);
+  assert.match(launcher, /disabled=\{scaledDetectedGridSize\(autoAlignDetected\.size, factor\) === null\}/u);
+  assert.match(detector, /MAX_CAMPAIGN_MAP_GRID_SIZE/u);
+  assert.match(api, /finiteNumber\(input\.gridSize, "Grid size", 8, MAX_CAMPAIGN_MAP_GRID_SIZE\)/u);
+  assert.match(launcher, /max=\{MAX_CAMPAIGN_MAP_GRID_SIZE\}/u);
+  assert.match(css, /\.campaign-map-auto-align-scale \{/u);
+});

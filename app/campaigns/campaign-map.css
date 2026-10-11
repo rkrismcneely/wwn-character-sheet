@@ -3081,3 +3081,39 @@
   font-size: .75rem;
   line-height: 1.45;
 }
+
+
+/* GM preview is a temporary, read-only rendering mode, not a visibility change. */
+.campaign-map-toolbar .campaign-map-quick-actions > button.campaign-map-view-toggle {
+  border: 1px solid rgba(160, 194, 187, .62);
+  background: rgba(35, 62, 66, .28);
+  color: #d6eae6;
+  white-space: nowrap;
+}
+.campaign-map-toolbar .campaign-map-quick-actions > button.campaign-map-view-toggle.is-active {
+  background: rgba(57, 121, 120, .3);
+  border-color: #86d4cd;
+  color: #e6fffa;
+}
+.campaign-map-preview-label {
+  position: absolute;
+  top: .65rem;
+  left: .65rem;
+  z-index: 6;
+  padding: .36rem .65rem;
+  pointer-events: none;
+  border: 1px solid rgba(116, 197, 190, .56);
+  border-radius: 7px;
+  color: #d5f6f1;
+  background: rgba(6, 26, 31, .84);
+  font: 600 .73rem/1.25 var(--font-ui, sans-serif);
+  letter-spacing: .015em;
+}
+@media (max-width: 600px) {
+  .campaign-map-preview-label {
+    top: .42rem;
+    left: .42rem;
+    font-size: .68rem;
+    padding: .3rem .48rem;
+  }
+}

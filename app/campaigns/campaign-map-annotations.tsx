@@ -530,16 +530,17 @@ function AnnotationHitShape({ geometry }: { geometry: CampaignMapAnnotationGeome
   return null;
 }
 
-export function CampaignMapAnnotationLayer({ controller, interactionEnabled = true, onSelect }: {
+export function CampaignMapAnnotationLayer({ controller, interactionEnabled = true, playerPreview = false, onSelect }: {
   controller: CampaignMapAnnotationController;
   interactionEnabled?: boolean;
+  playerPreview?: boolean;
   onSelect?: (id: string) => void;
 }) {
   const markerBase = useId().replaceAll(":", "");
   // Keep hit targets active so completed strokes and shapes can be selected
   // without leaving the current drawing tool.
-  const selecting = interactionEnabled && controller.tool !== "erase";
-  const erasing = controller.tool === "erase";
+  const selecting = !playerPreview && interactionEnabled && controller.tool !== "erase";
+  const erasing = !playerPreview && controller.tool === "erase";
   const actionPointer = (event: ReactPointerEvent<SVGGElement>, annotation: CampaignMapAnnotation) => {
     if (!annotation.canEdit) return;
     if (erasing) { event.preventDefault(); event.stopPropagation(); void controller.eraseAnnotation(annotation.id); }
@@ -551,7 +552,7 @@ export function CampaignMapAnnotationLayer({ controller, interactionEnabled = tr
     else if (selecting) { event.preventDefault(); onSelect?.(annotation.id); controller.selectAnnotation(annotation.id); }
   };
   return <g className={`campaign-map-annotation-layer${selecting ? " is-selecting" : ""}${erasing ? " is-erasing" : ""}`}>
-    {controller.annotations.map((annotation, index) => {
+    {controller.annotations.filter(annotation => !playerPreview || annotation.visibility === "players").map((annotation, index) => {
       const interactive = annotation.canEdit && (selecting || erasing);
       return <g key={annotation.id}
         className={`campaign-map-annotation-group is-${annotation.visibility}${interactive ? " is-editable" : ""}${controller.selectedId === annotation.id ? " is-selected" : ""}`}
@@ -559,10 +560,10 @@ export function CampaignMapAnnotationLayer({ controller, interactionEnabled = tr
         aria-label={interactive ? annotationAriaLabel(annotation, erasing ? "erase" : "select") : undefined}
         onPointerDown={e => actionPointer(e, annotation)} onKeyDown={e => actionKey(e, annotation)}>
         <AnnotationShape geometry={annotation.geometry} className="campaign-map-annotation" color={annotation.color} markerId={`${markerBase}-annotation-${index}`} />
-        {controller.selectedId === annotation.id && <AnnotationSelectionIndicator geometry={annotation.geometry} />}
+        {!playerPreview && controller.selectedId === annotation.id && <AnnotationSelectionIndicator geometry={annotation.geometry} />}
         {interactive && <AnnotationHitShape geometry={annotation.geometry} />}
       </g>;
     })}
-    {controller.draft && <AnnotationShape geometry={controller.draft} className="campaign-map-annotation-preview" color={controller.color} markerId={`${markerBase}-preview`} />}
+    {!playerPreview && controller.draft && <AnnotationShape geometry={controller.draft} className="campaign-map-annotation-preview" color={controller.color} markerId={`${markerBase}-preview`} />}
   </g>;
 }

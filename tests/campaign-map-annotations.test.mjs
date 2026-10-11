@@ -104,7 +104,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(route, /body\.action === "clear"/u);
   assert.match(route, /announceMapChanged/u);
   assert.match(controller, /campaign-map-creation-strip/u);
-  assert.match(controller, /const selecting = interactionEnabled && controller\.tool !== "erase"/u);
+  assert.match(controller, /const selecting = !playerPreview && interactionEnabled && controller\.tool !== "erase"/u);
   assert.match(launcher, /campaign-map-object-inspector/u);
   assert.match(controller, /aria-label="Create annotation"/u);
   assert.match(controller, /type="color"/u);
@@ -253,7 +253,7 @@ test("placing a note switches to edit mode with resizing immediately available",
   const annotations = await readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8");
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
   assert.match(annotations, /if \(geometry\.kind === "text"\) \{[\s\S]*?setToolState\(null\);[\s\S]*?setSelectedId\(body\.annotation\.id\)/u);
-  assert.match(annotations, /const selecting = interactionEnabled && controller\.tool !== "erase"/u);
+  assert.match(annotations, /const selecting = !playerPreview && interactionEnabled && controller\.tool !== "erase"/u);
   assert.match(launcher, /aria-label="Label font size"/u);
   assert.match(launcher, /annotations\.commitTextSize\(\)/u);
   assert.match(launcher, /MapObjectActionIcon kind="duplicate"/u);
@@ -269,7 +269,7 @@ test("pen and shape tools can select and delete prior drawings without Done", as
     readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(annotations, /const selecting = interactionEnabled && controller\.tool !== "erase"/u);
+  assert.match(annotations, /const selecting = !playerPreview && interactionEnabled && controller\.tool !== "erase"/u);
   assert.match(annotations, /const interactive = annotation\.canEdit && \(selecting \|\| erasing\)/u);
   assert.match(annotations, /else if \(selecting\) \{ onSelect\?\.\(annotation\.id\); controller\.beginMove\(event, annotation\.id\); \}/u);
   const moveStart = annotations.match(/const beginMove = useCallback\(\(event:[\s\S]*?\}, \[annotations, height, selectAnnotation, tool, width\]\)/u)?.[0];

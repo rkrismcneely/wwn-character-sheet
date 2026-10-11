@@ -7,6 +7,7 @@ import {
   campaignMapAreaTemplateMotionDefaultColors,
   campaignMapAreaTemplateDefaultColor,
   campaignMapAreaTemplateMotionEffects,
+  parseCampaignMapAreaDistanceDraft,
   campaignMapAreaTemplateOutlinePath,
   campaignMapAreaTemplateSizeLabel,
   campaignMapGridSpacePixels,
@@ -437,4 +438,28 @@ test("mobile spell distance fields preserve incomplete numeric typing and expose
   assert.match(controls, /label="Area distance"/u);
   assert.match(controls, /label="Line width"/u);
   assert.match(css, /\.campaign-map-distance-control/u);
+});
+
+
+
+test("blank, invalid and zero-sized spell distances return to one visible grid square", () => {
+  assert.equal(parseCampaignMapAreaDistanceDraft("0", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("00", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("  ", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("2", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("not a number", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("-5", 5), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("20", 5), 4);
+  assert.equal(parseCampaignMapAreaDistanceDraft("3000", 5), 60);
+  assert.equal(parseCampaignMapAreaDistanceDraft("0", 10), 1);
+  assert.equal(parseCampaignMapAreaDistanceDraft("20", 10), 2);
+});
+
+test("finishing spell area distance entry always validates before saving", async () => {
+  const editor = await readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8");
+  assert.match(editor, /apply\(parseCampaignMapAreaDistanceDraft\(draft, unit\.perSpace\)\)/u);
+  assert.match(editor, /onBlur=\{\(\) => \{ editingRef\.current = false; commitDraft\(\); \}\}/u);
+  assert.match(editor, /clampCampaignMapAreaTemplateSize\(nextSpaces\)/u);
+  assert.match(editor, /const updated = \{ \.\.\.selected, sizeSpaces: next \}/u);
 });

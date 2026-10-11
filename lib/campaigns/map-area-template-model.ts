@@ -59,6 +59,17 @@ export const campaignMapAreaTemplateMotionDefaultColors: Record<CampaignMapAreaT
 };
 export const campaignMapAreaTemplateMinSize = 1;
 export const campaignMapAreaTemplateMaxSize = 60;
+
+/** A cleared, invalid, or zero-sized AoE must remain selectable at one grid space. */
+export function parseCampaignMapAreaDistanceDraft(raw: string, perSpace: number): number {
+  const digits = raw.trim();
+  if (!/^\d+$/.test(digits) || !Number.isFinite(perSpace) || perSpace <= 0)
+    return campaignMapAreaTemplateMinSize;
+  const distance = Number(digits);
+  if (!Number.isFinite(distance)) return campaignMapAreaTemplateMaxSize;
+  return clampCampaignMapAreaTemplateSize(Math.round(distance / perSpace));
+}
+
 const MAX_CANDIDATE_CELLS = 20000;
 const EPSILON = 0.0001;
 

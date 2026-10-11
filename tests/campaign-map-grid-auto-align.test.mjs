@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { autoGridScaleOptions, detectSquareGrid, scaledDetectedGridSize } from "../lib/campaigns/map-grid-auto-align.ts";
+import { autoGridSubdivisionOptions, detectSquareGrid, subdividedDetectedGridSize } from "../lib/campaigns/map-grid-auto-align.ts";
 
 function synthetic(width, height, options = {}) {
   const { step = 48, offsetX = 17, offsetY = 29, xLines = true, yLines = true } = options;
@@ -49,20 +49,32 @@ test("does not guess for blank, ungridded, one-axis, or malformed images", () =>
 });
 
 
-test("grid scaling groups a nine-by-nine subdivision into one larger cell", () => {
-  assert.ok(autoGridScaleOptions.includes(9));
-  assert.equal(scaledDetectedGridSize(40, 9), 360);
-  assert.equal(scaledDetectedGridSize(48, 9), 432);
-  assert.equal(scaledDetectedGridSize(40, 1), 40);
-  assert.equal(scaledDetectedGridSize(40, 0.5), 20);
-  assert.equal(scaledDetectedGridSize(40, 12), 480);
+
+test("a detected 9-by-9 printed square subdivides into nine cells per axis", () => {
+  assert.ok(autoGridSubdivisionOptions.includes(9));
+  const cell = subdividedDetectedGridSize(420, 9);
+  assert.ok(cell !== null);
+  assert.ok(Math.abs(cell - 46.6666667) < 0.00001);
+  // Nine cells must return to the very same original 420px grid line.
+  assert.ok(Math.abs(cell * 9 - 420) < 0.0001);
+  assert.equal(subdividedDetectedGridSize(420, 1), 420);
+  assert.equal(subdividedDetectedGridSize(420, 2), 210);
+  assert.equal(subdividedDetectedGridSize(420, 3), 140);
+  assert.equal(subdividedDetectedGridSize(420, 10), 42);
 });
 
-test("detected grid scale rejects invalid or unrepresentable cell sizes", () => {
-  assert.equal(scaledDetectedGridSize(12, 0.5), null);
-  assert.equal(scaledDetectedGridSize(500, 9), null);
-  assert.equal(scaledDetectedGridSize(500, 8), 4000);
-  assert.equal(scaledDetectedGridSize(48, 0), null);
-  assert.equal(scaledDetectedGridSize(48, 1.25), null);
-  assert.equal(scaledDetectedGridSize(Number.NaN, 3), null);
+test("subdivision keeps origin anchored to the original detected line", () => {
+  const detectedOrigin = 138;
+  const gridSize = subdividedDetectedGridSize(420, 9);
+  assert.ok(gridSize !== null);
+  const lineAtOriginalBoundary = detectedOrigin + 9 * gridSize;
+  assert.ok(Math.abs(lineAtOriginalBoundary - 558) < .0001);
+});
+
+test("subdivision rejects unsupported factors and tiny grid cells", () => {
+  assert.equal(subdividedDetectedGridSize(420, 0), null);
+  assert.equal(subdividedDetectedGridSize(420, 11), null);
+  assert.equal(subdividedDetectedGridSize(420, -1), null);
+  assert.equal(subdividedDetectedGridSize(40, 9), null);
+  assert.equal(subdividedDetectedGridSize(Number.NaN, 3), null);
 });

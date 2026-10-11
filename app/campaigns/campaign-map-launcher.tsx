@@ -23,6 +23,7 @@ import type { CampaignMapCompanionOption } from "@/lib/campaigns/map-companions"
 import { translateCampaignMapAnnotationGeometry, type CampaignMapAnnotation } from "@/lib/campaigns/map-annotation-model";
 import type { CampaignMapAreaTemplate } from "@/lib/campaigns/map-area-template-model";
 import { pinchMapView, touchPairMetrics, type MapTouchPoint } from "@/lib/campaigns/map-pinch-zoom";
+import { detectSquareGrid } from "@/lib/campaigns/map-grid-auto-align";
 import {
   clampTokenSizeCells,
   gridCellPath,
@@ -299,6 +300,9 @@ export function CampaignMapWorkspace({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editSection, setEditSection] = useState<"maps" | "grid" | "tokens">("maps");
   const [grid, setGrid] = useState<GridDraft>(defaultGrid());
+  const [autoAlignBusy, setAutoAlignBusy] = useState(false);
+  const [autoAlignPreview, setAutoAlignPreview] = useState(false);
+  const [autoAlignNotice, setAutoAlignNotice] = useState("");
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [tokenSizes, setTokenSizes] = useState<Record<string, number>>({});
   const [mapNameDraft, setMapNameDraft] = useState("");
@@ -454,6 +458,7 @@ export function CampaignMapWorkspace({
     const previousMapId = selectedMapIdRef.current; const nextMap = body.map ?? null; setMap(nextMap); selectedMapIdRef.current = nextMap?.id ?? null;
     if (body.maps) setMaps(body.maps); if (body.permissions) { const nextCanManage = Boolean(body.permissions.canManage); setCanManage(nextCanManage); canManageRef.current = nextCanManage; }
     if (body.characters) setCharacters(body.characters); if (body.companions) setCompanions(body.companions); if (typeof body.encounterAvailable === "boolean") setEncounterAvailable(body.encounterAvailable);
+    setAutoAlignPreview(false); setAutoAlignNotice("");
     setGrid(gridFor(nextMap)); setMapNameDraft(nextMap?.name ?? ""); setView(current => preserveView && previousMapId === nextMap?.id && current && nextMap?.backgroundWidth && nextMap.backgroundHeight ? current : readMapView(campaignId, nextMap) ?? fullView(nextMap));
   }, [campaignId]);
 
@@ -666,7 +671,53 @@ export function CampaignMapWorkspace({
   async function tokenAction(body: Record<string, unknown>) { if (!map) return null; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, mapId: map.id }) }); const result = await response.json() as MapResponse; if (!response.ok || !result.map) throw new Error(result.error || "The map token could not be updated."); setMap(result.map); setTokenSizes(current => Object.fromEntries(Object.entries(current).filter(([tokenId]) => result.map?.tokens.some(token => token.id === tokenId)))); publishMapInvalidation(); return result.map; } catch (tokenError) { setError(tokenError instanceof Error ? tokenError.message : "The map token could not be updated."); return null; } finally { setBusy(false); } }
   async function resizeToken(token: CampaignMapToken, nextSize: number) { if (!map) return; const sizeCells = clampTokenSizeCells(nextSize); if (sizeCells === (tokenSizes[token.id] ?? 1)) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "resize", mapId: map.id, tokenId: token.id, sizeCells }) }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.interactions || !body.token) throw new Error(body.error || "The token could not be resized."); setSnapToGrid(body.interactions.snapEnabled); setTokenSizes(body.interactions.tokenSizes); setMap(current => current ? { ...current, tokens: current.tokens.map(candidate => candidate.id === body.token?.id ? { ...candidate, x: body.token.x, y: body.token.y, version: body.token.version } : candidate) } : current); publishMapInvalidation(); } catch (resizeError) { setError(resizeError instanceof Error ? resizeError.message : "The token could not be resized."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { setBusy(false); } }
   async function mapAction(body: Record<string, unknown>, preserveView = true) { setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json() as MapResponse; if (!response.ok) throw new Error(result.error || "The campaign map could not be updated."); applyResponse(result, preserveView); if (result.map) await loadInteractions(result.map.id); else { setSnapToGrid(false); setTokenSizes({}); } publishMapInvalidation(); return result; } catch (mapError) { setError(mapError instanceof Error ? mapError.message : "The campaign map could not be updated."); return null; } finally { setBusy(false); } }
-  async function saveGrid() { if (!map) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ mapId: map.id, version: map.version, gridEnabled: grid.enabled, gridType: grid.type, gridSize: Number(grid.size), gridOffsetX: Number(grid.offsetX), gridOffsetY: Number(grid.offsetY) }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The grid settings could not be saved."); applyResponse(body, true); const interactionResponse = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_snap", mapId: body.map.id, enabled: snapToGrid }) }); const interactionBody = await interactionResponse.json() as InteractionResponse; if (!interactionResponse.ok || !interactionBody.interactions) throw new Error(interactionBody.error || "The grid snapping setting could not be saved."); setSnapToGrid(interactionBody.interactions.snapEnabled); setTokenSizes(interactionBody.interactions.tokenSizes); publishMapInvalidation(); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "The grid settings could not be saved."); } finally { setBusy(false); } }
+  async function autoAlignGrid() {
+    if (!map?.backgroundUrl || !map.backgroundWidth || !map.backgroundHeight
+      || grid.type !== "square" || autoAlignBusy || busy) return;
+    const mapId = map.id;
+    setAutoAlignBusy(true);
+    setAutoAlignNotice("Analyzing square grid lines in the uploaded image…");
+    try {
+      const response = await fetch(map.backgroundUrl, { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load the map image for analysis.");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const image = new Image();
+        image.src = objectUrl;
+        await image.decode();
+        const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) throw new Error("This browser cannot analyze map images.");
+        ctx.drawImage(image, 0, 0, width, height);
+        const pixels = ctx.getImageData(0, 0, width, height).data;
+        const estimate = detectSquareGrid(pixels, width, height, image.naturalWidth, image.naturalHeight);
+        if (selectedMapIdRef.current !== mapId) return;
+        if (!estimate) {
+          setAutoAlignNotice("Could not confidently detect a square grid. Nothing changed; adjust alignment manually.");
+          return;
+        }
+        setGrid(current => ({ ...current, type: "square", size: estimate.size,
+          offsetX: estimate.offsetX, offsetY: estimate.offsetY }));
+        setAutoAlignPreview(true);
+        setAutoAlignNotice(`${estimate.confidence === "high" ? "Strong" : "Possible"} match: ${estimate.size}px squares. Check the turquoise overlay, adjust if needed, then Save alignment.`);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch (caught) {
+      if (selectedMapIdRef.current === mapId) setAutoAlignNotice(
+        caught instanceof Error ? caught.message : "Unable to analyze the map image.");
+    } finally {
+      setAutoAlignBusy(false);
+    }
+  }
+
+  async function saveGrid() { if (!map) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ mapId: map.id, version: map.version, gridEnabled: grid.enabled, gridType: grid.type, gridSize: Number(grid.size), gridOffsetX: Number(grid.offsetX), gridOffsetY: Number(grid.offsetY) }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The grid settings could not be saved."); applyResponse(body, true); const interactionResponse = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_snap", mapId: body.map.id, enabled: snapToGrid }) }); const interactionBody = await interactionResponse.json() as InteractionResponse; if (!interactionResponse.ok || !interactionBody.interactions) throw new Error(interactionBody.error || "The grid snapping setting could not be saved."); setSnapToGrid(interactionBody.interactions.snapEnabled); setTokenSizes(interactionBody.interactions.tokenSizes); setAutoAlignPreview(false); setAutoAlignNotice(""); publishMapInvalidation(); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "The grid settings could not be saved."); } finally { setBusy(false); } }
   async function uploadNewMap(event: ChangeEvent<HTMLInputElement>) { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ name: filenameMapName(file.name) }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "POST", headers: { "content-type": file.type }, body: file }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded."); applyResponse(body, false); await loadInteractions(body.map.id); setSettingsOpen(true); publishMapInvalidation(); } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded."); } finally { setBusy(false); } }
   async function replaceBackground(event: ChangeEvent<HTMLInputElement>) { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file || !map) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "POST", headers: { "content-type": file.type, "x-campaign-map-version": String(map.version) }, body: file }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be uploaded."); applyResponse(body, false); publishMapInvalidation(); } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "The map image could not be uploaded."); } finally { setBusy(false); } }
   async function removeBackground() { if (!map?.backgroundUrl || !window.confirm(`Remove the image from “${map.name}”? Grid settings and token placements will be kept.`)) return; setBusy(true); setError(""); try { const params = new URLSearchParams({ mapId: map.id }); const response = await fetch(`/api/campaigns/${campaignId}/map/background?${params.toString()}`, { method: "DELETE", headers: { "x-campaign-map-version": String(map.version) } }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The map image could not be removed."); applyResponse(body, false); publishMapInvalidation(); } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "The map image could not be removed."); } finally { setBusy(false); } }
@@ -887,6 +938,9 @@ export function CampaignMapWorkspace({
   const placedCompanionIds = new Set(map?.tokens.filter(token => token.kind === "companion").map(token => token.sourceId) ?? []);
   const inPageHost = presentation !== "pip" && presentation !== "standalone" && presentation !== "closed";
 
+  const showAutoAlignOverlay = autoAlignPreview && settingsOpen && editSection === "grid"
+    && grid.type === "square" && Boolean(map?.backgroundUrl);
+  const autoGridPatternId = `${patternId}-auto-align`;
   const mapSurface = open ? <section ref={drawerElementRef} className={`campaign-map-dialog campaign-map-host-${presentation}${presentation === "drawer" ? ` campaign-map-drawer-${drawerDock}` : ""}`} role="dialog" aria-modal={presentation === "fullscreen"} aria-labelledby="campaign-map-title" style={presentation === "drawer" ? { "--campaign-map-drawer-width": `${drawerWidth}px` } as CSSProperties : undefined}>
     {presentation === "drawer" && <div className="campaign-map-drawer-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize map side drawer" onPointerDown={handleDrawerResizeStart} onPointerMove={handleDrawerResizeMove} onPointerUp={handleDrawerResizeEnd} onPointerCancel={handleDrawerResizeEnd} />}
     <header ref={mapToolbarRef} className="campaign-map-toolbar" aria-label="Campaign map tools">
@@ -959,8 +1013,14 @@ export function CampaignMapWorkspace({
       {map?.backgroundUrl && <CampaignMapDrawingPalette controller={annotations} />}
       {map?.backgroundUrl && <CampaignMapAreaTemplatePalette controller={areaTemplates} grid={map.grid} />}
       {!loading && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onWheel={handleWheel} onPointerDownCapture={handleTouchPointerDownCapture} onPointerMoveCapture={handleTouchPointerMoveCapture} onPointerUpCapture={handleTouchPointerEndCapture} onPointerCancelCapture={handleTouchPointerEndCapture} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan, pinch with two fingers to zoom, drag an allowed token to move it, or use the mouse wheel and zoom buttons.">
-        <defs>{map.grid.type === "hex" ? (() => { const pattern = hexPatternSize(map.grid.size); return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>{hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}</pattern>; })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}><path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" /></pattern>}</defs>
-        <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />{map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
+        <defs>{map.grid.type === "hex" ? (() => { const pattern = hexPatternSize(map.grid.size); return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>{hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}</pattern>; })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}><path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" /></pattern>}{showAutoAlignOverlay && <pattern id={autoGridPatternId} patternUnits="userSpaceOnUse"
+          x={grid.offsetX} y={grid.offsetY} width={grid.size} height={grid.size}>
+          <path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="#4df0e0"
+            strokeWidth="1.8" strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+        </pattern>}</defs>
+        <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />{!showAutoAlignOverlay && map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
+        {showAutoAlignOverlay && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight}
+          fill={`url(#${autoGridPatternId})`} pointerEvents="none" aria-label="Grid auto-alignment preview" />}
         {!canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
         <g className="campaign-map-fog-layer" pointerEvents="none">{map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}<g ref={fogPreviewLayerRef} /></g>
         {canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
@@ -1139,6 +1199,19 @@ export function CampaignMapWorkspace({
                   <option value="hex">Hex · 10 km per hex</option>
                 </select>
               </label>
+              <div className="campaign-map-auto-align">
+                <button type="button" className="campaign-secondary"
+                  disabled={busy || autoAlignBusy || !map.backgroundUrl || grid.type !== "square"}
+                  onClick={() => void autoAlignGrid()}>{autoAlignBusy ? "Detecting grid…" : "Auto Align Grid"}</button>
+                <small>{grid.type !== "square"
+                  ? "Auto alignment currently supports square grids. Choose Square above."
+                  : "Find lines already printed on the map. Review the preview before saving."}</small>
+                {autoAlignNotice && <p className="campaign-map-auto-align-notice" role="status">{autoAlignNotice}</p>}
+                {autoAlignPreview && <button type="button" className="campaign-quiet"
+                  onClick={() => { setGrid(gridFor(map)); setAutoAlignPreview(false); setAutoAlignNotice(""); }}>
+                  Discard preview
+                </button>}
+              </div>
               <div className="campaign-map-grid-fields">
                 <label><span>{grid.type === "hex" ? "Hex height" : "Cell size"}</span>
                   <input type="number" min="8" max="512" step="1" value={grid.size}

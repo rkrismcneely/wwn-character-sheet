@@ -3031,3 +3031,30 @@
   .campaign-map-settings .campaign-map-placed-tokens > div { flex-wrap: wrap; }
   .campaign-map-settings .campaign-map-token-row-actions { margin-left: auto; }
 }
+
+
+/* Grid detection stays secondary to the manual alignment controls. */
+.campaign-map-auto-align {
+  display: grid;
+  justify-items: start;
+  gap: .45rem;
+  padding: .75rem;
+  border: 1px solid rgba(95, 188, 180, .32);
+  border-radius: 9px;
+  background: rgba(38, 99, 104, .09);
+}
+.campaign-map-auto-align > small {
+  color: var(--text-muted, #b9ad9b);
+  font-size: .76rem;
+  line-height: 1.4;
+}
+.campaign-map-auto-align .campaign-map-auto-align-notice {
+  margin: .1rem 0;
+  color: #a4e6df;
+  font-size: .79rem;
+  line-height: 1.45;
+}
+.campaign-map-auto-align > button { max-width: 100%; }
+@media (max-width: 600px) {
+  .campaign-map-auto-align > button { min-height: 2.6rem; }
+}

@@ -1041,6 +1041,7 @@ export function CampaignMapAreaTemplateLayer({
   width,
   height,
   interactionEnabled = true,
+  previewOnly = false,
   onSelect,
 }: {
   controller: CampaignMapAreaTemplateController;
@@ -1048,15 +1049,16 @@ export function CampaignMapAreaTemplateLayer({
   width: number;
   height: number;
   interactionEnabled?: boolean;
+  previewOnly?: boolean;
   onSelect?: (id: string) => void;
 }) {
   const patternPrefix = useId().replace(/:/gu, "-");
-  const selecting = interactionEnabled && (!controller.open || controller.mode === "select");
+  const selecting = !previewOnly && interactionEnabled && (!controller.open || controller.mode === "select");
   return <g className={`campaign-map-area-layer${controller.open ? " is-open" : ""}${selecting ? " is-selecting" : ""}`}>
     {controller.templates.map(template => {
       const affected = campaignMapAreaTemplateAffectedPath(template, grid, width, height);
       const outline = campaignMapAreaTemplateOutlinePath(template, grid);
-      const selected = controller.selectedId === template.id;
+      const selected = !previewOnly && controller.selectedId === template.id;
       const interactive = selecting && template.canEdit;
       const direction = campaignMapAreaTemplateDirectionPoint(template, grid);
       const motionPatternId = `spell-motif-${patternPrefix}-${template.id}`;

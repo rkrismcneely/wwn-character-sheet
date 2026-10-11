@@ -22,6 +22,7 @@ import type {
 import type { CampaignMapCompanionOption } from "@/lib/campaigns/map-companions";
 import { translateCampaignMapAnnotationGeometry, type CampaignMapAnnotation } from "@/lib/campaigns/map-annotation-model";
 import type { CampaignMapAreaTemplate } from "@/lib/campaigns/map-area-template-model";
+import { pinchMapView, touchPairMetrics, type MapTouchPoint } from "@/lib/campaigns/map-pinch-zoom";
 import {
   clampTokenSizeCells,
   gridCellPath,
@@ -263,6 +264,10 @@ export function CampaignMapWorkspace({
   const [keyboardFeedback, setKeyboardFeedback] = useState("");
   const canManageRef = useRef(initialCanManage);
   const dragRef = useRef<{ pointerId: number; clientX: number; clientY: number; view: ViewBox; latestView: ViewBox } | null>(null);
+  const touchPointersRef = useRef<Map<number, MapTouchPoint>>(new Map());
+  const pinchRef = useRef<{ startView: ViewBox; startDistance: number; anchor: MapTouchPoint; latestView: ViewBox } | null>(null);
+  // Suppress one-finger actions until every finger has lifted after a pinch.
+  const suppressTouchRef = useRef(false);
   const tokenDragRef = useRef<{
     pointerId: number; tokenId: string; version: number; pointerMapX: number; pointerMapY: number;
     x: number; y: number; latestX: number; latestY: number; element: SVGGElement; distanceElement: SVGTextElement | null;
@@ -402,6 +407,12 @@ export function CampaignMapWorkspace({
     };
   }, [open, annotations, areaTemplates]);
 
+  useEffect(() => {
+    // A different map/host cannot inherit pointers or an unfinished pinch.
+    touchPointersRef.current.clear();
+    pinchRef.current = null;
+    suppressTouchRef.current = false;
+  }, [map?.id, open, presentation]);
   useEffect(() => { if (!open || !map || !view) return; try { window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view)); } catch {} }, [campaignId, map, open, presentation, view]);
   useEffect(() => { try { window.localStorage.setItem(mapDrawerDockStorageKey, drawerDock); window.localStorage.setItem(mapDrawerWidthStorageKey, String(drawerWidth)); } catch {} }, [drawerDock, drawerWidth]);
   useEffect(() => {
@@ -448,6 +459,97 @@ export function CampaignMapWorkspace({
   function resetView() { setView(fullView(map)); }
   function zoom(factor: number) { if (!map?.backgroundWidth || !map.backgroundHeight || !view) return; const nextWidth = clamp(view.width * factor, map.backgroundWidth / 12, map.backgroundWidth * 1.5); const nextHeight = nextWidth * (map.backgroundHeight / map.backgroundWidth); const centerX = view.x + view.width / 2; const centerY = view.y + view.height / 2; setView({ x: centerX - nextWidth / 2, y: centerY - nextHeight / 2, width: nextWidth, height: nextHeight }); }
   function handleWheel(event: ReactWheelEvent<SVGSVGElement>) { event.preventDefault(); zoom(event.deltaY > 0 ? 1.12 : 0.88); }
+
+  function handleTouchPointerDownCapture(event: ReactPointerEvent<SVGSVGElement>) {
+    if (event.pointerType !== "touch") return;
+    const touches = touchPointersRef.current;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size < 2) return;
+    if (!pinchRef.current && view && map?.backgroundWidth && map.backgroundHeight) {
+      const svg = event.currentTarget;
+      const [first, second] = [...touches.values()];
+      const { center, distance } = touchPairMetrics(first, second);
+      const anchor = clientPointToSvg(svg, center.x, center.y);
+      if (anchor && distance > 0) {
+        // Cancel an in-flight single-touch action without committing it.
+        // This includes token dragging, pen strokes, area movement, and fog.
+        const tokenDrag = tokenDragRef.current;
+        if (tokenDrag) {
+          tokenDrag.element.setAttribute("transform", `translate(${tokenDrag.x} ${tokenDrag.y})`);
+          if (tokenDrag.element.hasPointerCapture(tokenDrag.pointerId))
+            tokenDrag.element.releasePointerCapture(tokenDrag.pointerId);
+          tokenDragRef.current = null;
+          setTokenDragMeasurement(null);
+          setTokenDragOrigin(null);
+        }
+        const pan = dragRef.current;
+        dragRef.current = null;
+        if (pan && svg.hasPointerCapture(pan.pointerId)) svg.releasePointerCapture(pan.pointerId);
+        const fog = fogDragRef.current;
+        fogDragRef.current = null;
+        if (fog) clearFogPreview();
+        const measure = measureDragRef.current;
+        measureDragRef.current = null;
+        if (measure) { setMeasureStart(null); setMeasureEnd(null); }
+        annotations.cancelPointerInteraction();
+        areaTemplates.cancelPointerInteraction();
+        for (const id of touches.keys()) {
+          if (svg.hasPointerCapture(id)) svg.releasePointerCapture(id);
+        }
+        const startView = pan?.latestView ?? view;
+        pinchRef.current = { startView, startDistance: distance, anchor, latestView: startView };
+        suppressTouchRef.current = true;
+      }
+    }
+    if (suppressTouchRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  function handleTouchPointerMoveCapture(event: ReactPointerEvent<SVGSVGElement>) {
+    if (event.pointerType !== "touch") return;
+    const touches = touchPointersRef.current;
+    if (touches.has(event.pointerId)) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (!suppressTouchRef.current) return;
+    const gesture = pinchRef.current;
+    if (gesture && touches.size >= 2 && map?.backgroundWidth && map.backgroundHeight) {
+      const [first, second] = [...touches.values()];
+      const { center, distance } = touchPairMetrics(first, second);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const nextView = pinchMapView({
+        startView: gesture.startView,
+        startDistance: gesture.startDistance,
+        distance,
+        anchor: gesture.anchor,
+        center,
+        viewport: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        mapWidth: map.backgroundWidth,
+        mapHeight: map.backgroundHeight,
+      });
+      gesture.latestView = nextView;
+      event.currentTarget.setAttribute("viewBox", `${nextView.x} ${nextView.y} ${nextView.width} ${nextView.height}`);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleTouchPointerEndCapture(event: ReactPointerEvent<SVGSVGElement>) {
+    if (event.pointerType !== "touch") return;
+    touchPointersRef.current.delete(event.pointerId);
+    if (!suppressTouchRef.current) return;
+    const svg = event.currentTarget;
+    if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+    if (pinchRef.current && touchPointersRef.current.size < 2) {
+      const finalView = pinchRef.current.latestView;
+      pinchRef.current = null;
+      setView(current => sameView(current, finalView) ? current : finalView);
+    }
+    if (!touchPointersRef.current.size) suppressTouchRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function selectedFogCells(start: { x: number; y: number }, end: { x: number; y: number }): CampaignMapGridCell[] { if (!map) return []; return gridCellsInRectangle(start, end, map.grid, 500); }
   function renderFogPreview(cells: CampaignMapGridCell[], mode: FogMode) { const layer = fogPreviewLayerRef.current; if (!layer || !map) return; const ownerDocument = layer.ownerDocument; const fragment = ownerDocument.createDocumentFragment(); for (const cell of cells) { const path = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path"); path.setAttribute("d", gridCellPath(cell, map.grid)); path.setAttribute("class", `campaign-map-fog-preview is-${mode}`); fragment.appendChild(path); } layer.replaceChildren(fragment); }
   function clearFogPreview() { if (fogPreviewFrameRef.current !== null) { window.cancelAnimationFrame(fogPreviewFrameRef.current); fogPreviewFrameRef.current = null; } fogPreviewRef.current = []; fogPreviewLayerRef.current?.replaceChildren(); }
@@ -831,7 +933,7 @@ export function CampaignMapWorkspace({
     <div className={`campaign-map-workspace${settingsOpen && canManage ? " settings-open" : ""}`}><div ref={stageRef} className="campaign-map-stage" tabIndex={-1} aria-busy={loading || busy || annotations.busy || areaTemplates.busy}>{loading && <div className="campaign-map-empty" role="status">Loading campaign map…</div>}{!loading && !map?.backgroundUrl && <div className="campaign-map-empty"><h3>{map ? "No map image" : "No campaign maps yet"}</h3><p>{canManage ? "Open Map Settings to upload a new map." : "The GM has not shared a campaign map yet."}</p></div>}
       {map?.backgroundUrl && <CampaignMapDrawingPalette controller={annotations} />}
       {map?.backgroundUrl && <CampaignMapAreaTemplatePalette controller={areaTemplates} grid={map.grid} />}
-      {!loading && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan; drag an allowed token to move it; use the mouse wheel or toolbar buttons to zoom.">
+      {!loading && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onWheel={handleWheel} onPointerDownCapture={handleTouchPointerDownCapture} onPointerMoveCapture={handleTouchPointerMoveCapture} onPointerUpCapture={handleTouchPointerEndCapture} onPointerCancelCapture={handleTouchPointerEndCapture} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan, pinch with two fingers to zoom, drag an allowed token to move it, or use the mouse wheel and zoom buttons.">
         <defs>{map.grid.type === "hex" ? (() => { const pattern = hexPatternSize(map.grid.size); return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>{hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}</pattern>; })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}><path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" /></pattern>}</defs>
         <image href={map.backgroundUrl} x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} preserveAspectRatio="none" />{map.grid.enabled && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight} fill={`url(#${patternId})`} pointerEvents="none" />}
         {!canManage && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}

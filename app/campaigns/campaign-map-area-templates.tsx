@@ -92,6 +92,7 @@ export type CampaignMapAreaTemplateController = {
   beginRotate: (event: ReactPointerEvent<SVGCircleElement>, id: string) => void;
   deleteSelected: () => Promise<void>;
   duplicateSelected: () => Promise<void>;
+  cancelPointerInteraction: () => void;
   handlePointerDown: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
   handlePointerMove: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
   handlePointerEnd: (event: ReactPointerEvent<SVGSVGElement>) => boolean;
@@ -164,6 +165,7 @@ export function useCampaignMapAreaTemplates({
   const pendingReloadRef = useRef(false);
   const moveRef = useRef<MoveDraft | null>(null);
   const rotateRef = useRef<RotateDraft | null>(null);
+  const pendingTouchPlaceRef = useRef<{ pointerId: number; clientX: number; clientY: number; point: CampaignMapGridPosition } | null>(null);
   const selected = templates.find(template => template.id === selectedId) ?? null;
 
   const reload = useCallback(async () => {
@@ -509,11 +511,26 @@ export function useCampaignMapAreaTemplates({
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height);
     if (!point) return true;
     event.preventDefault();
-    void createAt(point);
+    if (event.pointerType === "touch") {
+      // Complete touch placement on release so a two-finger pinch cannot
+      // create an unintended area from its first contact.
+      pendingTouchPlaceRef.current = {
+        pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, point,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } else {
+      void createAt(point);
+    }
     return true;
   }, [busy, createAt, height, mode, open, width]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
+    const pendingPlace = pendingTouchPlaceRef.current;
+    if (pendingPlace?.pointerId === event.pointerId) {
+      if (Math.hypot(event.clientX - pendingPlace.clientX, event.clientY - pendingPlace.clientY) > 10)
+        pendingTouchPlaceRef.current = null;
+      return true;
+    }
     if (!width || !height) return false;
     const move = moveRef.current;
     if (move?.pointerId === event.pointerId) {
@@ -551,6 +568,15 @@ export function useCampaignMapAreaTemplates({
   }, [grid, height, templates, width]);
 
   const handlePointerEnd = useCallback((event: ReactPointerEvent<SVGSVGElement>): boolean => {
+    const pendingPlace = pendingTouchPlaceRef.current;
+    if (pendingPlace?.pointerId === event.pointerId) {
+      pendingTouchPlaceRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId))
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      if (event.type === "pointerup") void createAt(pendingPlace.point);
+      event.preventDefault();
+      return true;
+    }
     const move = moveRef.current;
     if (move?.pointerId === event.pointerId) {
       moveRef.current = null;
@@ -581,9 +607,27 @@ export function useCampaignMapAreaTemplates({
       return true;
     }
     return false;
-  }, [flushDeferredReload, saveTemplate, templates]);
+  }, [createAt, flushDeferredReload, saveTemplate, templates]);
+
+  // Abort in-progress one-finger editing when a second finger begins pinching.
+  const cancelPointerInteraction = () => {
+    pendingTouchPlaceRef.current = null;
+    const move = moveRef.current;
+    const rotate = rotateRef.current;
+    moveRef.current = null;
+    rotateRef.current = null;
+    editingRef.current = false;
+    if (move) setTemplates(current => current.map(template =>
+      template.id === move.id ? { ...template, x: move.x, y: move.y } : template));
+    if (rotate) {
+      setTemplates(current => current.map(template =>
+        template.id === rotate.id ? { ...template, angleDegrees: rotate.initialAngle } : template));
+      setAngleDegreesState(rotate.initialAngle);
+    }
+  };
 
   const close = useCallback(() => {
+    pendingTouchPlaceRef.current = null;
     editingRef.current = false;
     pendingReloadRef.current = false;
     moveRef.current = null;
@@ -616,6 +660,7 @@ export function useCampaignMapAreaTemplates({
       });
     },
     close,
+    cancelPointerInteraction,
     setMode: next => {
       setModeState(next);
       if (next === "place") setSelectedId(null);

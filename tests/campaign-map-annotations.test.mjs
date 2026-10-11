@@ -143,7 +143,7 @@ test("map annotations persist per map, filter GM-only rows from players, and use
   assert.match(launcher, /CampaignMapDrawingPalette/u);
   assert.match(launcher, /CampaignMapAnnotationLayer/u);
   assert.match(launcher, /annotations\.handlePointerDown/u);
-  assert.match(launcher, /!canManage && <CampaignMapAnnotationLayer/u);
+  assert.match(launcher, /\(!canManage \|\| playerPreview\) && <CampaignMapAnnotationLayer/u);
   assert.match(launcher, /canManage && <CampaignMapAnnotationLayer/u);
   assert.match(css, /\.campaign-map-drawing-palette/u);
   assert.match(css, /\.campaign-map-annotation-group\.is-gm/u);
@@ -278,7 +278,7 @@ test("pen and shape tools can select and delete prior drawings without Done", as
   assert.match(moveStart, /selectAnnotation\(id\)/u);
   assert.match(moveStart, /event\.stopPropagation\(\)/u);
   assert.match(annotations, /setSelectedId\(null\);\s*if \(tool === "text"\)/u);
-  const layers = launcher.match(/<CampaignMapAnnotationLayer controller=\{annotations\} interactionEnabled=\{[^}]+\}/gu) ?? [];
+  const layers = launcher.match(/<CampaignMapAnnotationLayer controller=\{annotations\}[^>]*interactionEnabled=\{[^}]+\}/gu) ?? [];
   assert.equal(layers.length, 2);
   for (const layer of layers) {
     assert.ok(layer.includes("!areaTemplates.open"));

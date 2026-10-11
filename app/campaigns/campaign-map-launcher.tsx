@@ -1070,7 +1070,7 @@ export function CampaignMapWorkspace({
                 <span>{candidate.name}</span><small>{candidate.isActive ? "Visible" : "GM only"}</small>
               </button>)}
             </div>}
-            <label className="campaign-map-upload campaign-secondary"><span>+ Upload new map</span>
+            <label className="campaign-map-upload campaign-secondary"><span>Upload New Map</span>
               <input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={uploadNewMap} />
             </label>
           </section>
@@ -1078,7 +1078,7 @@ export function CampaignMapWorkspace({
             <section className="campaign-map-selected-controls">
               <h4>Selected map</h4>
               <div className="campaign-map-player-visibility" aria-label="Player visibility">
-                <strong className="campaign-map-setting-label">Player visibility</strong>
+                <strong className="campaign-map-setting-label">Player Visibility</strong>
                 {map.isActive
                   ? <div className="campaign-map-visible-status"><strong>Visible to players</strong><span>This is the map your players see.</span></div>
                   : <div className="campaign-map-hidden-status"><strong>GM only</strong><span>Only you can see this map until you share it.</span></div>}
@@ -1162,7 +1162,7 @@ export function CampaignMapWorkspace({
               <h4>Place tokens</h4>
               <p>Add characters, companions or everyone in a live encounter.</p>
               <button type="button" className="campaign-primary" disabled={busy || !map.backgroundUrl || !encounterAvailable}
-                onClick={() => void tokenAction({ action: "place_encounter" })}>Place active encounter</button>
+                onClick={() => void tokenAction({ action: "place_encounter" })}>Place Active Encounter</button>
               {!encounterAvailable && <small>Start a live encounter to place all combatants together.</small>}
               {characters.length > 0 && <div className="campaign-map-token-group">
                 <h5>Characters <span>{characters.length}</span></h5>

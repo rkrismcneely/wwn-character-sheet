@@ -3058,3 +3058,26 @@
 @media (max-width: 600px) {
   .campaign-map-auto-align > button { min-height: 2.6rem; }
 }
+
+
+/* Post-detection scaling stays within its own compact subsection. */
+.campaign-map-auto-align-scale {
+  display: grid;
+  gap: .35rem;
+  width: min(100%, 22rem);
+  padding: .7rem 0;
+  border-top: 1px solid rgba(95, 188, 180, .25);
+}
+.campaign-map-auto-align-scale label {
+  font-size: .77rem;
+  font-weight: 650;
+}
+.campaign-map-auto-align-scale select {
+  width: 100%;
+  min-height: 2.35rem;
+  font-size: .85rem;
+}
+.campaign-map-auto-align-scale > small {
+  font-size: .75rem;
+  line-height: 1.45;
+}

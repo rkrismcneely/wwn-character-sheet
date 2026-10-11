@@ -12,6 +12,7 @@ import {
 } from "./map-companions.ts";
 import {
   isCampaignMapGridType,
+  MAX_CAMPAIGN_MAP_GRID_SIZE,
   snapTokenCenterOnGrid,
   type CampaignMapGridType,
 } from "./map-grid.ts";
@@ -574,7 +575,7 @@ export async function updateCampaignMapSettings(
   const version = expectedVersion(input.version);
   const gridEnabled = booleanValue(input.gridEnabled, "Grid visibility");
   const nextGridType = gridType(input.gridType);
-  const gridSize = finiteNumber(input.gridSize, "Grid size", 8, 512);
+  const gridSize = finiteNumber(input.gridSize, "Grid size", 8, MAX_CAMPAIGN_MAP_GRID_SIZE);
   const gridOffsetX = finiteNumber(input.gridOffsetX, "Horizontal grid offset", -100000, 100000);
   const gridOffsetY = finiteNumber(input.gridOffsetY, "Vertical grid offset", -100000, 100000);
   if (version !== row.version) throw conflict();

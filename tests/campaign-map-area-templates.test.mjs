@@ -4,6 +4,9 @@ import test from "node:test";
 import {
   campaignMapAreaTemplateAffectedCells,
   campaignMapAreaTemplateContainsPoint,
+  campaignMapAreaTemplateMotionDefaultColors,
+  campaignMapAreaTemplateDefaultColor,
+  campaignMapAreaTemplateMotionEffects,
   campaignMapAreaTemplateOutlinePath,
   campaignMapAreaTemplateSizeLabel,
   campaignMapGridSpacePixels,
@@ -344,4 +347,41 @@ test("optional motion styles are saved with spell templates without obscuring th
   assert.match(runner, /0031_campaign_map_area_template_motion\.sql/u);
   assert.match(workflow, /0031_campaign_map_area_template_motion\.sql/u);
   assert.match(deploy, /0031_campaign_map_area_template_motion/u);
+});
+
+
+
+test("each animated spell effect has a unique, valid starting colour", () => {
+  const hexColor = /^#[0-9a-f]{6}$/u;
+  assert.equal(campaignMapAreaTemplateMotionDefaultColors.none, campaignMapAreaTemplateDefaultColor);
+  assert.equal(campaignMapAreaTemplateMotionEffects.length, 8);
+  const colors = campaignMapAreaTemplateMotionEffects.map(effect => campaignMapAreaTemplateMotionDefaultColors[effect]);
+  assert.ok(colors.every(color => hexColor.test(color)));
+  assert.equal(new Set(colors).size, colors.length);
+});
+
+test("the creation and editing effect pickers apply preset colours without locking custom colours", async () => {
+  const component = await readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8");
+  assert.match(component, /const defaultColor = value === "none" \? null : campaignMapAreaTemplateMotionDefaultColors\[value\]/u);
+  assert.match(component, /if \(defaultColor\) setColorState\(defaultColor\)/u);
+  assert.match(component, /color: defaultColor \?\? selected\.color/u);
+  assert.match(component, /void saveTemplate\(updated, selected\)/u);
+  assert.match(component, /const setColor = useCallback/u);
+  assert.match(component, /const next = \{ \.\.\.selected, color: value \}/u);
+  assert.match(component, /aria-label="Spell area motion effect"/u);
+  assert.match(component, /aria-label="Area motion effect"/u);
+});
+
+test("animated spell areas visibly affect translucent squares and their perimeter with user colours", async () => {
+  const component = await readFile(new URL("../app/campaigns/campaign-map-area-templates.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8");
+  assert.match(component, /style=\{template\.motionEffect !== "none" \? \{ "--map-area-fx": template\.color \} as CSSProperties : undefined\}/u);
+  assert.match(component, /<path className="campaign-map-area-motion-cells" d=\{affected\}/u);
+  assert.match(component, /<path className="campaign-map-area-motion-wash" d=\{outline\}/u);
+  assert.match(component, /<path className="campaign-map-area-motion-edge" d=\{outline\}/u);
+  assert.match(css, /\.campaign-map-area-motion-cells \{[\s\S]*?fill: var\(--map-area-fx,[\s\S]*?stroke: var\(--map-area-fx,/u);
+  assert.match(css, /@keyframes map-area-fx-cells-breathe/u);
+  assert.match(css, /@keyframes map-area-fx-cells-spark/u);
+  assert.match(css, /\.campaign-map-area-motion-cells,[\s\S]*?\.campaign-map-area-motion-wash,[\s\S]*?\.campaign-map-area-motion-edge \{ animation: none !important; \}/u);
+  assert.match(css, /\.campaign-map-area-motion-cells,[\s\S]*?\.campaign-map-area-motion-edge \{ pointer-events: none; \}/u);
 });

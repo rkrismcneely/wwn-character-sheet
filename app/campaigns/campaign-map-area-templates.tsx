@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
@@ -17,6 +18,7 @@ import {
   campaignMapAreaTemplateMinSize,
   campaignMapAreaTemplateOutlinePath,
   campaignMapAreaTemplateMotionEffects,
+  campaignMapAreaTemplateMotionDefaultColors,
   clampCampaignMapAreaTemplateSize,
   normalizeCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateAngle,
@@ -346,9 +348,14 @@ export function useCampaignMapAreaTemplates({
 
   const setMotionEffect = useCallback((value: CampaignMapAreaTemplateMotionEffect) => {
     setMotionEffectState(value);
+    // Choosing an effect supplies a starting color; the color picker can then
+    // override it freely. Turning effects off preserves the current color.
+    const defaultColor = value === "none" ? null : campaignMapAreaTemplateMotionDefaultColors[value];
+    if (defaultColor) setColorState(defaultColor);
     if (!selected?.canEdit) return;
-    const updated = { ...selected, motionEffect: value };
+    const updated = { ...selected, motionEffect: value, color: defaultColor ?? selected.color };
     setTemplates(current => current.map(template => template.id === selected.id ? updated : template));
+    // Send both changes in a single update so neither field overwrites the other.
     void saveTemplate(updated, selected);
   }, [saveTemplate, selected]);
 
@@ -946,6 +953,7 @@ export function CampaignMapAreaTemplateLayer({
       return <g
         key={template.id}
         className={`campaign-map-area-template${selected ? " is-selected" : ""}${interactive ? " is-editable" : ""}${template.motionEffect !== "none" ? ` is-motion-${template.motionEffect}` : ""}`}
+        style={template.motionEffect !== "none" ? { "--map-area-fx": template.color } as CSSProperties : undefined}
         role={interactive ? "button" : undefined}
         tabIndex={interactive ? 0 : undefined}
         aria-label={interactive ? `Select ${shapeLabel(template.shape)} area template` : undefined}
@@ -961,6 +969,7 @@ export function CampaignMapAreaTemplateLayer({
         <path className="campaign-map-area-outline-fill" d={outline} fill={template.color} />
         <path className="campaign-map-area-outline" d={outline} stroke={template.color} vectorEffect="non-scaling-stroke" />
         {template.motionEffect !== "none" && <>
+          <path className="campaign-map-area-motion-cells" d={affected} vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />
           <path className="campaign-map-area-motion-wash" d={outline} pointerEvents="none" aria-hidden="true" />
           <path className="campaign-map-area-motion-edge" d={outline} vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />
         </>}

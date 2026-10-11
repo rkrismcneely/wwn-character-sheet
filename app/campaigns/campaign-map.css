@@ -2547,10 +2547,22 @@
 }
 .campaign-map-effect-picker select { max-width: 8rem; }
 
-/* Subtle spell effects use a faint wash and thin moving boundary only.
-   No visual hit targets: spell coverage and token visibility never change. */
+/* Subtle effects extend into the translucent affected squares as well as the
+   perimeter. The overlay is hit-test transparent and never changes coverage. */
+.campaign-map-area-motion-cells,
 .campaign-map-area-motion-wash,
 .campaign-map-area-motion-edge { pointer-events: none; }
+.campaign-map-area-motion-cells {
+  fill: var(--map-area-fx, #c084fc);
+  fill-opacity: .015;
+  stroke: var(--map-area-fx, #c084fc);
+  stroke-opacity: .1;
+  stroke-width: .8px;
+  stroke-dasharray: 5 35;
+  animation:
+    map-area-fx-cells-breathe var(--map-area-cells-duration, 7s) ease-in-out infinite,
+    map-area-fx-flow var(--map-area-grid-duration, 17s) linear infinite;
+}
 .campaign-map-area-motion-wash {
   fill: var(--map-area-fx, transparent);
   fill-opacity: .025;
@@ -2602,8 +2614,60 @@
   0%, 12%, 18%, 60%, 100% { stroke-opacity: .15; stroke-dashoffset: 0; }
   13%, 17%, 61%, 64% { stroke-opacity: .62; stroke-dashoffset: -18; }
 }
+
+/* Each element has a different cadence but all remain faint enough to see tokens. */
+.campaign-map-area-template.is-motion-fire {
+  --map-area-cells-duration: 4.7s; --map-area-grid-duration: 12s;
+}
+.campaign-map-area-template.is-motion-acid {
+  --map-area-cells-duration: 8s; --map-area-grid-duration: 19s;
+}
+.campaign-map-area-template.is-motion-sound {
+  --map-area-cells-duration: 5.5s; --map-area-grid-duration: 21s;
+}
+.campaign-map-area-template.is-motion-poison {
+  --map-area-cells-duration: 10s; --map-area-grid-duration: 23s;
+}
+.campaign-map-area-template.is-motion-ice {
+  --map-area-cells-duration: 12s; --map-area-grid-duration: 30s;
+}
+.campaign-map-area-template.is-motion-lightning {
+  --map-area-cells-duration: 6s; --map-area-grid-duration: 9s;
+}
+.campaign-map-area-template.is-motion-darkness {
+  --map-area-cells-duration: 13s; --map-area-grid-duration: 32s;
+}
+.campaign-map-area-template.is-motion-acid .campaign-map-area-motion-cells {
+  stroke-dasharray: 2 40;
+}
+.campaign-map-area-template.is-motion-sound .campaign-map-area-motion-cells {
+  stroke-opacity: .07; stroke-dasharray: 15 48;
+}
+.campaign-map-area-template.is-motion-poison .campaign-map-area-motion-cells {
+  stroke-opacity: .07; stroke-dasharray: 9 60;
+}
+.campaign-map-area-template.is-motion-ice .campaign-map-area-motion-cells {
+  stroke-dasharray: 2 48;
+}
+.campaign-map-area-template.is-motion-lightning .campaign-map-area-motion-cells {
+  animation-name: map-area-fx-cells-spark, map-area-fx-flow;
+}
+.campaign-map-area-template.is-motion-darkness .campaign-map-area-motion-cells {
+  stroke-opacity: .065; stroke-dasharray: 20 60;
+}
+@keyframes map-area-fx-cells-breathe {
+  0%, 100% { fill-opacity: .012; }
+  50% { fill-opacity: .065; }
+}
+@keyframes map-area-fx-cells-spark {
+  0%, 11%, 15%, 52%, 58%, 100% { fill-opacity: .012; }
+  12%, 14%, 53%, 57% { fill-opacity: .095; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .campaign-map-area-motion-cells,
   .campaign-map-area-motion-wash,
   .campaign-map-area-motion-edge { animation: none !important; }
+  .campaign-map-area-motion-cells { fill-opacity: .02; stroke-opacity: .06; }
   .campaign-map-area-motion-edge { stroke-opacity: .25; }
 }

@@ -45,6 +45,18 @@ export const campaignMapAreaTemplateShapes: CampaignMapAreaTemplateShape[] = [
 ];
 
 export const campaignMapAreaTemplateDefaultColor = "#c084fc";
+
+/** Starting palette only. Each area retains its own editable color afterwards. */
+export const campaignMapAreaTemplateMotionDefaultColors: Record<CampaignMapAreaTemplateMotionEffect, string> = {
+  none: campaignMapAreaTemplateDefaultColor,
+  fire: "#ff8b4d",
+  acid: "#b3e650",
+  sound: "#80bcff",
+  poison: "#a98ae6",
+  ice: "#a2e5f5",
+  lightning: "#f5d65b",
+  darkness: "#81749e",
+};
 export const campaignMapAreaTemplateMinSize = 1;
 export const campaignMapAreaTemplateMaxSize = 60;
 const MAX_CANDIDATE_CELLS = 20000;

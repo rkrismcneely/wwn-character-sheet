@@ -169,3 +169,28 @@ test("Edit Map keeps distinct functional tabs, separates tasks, and tucks destru
   assert.match(css, /\.campaign-map-grid-fields \{/u);
   assert.match(css, /@media \(max-width: 600px\)/u);
 });
+
+
+test("Grid tab can analyze baked-in square lines without overwriting saved alignment", async () => {
+  const [launcher, css, detector] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/map-grid-auto-align.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(launcher, /async function autoAlignGrid\(\)/u);
+  assert.match(launcher, /onClick=\{\(\) => void autoAlignGrid\(\)\}/u);
+  assert.match(launcher, /Auto Align Grid/u);
+  assert.match(launcher, /grid\.type !== "square"/u);
+  assert.match(launcher, /detectSquareGrid\(pixels, width, height, image\.naturalWidth, image\.naturalHeight\)/u);
+  assert.match(launcher, /selectedMapIdRef\.current !== mapId/u);
+  assert.match(launcher, /setGrid\(current => \(\{ \.\.\.current, type: "square", size: estimate\.size,/u);
+  assert.match(launcher, /setAutoAlignPreview\(true\)/u);
+  assert.match(launcher, /showAutoAlignOverlay && <rect/u);
+  assert.match(launcher, /aria-label="Grid auto-alignment preview"/u);
+  assert.match(launcher, /Discard preview/u);
+  assert.match(launcher, /setGrid\(gridFor\(map\)\)/u);
+  assert.match(launcher, /Save alignment/u);
+  assert.match(launcher, /setAutoAlignPreview\(false\); setAutoAlignNotice\(""\)/u);
+  assert.match(css, /\.campaign-map-auto-align \{/u);
+  assert.match(detector, /periodic|findPeriods/u);
+});

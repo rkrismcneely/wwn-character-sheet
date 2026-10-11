@@ -22,6 +22,7 @@ import {
   campaignMapAreaTemplateMotionEffects,
   campaignMapAreaTemplateMotionDefaultColors,
   clampCampaignMapAreaTemplateSize,
+  parseCampaignMapAreaDistanceDraft,
   normalizeCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateAngle,
   snapCampaignMapAreaTemplateOrigin,
@@ -763,10 +764,9 @@ function AreaTemplateDistanceInput({
       setDraft(String(spaces * unit.perSpace));
       return;
     }
-    const next = /^\d+$/.test(draft.trim())
-      ? clampCampaignMapAreaTemplateSize(Math.round(Number(draft) / unit.perSpace))
-      : spaces;
-    apply(next);
+    // On blur, blank or zero values return to one grid square (5 ft on a
+    // square map), never leaving an unselectable zero-radius spell area.
+    apply(parseCampaignMapAreaDistanceDraft(draft, unit.perSpace));
   };
   const step = (delta: number) => {
     const typed = /^\d+$/.test(draft.trim()) ? Number(draft) : spaces * unit.perSpace;

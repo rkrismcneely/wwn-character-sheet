@@ -413,6 +413,31 @@ export function CampaignMapWorkspace({
     pinchRef.current = null;
     suppressTouchRef.current = false;
   }, [map?.id, open, presentation]);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!open || !svg) return;
+
+    // WebKit (including Chrome on iOS) may browser-zoom the whole page despite
+    // SVG touch-action:none. Prevent that only for a two-finger gesture
+    // originating inside the map canvas. Toolbar and page gestures outside
+    // the canvas retain normal browser accessibility behaviour.
+    const keepPinchInMap = (event: TouchEvent) => {
+      if (event.touches.length >= 2 && event.cancelable) event.preventDefault();
+    };
+    const preventSafariPageGesture = (event: Event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    svg.addEventListener("touchstart", keepPinchInMap, { passive: false });
+    svg.addEventListener("touchmove", keepPinchInMap, { passive: false });
+    svg.addEventListener("gesturestart", preventSafariPageGesture, { passive: false });
+    svg.addEventListener("gesturechange", preventSafariPageGesture, { passive: false });
+    return () => {
+      svg.removeEventListener("touchstart", keepPinchInMap);
+      svg.removeEventListener("touchmove", keepPinchInMap);
+      svg.removeEventListener("gesturestart", preventSafariPageGesture);
+      svg.removeEventListener("gesturechange", preventSafariPageGesture);
+    };
+  }, [open, loading, map?.id, presentation]);
   useEffect(() => { if (!open || !map || !view) return; try { window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view)); } catch {} }, [campaignId, map, open, presentation, view]);
   useEffect(() => { try { window.localStorage.setItem(mapDrawerDockStorageKey, drawerDock); window.localStorage.setItem(mapDrawerWidthStorageKey, String(drawerWidth)); } catch {} }, [drawerDock, drawerWidth]);
   useEffect(() => {

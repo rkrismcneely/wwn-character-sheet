@@ -51,3 +51,19 @@ test("tap-to-place spell areas defers touch creation until pointerup, allowing a
   assert.match(areas, /Math\.hypot\(event\.clientX - pendingPlace\.clientX, event\.clientY - pendingPlace\.clientY\) > 10/u);
   assert.match(areas, /cancelPointerInteraction = \(\) => \{\s*pendingTouchPlaceRef\.current = null;/u);
 });
+
+
+
+test("mobile Safari browser pinch is disabled only on the map SVG, never the toolbar or page", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  assert.match(launcher, /const svg = svgRef\.current;\s*if \(!open \|\| !svg\) return;/u);
+  assert.match(launcher, /const keepPinchInMap = \(event: TouchEvent\) => \{/u);
+  assert.match(launcher, /event\.touches\.length >= 2 && event\.cancelable/u);
+  assert.match(launcher, /svg\.addEventListener\("touchstart", keepPinchInMap, \{ passive: false \}\)/u);
+  assert.match(launcher, /svg\.addEventListener\("touchmove", keepPinchInMap, \{ passive: false \}\)/u);
+  assert.match(launcher, /svg\.addEventListener\("gesturestart", preventSafariPageGesture, \{ passive: false \}\)/u);
+  assert.match(launcher, /svg\.addEventListener\("gesturechange", preventSafariPageGesture, \{ passive: false \}\)/u);
+  assert.match(launcher, /svg\.removeEventListener\("gesturechange", preventSafariPageGesture\)/u);
+  assert.doesNotMatch(launcher, /document\.addEventListener\("gesturestart"|window\.addEventListener\("gesturestart"/u);
+  assert.match(launcher, /event\.currentTarget\.setAttribute\("viewBox"/u);
+});

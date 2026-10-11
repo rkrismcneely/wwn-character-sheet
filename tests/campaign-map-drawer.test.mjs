@@ -136,3 +136,35 @@ test("map header button outlines have consistent thickness and shape", async () 
   assert.match(css, /\.campaign-map-toolbar \.campaign-map-quick-actions > \.campaign-map-menu-wrap > button \{\s*border: 1px solid rgba\(209, 173, 121, \.55\);\s*border-radius: 7px;/u);
   assert.match(css, /border-color: #efc57c;/u);
 });
+
+
+test("Edit Map keeps distinct functional tabs, separates tasks, and tucks destructive actions away", async () => {
+  const [launcher, css] = await Promise.all([
+    readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-map.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(launcher, /className="campaign-map-edit-tabs" aria-label="Map editor sections"/u);
+  assert.match(launcher, /aria-pressed=\{editSection === section\} onClick=\{\(\) => setEditSection\(section\)\}/u);
+  for (const section of ["maps", "grid", "tokens"]) {
+    assert.ok(launcher.includes(`editSection === "${section}" && <div className="campaign-map-edit-panel"`));
+  }
+  assert.match(launcher, /<strong>\{editSection === "maps" \? "Manage maps"/u);
+  assert.match(launcher, /<h4>Available maps<\/h4>/u);
+  assert.match(launcher, /<h4>Selected map<\/h4>/u);
+  assert.match(launcher, /<h4>Map artwork<\/h4>/u);
+  assert.match(launcher, /<h4>Display options<\/h4>/u);
+  assert.match(launcher, /<h4>Grid alignment<\/h4>/u);
+  assert.match(launcher, /<h4>Place tokens<\/h4>/u);
+  assert.match(launcher, /<h4>On this map<\/h4>/u);
+  assert.match(launcher, /<summary>Advanced actions<\/summary>/u);
+  const advanced = launcher.slice(launcher.indexOf('<details className="campaign-map-maintenance">'), launcher.indexOf("</details>", launcher.indexOf('<details className="campaign-map-maintenance">')));
+  assert.match(advanced, /onClick=\{\(\) => void deleteMap\(\)\}/u);
+  assert.match(advanced, /onClick=\{\(\) => void annotations\.clearAnnotations\(\)\}/u);
+  assert.match(launcher, /onClick=\{\(\) => void renameMap\(\)\}/u);
+  assert.match(launcher, /onClick=\{\(\) => void showToPlayers\(\)\}/u);
+  assert.match(launcher, /onClick=\{\(\) => void saveGrid\(\)\}/u);
+  assert.match(launcher, /onClick=\{\(\) => void tokenAction\(\{ action: "place_encounter" \}\)\}/u);
+  assert.match(css, /\.campaign-map-edit-panel \{/u);
+  assert.match(css, /\.campaign-map-grid-fields \{/u);
+  assert.match(css, /@media \(max-width: 600px\)/u);
+});

@@ -1043,7 +1043,11 @@ export function CampaignMapWorkspace({
           }} aria-label="Deselect map object" title="Deselect">✕</button>
         </aside>}
       {keyboardFeedback && <div className="campaign-map-keyboard-feedback" role="status">{keyboardFeedback}</div>}
-      {settingsOpen && canManage && <aside id="campaign-map-settings" className="campaign-map-settings" data-edit-section={editSection} aria-label="Campaign map settings"><div className="campaign-map-settings-heading"><div><p className="campaign-kicker">GM CONTROLS</p><h3>Map Settings</h3></div><button type="button" className="campaign-quiet" onClick={() => setSettingsOpen(false)}>Hide</button></div>
+      {settingsOpen && canManage && <aside id="campaign-map-settings" className="campaign-map-settings" data-edit-section={editSection} aria-label="Edit map settings">
+        <div className="campaign-map-settings-heading">
+          <div><p className="campaign-kicker">MAP EDITOR</p><h3>Edit Map</h3></div>
+          <button type="button" className="campaign-quiet campaign-map-edit-done" onClick={() => setSettingsOpen(false)}>Done</button>
+        </div>
         <nav className="campaign-map-edit-tabs" aria-label="Map editor sections">
           {(["maps", "grid", "tokens"] as const).map(section => <button key={section} type="button"
             className={editSection === section ? "is-active" : ""}
@@ -1051,16 +1055,156 @@ export function CampaignMapWorkspace({
             {section === "maps" ? "Maps" : section === "grid" ? "Grid" : "Tokens"}
           </button>)}
         </nav>
-        {map && <section className="campaign-map-table-controls"><h4>At the Table</h4><p>Display and snapping options for this map.</p><label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled} onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} /><span>Show grid</span></label><label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid} onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label><button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Table Controls</button>{fogMode && <small>Drag across the map to {fogMode} whole {grid.type === "hex" ? "hexes" : "cells"}. Up to 500 cells are changed at once.</small>}</section>}
-        <section className="campaign-map-library"><h4>Maps</h4><p>Choose a map above or upload a new one.</p><label className="campaign-map-upload campaign-primary"><span>Upload New Map</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={uploadNewMap} /></label>{maps.length > 0 && <div className="campaign-map-library-list">{maps.map(candidate => <button type="button" key={candidate.id} className={`campaign-map-library-item${candidate.id === map?.id ? " is-selected" : ""}`} disabled={busy} onClick={() => void selectMap(candidate.id)}><span>{candidate.name}</span>{candidate.isActive ? <small>Visible to Players</small> : <small>GM only</small>}</button>)}</div>}{map && <div className="campaign-map-selected-controls"><div className="campaign-map-player-visibility" aria-label="Player visibility"><strong className="campaign-map-setting-label">Player Visibility</strong>{map.isActive ? <div className="campaign-map-visible-status"><strong>Visible to Players</strong><span>Party members opening Map see this map.</span></div> : <><div className="campaign-map-hidden-status"><strong>GM Only</strong><span>Players continue to see the map currently marked Visible to Players.</span></div><button type="button" className="campaign-primary" disabled={busy} onClick={() => void showToPlayers()}>Make Visible to Players</button></>}<small>Only one campaign map is visible to players at a time.</small></div><label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft} onChange={event => setMapNameDraft(event.target.value)} /></label><button type="button" className="campaign-secondary" disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name} onClick={() => void renameMap()}>Save Name</button><button type="button" className="campaign-danger" disabled={busy} onClick={() => void deleteMap()}>Delete Map</button></div>}</section>
-        {map && <><section className="campaign-map-background-settings"><h4>Background</h4><p>JPG or PNG · up to 15 MB.</p><label className="campaign-map-upload campaign-secondary"><span>{map.backgroundUrl ? "Replace Map Image" : "Add Map Image"}</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={replaceBackground} /></label>{map.backgroundUrl && <button type="button" className="campaign-danger" disabled={busy} onClick={() => void removeBackground()}>Remove Map Image</button>}</section>
-          <section className="campaign-map-grid-settings"><h4>Grid & Alignment</h4><p>Choose the grid that matches this map. Square maps keep five-foot movement; hex maps measure each adjacent hex as 10 km.</p><label><span>Grid type</span><select value={grid.type} onChange={event => setGrid(current => ({ ...current, type: event.target.value as CampaignMapGridType }))}><option value="square">Square · 5 ft cells</option><option value="hex">Hex · 10 km per hex</option></select></label><small>Snapping works whether or not grid lines are visible. Changing the grid never changes a token until it is moved or resized.</small><label><span>{grid.type === "hex" ? "Hex height" : "Cell size"}</span><input type="number" min="8" max="512" step="1" value={grid.size} onChange={event => setGrid(current => ({ ...current, size: Number(event.target.value) }))} /></label><label><span>Horizontal origin</span><input type="number" step="1" value={grid.offsetX} onChange={event => setGrid(current => ({ ...current, offsetX: Number(event.target.value) }))} /></label><label><span>Vertical origin</span><input type="number" step="1" value={grid.offsetY} onChange={event => setGrid(current => ({ ...current, offsetY: Number(event.target.value) }))} /></label><button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveGrid()}>Save Alignment</button></section>
-          <section className="campaign-map-token-settings"><h4>Tokens</h4><p>Token placements belong to this map. Sizes are measured in whole grid cells, so larger tokens stay aligned with the selected grid.</p><button type="button" className="campaign-primary" disabled={busy || !map.backgroundUrl || !encounterAvailable} onClick={() => void tokenAction({ action: "place_encounter" })}>Place Active Encounter</button>{!encounterAvailable && <small>Start a live encounter to place all of its current combatants at once.</small>}{characters.length > 0 && <div className="campaign-map-character-tokens">{characters.map(character => <div key={character.id}><span>{character.name}</span>{placedCharacterIds.has(character.id) ? <small>On map</small> : <button type="button" className="campaign-secondary" disabled={busy || !map.backgroundUrl} onClick={() => void tokenAction({ action: "place_pc", characterId: character.id })}>Place</button>}</div>)}</div>}{companions.length > 0 && <div className="campaign-map-character-tokens campaign-map-companion-tokens">{companions.map(companion => <div key={companion.id}><span><b>{companion.name}</b><small>{companion.characterName} · {companion.label}</small></span>{placedCompanionIds.has(companion.id) ? <small>On map</small> : <button type="button" className="campaign-secondary" disabled={busy || !map.backgroundUrl} onClick={() => void tokenAction({ action: "place_companion", companionId: companion.id })}>Place</button>}</div>)}</div>}{map.tokens.length ? <div className="campaign-map-placed-tokens"><strong>On this map</strong>{map.tokens.map(token => { const sizeCells = tokenSizes[token.id] ?? 1; return <div key={token.id}><span><b>{token.name}</b><small>{tokenKindLabel(token.kind)} · {sizeCells}×{sizeCells}</small></span><div className="campaign-map-token-row-actions"><button type="button" className="campaign-quiet" disabled={busy || sizeCells <= 1} aria-label={`Make ${token.name} smaller`} onClick={() => void resizeToken(token, sizeCells - 1)}>−</button><button type="button" className="campaign-quiet" disabled={busy || sizeCells >= 12} aria-label={`Make ${token.name} larger`} onClick={() => void resizeToken(token, sizeCells + 1)}>+</button><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void tokenAction({ action: "remove", tokenId: token.id })}>Remove</button></div></div>; })}</div> : <p>No tokens placed on this map yet.</p>}</section></>}
-        {editSection === "maps" && canManage && <details className="campaign-map-maintenance">
-          <summary>Map maintenance</summary>
-          <button type="button" className="campaign-danger" disabled={annotations.busy || !annotations.annotations.length}
-            onClick={() => void annotations.clearAnnotations()}>Clear all annotations…</button>
-        </details>}</aside>}
+        <div className="campaign-map-edit-intro" aria-live="polite">
+          <strong>{editSection === "maps" ? "Manage maps" : editSection === "grid" ? "Grid & display" : "Manage tokens"}</strong>
+          <span>{editSection === "maps" ? "Choose a map, then edit its details." : editSection === "grid" ? "Adjust the grid without changing the artwork." : "Place and manage tokens on this map."}</span>
+        </div>
+        {editSection === "maps" && <div className="campaign-map-edit-panel" role="region" aria-label="Maps settings">
+          <section className="campaign-map-library">
+            <div className="campaign-map-edit-section-heading"><h4>Available maps</h4><span className="campaign-map-edit-count">{maps.length}</span></div>
+            <p>Choose a map to edit or upload another.</p>
+            {maps.length > 0 && <div className="campaign-map-library-list">
+              {maps.map(candidate => <button type="button" key={candidate.id}
+                className={`campaign-map-library-item${candidate.id === map?.id ? " is-selected" : ""}`}
+                disabled={busy} onClick={() => void selectMap(candidate.id)}>
+                <span>{candidate.name}</span><small>{candidate.isActive ? "Visible" : "GM only"}</small>
+              </button>)}
+            </div>}
+            <label className="campaign-map-upload campaign-secondary"><span>+ Upload new map</span>
+              <input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={uploadNewMap} />
+            </label>
+          </section>
+          {map && <>
+            <section className="campaign-map-selected-controls">
+              <h4>Selected map</h4>
+              <div className="campaign-map-player-visibility" aria-label="Player visibility">
+                <strong className="campaign-map-setting-label">Player visibility</strong>
+                {map.isActive
+                  ? <div className="campaign-map-visible-status"><strong>Visible to players</strong><span>This is the map your players see.</span></div>
+                  : <div className="campaign-map-hidden-status"><strong>GM only</strong><span>Only you can see this map until you share it.</span></div>}
+                {!map.isActive && <button type="button" className="campaign-primary" disabled={busy}
+                  onClick={() => void showToPlayers()}>Make visible to players</button>}
+              </div>
+              <div className="campaign-map-edit-name">
+                <label><span>Map name</span><input type="text" maxLength={80} value={mapNameDraft}
+                  onChange={event => setMapNameDraft(event.target.value)} /></label>
+                <button type="button" className="campaign-secondary"
+                  disabled={busy || !mapNameDraft.trim() || mapNameDraft.trim() === map.name}
+                  onClick={() => void renameMap()}>Save name</button>
+              </div>
+            </section>
+            <section className="campaign-map-background-settings">
+              <h4>Map artwork</h4>
+              <p>JPG or PNG · up to 15 MB.</p>
+              <label className="campaign-map-upload campaign-secondary">
+                <span>{map.backgroundUrl ? "Replace image" : "Add map image"}</span>
+                <input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={replaceBackground} />
+              </label>
+              {map.backgroundUrl && <button type="button" className="campaign-secondary" disabled={busy}
+                onClick={() => void removeBackground()}>Remove image</button>}
+            </section>
+          </>}
+          <details className="campaign-map-maintenance">
+            <summary>Advanced actions</summary>
+            <div className="campaign-map-maintenance-content">
+              <p>Destructive changes to this map and its annotations.</p>
+              {map && <button type="button" className="campaign-danger" disabled={busy}
+                onClick={() => void deleteMap()}>Delete map…</button>}
+              <button type="button" className="campaign-danger"
+                disabled={annotations.busy || !annotations.annotations.length}
+                onClick={() => void annotations.clearAnnotations()}>Clear all annotations…</button>
+            </div>
+          </details>
+        </div>}
+        {editSection === "grid" && <div className="campaign-map-edit-panel" role="region" aria-label="Grid settings">
+          {map && <>
+            <section className="campaign-map-table-controls">
+              <h4>Display options</h4>
+              <p>Control how the grid and token snapping behave at the table.</p>
+              <label className="campaign-map-grid-toggle"><input type="checkbox" checked={grid.enabled}
+                onChange={event => setGrid(current => ({ ...current, enabled: event.target.checked }))} />
+                <span>Show grid</span></label>
+              <label className="campaign-map-grid-toggle"><input type="checkbox" checked={snapToGrid}
+                onChange={event => setSnapToGrid(event.target.checked)} /><span>Snap tokens to grid</span></label>
+              <button type="button" className="campaign-primary" disabled={busy}
+                onClick={() => void saveGrid()}>Save display options</button>
+              {fogMode && <small>Drag across the map to {fogMode} whole {grid.type === "hex" ? "hexes" : "cells"}. Up to 500 cells at once.</small>}
+            </section>
+            <section className="campaign-map-grid-settings">
+              <h4>Grid alignment</h4>
+              <p>Match grid size and position to the map image.</p>
+              <label><span>Grid type</span>
+                <select value={grid.type} onChange={event => setGrid(current => ({ ...current, type: event.target.value as CampaignMapGridType }))}>
+                  <option value="square">Square · 5 ft cells</option>
+                  <option value="hex">Hex · 10 km per hex</option>
+                </select>
+              </label>
+              <div className="campaign-map-grid-fields">
+                <label><span>{grid.type === "hex" ? "Hex height" : "Cell size"}</span>
+                  <input type="number" min="8" max="512" step="1" value={grid.size}
+                    onChange={event => setGrid(current => ({ ...current, size: Number(event.target.value) }))} /></label>
+                <label><span>Horizontal origin</span>
+                  <input type="number" step="1" value={grid.offsetX}
+                    onChange={event => setGrid(current => ({ ...current, offsetX: Number(event.target.value) }))} /></label>
+                <label><span>Vertical origin</span>
+                  <input type="number" step="1" value={grid.offsetY}
+                    onChange={event => setGrid(current => ({ ...current, offsetY: Number(event.target.value) }))} /></label>
+              </div>
+              <small>Changing alignment does not move existing tokens.</small>
+              <button type="button" className="campaign-primary" disabled={busy}
+                onClick={() => void saveGrid()}>Save alignment</button>
+            </section>
+          </>}
+        </div>}
+        {editSection === "tokens" && <div className="campaign-map-edit-panel" role="region" aria-label="Token settings">
+          {map && <>
+            <section className="campaign-map-token-settings">
+              <h4>Place tokens</h4>
+              <p>Add characters, companions or everyone in a live encounter.</p>
+              <button type="button" className="campaign-primary" disabled={busy || !map.backgroundUrl || !encounterAvailable}
+                onClick={() => void tokenAction({ action: "place_encounter" })}>Place active encounter</button>
+              {!encounterAvailable && <small>Start a live encounter to place all combatants together.</small>}
+              {characters.length > 0 && <div className="campaign-map-token-group">
+                <h5>Characters <span>{characters.length}</span></h5>
+                <div className="campaign-map-character-tokens">{characters.map(character =>
+                  <div key={character.id}><span>{character.name}</span>
+                    {placedCharacterIds.has(character.id) ? <small>On map</small>
+                      : <button type="button" className="campaign-secondary" disabled={busy || !map.backgroundUrl}
+                          onClick={() => void tokenAction({ action: "place_pc", characterId: character.id })}>Place</button>}
+                  </div>)}</div>
+              </div>}
+              {companions.length > 0 && <div className="campaign-map-token-group">
+                <h5>Companions <span>{companions.length}</span></h5>
+                <div className="campaign-map-character-tokens campaign-map-companion-tokens">{companions.map(companion =>
+                  <div key={companion.id}><span><b>{companion.name}</b><small>{companion.characterName} · {companion.label}</small></span>
+                    {placedCompanionIds.has(companion.id) ? <small>On map</small>
+                      : <button type="button" className="campaign-secondary" disabled={busy || !map.backgroundUrl}
+                          onClick={() => void tokenAction({ action: "place_companion", companionId: companion.id })}>Place</button>}
+                  </div>)}</div>
+              </div>}
+            </section>
+            <section className="campaign-map-placed-section">
+              <div className="campaign-map-edit-section-heading"><h4>On this map</h4><span className="campaign-map-edit-count">{map.tokens.length}</span></div>
+              {map.tokens.length > 0
+                ? <div className="campaign-map-placed-tokens">{map.tokens.map(token => {
+                    const sizeCells = tokenSizes[token.id] ?? 1;
+                    return <div key={token.id}>
+                      <span><b>{token.name}</b><small>{tokenKindLabel(token.kind)} · {tokenFootprintSizeLabel(sizeCells)}</small></span>
+                      <div className="campaign-map-token-row-actions">
+                        <button type="button" className="campaign-quiet" disabled={busy || sizeCells <= 1}
+                          aria-label={`Make ${token.name} smaller`} onClick={() => void resizeToken(token, sizeCells - 1)}>−</button>
+                        <button type="button" className="campaign-quiet" disabled={busy || sizeCells >= 12}
+                          aria-label={`Make ${token.name} larger`} onClick={() => void resizeToken(token, sizeCells + 1)}>+</button>
+                        <button type="button" className="campaign-quiet" disabled={busy}
+                          onClick={() => void tokenAction({ action: "remove", tokenId: token.id })}>Remove</button>
+                      </div>
+                    </div>;
+                  })}</div>
+                : <p>No tokens placed on this map yet.</p>}
+            </section>
+          </>}
+        </div>}
+      </aside>}
     </div>
   </section> : null;
 

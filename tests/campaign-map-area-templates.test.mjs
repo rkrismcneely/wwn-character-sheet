@@ -428,7 +428,7 @@ test("mobile spell distance fields preserve incomplete numeric typing and expose
   assert.match(controls, /onBlur=\{\(\) => \{ editingRef\.current = false; commitDraft\(\); \}\}/u);
   assert.match(controls, /onFocus=\{event => \{ editingRef\.current = true; event\.currentTarget\.select\(\); \}\}/u);
   assert.match(controls, /if \(event\.key === "Enter"\) event\.currentTarget\.blur\(\)/u);
-  assert.match(controls, /clampCampaignMapAreaTemplateSize\(Math\.round\(Number\(draft\) \/ unit\.perSpace\)\)/u);
+  assert.match(controls, /apply\(parseCampaignMapAreaDistanceDraft\(draft, unit\.perSpace\)\)/u);
   assert.match(controls, /Decrease \$\{label\} by \$\{unit\.perSpace\}/u);
   assert.match(controls, /Increase \$\{label\} by \$\{unit\.perSpace\}/u);
   assert.match(controls, /const updated = \{ \.\.\.selected, sizeSpaces: next \}/u);

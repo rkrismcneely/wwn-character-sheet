@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
 import { SignedInHeader } from "../app-header";
+import { SessionRecapPanel } from "./session-recap-panel";
 import { campaignInviteLink } from "@/lib/campaigns/invite-link";
 import {
   campaignRoleLabel,
@@ -522,6 +523,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                 </article>)}
               </div>}
             </section>
+
+            <SessionRecapPanel campaignId={campaignId} />
 
             <section className="campaign-panel campaign-character-panel" aria-labelledby="campaign-characters-title">
               <div className="campaign-section-heading">

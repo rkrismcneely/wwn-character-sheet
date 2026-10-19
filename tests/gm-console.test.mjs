@@ -28,6 +28,13 @@ test("GM Console is owner/admin-gated and reuses the existing session, encounter
   assert.match(consoleUi, /Physical/u);
   assert.match(consoleUi, /gm-party-status-core/u);
   assert.match(consoleUi, /gm-party-status-resources/u);
+  assert.match(consoleUi, /className="gm-party-status-saves"/u);
+  assert.match(consoleUi, /className="gm-party-status-save-grid"/u);
+  assert.match(consoleUi, /Saving Throws/u);
+  assert.match(styles, /\.gm-party-status-grid\s*\{[^}]*minmax\(min\(100%,460px\),1fr\)/u);
+  assert.match(styles, /\.gm-party-status-core\s*\{[^}]*grid-template-columns:minmax\(0,1\.15fr\)/u);
+  assert.match(styles, /\.gm-party-status-save-grid\s*\{[^}]*repeat\(4,minmax\(0,1fr\)\)/u);
+  assert.match(styles, /@media\(max-width:400px\)\s*\{[^}]*\.gm-party-status-save-grid\s*\{\s*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
   assert.match(consoleUi, /const hasResources = character\.spellUsage !== null \|\| character\.effortCommitted !== null/u);
   assert.doesNotMatch(consoleUi, /<span>AC \{character\.armorClass\}<\/span>/u);
   assert.doesNotMatch(consoleUi, /Start a session to view party presence/u);

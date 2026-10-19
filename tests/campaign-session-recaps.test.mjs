@@ -50,13 +50,16 @@ test("recap API authenticates every operation and reserves writes for GM service
 });
 
 test("GM Console has session recap tab with editor, preview, ten-card pagination and revisit", async () => {
-  const [console, editor] = await Promise.all([
+  const [console, editor, css] = await Promise.all([
     read("../app/campaigns/gm-console.tsx"),
     read("../app/campaigns/session-recap-manager.tsx"),
+    read("../app/campaigns/campaign-ui.css"),
   ]);
   assert.match(console, /"party" \| "recaps"/u);
   assert.match(console, /item === "recaps" \? "Session Recap"/u);
   assert.match(console, /tab === "recaps" && <SessionRecapManager campaignId=\{campaignId\}/u);
+  assert.match(css, /\.gm-console-tabs\{display:flex;flex-wrap:wrap;/u);
+  assert.match(css, /\.gm-console-tabs\{width:calc\(100% - 24px\);overflow:visible\}/u);
   assert.match(editor, />New Session<\/button>/u);
   assert.match(editor, /type="date" required/u);
   assert.match(editor, /maxLength=\{120\}/u);

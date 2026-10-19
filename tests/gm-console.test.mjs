@@ -108,12 +108,12 @@ test("GM Console is owner/admin-gated and reuses the existing session, encounter
   assert.match(styles, /\.gm-bestiary-browser\[data-mobile-view="detail"\] \.gm-bestiary-browse/u);
   assert.match(styles, /\.gm-bestiary-filters\{display:grid/u);
   assert.match(styles, /\.gm-bestiary-threat-grid/u);
-  assert.match(styles, /\.gm-party-status-core,\.gm-party-status-resources\{display:flex;flex-wrap:wrap/u);
-  assert.match(styles, /\.gm-party-status-core\{display:grid;grid-template-columns:repeat\(7,minmax\(0,1fr\)\);gap:8px/u);
-  assert.match(styles, /\.gm-party-status-core dt,\.gm-party-status-resources dt\{[^}]*font-size:10px/u);
-  assert.match(styles, /\.gm-party-status-core dd,\.gm-party-status-resources dd\{[^}]*font-size:17px/u);
-  assert.match(styles, /@media\(max-width:900px\)\{\.gm-party-status-core\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}\}/u);
-  assert.match(styles, /@media\(max-width:430px\)\{\.gm-party-status-core\{grid-template-columns:repeat\(3,minmax\(0,1fr\)/u);
+  assert.match(styles, /\.gm-party-status-core dd\s*\{[^}]*white-space:nowrap/u);
+  assert.match(styles, /\.gm-party-status-saves h3\s*\{/u);
+  assert.match(styles, /\.gm-party-status-save-grid > div\s*\{[^}]*border-left:1px/u);
+  assert.match(styles, /\.gm-party-status-resources\s*\{\s*display:flex/u);
+  assert.doesNotMatch(styles, /grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/u);
+  assert.match(styles, /@media\(max-width:640px\)\s*\{[^}]*\.gm-party-status-card/u);
   assert.match(consoleUi, /End Session/u);
   assert.match(consoleUi, /action\(session \? "end" : "start"\)/u);
   assert.doesNotMatch(consoleUi, /Session Active/u);

@@ -510,3 +510,72 @@ html[data-theme="dark"] .campaign-friendly-badge{border-color:#806b3c;background
 html[data-theme="dark"] .campaign-encounter-order li{border-color:#665431;background:#211f19;color:#ead9b8}html[data-theme="dark"] .campaign-encounter-order li.campaign-encounter-current{border-color:#a77a33;background:#30291f}html[data-theme="dark"] .campaign-encounter-name a,html[data-theme="dark"] .campaign-encounter-name strong,html[data-theme="dark"] .campaign-encounter-order label b,html[data-theme="dark"] .campaign-encounter-ac b,html[data-theme="dark"] .campaign-encounter-hp-control b,html[data-theme="dark"] .campaign-encounter-pc-context b,html[data-theme="dark"] .campaign-encounter-stat b{color:#f0dfbd}html[data-theme="dark"] .campaign-encounter p,html[data-theme="dark"] .campaign-encounter-heading span,html[data-theme="dark"] .campaign-encounter-add-pcs>span,html[data-theme="dark"] .campaign-encounter-npc label>span,html[data-theme="dark"] .campaign-encounter-order label>span,html[data-theme="dark"] .campaign-encounter-ac small,html[data-theme="dark"] .campaign-encounter-name small,html[data-theme="dark"] .campaign-encounter-pc-context small,html[data-theme="dark"] .campaign-encounter-stat small,html[data-theme="dark"] .campaign-encounter-npc-details summary,html[data-theme="dark"] .campaign-encounter-no-combatants{color:#cdbd9f}html[data-theme="dark"] .campaign-encounter-npc-combat{border-top-color:#665431}html[data-theme="dark"] .campaign-encounter-remove{border-color:#8b5141;background:#37201b;color:#f0b6a1}html[data-theme="dark"] .campaign-encounter-friendly-toggle{border-color:#806b3c;background:#30291c;color:#f0dfbd}html[data-theme="dark"] .campaign-encounter-threat>summary,html[data-theme="dark"] .campaign-encounter-threat>summary h4{color:#f0dfbd}
 html[data-theme="dark"] .gm-npc-magic-add label>span{color:#d3a75d}html[data-theme="dark"] .gm-npc-magic-row select,html[data-theme="dark"] .gm-npc-magic-custom input,html[data-theme="dark"] .gm-npc-magic-add select{background:#181815;border-color:#665a42;color:#f0dfbd}
 @media(max-width:640px){.gm-npc-magic-row{grid-template-columns:minmax(0,1fr) auto}.gm-npc-magic-row select{grid-column:1/-1}.gm-npc-magic-summary{grid-column:1/-1}.gm-npc-magic-custom{grid-template-columns:1fr}.gm-npc-magic-custom input:last-child{grid-column:auto}.gm-npc-magic-add{align-items:stretch;flex-direction:column}.gm-npc-magic-add label,.gm-npc-magic-add select{width:100%;min-width:0}}
+
+
+/* Session recap editor / list in GM Console, and shared player reading panel. */
+.session-recap-manager,.session-recap-form { display:grid;gap:1rem;min-width:0; }
+.session-recap-manager .campaign-section-heading { align-items:center; }
+.session-recap-cards { display:grid;gap:.65rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); }
+.session-recap-card {
+  display:grid;justify-items:start;align-content:start;gap:.45rem;
+  width:100%;min-height:110px;text-align:left;padding:1rem 1.1rem;
+  border:1px solid var(--campaign-line,#c5a871);border-radius:8px;
+  background:color-mix(in srgb,var(--campaign-paper,#f8f0df) 87%,transparent);
+  color:var(--campaign-ink,#382e23);cursor:pointer;
+}
+.session-recap-card:hover,.session-recap-card:focus-visible {
+  border-color:#b58640;background:color-mix(in srgb,var(--campaign-paper,#f8f0df) 85%,#efdbb1 15%);
+  outline-offset:2px;
+}
+.session-recap-card-date,.session-recap-card-action {font:600 .77rem/1.3 var(--font-ui);color:var(--campaign-muted,#756b5f)}
+.session-recap-card strong {font:600 1.2rem/1.22 var(--font-display);overflow-wrap:anywhere}
+.session-recap-card-action {margin-top:auto;color:var(--campaign-accent,#8e672b)}
+.session-recap-pagination {display:flex;justify-content:center;align-items:center;gap:1rem;padding:.8rem}
+.session-recap-pagination span {font:600 .85rem/1.4 var(--font-ui)}
+.session-recap-form {
+  border:1px solid var(--campaign-line,#c5a871);border-radius:8px;
+  background:color-mix(in srgb,var(--campaign-paper,#f8f0df) 90%,transparent);padding:1.25rem;
+}
+.session-recap-form-fields {display:grid;grid-template-columns:minmax(170px, .35fr) minmax(0,1fr);gap:1rem}
+.session-recap-form-fields label {display:grid;gap:.4rem}
+.session-recap-form-fields label>span,.session-recap-editor-heading label {
+  font:700 .76rem/1.4 var(--font-ui);letter-spacing:.04em;color:var(--campaign-muted,#756b5f);
+}
+.session-recap-form input,.session-recap-form textarea,.session-recap-date-picker select {
+  width:100%;min-width:0;padding:.7rem .85rem;border:1px solid var(--campaign-line,#c5a871);border-radius:6px;
+  font:400 .94rem/1.5 var(--font-ui);background:var(--campaign-paper,#fffaf0);color:var(--campaign-ink,#382e23);
+}
+.session-recap-form textarea {min-height:310px;resize:vertical;line-height:1.6}
+.session-recap-editor-heading {display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.session-recap-editor-preview {min-height:310px;padding:1rem;border:1px solid var(--campaign-line,#c5a871);border-radius:6px;background:var(--campaign-paper,#fffaf0)}
+.session-recap-editor-help {margin:0;color:var(--campaign-muted,#756b5f);font: .8rem/1.5 var(--font-ui)}
+.session-recap-form-actions {display:flex;flex-wrap:wrap;gap:.6rem}
+.campaign-session-recaps-panel {grid-column:1/-1;min-width:0}
+.session-recap-date-picker {min-width:0;max-width:min(100%,26rem)}
+.session-recap-date-picker select {cursor:pointer}
+.session-recap-reading {padding:.5rem 0;overflow-wrap:anywhere}
+.session-recap-reading>h3 {font:600 clamp(1.35rem,2.4vw,1.85rem)/1.25 var(--font-display);margin:.4rem 0 1rem}
+.session-recap-markdown {font:400 .98rem/1.7 var(--font-ui);overflow-wrap:anywhere}
+.session-recap-markdown>* {margin:0 0 .9em}
+.session-recap-markdown h2,.session-recap-markdown h3,.session-recap-markdown h4 {
+  font-family:var(--font-display);line-height:1.3;margin:1.1em 0 .45em
+}
+.session-recap-markdown h2 {font-size:1.48rem}.session-recap-markdown h3 {font-size:1.24rem}.session-recap-markdown h4 {font-size:1.1rem}
+.session-recap-markdown ul,.session-recap-markdown ol {padding-left:1.6rem}
+.session-recap-markdown li+li {margin-top:.32em}
+.session-recap-markdown pre {white-space:pre-wrap;overflow-wrap:anywhere;padding:.9rem;border-radius:6px;background:rgba(70,63,53,.09)}
+.session-recap-markdown code {font:.87em/1.5 ui-monospace,SFMono-Regular,monospace;background:rgba(70,63,53,.10);padding:.12em .25em;border-radius:3px}
+.session-recap-markdown pre code {background:transparent;padding:0}
+.session-recap-markdown blockquote {padding:.3rem .9rem;border-left:3px solid #b58b49;background:rgba(181,139,73,.07)}
+.session-recap-markdown blockquote p {margin:.35rem 0}
+.session-recap-markdown a {text-decoration:underline;text-underline-offset:.15em}
+.session-recap-markdown hr {border:0;border-top:1px solid var(--campaign-line,#c5a871)}
+.session-recap-table-wrap {overflow-x:auto}
+.session-recap-markdown table {border-collapse:collapse;width:100%;font-size:.92rem}
+.session-recap-markdown th,.session-recap-markdown td {text-align:left;padding:.45rem .6rem;border:1px solid var(--campaign-line,#c5a871)}
+@media(max-width:640px){
+ .session-recap-form-fields {grid-template-columns:1fr}
+ .session-recap-form {padding:.9rem}
+ .campaign-session-recaps-panel .campaign-section-heading {flex-wrap:wrap;gap:.65rem}
+ .session-recap-date-picker {max-width:100%;width:100%}
+}

@@ -31,7 +31,9 @@ test("GM Console is owner/admin-gated and reuses the existing session, encounter
   assert.match(consoleUi, /className="gm-party-status-saves"/u);
   assert.match(consoleUi, /className="gm-party-status-save-grid"/u);
   assert.match(consoleUi, /Saving Throws/u);
-  assert.match(styles, /\.gm-party-status-grid\s*\{[^}]*minmax\(min\(100%,460px\),1fr\)/u);
+  assert.match(styles, /\.gm-party-status-grid\s*\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/u);
+  assert.match(styles, /@media\(max-width:1100px\)[\s\S]*?\.gm-party-status-grid\s*\{\s*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
+  assert.match(styles, /@media\(max-width:720px\)[\s\S]*?\.gm-party-status-grid\s*\{\s*grid-template-columns:minmax\(0,1fr\)/u);
   assert.match(styles, /\.gm-party-status-core\s*\{[^}]*grid-template-columns:minmax\(0,1\.15fr\)/u);
   assert.match(styles, /\.gm-party-status-save-grid\s*\{[^}]*repeat\(4,minmax\(0,1fr\)\)/u);
   assert.match(styles, /@media\(max-width:400px\)[\s\S]*?\.gm-party-status-save-grid\s*\{\s*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);

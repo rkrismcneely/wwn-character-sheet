@@ -134,7 +134,20 @@ function GmPartyStatus({ campaignId, character }: { campaignId: string; characte
   const hasResources = character.spellUsage !== null || character.effortCommitted !== null;
   return <article className="gm-party-status-card">
     <div className="gm-party-status-heading"><div><Link href={`/campaigns/${campaignId}/characters/${character.id}`}>{character.name}</Link><p>{character.player || "Player unknown"} · Level {character.level} {character.classLabel}</p></div></div>
-    <dl className="gm-party-status-core"><div><dt>HP</dt><dd>{character.hpCurrent} / {character.hpMax}</dd></div><div><dt>AC</dt><dd>{character.armorClass}</dd></div><div><dt>System Strain</dt><dd>{character.systemStrain.current} / {character.systemStrain.max}</dd></div><div><dt>Physical</dt><dd>{character.saves.physical}</dd></div><div><dt>Evasion</dt><dd>{character.saves.evasion}</dd></div><div><dt>Mental</dt><dd>{character.saves.mental}</dd></div><div><dt>Luck</dt><dd>{character.saves.luck}</dd></div></dl>
+    <dl className="gm-party-status-core" aria-label="Combat statistics">
+      <div><dt>HP</dt><dd>{character.hpCurrent} / {character.hpMax}</dd></div>
+      <div><dt>AC</dt><dd>{character.armorClass}</dd></div>
+      <div><dt>System Strain</dt><dd>{character.systemStrain.current} / {character.systemStrain.max}</dd></div>
+    </dl>
+    <div className="gm-party-status-saves">
+      <h3>Saving Throws</h3>
+      <dl className="gm-party-status-save-grid">
+        <div><dt>Physical</dt><dd>{character.saves.physical}</dd></div>
+        <div><dt>Evasion</dt><dd>{character.saves.evasion}</dd></div>
+        <div><dt>Mental</dt><dd>{character.saves.mental}</dd></div>
+        <div><dt>Luck</dt><dd>{character.saves.luck}</dd></div>
+      </dl>
+    </div>
     {hasResources && <dl className="gm-party-status-resources">{character.spellUsage && <div><dt>{character.spellUsage.label}</dt><dd>{character.spellUsage.used} / {character.spellUsage.max}</dd></div>}{character.effortCommitted !== null && <div><dt>Effort</dt><dd>{character.effortCommitted} committed</dd></div>}</dl>}
   </article>;
 }

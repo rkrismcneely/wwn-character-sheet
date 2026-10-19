@@ -65,7 +65,7 @@ test("GM Console has session recap tab with editor, preview, ten-card pagination
   assert.match(editor, /<SessionRecapMarkdown content=\{draft\.content\}/u);
   assert.match(editor, /method: editing === "new" \? "POST" : "PATCH"/u);
   assert.match(editor, /updatedAt: editing\.updatedAt/u);
-  assert.match(editor, /setEditing\(null\); setPreview\(false\);\s*await loadPage\(1\)/u);
+  assert.match(editor, /setEditing\(null\); setPreview\(false\); setImportNotice\(""\);\s*await loadPage\(1\)/u);
   assert.match(editor, /Page \{page\} \/ \{data\.totalPages\}/u);
   assert.match(editor, /onClick=\{\(\) => void loadPage\(page - 1\)\}/u);
   assert.match(editor, /onClick=\{\(\) => void loadPage\(page \+ 1\)\}/u);

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import type { CampaignSessionRecap, SessionRecapPage } from "@/lib/campaigns/session-recaps";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
 import { formatRecapDate } from "./session-recap-date";
+import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
 type Draft = { date: string; title: string; content: string };
 function localToday() {
@@ -19,6 +20,9 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [preview, setPreview] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState("");
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
   const loadPage = useCallback(async (p: number) => {
@@ -39,12 +43,39 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }, [loadPage]);
 
   function startNew() {
-    setEditing("new"); setDraft({ date: localToday(), title: "", content: "" }); setError(""); setPreview(false);
+    setEditing("new"); setDraft({ date: localToday(), title: "", content: "" });
+    setError(""); setPreview(false); setImportNotice("");
+  }
+
+  async function importObsidianNote(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || saving || importing) return;
+    setError(""); setImporting(true);
+    try {
+      if (file.size > MAX_OBSIDIAN_IMPORT_BYTES) {
+        throw new Error("That file is too large to import. Choose a Markdown note smaller than 128 KB.");
+      }
+      const imported = parseObsidianSessionRecap(await file.text(), file.name, localToday());
+      // Only fill a new draft; the selected file is never uploaded or saved
+      // until the GM explicitly reviews and clicks Save Session Recap.
+      setEditing("new");
+      setDraft({ date: imported.date, title: imported.title, content: imported.content });
+      setPreview(true);
+      setImportNotice(imported.dateInferred
+        ? `Imported “${file.name}”. No date was found, so today's date is selected. Check the date before saving.`
+        : `Imported “${file.name}”. Review the date, title and formatting before saving.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to import this Markdown note.");
+    } finally {
+      setImporting(false);
+    }
   }
   function openRecap(recap: CampaignSessionRecap) {
-    setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.content }); setError(""); setPreview(false);
+    setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.content });
+    setError(""); setPreview(false); setImportNotice("");
   }
-  function cancelEdit() { setEditing(null); setError(""); setPreview(false); }
+  function cancelEdit() { setEditing(null); setError(""); setPreview(false); setImportNotice(""); }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,18 +89,22 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       });
       const result = await response.json() as { recap?: CampaignSessionRecap; error?: string };
       if (!response.ok || !result.recap) throw new Error(result.error || "Could not save the session recap.");
-      setEditing(null); setPreview(false);
+      setEditing(null); setPreview(false); setImportNotice("");
       await loadPage(1);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save the session recap."); }
     finally { setSaving(false); }
   }
 
   return <section className="gm-console-section session-recap-manager" aria-labelledby="gm-session-recaps-title">
+    <input ref={importFileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain"
+      aria-label="Choose an Obsidian Markdown note" hidden
+      onChange={event => void importObsidianNote(event)} />
     {editing ? <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">SESSION JOURNAL</p><h2 id="gm-session-recaps-title">{editing === "new" ? "New Session Recap" : "Edit Session Recap"}</h2></div>
         <button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Back to Recaps</button>
       </div>
+      {importNotice && <p className="session-recap-import-notice" role="status">{importNotice}</p>}
       <form className="session-recap-form" onSubmit={event => void save(event)}>
         <div className="session-recap-form-fields">
           <label><span>Session date</span><input type="date" required value={draft.date} onChange={event => setDraft(current => ({ ...current, date: event.target.value }))} /></label>
@@ -87,8 +122,13 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     </> : <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">CAMPAIGN JOURNAL</p><h2 id="gm-session-recaps-title">Session Recaps</h2></div>
-        <button type="button" className="campaign-primary" onClick={startNew}>New Session</button>
+        <div className="session-recap-heading-actions">
+          <button type="button" className="campaign-secondary" disabled={importing || loading}
+            onClick={() => importFileRef.current?.click()}>{importing ? "Importing…" : "Import from Obsidian"}</button>
+          <button type="button" className="campaign-primary" onClick={startNew}>New Session</button>
+        </div>
       </div>
+      <p className="session-recap-import-help">Import an existing Markdown note (.md) from your Obsidian vault using your device’s file picker.</p>
       {error && <p className="campaign-error" role="alert">{error}</p>}
       {loading && <p className="campaign-empty-copy" role="status">Loading session recaps…</p>}
       {!loading && !data?.recaps.length && <p className="campaign-empty-copy">No session recaps yet. Select New Session to record the first one.</p>}

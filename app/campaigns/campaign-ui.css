@@ -579,3 +579,31 @@ html[data-theme="dark"] .gm-npc-magic-add label>span{color:#d3a75d}html[data-the
  .campaign-session-recaps-panel .campaign-section-heading {flex-wrap:wrap;gap:.65rem}
  .session-recap-date-picker {max-width:100%;width:100%}
 }
+
+
+/* Import an Obsidian Markdown note as an editable, unpublished session draft. */
+.session-recap-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .55rem;
+}
+.session-recap-import-help {
+  margin: -.35rem 0 .3rem;
+  font: .8rem/1.5 var(--font-ui);
+  color: var(--campaign-muted, #756b5f);
+}
+.session-recap-import-notice {
+  margin: 0;
+  padding: .75rem .9rem;
+  border: 1px solid color-mix(in srgb, var(--campaign-line, #c5a871) 75%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--campaign-paper, #f8f0df) 85%, #dae7dc 15%);
+  color: var(--campaign-ink, #382e23);
+  font: .85rem/1.5 var(--font-ui);
+}
+@media (max-width: 640px) {
+  .session-recap-heading-actions { justify-content: flex-start; width: 100%; }
+  .session-recap-heading-actions button { flex: 1 1 10rem; }
+}

@@ -156,3 +156,12 @@ test("map wheel zoom blocks character sheet scroll in dock mode", async () => {
   assert.match(launcher, /const handleMapWheel = \(event: WheelEvent\) => \{\s*event\.preventDefault\(\)/u);
   assert.doesNotMatch(launcher, /onWheel=\{handleWheel\}/u);
 });
+
+test("dragging moves the token toolbar synchronously with the SVG transform", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,210}updateInspectorAnchorRef\.current\?\.\(\)/);
+  assert.match(launcher, /draggingSelectedToken && inspectorRef\.current/);
+  assert.match(launcher, /inspector\.style\.left = `\$\{left\}px`/);
+  assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);
+  assert.match(launcher, /inspector\.classList\.toggle\("is-below", below\)/);
+});

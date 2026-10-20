@@ -1351,9 +1351,14 @@ export default function Home({
 
   // Track use per browser session, scoped to the saved character.
   useEffect(() => {
+    let active = true;
     const key = `twe-masterful-${cloudId || "unsaved"}`;
-    try { setMasterfulUsed(sessionStorage.getItem(key) === "used"); } catch { setMasterfulUsed(false); }
-    setMasterfulRestored(true);
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      try { setMasterfulUsed(sessionStorage.getItem(key) === "used"); } catch { setMasterfulUsed(false); }
+      setMasterfulRestored(true);
+    });
+    return () => { active = false; };
   }, [cloudId]);
 
   function resetMasterfulScene() {

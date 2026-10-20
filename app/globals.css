@@ -2985,8 +2985,14 @@ html[data-theme="dark"] .roll-history-popout .roll-history{outline-color:#9b7740
 
 /* Action Bundle 6: durable off-person inventory and campaign-item metadata. */
 .stored-items-section{grid-column:1/-1}
-.inventory-item-actions{display:flex;align-items:center;gap:6px;align-self:start;margin-top:17px;margin-bottom:9px}
+.inventory-item-actions{display:flex;align-items:center;gap:6px;align-self:end;margin-bottom:9px}
 .inventory-item-actions>.drop-item{margin-bottom:0}
+/* Keep controls in the selector row; descriptions occupy their own row. */
+.inventory-stowed-row>.campaign-item-description{grid-column:1/-1;grid-row:2;margin: -5px 0 8px;min-width:0}
+.inventory-stowed-row>.inventory-item-actions{grid-column:2;grid-row:1}
+.inventory-stowed-row>.drop-item{grid-column:2;grid-row:1}
+.inventory-stowed-row>.custom-item-entry{grid-row:2}
+
 .custom-item-entry{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:-4px 0 9px}
 .custom-item-entry input{width:100%;min-width:0;border:1px solid #b7a886;background:#fffdf7;padding:8px 9px;color:var(--ink);font:12px/1.2 var(--font-ui)}
 .custom-item-save{min-height:34px;border:1px solid #8e6b35;border-radius:3px;background:linear-gradient(#b9863e,#8e5f21);color:#fff8e8;padding:7px 13px;cursor:pointer;font:700 10px/1 var(--font-ui);text-transform:uppercase;letter-spacing:.05em}

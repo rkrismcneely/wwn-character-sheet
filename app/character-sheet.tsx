@@ -1123,6 +1123,11 @@ export default function Home({
   const [joinedLiveSessionCampaignId, setJoinedLiveSessionCampaignId] = useState<string | null>(
     campaignContext && !campaignContext.readOnly ? campaignContext.id : null,
   );
+  const [inventoryAddOpen, setInventoryAddOpen] = useState(false);
+  const [inventoryAddValue, setInventoryAddValue] = useState("");
+  const [inventoryAddCustom, setInventoryAddCustom] = useState("");
+  const [inventoryNotice, setInventoryNotice] = useState("");
+  const [inventorySwap, setInventorySwap] = useState<{ source: "readied" | "stowed" | "stored"; index: number; destination: "readied" | "stowed" } | null>(null);
   const [otherStowedIndex, setOtherStowedIndex] = useState<number | null>(null);
   const [otherStowedDraftName, setOtherStowedDraftName] = useState("");
   const [companionOtherStowed, setCompanionOtherStowed] = useState<Record<string, number | null>>({});
@@ -2686,6 +2691,64 @@ export default function Home({
       return { ...current, stored: nextStored, stowed: nextStowed };
     });
   };
+  type InventoryLocation = "readied" | "stowed" | "stored";
+  const moveInventory = (source: InventoryLocation, index: number, destination: InventoryLocation, swapIndex?: number) => {
+    if (source === destination) return;
+    setSheet(current => {
+      const readied = inventorySlots(current.readied, readiedCapacity);
+      const stowed = inventorySlots(current.stowed, stowedCapacity);
+      const stored = current.stored.filter(Boolean);
+      const locations = { readied, stowed, stored };
+      const sourceSlots = locations[source];
+      const item = sourceSlots[index];
+      if (!item) return current;
+      if (destination === "stored") {
+        sourceSlots.splice(index, 1);
+        stored.push(item);
+      } else {
+        const capacity = destination === "readied" ? readiedCapacity : stowedCapacity;
+        const targetSlots = locations[destination];
+        const free = targetSlots.findIndex((value, i) => !value && i < capacity);
+        const destinationIndex = free >= 0 ? free : swapIndex;
+        if (destinationIndex === undefined || destinationIndex < 0 || destinationIndex >= capacity) return current;
+        const displaced = targetSlots[destinationIndex] || "";
+        targetSlots[destinationIndex] = item;
+        if (source === "stored") {
+          stored.splice(index, 1);
+          if (displaced) stored.push(displaced);
+        } else {
+          sourceSlots[index] = displaced;
+        }
+      }
+      return { ...current, readied: compactInventory(readied, readiedCapacity), stowed: compactInventory(stowed, stowedCapacity), stored };
+    });
+    setInventorySwap(null);
+  };
+  const requestInventoryMove = (source: InventoryLocation, index: number, destination: InventoryLocation) => {
+    if (destination === "stored") return moveInventory(source, index, destination);
+    const slots = destination === "readied" ? readiedSlots : stowedSlots;
+    const capacity = destination === "readied" ? readiedCapacity : stowedCapacity;
+    if (slots.some((item, i) => !item && i < capacity)) moveInventory(source, index, destination);
+    else if (capacity > 0) setInventorySwap({ source, index, destination });
+    else setInventoryNotice(`No ${destination} slots are available at your current Strength.`);
+  };
+  const addNewInventoryItem = () => {
+    const name = inventoryAddValue === "__other__" ? inventoryAddCustom.trim() : inventoryAddValue;
+    if (!name || name === "Unarmed Attack") return;
+    setSheet(current => {
+      const readied = inventorySlots(current.readied, readiedCapacity);
+      const stowed = inventorySlots(current.stowed, stowedCapacity);
+      const readyIndex = readied.findIndex((item, i) => !item && i < readiedCapacity);
+      const stowIndex = stowed.findIndex((item, i) => !item && i < stowedCapacity);
+      if (readyIndex >= 0) readied[readyIndex] = name;
+      else if (stowIndex >= 0) stowed[stowIndex] = name;
+      return { ...current, readied, stowed, stored: readyIndex < 0 && stowIndex < 0 ? [...current.stored.filter(Boolean), name] : current.stored };
+    });
+    setInventoryNotice(`${inventoryItemDisplayName(name)} added to inventory.`);
+    setInventoryAddOpen(false);
+    setInventoryAddValue("");
+    setInventoryAddCustom("");
+  };
   const companionInventoryLabel = (companion: Companion, index: number) =>
     companion.name || (
       companion.kind === "familiar"
@@ -3898,6 +3961,43 @@ export default function Home({
         </div>}
 
         {tab === "inventory" && <div className="inventory-grid">
+          <div className="inventory-toolbar">
+            <button type="button" className="custom-item-save" onClick={() => setInventoryAddOpen(true)}>+ Add New Item</button>
+            <span className="caption">New items go to Readied, then Stowed, then Stored as space permits.</span>
+            {inventoryNotice && <span role="status" className="caption">{inventoryNotice}</span>}
+          </div>
+          {inventoryAddOpen && <div className="inventory-dialog-backdrop">
+            <div className="inventory-dialog" role="dialog" aria-modal="true" aria-label="Add New Item">
+              <h3>Add New Item</h3>
+              <select aria-label="New inventory item" value={inventoryAddValue} onChange={event => setInventoryAddValue(event.target.value)}>
+                <option value="">Choose an item…</option>
+                <option value="__other__">Other / Custom item…</option>
+                <CampaignInventoryOptions items={campaignInventoryItems} />
+                {customInventoryItems.length > 0 && <optgroup label="Custom Items">{customInventoryItems.map(name => <option key={name} value={name}>{name}</option>)}</optgroup>}
+                <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
+                <optgroup label="Armor & Shields">{inventoryArmors.map(armor => <option key={armor} value={armor}>{armor}</option>)}</optgroup>
+                <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
+                <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
+              </select>
+              {inventoryAddValue === "__other__" && <input autoFocus aria-label="Custom item name" placeholder="Item name" value={inventoryAddCustom} onChange={event => setInventoryAddCustom(event.target.value)} onKeyDown={event => { if (event.key === "Enter") addNewInventoryItem(); }} />}
+              <div className="inventory-dialog-actions">
+                <button type="button" className="drop-item" onClick={() => setInventoryAddOpen(false)}>Cancel</button>
+                <button type="button" className="custom-item-save" disabled={!inventoryAddValue || (inventoryAddValue === "__other__" && !inventoryAddCustom.trim())} onClick={addNewInventoryItem}>Add Item</button>
+              </div>
+            </div>
+          </div>}
+          {inventorySwap && (() => {
+            const choices = inventorySwap.destination === "readied" ? readiedSlots : stowedSlots;
+            const incoming = inventorySwap.source === "stored" ? sheet.stored.filter(Boolean)[inventorySwap.index] : sheet[inventorySwap.source][inventorySwap.index];
+            return <div className="inventory-dialog-backdrop">
+              <div className="inventory-dialog" role="dialog" aria-modal="true" aria-label="Choose item to swap">
+                <h3>{inventorySwap.destination === "readied" ? "Readied" : "Stowed"} Inventory Full</h3>
+                <p>Choose an item to swap with <strong>{inventoryItemDisplayName(incoming || "")}</strong>.</p>
+                <div className="inventory-swap-choices">{choices.map((item, index) => item && <button key={index} type="button" className="inventory-swap-choice" onClick={() => moveInventory(inventorySwap.source, inventorySwap.index, inventorySwap.destination, index)}>{inventoryItemDisplayName(item)}</button>)}</div>
+                <button type="button" className="drop-item" onClick={() => setInventorySwap(null)}>Cancel</button>
+              </div>
+            </div>;
+          })()}
           <Section title="Readied Items" aside={<span className="caption">{attributeScore("STR") ? `Standard capacity: ${readiedCapacity} · half STR ${attributeScore("STR")}, rounded down` : "Choose a Strength score to calculate capacity"}</span>}>
             {readiedSlots.map((item, i) => <div className={`inventory-item-row ${i >= readiedCapacity ? "inventory-overflow" : ""}`} key={i}>
               <label className="field">
@@ -3909,7 +4009,7 @@ export default function Home({
                   {stowedSlots.map((stowedItem, stowedIndex) => stowedItem && <option value={stowedIndex} key={`${stowedIndex}-${stowedItem}`}>{inventoryItemDisplayName(stowedItem)}</option>)}
                 </select>
               </label>
-              {item && <button type="button" className="drop-item" onClick={() => dropInventoryItem("readied", i, item)}>Drop</button>}
+              {item && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => requestInventoryMove("readied", i, "stowed")}>Stow</button><button type="button" className="drop-item" onClick={() => requestInventoryMove("readied", i, "stored")}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("readied", i, item)}>Drop</button></span>}
             </div>)}
             {!readiedSlots.length && <p className="empty-slots">No Readied slots until a Strength score is selected.</p>}
           </Section>
@@ -3935,11 +4035,10 @@ export default function Home({
                       setStowedItem(i, e.target.value);
                     }
                   }}>
-                    <option value="">Choose an item…</option>
+                    <option value="">Choose an owned item…</option>
                     <option value="__other__">Other…</option>
-                    {campaignInventorySnapshot(item) && !campaignInventoryItems.some(candidate => campaignInventoryValue(candidate) === item) && <option value={item}>{inventoryItemDisplayName(item)} · Campaign item</option>}
-                    <CampaignInventoryOptions items={campaignInventoryItems} />
-                    {customInventoryItems.length > 0 && <optgroup label="Custom Items">{customInventoryItems.map(customItem => <option key={customItem} value={customItem}>{customItem}</option>)}</optgroup>}
+                    {item && <option value={item}>{inventoryItemDisplayName(item)}</option>}
+                    {sheet.stored.filter(Boolean).map((name, index) => <option key={`stored-${index}`} value={`__stored__${index}`}>{inventoryItemDisplayName(name)} · Stored</option>)}
                     {sheet.companions.map((companion, companionIndex) => {
                       const items = inventorySlots(companion.stowed, Math.max(0, companion.strength || 0));
                       const available = items.map((name, index) => ({ name, index })).filter(entry => entry.name);
@@ -3948,10 +4047,6 @@ export default function Home({
                         {available.map(entry => <option key={`${companion.id}-${entry.index}-${entry.name}`} value={encodeInventoryTransfer({ kind: "companion", id: companion.id }, entry.index)}>{inventoryItemDisplayName(entry.name)}</option>)}
                       </optgroup>;
                     })}
-                    <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
-                    <optgroup label="Armor & Shields">{inventoryArmors.map(armor => <option key={armor} value={armor}>{armor}</option>)}<option>Small Shield</option><option>Large Shield</option></optgroup>
-                    <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
-                    <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                   </select>
                 </label>
                 {editingOther && <div className="custom-item-entry">
@@ -3972,14 +4067,14 @@ export default function Home({
                     setOtherStowedDraftName("");
                   }}>Save</button>
                 </div>}
-                {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => moveStowedToStored(i)}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button></span>}
+                {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => requestInventoryMove("stowed", i, "readied")}>Ready</button><button type="button" className="drop-item" onClick={() => requestInventoryMove("stowed", i, "stored")}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button></span>}
                 </div>
                 {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
               </div>;
             })}
             {!stowedSlots.length && <p className="empty-slots">No Stowed slots until a Strength score is selected.</p>}
           </Section>
-          <StoredItemsSection items={sheet.stored} campaignItems={campaignInventoryItems} customItems={customInventoryItems} campaignError={campaignInventoryError} onChange={items => patch("stored", items)} onStow={moveStoredToStowed} />
+          <StoredItemsSection items={sheet.stored} campaignItems={campaignInventoryItems} customItems={customInventoryItems} campaignError={campaignInventoryError} onChange={items => patch("stored", items)} onStow={index => requestInventoryMove("stored", index, "stowed")} onReady={index => requestInventoryMove("stored", index, "readied")} />
         </div>}
 
         {tab === "notes" && <div className="notes-grid">

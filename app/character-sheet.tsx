@@ -1427,8 +1427,8 @@ export default function Home({
   const situationalRerolls = [
     { name: "Impostor", eligible: true, context: "failed check or save while maintaining an imposture or disguise" },
     { name: "Trapmaster", eligible: true, context: "failed check or save involving traps or snares" },
-    { name: "Rider", eligible: selectedFocusPicks.some(pick => pick.name === "Rider" && pick.level === 2) && focusRerollSource?.request.category === "skill" && focusRerollSource.request.label.startsWith("Ride ("), context: "failed Ride skill check" },
-  ].filter(option => selectedFocusPicks.some(pick => pick.name === option.name) && option.eligible);
+    { name: "Rider", eligible: sheet.focusPicks.some(pick => pick.name === "Rider" && pick.level === 2) && focusRerollSource?.request.category === "skill" && focusRerollSource.request.label.startsWith("Ride ("), context: "failed Ride skill check" },
+  ].filter(option => sheet.focusPicks.some(pick => pick.name === option.name) && option.eligible);
 
   useEffect(() => {
     let active = true;

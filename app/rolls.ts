@@ -206,3 +206,10 @@ export function formatSigned(value: number) {
 export function formatDiceExpression(dice: RollDice) {
   return `${dice.count}d${dice.sides}`;
 }
+
+/** Unarmed Combatant level 2: a missed Punch attack rolls an unmodified d6,
+ * adding Shock only when the target is actually susceptible. */
+export function unarmedMissDamageBonus(shockValue: string, includeShock: boolean): number {
+  if (!includeShock) return 0;
+  return parseShockMinimum(shockValue)?.damage ?? 0;
+}

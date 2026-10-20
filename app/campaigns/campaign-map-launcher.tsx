@@ -987,6 +987,19 @@ export function CampaignMapWorkspace({
       const above = bounds.top - stageBounds.top - 12;
       const below = above < 132;
       const top = below ? bounds.bottom - stageBounds.top + 12 : above;
+      // During token dragging the SVG transform is updated imperatively. Move
+      // the toolbar in the same pointer event, without waiting for React to
+      // schedule a separate render (which can lag or skip intermediate frames).
+      const draggingSelectedToken = tokenDragRef.current?.tokenId === selectedTokenId
+        && !annotations.selected && !areaTemplates.selected;
+      if (draggingSelectedToken && inspectorRef.current) {
+        const inspector = inspectorRef.current;
+        inspector.style.left = `${left}px`;
+        inspector.style.top = `${top}px`;
+        inspector.style.visibility = "visible";
+        inspector.classList.toggle("is-below", below);
+        return;
+      }
       setInspectorAnchor(previous =>
         previous && Math.abs(previous.left - left) < 1 && Math.abs(previous.top - top) < 1 && previous.below === below
           ? previous : { left, top, below });

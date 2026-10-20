@@ -272,6 +272,7 @@ export function CampaignMapWorkspace({
   const pinchRef = useRef<{ startView: ViewBox; startDistance: number; anchor: MapTouchPoint; latestView: ViewBox } | null>(null);
   // Suppress one-finger actions until every finger has lifted after a pinch.
   const suppressTouchRef = useRef(false);
+  const updateInspectorAnchorRef = useRef<(() => void) | null>(null);
   const tokenDragRef = useRef<{
     pointerId: number; tokenId: string; version: number; pointerMapX: number; pointerMapY: number;
     x: number; y: number; latestX: number; latestY: number; element: SVGGElement; distanceElement: SVGTextElement | null;
@@ -662,6 +663,8 @@ export function CampaignMapWorkspace({
     let x = clamp(drag.x + (pointer.x - drag.pointerMapX), 0, map.backgroundWidth); let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) { const sizeCells = tokenSizes[drag.tokenId] ?? 1; const snapped = snapTokenCenterOnGrid({ x, y }, map.grid, sizeCells, map.backgroundWidth, map.backgroundHeight); x = snapped.x; y = snapped.y; }
     drag.latestX = x; drag.latestY = y; drag.element.setAttribute("transform", `translate(${x} ${y})`);
+    // Token drags update the SVG directly, bypassing React renders and the anchor effect.
+    updateInspectorAnchorRef.current?.();
     const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.distanceElement ?? drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) { drag.distanceElement = distanceElement; distanceElement.textContent = distance; }
   }
   async function persistTokenMove(drag: NonNullable<typeof tokenDragRef.current>) { if (!map) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "move", mapId: map.id, tokenId: drag.tokenId, version: drag.version, x: drag.latestX, y: drag.latestY }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The token could not be moved.");
@@ -964,11 +967,13 @@ export function CampaignMapWorkspace({
         previous && Math.abs(previous.left - left) < 1 && Math.abs(previous.top - top) < 1 && previous.below === below
           ? previous : { left, top, below });
     };
+    updateInspectorAnchorRef.current = updateAnchor;
     const frame = window.requestAnimationFrame(updateAnchor);
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateAnchor) : null;
     if (stageRef.current) observer?.observe(stageRef.current);
     window.addEventListener("resize", updateAnchor);
     return () => {
+      if (updateInspectorAnchorRef.current === updateAnchor) updateInspectorAnchorRef.current = null;
       window.cancelAnimationFrame(frame);
       observer?.disconnect();
       window.removeEventListener("resize", updateAnchor);

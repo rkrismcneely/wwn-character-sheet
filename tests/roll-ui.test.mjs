@@ -436,7 +436,7 @@ test("metal-look dice avoid unlit PBR metal while retaining their textures", () 
   }
 });
 
-test("Sniper’s Eye skill bonus requires explicit ranged execution or target-shooting context", async () => {
+test("Sniper’s Eye precision bonus requires explicit ranged execution or target-shooting context", async () => {
   const sheetSource = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
   assert.match(sheetSource, /sniperEyeBonus = skill === "Shoot" && sniperEyeContext/);
   assert.match(sheetSource, /setSniperEyeContext\(false\)/);

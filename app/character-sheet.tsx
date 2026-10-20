@@ -1132,6 +1132,10 @@ export default function Home({
   const [otherStowedDraftName, setOtherStowedDraftName] = useState("");
   const [companionOtherStowed, setCompanionOtherStowed] = useState<Record<string, number | null>>({});
   const [companionOtherStowedDrafts, setCompanionOtherStowedDrafts] = useState<Record<string, string>>({});
+  const [masterfulRequest, setMasterfulRequest] = useState<RollRequest | null>(null);
+  const [masterfulRollId, setMasterfulRollId] = useState<string | null>(null);
+  const [masterfulUsed, setMasterfulUsed] = useState(false);
+  const [masterfulRestored, setMasterfulRestored] = useState(false);
   const [latestRoll, setLatestRoll] = useState<RollResult | null>(null);
   const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
@@ -1308,6 +1312,9 @@ export default function Home({
     try {
       const result = preparedSharedRoll || await resolveRoll(request, { roll: () => rawRoll });
       setLatestRoll(result);
+      if (request.category === "skill" && !request.label.includes("Masterful Expertise reroll")) {
+        setMasterfulRollId(result.id);
+      }
       setRollHistory(current => {
         const next = prependRollHistory(current, result);
         persistRollHistory(next);
@@ -1342,6 +1349,31 @@ export default function Home({
     });
   }
 
+  // Track use per browser session, scoped to the saved character.
+  useEffect(() => {
+    const key = `twe-masterful-${cloudId || "unsaved"}`;
+    try { setMasterfulUsed(sessionStorage.getItem(key) === "used"); } catch { setMasterfulUsed(false); }
+    setMasterfulRestored(true);
+  }, [cloudId]);
+
+  function resetMasterfulScene() {
+    const key = `twe-masterful-${cloudId || "unsaved"}`;
+    try { sessionStorage.removeItem(key); } catch {}
+    setMasterfulUsed(false);
+    setMasterfulRequest(null);
+    setMasterfulRollId(null);
+  }
+
+  function rerollMasterful() {
+    if (sheet.classMode !== "full" || sheet.classOne !== "Expert" || masterfulUsed || !masterfulRequest || latestRoll?.id !== masterfulRollId) return;
+    const key = `twe-masterful-${cloudId || "unsaved"}`;
+    try { sessionStorage.setItem(key, "used"); } catch {}
+    setMasterfulUsed(true);
+    setMasterfulRequest(null);
+    setMasterfulRollId(null);
+    void completeRoll({ ...masterfulRequest, label: `${masterfulRequest.label} — Masterful Expertise reroll` });
+  }
+
   function rollSkillCheck(skill: string, attribute: AttributeName) {
     const profile = skillProfile(skill);
     const specialist = selectedFocusPicks.find(pick => pick.name === "Specialist" && pick.choice === skill);
@@ -1352,7 +1384,7 @@ export default function Home({
     const diceCount = specialist?.level === 2 ? 4 : specialist || giftedChirurgeon || sniperEyeBonus ? 3 : 2;
     setSkillRollChooser(null);
     setSniperEyeContext(false);
-    void completeRoll({
+    const request: RollRequest = {
       category: "skill",
       character: rollCharacter(),
       label: `${skill} (${attribute}) Check${sniperEyeBonus ? " — ranged execution / target shooting" : ""}`,
@@ -1362,7 +1394,11 @@ export default function Home({
         { label: `${skill} skill`, value: profile.effective },
         { label: attribute, value: attributeMod(attribute) },
       ],
-    });
+    };
+    // Combat skills aren't eligible for Masterful Expertise.
+    setMasterfulRequest(!["Stab", "Shoot", "Punch", "Magic"].includes(skill) ? request : null);
+    setMasterfulRollId(null);
+    void completeRoll(request);
   }
 
   function rollWeaponAttack(name: string, hit: number) {
@@ -3387,7 +3423,14 @@ export default function Home({
               <label className="hero-stat-card hp-stat"><span className="paired"><input type="number" value={sheet.hpCurrent || ""} onChange={e => patch("hpCurrent", Number(e.target.value))} aria-label="Current hit points" /><em>/</em><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} aria-label={hpRollsComplete ? "Calculated maximum hit points" : "Maximum hit points"} /></span><span className="hero-card-label">HIT POINTS</span></label>
             </div>
             <div className="hero-roll-row" data-readonly-interactive="true">
-              <div className="hero-latest-roll"><RollResultTray result={latestRoll} /></div>
+              <div className="hero-latest-roll">
+                <RollResultTray result={latestRoll} />
+                {sheet.classMode === "full" && sheet.classOne === "Expert" && masterfulRestored && <div className="masterful-controls">
+                  <button type="button" disabled={!masterfulRequest || masterfulUsed || latestRoll?.id !== masterfulRollId || virtualDiceBusy} onClick={rerollMasterful}>Reroll failed noncombat check (Masterful Expertise)</button>
+                  <button type="button" onClick={resetMasterfulScene}>New Scene</button>
+                  <small>{masterfulUsed ? "Masterful Expertise used this scene" : "One reroll per scene · Confirm failure with GM before using"}</small>
+                </div>}
+              </div>
               {cloudId && canEdit && !cloudArchivedAt && <CharacterLiveSessionPanel characterId={cloudId} campaignLinks={campaignLinks} campaignContextId={campaignContext?.id} onJoinedSessionChange={updateJoinedLiveSessionCampaign} />}
               <div className="hero-roll-history-control">
                 <button type="button" className="roll-history-toggle" aria-expanded={rollHistoryOpen} aria-controls="roll-history-popout" aria-haspopup="dialog" onClick={() => setRollHistoryOpen(open => !open)}>Roll History{rollHistory.length ? ` (${rollHistory.length})` : ""}</button>

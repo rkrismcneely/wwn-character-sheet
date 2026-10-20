@@ -34,6 +34,8 @@ export type RollRequest = {
   dice: RollDice;
   /** Roll all dice but only total the highest N (e.g. Specialist skill checks). */
   keepHighest?: number;
+  /** Reroll each initial skill die showing 1 once (Diplomatic Grace). */
+  rerollOnes?: boolean;
   modifiers?: RollModifier[];
   target?: number;
   /** Shock damage is a floor when the target AC is at or below the listed threshold. */
@@ -113,8 +115,24 @@ export async function resolveRoll(
   request: RollRequest,
   options: RollResolverOptions = {},
 ): Promise<RollResult> {
-  const roll = (options.roll || rollDice)(request.dice.count, request.dice.sides);
-  validateDiceResult(roll, request.dice);
+  const diceSource = options.roll || rollDice;
+  const firstRoll = diceSource(request.dice.count, request.dice.sides);
+  validateDiceResult(firstRoll, request.dice);
+  if (request.rerollOnes && (request.category !== "skill" || request.dice.sides !== 6)) {
+    throw new Error("Rerolling ones is only valid on skill dice.");
+  }
+  // Replacements are rolled once, even if another 1 appears. Keep all other
+  // dice untouched, including dice that may later be discarded by keepHighest.
+  const results = [...firstRoll.results];
+  if (request.rerollOnes) {
+    for (let index = 0; index < results.length; index++) {
+      if (results[index] !== 1) continue;
+      const replacement = diceSource(1, request.dice.sides);
+      validateDiceResult(replacement, { count: 1, sides: request.dice.sides });
+      results[index] = replacement.results[0];
+    }
+  }
+  const roll: DiceRoll = { count: firstRoll.count, sides: firstRoll.sides, results, total: results.reduce((a, b) => a + b, 0) };
 
   const modifiers = request.modifiers || [];
   if (modifiers.some(modifier => !Number.isFinite(modifier.value))) {

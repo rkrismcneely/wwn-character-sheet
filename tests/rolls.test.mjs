@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clearRollHistory, MAX_ROLL_HISTORY_ENTRIES, persistRollHistory, prependRollHistory, readRollHistory } from "../app/roll-history.ts";
+import { deriveUnarmedAttack } from "../app/phase2-rules.ts";
 import { formatShockMinimumReminder, parseDamageExpression, parseShockMinimum, resolveRoll } from "../app/rolls.ts";
 
 function fixedRoll(results, sides) {
@@ -186,4 +187,30 @@ test("Diplomatic Grace cannot apply to attacks or saves", async () => {
   await assert.rejects(resolveRoll(sampleRequest({ category: "save", dice: { count: 1, sides: 20 }, rerollOnes: true }), {
     roll: fixedRoll([1], 20),
   }), /only valid on skill dice/);
+});
+
+
+test("AC 10 Shock Foci apply against higher actual AC when the underlying attack has Shock", () => {
+  const unarmed = deriveUnarmedAttack({
+    baseAttack: 2,
+    punchSkill: 2,
+    physicalModifier: 1,
+    warriorDamage: 0,
+    shockingAssaultBonus: 2,
+    shockThreshold: "-",
+    unarmedCombatantLevel: 2,
+  });
+  assert.equal(unarmed.shock, "5/-");
+  assert.deepEqual(parseShockMinimum(unarmed.shock), { damage: 5 });
+  assert.equal(formatShockMinimumReminder(parseShockMinimum(unarmed.shock)), "Shock minimum: 5 damage when Shock applies.");
+  const regular = deriveUnarmedAttack({
+    baseAttack: 2,
+    punchSkill: 2,
+    physicalModifier: 1,
+    warriorDamage: 0,
+    shockingAssaultBonus: 0,
+    shockThreshold: 15,
+    unarmedCombatantLevel: 2,
+  });
+  assert.equal(regular.shock, "3/AC 15");
 });

@@ -1136,6 +1136,7 @@ export default function Home({
   const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
   const [skillRollChooser, setSkillRollChooser] = useState<string | null>(null);
+  const [sniperEyeContext, setSniperEyeContext] = useState(false);
   const [diceAnnouncement, setDiceAnnouncement] = useState("");
   const [diceAnnouncementKey, setDiceAnnouncementKey] = useState(0);
   const [diceError, setDiceError] = useState("");
@@ -1346,12 +1347,14 @@ export default function Home({
     const giftedChirurgeon = skill === "Heal" && selectedFocusPicks.some(pick => pick.name === "Gifted Chirurgeon");
     // Sniper’s Eye applies only to ranged execution attacks and target shooting,
     // not to ordinary Shoot skill checks.
-    const diceCount = specialist?.level === 2 ? 4 : specialist || giftedChirurgeon ? 3 : 2;
+    const sniperEyeBonus = skill === "Shoot" && sniperEyeContext && selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye");
+    const diceCount = specialist?.level === 2 ? 4 : specialist || giftedChirurgeon || sniperEyeBonus ? 3 : 2;
     setSkillRollChooser(null);
+    setSniperEyeContext(false);
     void completeRoll({
       category: "skill",
       character: rollCharacter(),
-      label: `${skill} (${attribute}) Check`,
+      label: `${skill} (${attribute}) Check${sniperEyeBonus ? " — ranged execution / target shooting" : ""}`,
       dice: { count: diceCount, sides: 6 },
       ...(diceCount > 2 ? { keepHighest: 2 } : {}),
       modifiers: [
@@ -3836,7 +3839,7 @@ export default function Home({
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}
-                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} aria-expanded={skillRollChooser === skill} onClick={() => setSkillRollChooser(current => current === skill ? null : skill)}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span><div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} disabled={virtualDiceBusy} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
+                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} aria-expanded={skillRollChooser === skill} onClick={() => { setSkillRollChooser(current => current === skill ? null : skill); setSniperEyeContext(false); }}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span>{skill === "Shoot" && selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye") && <label className="skill-context-option"><input type="checkbox" checked={sniperEyeContext} onChange={event => setSniperEyeContext(event.target.checked)} /> Ranged execution or target shooting (Sniper’s Eye: 3d6, keep highest 2)</label>}<div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} disabled={virtualDiceBusy} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
                 })}
               </div>
             </Section>

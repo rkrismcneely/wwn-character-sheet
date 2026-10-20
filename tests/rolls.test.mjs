@@ -144,3 +144,25 @@ test("Specialist level two rolls four dice and keeps the two highest", async () 
   });
   assert.equal(result.total, 11);
 });
+
+test("Alert initiative rolls two d8 and uses the better die", async () => {
+  const result = await resolveRoll({
+    category: "initiative",
+    character: { id: "hero", name: "Hero" },
+    label: "Initiative (Alert: take better die)",
+    dice: { count: 2, sides: 8 },
+    keepHighest: 1,
+    modifiers: [{ label: "Initiative modifier", value: 2 }],
+  }, { roll: fixedRoll([3, 7], 8) });
+  assert.equal(result.total, 9);
+  assert.deepEqual(result.dice.results, [3, 7]);
+  assert.equal(result.keepHighest, 1);
+});
+
+test("character sheet uses canonical Focus names for exceptional rolls", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const sheet = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+  assert.match(sheet, /pick.name === "Gifted Chirurgeon"/u);
+  assert.match(sheet, /pick.name === "Alert"/u);
+  assert.match(sheet, /dice: \{ count: alert \? 2 : 1, sides: 8 \}/u);
+});

@@ -59,8 +59,11 @@ export function normalizeSharedRollRequest(value: unknown, character: RollReques
   const keepHighest = candidate.keepHighest === undefined
     ? undefined
     : boundedInteger(candidate.keepHighest, "Dice to keep", 1, dice.count);
-  if (keepHighest !== undefined && (candidate.category !== "skill" || dice.sides !== 6 || keepHighest !== 2 || (dice.count !== 3 && dice.count !== 4))) {
-    throw new CampaignServiceError("Only WWN drop-lowest skill checks may keep two of three or four d6.", 422);
+  if (keepHighest !== undefined && !(
+    (candidate.category === "skill" && dice.sides === 6 && keepHighest === 2 && (dice.count === 3 || dice.count === 4))
+    || (candidate.category === "initiative" && dice.sides === 8 && dice.count === 2 && keepHighest === 1)
+  )) {
+    throw new CampaignServiceError("The requested keep-highest dice rule is not supported for this roll.", 422);
   }
   return {
     category: candidate.category as RollRequest["category"],

@@ -140,3 +140,11 @@ test("token dragging leaves a fifty-percent origin ghost until release", async (
   assert.match(launcher, /pointerEvents="none"/u);
   assert.match(launcher, /setTokenDragOrigin\(null\)/u);
 });
+
+test("selected token toolbar follows direct SVG drag transforms", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  assert.match(launcher, /const updateInspectorAnchorRef = useRef/);
+  assert.match(launcher, /drag\.element\.setAttribute\("transform",[\s\S]{0,180}updateInspectorAnchorRef\.current\?\.\(\)/);
+  assert.match(launcher, /updateInspectorAnchorRef\.current = updateAnchor/);
+  assert.match(launcher, /updateInspectorAnchorRef\.current === updateAnchor/);
+});

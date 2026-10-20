@@ -708,7 +708,13 @@ export function CampaignMapWorkspace({
     const drag = tokenDragRef.current; if (!drag || drag.pointerId !== event.pointerId || !map?.backgroundWidth || !map.backgroundHeight || !svgRef.current) return; event.stopPropagation(); const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!pointer) return;
     let x = clamp(drag.x + (pointer.x - drag.pointerMapX), 0, map.backgroundWidth); let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) { const sizeCells = tokenSizes[drag.tokenId] ?? 1; const snapped = snapTokenCenterOnGrid({ x, y }, map.grid, sizeCells, map.backgroundWidth, map.backgroundHeight); x = snapped.x; y = snapped.y; }
-    drag.latestX = x; drag.latestY = y; drag.element.setAttribute("transform", `translate(${x} ${y})`);
+    drag.latestX = x; drag.latestY = y;
+    // Keep React's token position in sync with the live drag. Otherwise a
+    // measurement/selection render can restore the old transform mid-drag.
+    setMap(current => current ? { ...current, tokens: current.tokens.map(token =>
+      token.id === drag.tokenId ? { ...token, x, y } : token
+    ) } : current);
+    drag.element.setAttribute("transform", `translate(${x} ${y})`);
     const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) distanceElement.textContent = distance;
     // Treat the token and its toolbar as one drag surface. Position directly
     // from the just-transformed SVG element, independently of React effects.
@@ -732,6 +738,9 @@ export function CampaignMapWorkspace({
     if (event.type === "pointercancel") {
       // A canceled pointer is not a drop. Never send its provisional position to the server.
       drag.element.setAttribute("transform", `translate(${drag.x} ${drag.y})`);
+      setMap(current => current ? { ...current, tokens: current.tokens.map(token =>
+        token.id === drag.tokenId ? { ...token, x: drag.x, y: drag.y } : token
+      ) } : current);
       setTokenDragMeasurement(null);
       setTokenDragOrigin(null);
       window.requestAnimationFrame(() => updateInspectorAnchorRef.current?.());

@@ -3382,3 +3382,7 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 /* Contextual skill-roll exception controls (e.g. Sniper’s Eye). */
 .skill-context-option{display:flex;align-items:flex-start;gap:7px;font:12px/1.4 var(--font-ui);color:var(--ink);margin:7px 0}
 .skill-context-option input[type="checkbox"]{flex:0 0 auto;margin:2px 0 0}
+
+.masterful-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.masterful-controls button{font-size:12px;padding:5px 8px}
+.masterful-controls small{flex-basis:100%;color:var(--ink-muted,#746b60)}

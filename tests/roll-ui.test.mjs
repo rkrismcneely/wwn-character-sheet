@@ -451,3 +451,13 @@ test("Nullifier's +2 saving throw modifier applies only when magical context is 
   assert.match(sheetSource, /nullifierBonus \? \{ modifiers: \[\{ label: "Nullifier vs magic", value: 2 \}\] \} : \{\}/u);
   assert.match(sheetSource, /checked=\{magicalSaveContext\} onChange=\{event => setMagicalSaveContext\(event\.target\.checked\)\}/u);
 });
+
+test("Masterful Expertise rerolls only eligible latest noncombat skill checks for full Experts", () => {
+  assert.match(sheetSource, /sheet.classMode !== "full" \|\| sheet.classOne !== "Expert"/u);
+  assert.match(sheetSource, /masterfulUsed \|\| !masterfulRequest \|\| latestRoll\?\.id !== masterfulRollId/u);
+  assert.match(sheetSource, /!\["Stab", "Shoot", "Punch", "Magic"\]\.includes\(skill\)/u);
+  assert.match(sheetSource, /sessionStorage\.setItem\(key, "used"\)/u);
+  assert.match(sheetSource, /sessionStorage\.removeItem\(key\)/u);
+  assert.match(sheetSource, /Masterful Expertise reroll/u);
+  assert.match(sheetSource, /Confirm failure with GM before using/u);
+});

@@ -3378,3 +3378,7 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 .inventory-swap-choice{padding:10px;background:transparent;border:1px solid #b7a886;text-align:left;cursor:pointer;color:inherit}
 .inventory-swap-choice:hover{background:#d6c5a35e}
 .inventory-item-actions{flex-wrap:wrap}
+
+/* Contextual skill-roll exception controls (e.g. Sniper’s Eye). */
+.skill-context-option{display:flex;align-items:flex-start;gap:7px;font:12px/1.4 var(--font-ui);color:var(--ink);margin:7px 0}
+.skill-context-option input[type="checkbox"]{flex:0 0 auto;margin:2px 0 0}

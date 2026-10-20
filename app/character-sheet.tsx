@@ -4456,11 +4456,8 @@ export default function Home({
                         setCompanionStowedItem(index, e.target.value);
                       }
                     }}>
-                      <option value="">Choose an item…</option>
-                      <option value="__other__">Other…</option>
-                    {campaignInventorySnapshot(item) && !campaignInventoryItems.some(candidate => campaignInventoryValue(candidate) === item) && <option value={item}>{inventoryItemDisplayName(item)} · Campaign item</option>}
-                    <CampaignInventoryOptions items={campaignInventoryItems} />
-                      {customInventoryItems.length > 0 && <optgroup label="Custom Items">{customInventoryItems.map(customItem => <option key={customItem} value={customItem}>{customItem}</option>)}</optgroup>}
+                      <option value="">Choose an owned item…</option>
+                    {item && <option value={item}>{inventoryItemDisplayName(item)}</option>}
                       {(() => {
                         const pcName = sheet.name || "PC";
                         const available = stowedSlots.map((name, itemIndex) => ({ name, itemIndex })).filter(entry => entry.name);

@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { formatDiceExpression, formatShockMinimumReminder, formatSigned, type RollResult } from "./rolls.ts";
 
 export function formatRollBreakdown(result: RollResult) {
-  const dice = result.dice.results.join(" + ");
+  const dice = result.keepHighest === undefined
+    ? result.dice.results.join(" + ")
+    : `${result.dice.results.join(" + ")}; keep highest ${result.keepHighest}`;
   const modifiers = result.modifiers.map(modifier => `${modifier.label} ${formatSigned(modifier.value)}`);
   return [`${formatDiceExpression(result.dice)} [${dice}]`, ...modifiers].join(" · ");
 }

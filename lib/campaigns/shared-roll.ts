@@ -56,11 +56,18 @@ export function normalizeSharedRollRequest(value: unknown, character: RollReques
   if (candidate.targetKind !== undefined && (candidate.targetKind !== "saving-throw" || candidate.category !== "save")) {
     throw new CampaignServiceError("Roll target type is invalid.", 422);
   }
+  const keepHighest = candidate.keepHighest === undefined
+    ? undefined
+    : boundedInteger(candidate.keepHighest, "Dice to keep", 1, dice.count);
+  if (keepHighest !== undefined && (candidate.category !== "skill" || dice.sides !== 6 || keepHighest !== 2 || (dice.count !== 3 && dice.count !== 4))) {
+    throw new CampaignServiceError("Only WWN drop-lowest skill checks may keep two of three or four d6.", 422);
+  }
   return {
     category: candidate.category as RollRequest["category"],
     character,
     label: boundedText(candidate.label, "Roll label", 120),
     dice,
+    ...(keepHighest === undefined ? {} : { keepHighest }),
     modifiers,
     ...(target === undefined ? {} : { target }),
     ...(shockMinimum === undefined ? {} : { shockMinimum }),

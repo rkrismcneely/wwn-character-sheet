@@ -32,6 +32,8 @@ export type RollRequest = {
   character: RollCharacter;
   label: string;
   dice: RollDice;
+  /** Roll all dice but only total the highest N (e.g. Specialist skill checks). */
+  keepHighest?: number;
   modifiers?: RollModifier[];
   target?: number;
   /** Shock damage is a floor when the target AC is at or below the listed threshold. */
@@ -49,6 +51,7 @@ export type RollResult = {
   character: RollCharacter;
   label: string;
   dice: DiceRoll;
+  keepHighest?: number;
   modifiers: RollModifier[];
   modifierTotal: number;
   total: number;
@@ -118,8 +121,15 @@ export async function resolveRoll(
     throw new Error("Roll modifiers must be finite numbers.");
   }
 
+  const keepHighest = request.keepHighest;
+  if (keepHighest !== undefined && (!Number.isInteger(keepHighest) || keepHighest < 1 || keepHighest > request.dice.count)) {
+    throw new Error("The number of kept dice must be within the dice count.");
+  }
+  const diceTotal = keepHighest === undefined
+    ? roll.total
+    : [...roll.results].sort((a, b) => b - a).slice(0, keepHighest).reduce((sum, value) => sum + value, 0);
   const modifierTotal = modifiers.reduce((total, modifier) => total + modifier.value, 0);
-  const total = roll.total + modifierTotal;
+  const total = diceTotal + modifierTotal;
   return {
     id: (options.createId || createRollId)(),
     timestamp: (options.now || (() => new Date()))().toISOString(),
@@ -127,6 +137,7 @@ export async function resolveRoll(
     character: request.character,
     label: request.label,
     dice: roll,
+    ...(keepHighest === undefined ? {} : { keepHighest }),
     modifiers,
     modifierTotal,
     total,

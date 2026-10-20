@@ -1244,7 +1244,7 @@ export default function Home({
     const outcome = result.outcome ? ` ${result.outcome === "success" ? "Success." : "Failure."}` : "";
     const target = result.target === undefined ? "" : ` Target ${result.target} or higher.`;
     const shockReminder = result.shockMinimum ? ` ${formatShockMinimumReminder(result.shockMinimum)}` : "";
-    return `${result.label}: ${result.dice.results.join(" plus ")}${result.modifiers.length ? ` with ${result.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" and ")}` : ""}, total ${result.total}.${target}${outcome}${shockReminder}`;
+    return `${result.label}: ${result.dice.results.join(" plus ")}${result.keepHighest === undefined ? "" : ` (keep highest ${result.keepHighest})`}${result.modifiers.length ? ` with ${result.modifiers.map(modifier => `${modifier.label} ${signed(modifier.value)}`).join(" and ")}` : ""}, total ${result.total}.${target}${outcome}${shockReminder}`;
   }
 
   async function completeRoll(request: RollRequest) {
@@ -1342,12 +1342,18 @@ export default function Home({
 
   function rollSkillCheck(skill: string, attribute: AttributeName) {
     const profile = skillProfile(skill);
+    const specialist = selectedFocusPicks.find(pick => pick.name === "Specialist" && pick.choice === skill);
+    const healer = skill === "Heal" && selectedFocusPicks.some(pick => pick.name === "Healer");
+    // Deadeye's bonus applies only to ranged execution attacks and target shooting,
+    // not to ordinary Shoot skill checks.
+    const diceCount = specialist?.level === 2 ? 4 : specialist || healer ? 3 : 2;
     setSkillRollChooser(null);
     void completeRoll({
       category: "skill",
       character: rollCharacter(),
       label: `${skill} (${attribute}) Check`,
-      dice: { count: 2, sides: 6 },
+      dice: { count: diceCount, sides: 6 },
+      ...(diceCount > 2 ? { keepHighest: 2 } : {}),
       modifiers: [
         { label: `${skill} skill`, value: profile.effective },
         { label: attribute, value: attributeMod(attribute) },

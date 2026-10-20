@@ -273,6 +273,7 @@ export function CampaignMapWorkspace({
   // Suppress one-finger actions until every finger has lifted after a pinch.
   const suppressTouchRef = useRef(false);
   const updateInspectorAnchorRef = useRef<(() => void) | null>(null);
+  const tokenMovePendingRef = useRef(false);
   const tokenDragRef = useRef<{
     pointerId: number; tokenId: string; version: number; pointerMapX: number; pointerMapY: number;
     x: number; y: number; latestX: number; latestY: number; element: SVGGElement; distanceElement: SVGTextElement | null;
@@ -471,7 +472,7 @@ export function CampaignMapWorkspace({
   }, [campaignId]);
 
   const loadInteractions = useCallback(async (mapId: string) => { const params = new URLSearchParams({ mapId }); const response = await fetch(`/api/campaigns/${campaignId}/map/interactions?${params.toString()}`, { cache: "no-store" }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.interactions) throw new Error(body.error || "The map interaction settings could not be loaded."); setSnapToGrid(body.interactions.snapEnabled); setTokenSizes(body.interactions.tokenSizes); }, [campaignId]);
-  const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null, showLoading = true): Promise<boolean> => { if (showLoading) setLoading(true); setError(""); try { const params = requestedMapId ? `?${new URLSearchParams({ mapId: requestedMapId }).toString()}` : ""; const response = await fetch(`/api/campaigns/${campaignId}/map${params}`, { cache: "no-store" }); const body = await response.json() as MapResponse; if (!response.ok) throw new Error(body.error || "The campaign map could not be loaded."); applyResponse(body, preserveView); if (body.map) await loadInteractions(body.map.id); else { setSnapToGrid(false); setTokenSizes({}); } return true; } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded."); return false; } finally { if (showLoading) setLoading(false); } }, [applyResponse, campaignId, loadInteractions]);
+  const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null, showLoading = true): Promise<boolean> => { if (showLoading) setLoading(true); setError(""); try { const params = requestedMapId ? `?${new URLSearchParams({ mapId: requestedMapId }).toString()}` : ""; const response = await fetch(`/api/campaigns/${campaignId}/map${params}`, { cache: "no-store" }); const body = await response.json() as MapResponse; if (!response.ok) throw new Error(body.error || "The campaign map could not be loaded."); if (tokenDragRef.current || tokenMovePendingRef.current) return false; applyResponse(body, preserveView); if (body.map) await loadInteractions(body.map.id); else { setSnapToGrid(false); setTokenSizes({}); } return true; } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded."); return false; } finally { if (showLoading) setLoading(false); } }, [applyResponse, campaignId, loadInteractions]);
 
   useEffect(() => { if (!open || typeof BroadcastChannel === "undefined") return; const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`); mapSyncChannelRef.current = channel; channel.onmessage = event => { const message = event.data as { type?: unknown; campaignId?: unknown } | null; if (message?.type !== "map-changed" || message.campaignId !== campaignId) return; const requestedMapId = playerPreviewRef.current ? null : canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; return () => { if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null; channel.close(); }; }, [campaignId, loadMap, open]);
   useEffect(() => { if (!initialPresentation || !initialOpen) return; const initialLoad = window.setTimeout(() => { void loadMap(false); }, 0); return () => window.clearTimeout(initialLoad); }, [initialOpen, initialPresentation, loadMap]);
@@ -713,7 +714,7 @@ export function CampaignMapWorkspace({
     positionDraggedTokenToolbar(drag.element);
     const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.distanceElement ?? drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) { drag.distanceElement = distanceElement; distanceElement.textContent = distance; }
   }
-  async function persistTokenMove(drag: NonNullable<typeof tokenDragRef.current>) { if (!map) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "move", mapId: map.id, tokenId: drag.tokenId, version: drag.version, x: drag.latestX, y: drag.latestY }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The token could not be moved.");
+  async function persistTokenMove(drag: NonNullable<typeof tokenDragRef.current>) { if (!map) return; tokenMovePendingRef.current = true; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "move", mapId: map.id, tokenId: drag.tokenId, version: drag.version, x: drag.latestX, y: drag.latestY }) }); const body = await response.json() as MapResponse; if (!response.ok || !body.map) throw new Error(body.error || "The token could not be moved.");
     setMap(body.map);
     const previous = map.tokens.find(token => token.id === drag.tokenId);
     const moved = body.map.tokens.find(token => token.id === drag.tokenId);
@@ -721,7 +722,7 @@ export function CampaignMapWorkspace({
       recordMapEdit({ kind: "token-move", mapId: map.id,
         before: { ...previous, x: drag.x, y: drag.y }, after: moved, currentId: moved.id });
     }
-    publishMapInvalidation(); } catch (moveError) { setError(moveError instanceof Error ? moveError.message : "The token could not be moved."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { setBusy(false); } }
+    publishMapInvalidation(); } catch (moveError) { setError(moveError instanceof Error ? moveError.message : "The token could not be moved."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { tokenMovePendingRef.current = false; setBusy(false); } }
   function handleTokenPointerEnd(event: ReactPointerEvent<SVGGElement>) {
     const drag = tokenDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;

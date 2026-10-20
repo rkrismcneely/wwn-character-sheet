@@ -49,29 +49,15 @@ test("a custom item disappears from the catalog after its last owned copy is dro
   assert.deepEqual(afterDrop, []);
 });
 
-test("custom item entry is a draft until Save and hides inventory actions while unsaved", async () => {
-  const sheet = await readFile(
-    new URL("../app/character-sheet.tsx", import.meta.url),
-    "utf8",
-  );
-  const stored = await readFile(
-    new URL("../app/inventory-stored-items.tsx", import.meta.url),
-    "utf8",
-  );
-
-  assert.match(sheet, /const \[otherStowedDraftName, setOtherStowedDraftName\] = useState\(""\)/u);
-  assert.match(sheet, /setOtherStowedIndex\(i\);\s*setOtherStowedDraftName\(""\);/u);
-  assert.match(sheet, /value=\{otherStowedDraftName\}/u);
-  assert.match(sheet, /className="custom-item-save"/u);
-  assert.match(sheet, /setStowedItem\(i, name\);\s*setOtherStowedIndex\(null\)/u);
-  assert.match(sheet, /item && !editingOther && <span className="inventory-item-actions"/u);
+test("custom item acquisition stays a draft until Add Item", async () => {
+  const sheet = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+  const stored = await readFile(new URL("../app/inventory-stored-items.tsx", import.meta.url), "utf8");
+  assert.match(sheet, /inventoryAddValue === "__other__" \? inventoryAddCustom\.trim\(\)/u);
+  assert.match(sheet, /inventoryAddValue === "__other__" && !inventoryAddCustom\.trim\(\)/u);
+  assert.match(sheet, /onClick=\{addNewInventoryItem\}>Add Item/u);
   assert.match(sheet, /<optgroup label="Custom Items">/u);
-
-  assert.match(stored, /const \[otherDraft, setOtherDraft\] = useState\(""\)/u);
-  assert.match(stored, /value=\{otherDraft\}/u);
-  assert.match(stored, /className="custom-item-save"/u);
-  assert.match(stored, /item && !editingOther && <span className="inventory-item-actions"/u);
-  assert.match(stored, /<optgroup label="Custom Items">/u);
+  assert.match(stored, /const slots = compact;/u);
+  assert.doesNotMatch(stored, /<optgroup label="Custom Items">/u);
 });
 
 test("companion Other-item flow also waits for Save before mutating inventory", async () => {

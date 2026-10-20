@@ -465,3 +465,22 @@ test("stowed item action buttons align with dropdowns, not descriptions", async 
   assert.match(css, /\.inventory-stowed-row>\.campaign-item-description\{display:block/u);
   assert.match(css, /\.inventory-item-actions>\.drop-item\{margin-bottom:0\}/u);
 });
+
+test("inventory acquisition and movement use an owned-item workflow", async () => {
+  const [sheet, stored, css] = await Promise.all([
+    source("app/character-sheet.tsx"),
+    source("app/inventory-stored-items.tsx"),
+    source("app/globals.css"),
+  ]);
+  assert.match(sheet, /Add New Item/u);
+  assert.match(sheet, /const addNewInventoryItem =/u);
+  assert.match(sheet, /readyIndex >= 0[\s\S]*stowIndex >= 0[\s\S]*stored:/u);
+  assert.match(sheet, /const requestInventoryMove =/u);
+  assert.match(sheet, /inventorySwap &&/u);
+  assert.match(sheet, />Ready<\/button>/u);
+  assert.match(sheet, />Stow<\/button>/u);
+  assert.match(sheet, />Store<\/button>/u);
+  assert.match(stored, /onReady: \(index: number\) => void/u);
+  assert.match(stored, /onReady\(index\)/u);
+  assert.match(css, /\.inventory-dialog-backdrop/u);
+});

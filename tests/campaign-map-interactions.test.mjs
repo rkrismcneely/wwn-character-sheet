@@ -156,6 +156,9 @@ test("token dragging directly moves toolbar and does not persist canceled or sta
   assert.match(launcher, /inspector\.style\.left = `\$\{left\}px`/);
   assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);
   assert.match(launcher, /event\.type === "pointercancel"/);
+  assert.match(launcher, /if \(tokenDragRef\.current \|\| tokenMovePendingRef\.current\) return false/);
+  assert.match(launcher, /tokenMovePendingRef\.current = true/);
+  assert.match(launcher, /tokenMovePendingRef\.current = false/);
   assert.match(launcher, /Math\.abs\(drag\.latestX - drag\.x\) > 0\.01/);
   assert.doesNotMatch(launcher, /draggingSelectedToken && inspectorRef\.current/);
 });

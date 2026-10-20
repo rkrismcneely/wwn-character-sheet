@@ -458,8 +458,10 @@ test("stowed item action buttons align with dropdowns, not descriptions", async 
   assert.match(sheet, /className="inventory-item-actions"/u);
   assert.match(sheet, /className="campaign-item-description"/u);
   assert.equal((sheet.match(/inventory-item-row inventory-stowed-row/gu) ?? []).length, 2);
-  assert.match(css, /\.inventory-stowed-row>\.campaign-item-description\{grid-column:1\/-1;grid-row:2/u);
-  assert.match(css, /\.inventory-stowed-row>\.inventory-item-actions\{grid-column:2;grid-row:1\}/u);
-  assert.match(css, /\.inventory-stowed-row>\.drop-item\{grid-column:2;grid-row:1\}/u);
+  assert.equal((sheet.match(/className="inventory-stowed-controls"/gu) ?? []).length, 2);
+  assert.match(css, /\.inventory-stowed-controls\{display:flex;align-items:flex-end/u);
+  assert.match(css, /\.inventory-stowed-controls>\.field\{flex:1 1 160px/u);
+  assert.match(css, /\.inventory-stowed-controls>\.inventory-item-actions\{flex:0 0 auto/u);
+  assert.match(css, /\.inventory-stowed-row>\.campaign-item-description\{display:block/u);
   assert.match(css, /\.inventory-item-actions>\.drop-item\{margin-bottom:0\}/u);
 });

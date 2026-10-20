@@ -3917,7 +3917,8 @@ export default function Home({
             {stowedSlots.map((item, i) => {
               const editingOther = otherStowedIndex === i;
               return <div className={`inventory-item-row inventory-stowed-row ${i >= stowedCapacity ? "inventory-overflow" : ""}`} key={i}>
-                <label className="field">
+                <div className="inventory-stowed-controls">
+                  <label className="field">
                   <span>{i+1}{i >= stowedCapacity ? " · Over capacity" : ""}</span>
                   <select value={editingOther ? "__other__" : item} aria-label={`Stowed item slot ${i + 1}`} onChange={e => {
                     const transfer = decodeInventoryTransfer(e.target.value);
@@ -3972,6 +3973,7 @@ export default function Home({
                   }}>Save</button>
                 </div>}
                 {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => moveStowedToStored(i)}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button></span>}
+                </div>
                 {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
               </div>;
             })}
@@ -4344,7 +4346,8 @@ export default function Home({
                 const editingOther = companionOtherStowed[companion.id] === index;
                 const draftName = companionOtherStowedDrafts[companion.id] || "";
                 return <div className={`inventory-item-row inventory-stowed-row ${index >= stowedCapacity ? "inventory-overflow" : ""}`} key={`s-${index}`}>
-                  <label className="field"><span>{index + 1}{index >= stowedCapacity ? " · Over capacity" : ""}</span>
+                  <div className="inventory-stowed-controls">
+                    <label className="field"><span>{index + 1}{index >= stowedCapacity ? " · Over capacity" : ""}</span>
                     <select value={editingOther ? "__other__" : item} aria-label={`Companion stowed item slot ${index + 1}`} onChange={e => {
                       const transfer = decodeInventoryTransfer(e.target.value);
                       if (transfer) {
@@ -4398,6 +4401,7 @@ export default function Home({
                     }}>Save</button>
                   </div>}
                   {item && !editingOther && <button type="button" className="drop-item" onClick={() => dropCompanionItem("stowed", index, item)}>Drop</button>}
+                </div>
                   {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
                 </div>;
               })}

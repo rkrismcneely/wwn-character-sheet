@@ -449,3 +449,14 @@ test("all standard routes use the canonical shared Tales Without End brand", asy
   ]) assert.ok(headerCss.includes(marker), marker);
   assert.match(campaignCss, /\.campaign-header[\s\S]*\.twe-brand/u);
 });
+
+test("stowed item action buttons align with dropdowns, not descriptions", async () => {
+  const [sheet, css] = await Promise.all([
+    source("app/character-sheet.tsx"),
+    source("app/globals.css"),
+  ]);
+  assert.match(sheet, /className="inventory-item-actions"/u);
+  assert.match(sheet, /className="campaign-item-description"/u);
+  assert.match(css, /\.inventory-item-actions\{[^}]*align-self:start;[^}]*margin-top:17px/u);
+  assert.match(css, /\.inventory-item-actions>\.drop-item\{margin-bottom:0\}/u);
+});

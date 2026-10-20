@@ -4036,9 +4036,7 @@ export default function Home({
                     }
                   }}>
                     <option value="">Choose an owned item…</option>
-                    <option value="__other__">Other…</option>
                     {item && <option value={item}>{inventoryItemDisplayName(item)}</option>}
-                    {sheet.stored.filter(Boolean).map((name, index) => <option key={`stored-${index}`} value={`__stored__${index}`}>{inventoryItemDisplayName(name)} · Stored</option>)}
                     {sheet.companions.map((companion, companionIndex) => {
                       const items = inventorySlots(companion.stowed, Math.max(0, companion.strength || 0));
                       const available = items.map((name, index) => ({ name, index })).filter(entry => entry.name);
@@ -4479,10 +4477,6 @@ export default function Home({
                           {available.map(entry => <option key={`${otherCompanion.id}-${entry.itemIndex}-${entry.name}`} value={encodeInventoryTransfer({ kind: "companion", id: otherCompanion.id }, entry.itemIndex)}>{inventoryItemDisplayName(entry.name)}</option>)}
                         </optgroup>;
                       })}
-                      <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
-                      <optgroup label="Armor & Shields">{inventoryArmors.map(armor => <option key={armor} value={armor}>{armor}</option>)}<option>Small Shield</option><option>Large Shield</option></optgroup>
-                      <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
-                      <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                     </select>
                   </label>
                   {editingOther && <div className="custom-item-entry">

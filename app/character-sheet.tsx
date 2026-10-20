@@ -31,7 +31,7 @@ import {
 import { RulesAssistant } from "./rules-assistant";
 import { clearRollHistory, persistRollHistory, prependRollHistory, readRollHistory } from "./roll-history";
 import { RollHistoryPanel, RollResultTray } from "./roll-presentation";
-import { formatShockMinimumReminder, isSharedRollCategory, parseDamageExpression, parseShockMinimum, resolveRoll, type RollRequest, type RollResult } from "./rolls";
+import { formatShockMinimumReminder, isSharedRollCategory, unarmedMissDamageBonus, parseDamageExpression, parseShockMinimum, resolveRoll, type RollRequest, type RollResult } from "./rolls";
 import { rollDice, type DiceRoll } from "./dice";
 import { useDisplayTheme } from "./theme-provider";
 import { useDiceStylePreference, useVirtualDicePreference } from "./virtual-dice-preference";
@@ -1523,6 +1523,17 @@ export default function Home({
     } catch {
       setDiceError(`The displayed ${name} damage expression could not be rolled.`);
     }
+  }
+
+  function rollUnarmedMiss(name: string, shock: string, includeShock: boolean) {
+    const modifier = unarmedMissDamageBonus(shock, includeShock);
+    void completeRoll({
+      category: "damage",
+      character: rollCharacter(),
+      label: `${name} — Unarmed Combatant level 2 miss${includeShock ? " + applicable Shock" : " (no Shock)"}`,
+      dice: { count: 1, sides: 6 },
+      modifiers: modifier ? [{ label: "Applicable Shock", value: modifier }] : [],
+    });
   }
 
   function rollSave(name: keyof typeof saves) {
@@ -3904,7 +3915,7 @@ export default function Home({
                   const displayName = inventoryItemDisplayName(name);
                   return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
                     <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{displayName}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage, calc.shock)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details"><span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage, calc.shock)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details">{calc.virtual && selectedFocusPicks.some(focus => focus.name === "Unarmed Combatant" && focus.level === 2) && <div className="weapon-unarmed-miss-actions"><span>Unarmed Combatant 2 · missed Punch attack</span><button type="button" className="roll-affordance" disabled={virtualDiceBusy} onClick={() => rollUnarmedMiss(displayName, calc.shock, false)}>Roll Miss (no Shock)</button>{parseShockMinimum(calc.shock) && <button type="button" className="roll-affordance" disabled={virtualDiceBusy} title="Only select when the target is susceptible to this attack’s Shock; immunity, shielding, or other defenses may prevent it." onClick={() => rollUnarmedMiss(displayName, calc.shock, true)}>Roll Miss + Shock</button>}</div>}<span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
                   </div>
                 })}
                 {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}

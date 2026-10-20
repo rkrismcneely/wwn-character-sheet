@@ -115,3 +115,32 @@ test("local roll history is newest first, capped, and clears only its session en
   clearRollHistory(storage);
   assert.deepEqual(readRollHistory(storage), []);
 });
+
+test("rolls three dice for a keep-highest-two skill check", async () => {
+  const result = await resolveRoll({
+    category: "skill",
+    character: { id: "hero", name: "Hero" },
+    label: "Heal (INT) Check",
+    dice: { count: 3, sides: 6 },
+    keepHighest: 2,
+    modifiers: [{ label: "Heal skill", value: 1 }],
+  }, {
+    roll: () => ({ count: 3, sides: 6, results: [2, 6, 5], total: 13 }),
+  });
+  assert.deepEqual(result.dice.results, [2, 6, 5]);
+  assert.equal(result.keepHighest, 2);
+  assert.equal(result.total, 12);
+});
+
+test("Specialist level two rolls four dice and keeps the two highest", async () => {
+  const result = await resolveRoll({
+    category: "skill",
+    character: { id: "hero", name: "Hero" },
+    label: "Sneak Check",
+    dice: { count: 4, sides: 6 },
+    keepHighest: 2,
+  }, {
+    roll: () => ({ count: 4, sides: 6, results: [1, 6, 3, 5], total: 15 }),
+  });
+  assert.equal(result.total, 11);
+});

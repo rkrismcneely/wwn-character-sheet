@@ -472,3 +472,16 @@ test("Veteran’s Luck overrides the outcome once per scene without falsifying a
   assert.match(sheetSource, /Force incoming miss/u);
   assert.match(sheetSource, /Force hit/u);
 });
+
+test("situational Focus rerolls are scoped, once per scene, and preserve source request", () => {
+  assert.match(sheetSource, /name: "Impostor", eligible: true/);
+  assert.match(sheetSource, /name: "Trapmaster", eligible: true/);
+  assert.match(sheetSource, /pick.name === "Rider" && pick.level === 2/);
+  assert.match(sheetSource, /focusRerollSource.request.label.startsWith\("Ride \("\)/);
+  assert.match(sheetSource, /latestRoll\?\.id !== focusRerollSource.resultId/);
+  assert.match(sheetSource, /request.category !== "skill" && request.category !== "save"/);
+  assert.match(sheetSource, /sessionStorage.setItem\(`twe-focus-reroll-/);
+  assert.match(sheetSource, /sessionStorage.removeItem\(`twe-focus-reroll-/);
+  assert.match(sheetSource, /label: `\$\{request.label\} — Focus reroll/);
+  assert.match(sheetSource, /GM confirms the check failed/);
+});

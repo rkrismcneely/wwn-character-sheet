@@ -3916,7 +3916,7 @@ export default function Home({
           <Section title="Stowed Items" aside={<span className="caption">{attributeScore("STR") ? `Standard capacity: ${stowedCapacity} · equal to STR ${attributeScore("STR")}` : "Choose a Strength score to calculate capacity"}</span>}>
             {stowedSlots.map((item, i) => {
               const editingOther = otherStowedIndex === i;
-              return <div className={`inventory-item-row ${i >= stowedCapacity ? "inventory-overflow" : ""}`} key={i}>
+              return <div className={`inventory-item-row inventory-stowed-row ${i >= stowedCapacity ? "inventory-overflow" : ""}`} key={i}>
                 <label className="field">
                   <span>{i+1}{i >= stowedCapacity ? " · Over capacity" : ""}</span>
                   <select value={editingOther ? "__other__" : item} aria-label={`Stowed item slot ${i + 1}`} onChange={e => {
@@ -3952,7 +3952,6 @@ export default function Home({
                     <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
                     <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                   </select>
-                  {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
                 </label>
                 {editingOther && <div className="custom-item-entry">
                   <input autoFocus aria-label={`Other stowed item ${i + 1}`} placeholder="Type item name…" value={otherStowedDraftName} onChange={e => setOtherStowedDraftName(e.target.value)} onKeyDown={e => {
@@ -3973,6 +3972,7 @@ export default function Home({
                   }}>Save</button>
                 </div>}
                 {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => moveStowedToStored(i)}>Store</button><button type="button" className="drop-item" onClick={() => dropInventoryItem("stowed", i, item)}>Drop</button></span>}
+                {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
               </div>;
             })}
             {!stowedSlots.length && <p className="empty-slots">No Stowed slots until a Strength score is selected.</p>}
@@ -4343,7 +4343,7 @@ export default function Home({
               {companionStowed.map((item, index) => {
                 const editingOther = companionOtherStowed[companion.id] === index;
                 const draftName = companionOtherStowedDrafts[companion.id] || "";
-                return <div className={`inventory-item-row ${index >= stowedCapacity ? "inventory-overflow" : ""}`} key={`s-${index}`}>
+                return <div className={`inventory-item-row inventory-stowed-row ${index >= stowedCapacity ? "inventory-overflow" : ""}`} key={`s-${index}`}>
                   <label className="field"><span>{index + 1}{index >= stowedCapacity ? " · Over capacity" : ""}</span>
                     <select value={editingOther ? "__other__" : item} aria-label={`Companion stowed item slot ${index + 1}`} onChange={e => {
                       const transfer = decodeInventoryTransfer(e.target.value);
@@ -4386,7 +4386,6 @@ export default function Home({
                       <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear} value={gear}>{gear}</option>)}</optgroup>
                       <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle} value={bundle}>{bundle}</option>)}</optgroup>
                     </select>
-                    {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
                   </label>
                   {editingOther && <div className="custom-item-entry">
                     <input autoFocus aria-label={`Other companion stowed item ${index + 1}`} placeholder="Type item name…" value={draftName} onChange={e => setCompanionOtherStowedDrafts(current => ({ ...current, [companion.id]: e.target.value }))} />
@@ -4399,6 +4398,7 @@ export default function Home({
                     }}>Save</button>
                   </div>}
                   {item && !editingOther && <button type="button" className="drop-item" onClick={() => dropCompanionItem("stowed", index, item)}>Drop</button>}
+                  {!editingOther && campaignInventorySnapshot(item) && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignInventorySnapshot(item)?.kind ?? "mundane")}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
                 </div>;
               })}
               {!companionStowed.length && <p className="empty-slots">No Stowed slots until a Strength score is selected.</p>}

@@ -463,7 +463,7 @@ test("Masterful Expertise rerolls only eligible latest noncombat skill checks fo
 });
 
 test("Veteran’s Luck overrides the outcome once per scene without falsifying a die roll", () => {
-  assert.match(sheetSource, /function useVeteransLuck\(kind: "hit" \| "miss"\)/u);
+  assert.match(sheetSource, /function applyVeteransLuck\(kind: "hit" \| "miss"\)/u);
   assert.match(sheetSource, /sheet.classMode !== "full" \|\| sheet.classOne !== "Warrior"/u);
   assert.match(sheetSource, /latestRoll\?\.category !== "attack" \|\| latestRoll.id !== latestAttackId/u);
   assert.match(sheetSource, /sessionStorage\.setItem\(`twe-veterans-luck-/u);

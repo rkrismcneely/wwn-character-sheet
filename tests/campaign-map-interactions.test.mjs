@@ -165,3 +165,14 @@ test("dragging moves the token toolbar synchronously with the SVG transform", as
   assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);
   assert.match(launcher, /inspector\.classList\.toggle\("is-below", below\)/);
 });
+
+test("token dragging directly moves toolbar and does not persist canceled or stationary drags", async () => {
+  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
+  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,270}positionDraggedTokenToolbar\(drag\.element\)/);
+  assert.match(launcher, /function positionDraggedTokenToolbar\(tokenElement: SVGGElement\)/);
+  assert.match(launcher, /inspector\.style\.left = `\$\{left\}px`/);
+  assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);
+  assert.match(launcher, /event\.type === "pointercancel"/);
+  assert.match(launcher, /Math\.abs\(drag\.latestX - drag\.x\) > 0\.01/);
+  assert.doesNotMatch(launcher, /draggingSelectedToken && inspectorRef\.current/);
+});

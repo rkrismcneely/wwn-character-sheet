@@ -141,29 +141,12 @@ test("token dragging leaves a fifty-percent origin ghost until release", async (
   assert.match(launcher, /setTokenDragOrigin\(null\)/u);
 });
 
-test("selected token toolbar follows direct SVG drag transforms", async () => {
-  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
-  assert.match(launcher, /const updateInspectorAnchorRef = useRef/);
-  assert.match(launcher, /drag\.element\.setAttribute\("transform",[\s\S]{0,180}updateInspectorAnchorRef\.current\?\.\(\)/);
-  assert.match(launcher, /updateInspectorAnchorRef\.current = updateAnchor/);
-  assert.match(launcher, /updateInspectorAnchorRef\.current === updateAnchor/);
-});
-
 test("map wheel zoom blocks character sheet scroll in dock mode", async () => {
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
   assert.match(launcher, /svg\.addEventListener\("wheel", handleMapWheel, \{ passive: false \}\)/u);
   assert.match(launcher, /svg\.removeEventListener\("wheel", handleMapWheel\)/u);
   assert.match(launcher, /const handleMapWheel = \(event: WheelEvent\) => \{\s*event\.preventDefault\(\)/u);
   assert.doesNotMatch(launcher, /onWheel=\{handleWheel\}/u);
-});
-
-test("dragging moves the token toolbar synchronously with the SVG transform", async () => {
-  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
-  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,210}updateInspectorAnchorRef\.current\?\.\(\)/);
-  assert.match(launcher, /draggingSelectedToken && inspectorRef\.current/);
-  assert.match(launcher, /inspector\.style\.left = `\$\{left\}px`/);
-  assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);
-  assert.match(launcher, /inspector\.classList\.toggle\("is-below", below\)/);
 });
 
 test("token dragging directly moves toolbar and does not persist canceled or stationary drags", async () => {

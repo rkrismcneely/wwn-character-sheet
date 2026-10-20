@@ -166,3 +166,24 @@ test("character sheet uses canonical Focus names for exceptional rolls", async (
   assert.match(sheet, /pick.name === "Alert"/u);
   assert.match(sheet, /dice: \{ count: alert \? 2 : 1, sides: 8 \}/u);
 });
+
+test("Diplomatic Grace rerolls each initial 1 once while retaining untouched dice", async () => {
+  const calls = [];
+  const faces = [[1, 5, 1], [4], [1]];
+  const request = sampleRequest({ category: "skill", dice: { count: 3, sides: 6 }, keepHighest: 2, rerollOnes: true });
+  const result = await resolveRoll(request, { roll: (count, sides) => {
+    calls.push([count, sides]);
+    const results = faces.shift();
+    return { count, sides, results, total: results.reduce((a, b) => a + b, 0) };
+  } });
+  assert.deepEqual(calls, [[3, 6], [1, 6], [1, 6]]);
+  assert.deepEqual(result.dice.results, [4, 5, 1]);
+  assert.equal(result.dice.total, 10);
+  assert.equal(result.total, 9 + result.modifierTotal);
+});
+
+test("Diplomatic Grace cannot apply to attacks or saves", async () => {
+  await assert.rejects(resolveRoll(sampleRequest({ category: "save", dice: { count: 1, sides: 20 }, rerollOnes: true }), {
+    roll: fixedRoll([1], 20),
+  }), /only valid on skill dice/);
+});

@@ -56,6 +56,9 @@ export function normalizeSharedRollRequest(value: unknown, character: RollReques
   if (candidate.targetKind !== undefined && (candidate.targetKind !== "saving-throw" || candidate.category !== "save")) {
     throw new CampaignServiceError("Roll target type is invalid.", 422);
   }
+  if (candidate.rerollOnes !== undefined && (candidate.rerollOnes !== true || candidate.category !== "skill" || dice.sides !== 6)) {
+    throw new CampaignServiceError("The requested reroll-ones rule is not supported for this roll.", 422);
+  }
   const keepHighest = candidate.keepHighest === undefined
     ? undefined
     : boundedInteger(candidate.keepHighest, "Dice to keep", 1, dice.count);
@@ -71,6 +74,7 @@ export function normalizeSharedRollRequest(value: unknown, character: RollReques
     label: boundedText(candidate.label, "Roll label", 120),
     dice,
     ...(keepHighest === undefined ? {} : { keepHighest }),
+    ...(candidate.rerollOnes ? { rerollOnes: true } : {}),
     modifiers,
     ...(target === undefined ? {} : { target }),
     ...(shockMinimum === undefined ? {} : { shockMinimum }),

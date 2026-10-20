@@ -88,7 +88,7 @@ test("shared session transport keeps party status authoritative, realtime, and r
     readFile(new URL("../lib/campaigns/live-session-service.ts", import.meta.url), "utf8"),
   ]);
   assert.match(sheet, /isSharedRollCategory\(request\.category\)/u);
-  assert.match(sheet, /preparedSharedRoll\?\.dice \|\| rollDice/u);
+  assert.match(sheet, /rawRoll = \(preparedSharedRoll \|\| localResult\)!\.dice/u);
   assert.match(sheet, /action: "publish"/u);
   assert.match(route, /authorizeLiveSessionRoll/u);
   assert.match(route, /authorizeEncounterManagement/u);

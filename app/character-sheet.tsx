@@ -1148,6 +1148,7 @@ export default function Home({
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
   const [skillRollChooser, setSkillRollChooser] = useState<string | null>(null);
   const [sniperEyeContext, setSniperEyeContext] = useState(false);
+  const [diplomacyContext, setDiplomacyContext] = useState(false);
   const [magicalSaveContext, setMagicalSaveContext] = useState(false);
   const [diceAnnouncement, setDiceAnnouncement] = useState("");
   const [diceAnnouncementKey, setDiceAnnouncementKey] = useState(0);
@@ -1281,8 +1282,12 @@ export default function Home({
     }
 
     let rawRoll: DiceRoll;
+    let localResult: RollResult | null = null;
     try {
-      rawRoll = preparedSharedRoll?.dice || rollDice(request.dice.count, request.dice.sides);
+      // Resolve all rerolled dice before animation so the visible result, local
+      // history, and server-prepared shared result display the same dice.
+      if (!preparedSharedRoll) localResult = await resolveRoll(request);
+      rawRoll = (preparedSharedRoll || localResult)!.dice;
     } catch {
       const message = "Dice rolling is unavailable because secure browser randomness could not be accessed.";
       setDiceError(message);
@@ -1317,7 +1322,7 @@ export default function Home({
     }
 
     try {
-      const result = preparedSharedRoll || await resolveRoll(request, { roll: () => rawRoll });
+      const result = (preparedSharedRoll || localResult)!;
       setLatestRoll(result);
       if (request.category === "skill" || request.category === "save") {
         setFocusRerollSource(request.label.includes("— Focus reroll") ? null : { request, resultId: result.id });
@@ -1473,10 +1478,13 @@ export default function Home({
     const diceCount = specialist?.level === 2 ? 4 : specialist || giftedChirurgeon || sniperEyeBonus ? 3 : 2;
     setSkillRollChooser(null);
     setSniperEyeContext(false);
+    const diplomacyApplies = diplomacyContext && selectedFocusPicks.some(pick => pick.name === "Diplomatic Grace");
+    setDiplomacyContext(false);
     const request: RollRequest = {
       category: "skill",
       character: rollCharacter(),
-      label: `${skill} (${attribute}) Check${sniperEyeBonus ? " — ranged execution / target shooting" : ""}`,
+      label: `${skill} (${attribute}) Check${sniperEyeBonus ? " — ranged execution / target shooting" : ""}${diplomacyApplies ? " — Diplomatic Grace (reroll 1s)" : ""}`,
+      ...(diplomacyApplies ? { rerollOnes: true } : {}),
       dice: { count: diceCount, sides: 6 },
       ...(diceCount > 2 ? { keepHighest: 2 } : {}),
       modifiers: [
@@ -3985,7 +3993,7 @@ export default function Home({
                         (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}
-                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} aria-expanded={skillRollChooser === skill} onClick={() => { setSkillRollChooser(current => current === skill ? null : skill); setSniperEyeContext(false); }}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span>{skill === "Shoot" && selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye") && <label className="skill-context-option"><input type="checkbox" checked={sniperEyeContext} onChange={event => setSniperEyeContext(event.target.checked)} /> Ranged execution or target shooting (Sniper’s Eye: 3d6, keep highest 2)</label>}<div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} disabled={virtualDiceBusy} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
+                  </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} aria-expanded={skillRollChooser === skill} onClick={() => { setSkillRollChooser(current => current === skill ? null : skill); setSniperEyeContext(false); setDiplomacyContext(false); }}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span>{selectedFocusPicks.some(pick => pick.name === "Diplomatic Grace") && <label className="skill-context-option"><input type="checkbox" checked={diplomacyContext} onChange={event => setDiplomacyContext(event.target.checked)} /> Negotiation or diplomacy (Diplomatic Grace: reroll each die showing 1 once)</label>}{skill === "Shoot" && selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye") && <label className="skill-context-option"><input type="checkbox" checked={sniperEyeContext} onChange={event => setSniperEyeContext(event.target.checked)} /> Ranged execution or target shooting (Sniper’s Eye: 3d6, keep highest 2)</label>}<div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} disabled={virtualDiceBusy} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;
                 })}
               </div>
             </Section>

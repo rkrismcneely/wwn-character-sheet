@@ -141,14 +141,6 @@ test("token dragging leaves a fifty-percent origin ghost until release", async (
   assert.match(launcher, /setTokenDragOrigin\(null\)/u);
 });
 
-test("selected token toolbar follows direct SVG drag transforms", async () => {
-  const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
-  assert.match(launcher, /const updateInspectorAnchorRef = useRef/);
-  assert.match(launcher, /drag\.element\.setAttribute\("transform",[\s\S]{0,180}updateInspectorAnchorRef\.current\?\.\(\)/);
-  assert.match(launcher, /updateInspectorAnchorRef\.current = updateAnchor/);
-  assert.match(launcher, /updateInspectorAnchorRef\.current === updateAnchor/);
-});
-
 test("map wheel zoom blocks character sheet scroll in dock mode", async () => {
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
   assert.match(launcher, /svg\.addEventListener\("wheel", handleMapWheel, \{ passive: false \}\)/u);
@@ -157,11 +149,17 @@ test("map wheel zoom blocks character sheet scroll in dock mode", async () => {
   assert.doesNotMatch(launcher, /onWheel=\{handleWheel\}/u);
 });
 
-test("dragging moves the token toolbar synchronously with the SVG transform", async () => {
+test("token dragging directly moves toolbar and does not persist canceled or stationary drags", async () => {
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
-  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,210}updateInspectorAnchorRef\.current\?\.\(\)/);
-  assert.match(launcher, /draggingSelectedToken && inspectorRef\.current/);
+  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,720}positionDraggedTokenToolbar\(drag\.element\)/);
+  assert.match(launcher, /function positionDraggedTokenToolbar\(tokenElement: SVGGElement\)/);
   assert.match(launcher, /inspector\.style\.left = `\$\{left\}px`/);
   assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);
-  assert.match(launcher, /inspector\.classList\.toggle\("is-below", below\)/);
+  assert.match(launcher, /event\.type === "pointercancel"/);
+  assert.match(launcher, /if \(tokenDragRef\.current \|\| tokenMovePendingRef\.current\) return false/);
+  assert.match(launcher, /tokenMovePendingRef\.current = true/);
+  assert.match(launcher, /tokenMovePendingRef\.current = false/);
+  assert.match(launcher, /if \(!view \|\| tokenMovePendingRef\.current \|\| event\.button !== 0/);
+  assert.match(launcher, /Math\.abs\(drag\.latestX - drag\.x\) > 0\.01/);
+  assert.doesNotMatch(launcher, /draggingSelectedToken && inspectorRef\.current/);
 });

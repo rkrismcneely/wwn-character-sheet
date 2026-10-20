@@ -496,7 +496,31 @@ export function CampaignMapWorkspace({
   function handleDrawerCollapseClick() { if (suppressDrawerCollapseClickRef.current) { suppressDrawerCollapseClickRef.current = false; return; } closeMap(); }
   function resetView() { setView(fullView(map)); }
   function zoom(factor: number) { if (!map?.backgroundWidth || !map.backgroundHeight || !view) return; const nextWidth = clamp(view.width * factor, map.backgroundWidth / 12, map.backgroundWidth * 1.5); const nextHeight = nextWidth * (map.backgroundHeight / map.backgroundWidth); const centerX = view.x + view.width / 2; const centerY = view.y + view.height / 2; setView({ x: centerX - nextWidth / 2, y: centerY - nextHeight / 2, width: nextWidth, height: nextHeight }); }
-  function handleWheel(event: ReactWheelEvent<SVGSVGElement>) { event.preventDefault(); zoom(event.deltaY > 0 ? 1.12 : 0.88); }
+  // React's delegated wheel listener can be passive, allowing the page behind a
+  // docked map to scroll even when the map itself zooms. Listen non-passively
+  // on the SVG to prevent the browser's default scrolling at the source.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!open || !svg) return;
+    const handleMapWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (!event.deltaY) return;
+      setView(current => {
+        if (!current || !map?.backgroundWidth || !map.backgroundHeight) return current;
+        const factor = event.deltaY > 0 ? 1.12 : 0.88;
+        const width = clamp(current.width * factor, map.backgroundWidth / 12, map.backgroundWidth * 1.5);
+        const height = width * (map.backgroundHeight / map.backgroundWidth);
+        return {
+          x: current.x + (current.width - width) / 2,
+          y: current.y + (current.height - height) / 2,
+          width,
+          height,
+        };
+      });
+    };
+    svg.addEventListener("wheel", handleMapWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", handleMapWheel);
+  }, [open, loading, map?.id, map?.backgroundWidth, map?.backgroundHeight, view !== null]);
 
   function handleTouchPointerDownCapture(event: ReactPointerEvent<SVGSVGElement>) {
     if (event.pointerType !== "touch") return;
@@ -1070,7 +1094,7 @@ export function CampaignMapWorkspace({
        {!loading && (previewHasNoSharedMap || !map?.backgroundUrl) && <div className="campaign-map-empty"><h3>{previewHasNoSharedMap ? "No map shared with players" : map ? "No map image" : "No campaign maps yet"}</h3><p>{previewHasNoSharedMap ? "Switch to GM View and choose Show to players to share a map." : canManage ? "Open Edit Map to upload a new map." : "The GM has not shared a campaign map yet."}</p></div>}
       {!playerPreview && map?.backgroundUrl && <CampaignMapDrawingPalette controller={annotations} />}
       {!playerPreview && map?.backgroundUrl && <CampaignMapAreaTemplatePalette controller={areaTemplates} grid={map.grid} />}
-      {!loading && !previewHasNoSharedMap && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onWheel={handleWheel} onPointerDownCapture={handleTouchPointerDownCapture} onPointerMoveCapture={handleTouchPointerMoveCapture} onPointerUpCapture={handleTouchPointerEndCapture} onPointerCancelCapture={handleTouchPointerEndCapture} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan, pinch with two fingers to zoom, drag an allowed token to move it, or use the mouse wheel and zoom buttons.">
+      {!loading && !previewHasNoSharedMap && map?.backgroundUrl && map.backgroundWidth && map.backgroundHeight && view && <svg ref={svgRef} className={`campaign-map-svg${annotations.tool ? ` is-drawing is-${annotations.tool}` : ""}${areaTemplates.open ? " is-area-template-mode" : ""}`} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} onPointerDownCapture={handleTouchPointerDownCapture} onPointerMoveCapture={handleTouchPointerMoveCapture} onPointerUpCapture={handleTouchPointerEndCapture} onPointerCancelCapture={handleTouchPointerEndCapture} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} aria-label="Campaign map. Drag to pan, pinch with two fingers to zoom, drag an allowed token to move it, or use the mouse wheel and zoom buttons.">
         <defs>{map.grid.type === "hex" ? (() => { const pattern = hexPatternSize(map.grid.size); return <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={pattern.width} height={pattern.height}>{hexPatternPaths(map.grid.size).map((path, index) => <path key={index} d={path} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />)}</pattern>; })() : <pattern id={patternId} patternUnits="userSpaceOnUse" x={map.grid.offsetX} y={map.grid.offsetY} width={map.grid.size} height={map.grid.size}><path d={`M ${map.grid.size} 0 L 0 0 0 ${map.grid.size}`} fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="1.25" vectorEffect="non-scaling-stroke" /></pattern>}{showAutoAlignOverlay && <pattern id={autoGridPatternId} patternUnits="userSpaceOnUse"
           x={grid.offsetX} y={grid.offsetY} width={grid.size} height={grid.size}>
           <path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="#4df0e0"

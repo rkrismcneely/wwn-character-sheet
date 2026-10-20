@@ -1343,10 +1343,10 @@ export default function Home({
   function rollSkillCheck(skill: string, attribute: AttributeName) {
     const profile = skillProfile(skill);
     const specialist = selectedFocusPicks.find(pick => pick.name === "Specialist" && pick.choice === skill);
-    const healer = skill === "Heal" && selectedFocusPicks.some(pick => pick.name === "Healer");
-    // Deadeye's bonus applies only to ranged execution attacks and target shooting,
+    const giftedChirurgeon = skill === "Heal" && selectedFocusPicks.some(pick => pick.name === "Gifted Chirurgeon");
+    // Sniper’s Eye applies only to ranged execution attacks and target shooting,
     // not to ordinary Shoot skill checks.
-    const diceCount = specialist?.level === 2 ? 4 : specialist || healer ? 3 : 2;
+    const diceCount = specialist?.level === 2 ? 4 : specialist || giftedChirurgeon ? 3 : 2;
     setSkillRollChooser(null);
     void completeRoll({
       category: "skill",
@@ -1400,11 +1400,13 @@ export default function Home({
   }
 
   function rollInitiative() {
+    const alert = selectedFocusPicks.some(pick => pick.name === "Alert");
     void completeRoll({
       category: "initiative",
       character: rollCharacter(),
-      label: "Initiative",
-      dice: { count: 1, sides: 8 },
+      label: alert ? "Initiative (Alert: take better die)" : "Initiative",
+      dice: { count: alert ? 2 : 1, sides: 8 },
+      ...(alert ? { keepHighest: 1 } : {}),
       modifiers: [{ label: "Initiative modifier", value: calculatedInitiative }],
     });
   }

@@ -1396,7 +1396,7 @@ export default function Home({
     return () => { active = false; };
   }, [cloudId]);
 
-  function useVeteransLuck(kind: "hit" | "miss") {
+  function applyVeteransLuck(kind: "hit" | "miss") {
     if (sheet.classMode !== "full" || sheet.classOne !== "Warrior" || !veteransReady || veteransUsed || virtualDiceBusy) return;
     if (kind === "hit" && (latestRoll?.category !== "attack" || latestRoll.id !== latestAttackId)) return;
     const description = kind === "hit"
@@ -3468,8 +3468,8 @@ export default function Home({
               <div className="hero-latest-roll">
                 <RollResultTray result={latestRoll} />
                 {sheet.classMode === "full" && sheet.classOne === "Warrior" && veteransReady && <div className="masterful-controls">
-                  <button type="button" disabled={veteransUsed || virtualDiceBusy || latestRoll?.category !== "attack" || latestRoll.id !== latestAttackId} onClick={() => useVeteransLuck("hit")}>Veteran’s Luck: Force hit</button>
-                  <button type="button" disabled={veteransUsed || virtualDiceBusy} onClick={() => useVeteransLuck("miss")}>Veteran’s Luck: Force incoming miss</button>
+                  <button type="button" disabled={veteransUsed || virtualDiceBusy || latestRoll?.category !== "attack" || latestRoll.id !== latestAttackId} onClick={() => applyVeteransLuck("hit")}>Veteran’s Luck: Force hit</button>
+                  <button type="button" disabled={veteransUsed || virtualDiceBusy} onClick={() => applyVeteransLuck("miss")}>Veteran’s Luck: Force incoming miss</button>
                   <button type="button" onClick={resetVeteransScene}>New Scene</button>
                   <small role="status">{veteransOutcome || (veteransUsed ? "Veteran’s Luck used this scene" : "Once per scene · Outcome override, not an extra roll · Confirm with GM")}</small>
                 </div>}

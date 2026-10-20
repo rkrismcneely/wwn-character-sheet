@@ -3363,3 +3363,17 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
   border-color:#655943;
   color:#bcae94;
 }
+
+/* Inventory acquisition and movement UI */
+.inventory-toolbar{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:6px}
+.inventory-toolbar .custom-item-save{margin:0}
+.inventory-dialog-backdrop{position:fixed;inset:0;z-index:1300;display:grid;place-items:center;background:rgba(0,0,0,.55);padding:20px}
+.inventory-dialog{background:var(--paper,#fffdf7);color:var(--ink);border:1px solid #b7a886;padding:22px;max-width:460px;width:100%;max-height:85vh;overflow:auto;display:grid;gap:12px;box-shadow:0 12px 45px #0004}
+.inventory-dialog h3{margin:0}
+.inventory-dialog select,.inventory-dialog input{width:100%}
+.inventory-dialog-actions{display:flex;justify-content:flex-end;gap:10px}
+.inventory-dialog-actions button{margin:0}
+.inventory-swap-choices{display:grid;gap:7px}
+.inventory-swap-choice{padding:10px;background:transparent;border:1px solid #b7a886;text-align:left;cursor:pointer;color:inherit}
+.inventory-swap-choice:hover{background:#d6c5a35e}
+.inventory-item-actions{flex-wrap:wrap}

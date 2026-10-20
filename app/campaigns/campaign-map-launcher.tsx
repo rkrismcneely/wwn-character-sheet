@@ -709,7 +709,7 @@ export function CampaignMapWorkspace({
     let x = clamp(drag.x + (pointer.x - drag.pointerMapX), 0, map.backgroundWidth); let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) { const sizeCells = tokenSizes[drag.tokenId] ?? 1; const snapped = snapTokenCenterOnGrid({ x, y }, map.grid, sizeCells, map.backgroundWidth, map.backgroundHeight); x = snapped.x; y = snapped.y; }
     drag.latestX = x; drag.latestY = y; drag.element.setAttribute("transform", `translate(${x} ${y})`);
-    const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.distanceElement ?? drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) { drag.distanceElement = distanceElement; distanceElement.textContent = distance; }
+    const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) distanceElement.textContent = distance;
     // Treat the token and its toolbar as one drag surface. Position directly
     // from the just-transformed SVG element, independently of React effects.
     positionDraggedTokenToolbar(drag.element);

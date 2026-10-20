@@ -264,7 +264,7 @@ export type UnarmedAttackInput = {
   physicalModifier: number;
   warriorDamage: number;
   shockingAssaultBonus: number;
-  shockThreshold: number;
+  shockThreshold: number | "-";
   unarmedCombatantLevel: number;
   vowedProgression?: VowedUnarmedProgression;
   magicalVowedAttack?: boolean;
@@ -282,7 +282,7 @@ export function deriveUnarmedAttack(input: UnarmedAttackInput) {
     return {
       hit: Math.max(input.baseAttack, input.vowedProgression.hit) + input.physicalModifier + punchRank + punchPenalty,
       damage: withBonus(input.vowedProgression.damage, input.physicalModifier + punchRank + input.warriorDamage),
-      shock: `${Math.max(0, shockDamage)}/AC ${input.shockThreshold}`,
+      shock: `${Math.max(0, shockDamage)}/${input.shockThreshold === "-" ? "-" : `AC ${input.shockThreshold}`}`,
       note: `Vowed Unarmed Might${input.magicalVowedAttack ? " · magical attack" : ""}`,
     };
   }
@@ -293,7 +293,7 @@ export function deriveUnarmedAttack(input: UnarmedAttackInput) {
     return {
       hit: input.baseAttack + input.physicalModifier + punchRank + punchPenalty,
       damage: withBonus(damage, input.physicalModifier + input.warriorDamage),
-      shock: hasShock ? `${Math.max(0, shockDamage)}/AC ${input.shockThreshold}` : "None",
+      shock: hasShock ? `${Math.max(0, shockDamage)}/${input.shockThreshold === "-" ? "-" : `AC ${input.shockThreshold}`}` : "None",
       note: input.unarmedCombatantLevel >= 2
         ? "On a miss: unmodified 1d6 damage + any applicable Shock."
         : "Unarmed Combatant progression",

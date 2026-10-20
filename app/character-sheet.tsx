@@ -3180,7 +3180,7 @@ export default function Home({
     const deadeyeDamage = !isMelee && !isUnarmed && deadeye ? Math.max(0, effectiveSkill("Shoot")) : 0;
 
     if (isUnarmed) {
-      const shockThreshold = closeCombatant?.level === 2 || shockingAssault ? 10 : 15;
+      const shockThreshold = closeCombatant?.level === 2 || shockingAssault ? "-" : 15;
       const shockingAssaultBonus = shockingAssault?.level === 2 ? 2 : 0;
       const result = deriveUnarmedAttack({
         baseAttack,
@@ -3202,10 +3202,12 @@ export default function Home({
       if (!match) return w.shock;
       const shockDamage = Number(match[1]) + attrMod + warriorDamage
         + (shockingAssault?.level === 2 ? 2 : 0);
-      const shockAc = armsmaster?.level === 2 || closeCombatant?.level === 2 || shockingAssault
-        ? 10
-        : Number(match[2]);
-      return `${Math.max(0, shockDamage)}/AC ${shockAc}`;
+      // These Foci treat the target as AC 10 for Shock eligibility; they do
+      // not limit Shock to enemies whose actual AC is 10 or lower.
+      const bypassTargetAc = (armsmaster?.level === 2 || closeCombatant?.level === 2 || shockingAssault)
+        && Number(match[2]) >= 10;
+      const shockAc = bypassTargetAc ? "-" : `AC ${Number(match[2])}`;
+      return `${Math.max(0, shockDamage)}/${shockAc}`;
     })();
     const armsmasterNote = armsmasterDamage && w.shock !== "None"
       ? ` · Armsmaster can apply Stab ${signed(armsmasterDamage)} to Shock instead of damage`

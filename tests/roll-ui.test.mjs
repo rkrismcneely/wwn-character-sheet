@@ -59,7 +59,7 @@ function hueAndSaturation(hex) {
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
   assert.match(sheetSource, /rawRoll = preparedSharedRoll\?\.dice \|\| rollDice\(request\.dice\.count, request\.dice\.sides\)/);
   assert.match(sheetSource, /resolveRoll\(request, \{ roll: \(\) => rawRoll \}\)/);
-  assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check`/);
+  assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check\$\{sniperEyeBonus/);
   assert.match(sheetSource, /label: `\$\{name\} — Attack`/);
   assert.match(sheetSource, /label: `\$\{name\} — Damage`/);
   assert.match(sheetSource, /targetKind: "saving-throw"/);
@@ -434,4 +434,14 @@ test("metal-look dice avoid unlit PBR metal while retaining their textures", () 
     assert.equal(DICE_STYLE_RENDERER_CONFIG[style].material, "none");
     assert.equal(DICE_STYLE_TEXTURE_DEFINITIONS[style].material, "none");
   }
+});
+
+test("Sniper’s Eye precision bonus requires explicit ranged execution or target-shooting context", async () => {
+  const sheetSource = await readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8");
+  assert.match(sheetSource, /sniperEyeBonus = skill === "Shoot" && sniperEyeContext/);
+  assert.match(sheetSource, /specialist \|\| giftedChirurgeon \|\| sniperEyeBonus \? 3 : 2/);
+  assert.match(sheetSource, /setSniperEyeContext\(false\)/);
+  assert.match(sheetSource, /pick.name === "Sniper’s Eye"/);
+  assert.match(sheetSource, /onChange=\{event => setSniperEyeContext\(event.target.checked\)\}/);
+  assert.match(sheetSource, /sniperEyeBonus \? " — ranged execution \/ target shooting"/);
 });

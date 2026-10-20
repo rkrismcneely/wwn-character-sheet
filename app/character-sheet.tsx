@@ -1140,6 +1140,9 @@ export default function Home({
   const [veteransReady, setVeteransReady] = useState(false);
   const [veteransOutcome, setVeteransOutcome] = useState("");
   const [latestAttackId, setLatestAttackId] = useState<string | null>(null);
+  const [focusRerollSource, setFocusRerollSource] = useState<{ request: RollRequest; resultId: string } | null>(null);
+  const [focusRerollUsed, setFocusRerollUsed] = useState<Record<string, boolean>>({});
+  const [focusRerollReady, setFocusRerollReady] = useState(false);
   const [latestRoll, setLatestRoll] = useState<RollResult | null>(null);
   const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
@@ -1316,6 +1319,11 @@ export default function Home({
     try {
       const result = preparedSharedRoll || await resolveRoll(request, { roll: () => rawRoll });
       setLatestRoll(result);
+      if (request.category === "skill" || request.category === "save") {
+        setFocusRerollSource(request.label.includes("— Focus reroll") ? null : { request, resultId: result.id });
+      } else {
+        setFocusRerollSource(null);
+      }
       if (request.category === "attack") setLatestAttackId(result.id);
       if (request.category === "skill" && !request.label.includes("Masterful Expertise reroll")) {
         setMasterfulRollId(result.id);
@@ -1414,6 +1422,45 @@ export default function Home({
     try { sessionStorage.removeItem(`twe-veterans-luck-${cloudId || "unsaved"}`); } catch {}
     setVeteransUsed(false);
     setVeteransOutcome("");
+  }
+
+  const situationalRerolls = [
+    { name: "Impostor", eligible: true, context: "failed check or save while maintaining an imposture or disguise" },
+    { name: "Trapmaster", eligible: true, context: "failed check or save involving traps or snares" },
+    { name: "Rider", eligible: sheet.focusPicks.some(pick => pick.name === "Rider" && pick.level === 2) && focusRerollSource?.request.category === "skill" && focusRerollSource.request.label.startsWith("Ride ("), context: "failed Ride skill check" },
+  ].filter(option => sheet.focusPicks.some(pick => pick.name === option.name) && option.eligible);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      const used: Record<string, boolean> = {};
+      for (const name of ["Impostor", "Trapmaster", "Rider"]) {
+        try { used[name] = sessionStorage.getItem(`twe-focus-reroll-${cloudId || "unsaved"}-${name}`) === "used"; } catch { used[name] = false; }
+      }
+      setFocusRerollUsed(used);
+      setFocusRerollReady(true);
+    });
+    return () => { active = false; };
+  }, [cloudId]);
+
+  function applySituationalReroll(name: string) {
+    const option = situationalRerolls.find(value => value.name === name);
+    if (!option || focusRerollUsed[name] || !focusRerollReady || virtualDiceBusy || !focusRerollSource || latestRoll?.id !== focusRerollSource.resultId) return;
+    const request = focusRerollSource.request;
+    if (request.category !== "skill" && request.category !== "save") return;
+    try { sessionStorage.setItem(`twe-focus-reroll-${cloudId || "unsaved"}-${name}`, "used"); } catch {}
+    setFocusRerollUsed(current => ({ ...current, [name]: true }));
+    setFocusRerollSource(null);
+    void completeRoll({ ...request, label: `${request.label} — Focus reroll (${name})` });
+  }
+
+  function resetSituationalRerolls() {
+    for (const name of ["Impostor", "Trapmaster", "Rider"]) {
+      try { sessionStorage.removeItem(`twe-focus-reroll-${cloudId || "unsaved"}-${name}`); } catch {}
+    }
+    setFocusRerollUsed({});
+    setFocusRerollSource(null);
   }
 
   function rollSkillCheck(skill: string, attribute: AttributeName) {
@@ -3467,6 +3514,11 @@ export default function Home({
             <div className="hero-roll-row" data-readonly-interactive="true">
               <div className="hero-latest-roll">
                 <RollResultTray result={latestRoll} />
+                {focusRerollReady && situationalRerolls.length > 0 && <div className="masterful-controls">
+                  {situationalRerolls.map(option => <button key={option.name} type="button" title={option.context} disabled={focusRerollUsed[option.name] || !focusRerollSource || latestRoll?.id !== focusRerollSource.resultId || virtualDiceBusy} onClick={() => applySituationalReroll(option.name)}>{option.name}: Reroll failed check</button>)}
+                  <button type="button" onClick={resetSituationalRerolls}>New Scene (Focus rerolls)</button>
+                  <small>Only use a reroll when the GM confirms the check failed and the circumstance qualifies. Once per scene for each Focus. {situationalRerolls.filter(option => focusRerollUsed[option.name]).map(option => option.name).join(", ")}{situationalRerolls.some(option => focusRerollUsed[option.name]) ? " used." : ""}</small>
+                </div>}
                 {sheet.classMode === "full" && sheet.classOne === "Warrior" && veteransReady && <div className="masterful-controls">
                   <button type="button" disabled={veteransUsed || virtualDiceBusy || latestRoll?.category !== "attack" || latestRoll.id !== latestAttackId} onClick={() => applyVeteransLuck("hit")}>Veteran’s Luck: Force hit</button>
                   <button type="button" disabled={veteransUsed || virtualDiceBusy} onClick={() => applyVeteransLuck("miss")}>Veteran’s Luck: Force incoming miss</button>

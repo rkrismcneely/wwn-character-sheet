@@ -1136,6 +1136,10 @@ export default function Home({
   const [masterfulRollId, setMasterfulRollId] = useState<string | null>(null);
   const [masterfulUsed, setMasterfulUsed] = useState(false);
   const [masterfulRestored, setMasterfulRestored] = useState(false);
+  const [veteransUsed, setVeteransUsed] = useState(false);
+  const [veteransReady, setVeteransReady] = useState(false);
+  const [veteransOutcome, setVeteransOutcome] = useState("");
+  const [latestAttackId, setLatestAttackId] = useState<string | null>(null);
   const [latestRoll, setLatestRoll] = useState<RollResult | null>(null);
   const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
@@ -1312,6 +1316,7 @@ export default function Home({
     try {
       const result = preparedSharedRoll || await resolveRoll(request, { roll: () => rawRoll });
       setLatestRoll(result);
+      if (request.category === "attack") setLatestAttackId(result.id);
       if (request.category === "skill" && !request.label.includes("Masterful Expertise reroll")) {
         setMasterfulRollId(result.id);
       }
@@ -1377,6 +1382,38 @@ export default function Home({
     setMasterfulRequest(null);
     setMasterfulRollId(null);
     void completeRoll({ ...masterfulRequest, label: `${masterfulRequest.label} — Masterful Expertise reroll` });
+  }
+
+  useEffect(() => {
+    let active = true;
+    const key = `twe-veterans-luck-${cloudId || "unsaved"}`;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      try { setVeteransUsed(sessionStorage.getItem(key) === "used"); } catch { setVeteransUsed(false); }
+      setVeteransOutcome("");
+      setVeteransReady(true);
+    });
+    return () => { active = false; };
+  }, [cloudId]);
+
+  function useVeteransLuck(kind: "hit" | "miss") {
+    if (sheet.classMode !== "full" || sheet.classOne !== "Warrior" || !veteransReady || veteransUsed || virtualDiceBusy) return;
+    if (kind === "hit" && (latestRoll?.category !== "attack" || latestRoll.id !== latestAttackId)) return;
+    const description = kind === "hit"
+      ? `${latestRoll?.label || "Attack"}: forced hit`
+      : "An incoming attack against you: forced miss";
+    // Veteran's Luck changes the adjudicated outcome, not the physical die result.
+    try { sessionStorage.setItem(`twe-veterans-luck-${cloudId || "unsaved"}`, "used"); } catch {}
+    setVeteransUsed(true);
+    setVeteransOutcome(description);
+    setDiceAnnouncement(`Veteran’s Luck — ${description}`);
+    setDiceAnnouncementKey(current => current + 1);
+  }
+
+  function resetVeteransScene() {
+    try { sessionStorage.removeItem(`twe-veterans-luck-${cloudId || "unsaved"}`); } catch {}
+    setVeteransUsed(false);
+    setVeteransOutcome("");
   }
 
   function rollSkillCheck(skill: string, attribute: AttributeName) {
@@ -3430,6 +3467,12 @@ export default function Home({
             <div className="hero-roll-row" data-readonly-interactive="true">
               <div className="hero-latest-roll">
                 <RollResultTray result={latestRoll} />
+                {sheet.classMode === "full" && sheet.classOne === "Warrior" && veteransReady && <div className="masterful-controls">
+                  <button type="button" disabled={veteransUsed || virtualDiceBusy || latestRoll?.category !== "attack" || latestRoll.id !== latestAttackId} onClick={() => useVeteransLuck("hit")}>Veteran’s Luck: Force hit</button>
+                  <button type="button" disabled={veteransUsed || virtualDiceBusy} onClick={() => useVeteransLuck("miss")}>Veteran’s Luck: Force incoming miss</button>
+                  <button type="button" onClick={resetVeteransScene}>New Scene</button>
+                  <small role="status">{veteransOutcome || (veteransUsed ? "Veteran’s Luck used this scene" : "Once per scene · Outcome override, not an extra roll · Confirm with GM")}</small>
+                </div>}
                 {sheet.classMode === "full" && sheet.classOne === "Expert" && masterfulRestored && <div className="masterful-controls">
                   <button type="button" disabled={!masterfulRequest || masterfulUsed || latestRoll?.id !== masterfulRollId || virtualDiceBusy} onClick={rerollMasterful}>Reroll failed noncombat check (Masterful Expertise)</button>
                   <button type="button" onClick={resetMasterfulScene}>New Scene</button>

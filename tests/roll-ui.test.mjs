@@ -445,3 +445,9 @@ test("Sniper’s Eye precision bonus requires explicit ranged execution or targe
   assert.match(sheetSource, /onChange=\{event => setSniperEyeContext\(event.target.checked\)\}/);
   assert.match(sheetSource, /sniperEyeBonus \? " — ranged execution \/ target shooting"/);
 });
+
+test("Nullifier's +2 saving throw modifier applies only when magical context is selected", () => {
+  assert.match(sheetSource, /const nullifierBonus = magicalSaveContext && selectedFocusPicks\.some\(pick => pick\.name === "Nullifier"\)/u);
+  assert.match(sheetSource, /nullifierBonus \? \{ modifiers: \[\{ label: "Nullifier vs magic", value: 2 \}\] \} : \{\}/u);
+  assert.match(sheetSource, /checked=\{magicalSaveContext\} onChange=\{event => setMagicalSaveContext\(event\.target\.checked\)\}/u);
+});

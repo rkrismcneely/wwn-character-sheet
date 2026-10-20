@@ -59,7 +59,7 @@ function hueAndSaturation(hex) {
 test("all character-sheet dice affordances use the shared roll request pipeline", () => {
   assert.match(sheetSource, /rawRoll = preparedSharedRoll\?\.dice \|\| rollDice\(request\.dice\.count, request\.dice\.sides\)/);
   assert.match(sheetSource, /resolveRoll\(request, \{ roll: \(\) => rawRoll \}\)/);
-  assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check`/);
+  assert.match(sheetSource, /label: `\$\{skill\} \(\$\{attribute\}\) Check\$\{sniperEyeBonus/);
   assert.match(sheetSource, /label: `\$\{name\} — Attack`/);
   assert.match(sheetSource, /label: `\$\{name\} — Damage`/);
   assert.match(sheetSource, /targetKind: "saving-throw"/);

@@ -75,6 +75,7 @@ export function StoredItemsSection({
   campaignError,
   onChange,
   onStow,
+  onReady,
 }: {
   items: readonly string[];
   campaignItems: readonly CampaignInventoryOption[];
@@ -82,9 +83,10 @@ export function StoredItemsSection({
   campaignError?: string;
   onChange: (items: string[]) => void;
   onStow: (index: number) => void;
+  onReady: (index: number) => void;
 }) {
   const compact = items.filter(item => typeof item === "string" && item.trim());
-  const slots = [...compact, ""];
+  const slots = compact;
   const [otherIndex, setOtherIndex] = useState<number | null>(null);
   const [otherDraft, setOtherDraft] = useState("");
 
@@ -119,7 +121,7 @@ export function StoredItemsSection({
         const campaignStillAvailable = Boolean(campaignItem && campaignItems.some(candidate => campaignInventoryValue(candidate) === item));
         return <div className="inventory-item-row stored-item-row" key={`${index}-${campaignItem?.id ?? item}`}>
           <label className="field">
-            <span>{index < compact.length ? index + 1 : "Add item"}</span>
+            <span>{index + 1}</span>
             <select value={editingOther ? "__other__" : item} aria-label={`Stored item ${index + 1}`} onChange={event => {
               if (event.target.value === "__other__") {
                 setOtherIndex(index);
@@ -130,15 +132,7 @@ export function StoredItemsSection({
                 setItem(index, event.target.value);
               }
             }}>
-              <option value="">Choose an item…</option>
-              <option value="__other__">Other…</option>
-              {campaignItem && !campaignStillAvailable && <option value={item}>{inventoryItemDisplayName(item)} · Campaign item</option>}
-              <CampaignInventoryOptions items={campaignItems} />
-              {customItems.length > 0 && <optgroup label="Custom Items">{customItems.map(customItem => <option key={customItem} value={customItem}>{customItem}</option>)}</optgroup>}
-              <optgroup label="Weapons">{inventoryWeapons.map(weapon => <option key={weapon.name} value={weapon.name}>{weapon.name}</option>)}</optgroup>
-              <optgroup label="Armor & Shields">{inventoryArmors.map(armor => <option key={armor} value={armor}>{armor}</option>)}<option>Small Shield</option><option>Large Shield</option></optgroup>
-              <optgroup label="Adventuring Gear">{adventuringGear.map(gear => <option key={gear.name} value={gear.name}>{gear.name}</option>)}</optgroup>
-              <optgroup label="Gear Bundles">{gearBundles.map(bundle => <option key={bundle.name} value={bundle.name}>{bundle.name}</option>)}</optgroup>
+              <option value={item}>{inventoryItemDisplayName(item)}</option>
             </select>
             {!editingOther && campaignItem && <small className="campaign-item-description"><strong>{campaignInventoryKindLabel(campaignItem.kind)}</strong>{inventoryItemDescription(item) ? ` · ${inventoryItemDescription(item)}` : ""}</small>}
           </label>
@@ -160,7 +154,7 @@ export function StoredItemsSection({
               setOtherDraft("");
             }}>Save</button>
           </div>}
-          {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => onStow(index)}>Stow</button><button type="button" className="drop-item" onClick={() => drop(index, item)}>Drop</button></span>}
+          {item && !editingOther && <span className="inventory-item-actions"><button type="button" className="drop-item" onClick={() => onReady(index)}>Ready</button><button type="button" className="drop-item" onClick={() => onStow(index)}>Stow</button><button type="button" className="drop-item" onClick={() => drop(index, item)}>Drop</button></span>}
         </div>;
       })}
     </div>

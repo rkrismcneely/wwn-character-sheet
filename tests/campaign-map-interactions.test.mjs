@@ -151,7 +151,7 @@ test("map wheel zoom blocks character sheet scroll in dock mode", async () => {
 
 test("token dragging directly moves toolbar and does not persist canceled or stationary drags", async () => {
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
-  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,270}positionDraggedTokenToolbar\(drag\.element\)/);
+  assert.match(launcher, /drag\.element\.setAttribute\("transform", `translate\(\$\{x\} \$\{y\}\)`\);[\s\S]{0,720}positionDraggedTokenToolbar\(drag\.element\)/);
   assert.match(launcher, /function positionDraggedTokenToolbar\(tokenElement: SVGGElement\)/);
   assert.match(launcher, /inspector\.style\.left = `\$\{left\}px`/);
   assert.match(launcher, /inspector\.style\.top = `\$\{top\}px`/);

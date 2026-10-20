@@ -1137,6 +1137,7 @@ export default function Home({
   const [rollHistoryOpen, setRollHistoryOpen] = useState(false);
   const [skillRollChooser, setSkillRollChooser] = useState<string | null>(null);
   const [sniperEyeContext, setSniperEyeContext] = useState(false);
+  const [magicalSaveContext, setMagicalSaveContext] = useState(false);
   const [diceAnnouncement, setDiceAnnouncement] = useState("");
   const [diceAnnouncementKey, setDiceAnnouncementKey] = useState(0);
   const [diceError, setDiceError] = useState("");
@@ -1392,11 +1393,13 @@ export default function Home({
   }
 
   function rollSave(name: keyof typeof saves) {
+    const nullifierBonus = magicalSaveContext && selectedFocusPicks.some(pick => pick.name === "Nullifier");
     void completeRoll({
       category: "save",
       character: rollCharacter(),
-      label: `${name} Saving Throw`,
+      label: `${name} Saving Throw${nullifierBonus ? " (Nullifier: magical effect)" : ""}`,
       dice: { count: 1, sides: 20 },
+      ...(nullifierBonus ? { modifiers: [{ label: "Nullifier vs magic", value: 2 }] } : {}),
       target: saves[name],
       targetKind: "saving-throw",
     });
@@ -3559,7 +3562,7 @@ export default function Home({
                   Skills and attributes share the same pool · {advancementPointsSpent}/{skillPointAllowance} spent
                 </small>
               </div>
-              <div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollSave(k as keyof typeof saves)}>Roll Save</button></div>)}</div>
+              {selectedFocusPicks.some(pick => pick.name === "Nullifier") && <label className="skill-context-option"><input type="checkbox" checked={magicalSaveContext} onChange={event => setMagicalSaveContext(event.target.checked)} /> Magical effect (Nullifier: +2 to saves)</label>}<div className="saves">{Object.entries(saves).map(([k,v]) => <div className="save-card" key={k} title={saveDetails[k as keyof typeof saveDetails]}><span>{k}</span><b>{v}+</b><small>{saveDetails[k as keyof typeof saveDetails]}</small><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollSave(k as keyof typeof saves)}>Roll Save</button></div>)}</div>
             </Section>
             <Section title="Background & Class Benefits" buildControlled>
               {classLabel && <div className="class-benefit-card"><strong>{classLabel}</strong><p>{rules.summary}</p><dl><div><dt>Hit dice</dt><dd>{rules.hitDice}</dd></div><div><dt>Base attack</dt><dd>{signed(rules.attack)}</dd></div><div><dt>Focus picks</dt><dd>{allowedFocusPicks}</dd></div></dl>{magicalTraditions.map(t=><p key={t}><b>{t}:</b> {traditionInfo[t].armor}</p>)}</div>}

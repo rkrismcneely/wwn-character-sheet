@@ -2632,7 +2632,7 @@ export default function Home({
     });
     const gross = skills.reduce((total, skill) =>
       total + Math.max(0, skillRankCost(effectiveValues[skill]) - skillRankCost(minimumSkillRanks[skill])), 0);
-    return { spent: Math.max(0, gross - freePickValue), freePickSkill, effectiveValues };
+    return { spent: Math.max(0, gross - freePickValue), freePickSkill, freePickValue, effectiveValues };
   };
   // Quick Learner's extra Expert point cannot be spent on Punch, Shoot, or Stab.
   const combatSkillSpending = (values: Record<string, number>) => {
@@ -2641,7 +2641,7 @@ export default function Home({
       const rank = skillProfile(skill, values).granted;
       return total + Math.max(0, skillRankCost(rank) - skillRankCost(minimumSkillRanks[skill]));
     }, 0);
-    return Math.max(0, gross - (combatSkills.some(skill => skill === plan.freePickSkill) ? skillRankCost(0) : 0));
+    return Math.max(0, gross - (combatSkills.some(skill => skill === plan.freePickSkill) ? plan.freePickValue : 0));
   };
   const combatSkillBudget = Math.max(0, effectiveLevel - 1) * 3;
   const exceedsCombatSkillBudget = (values: Record<string, number>) =>

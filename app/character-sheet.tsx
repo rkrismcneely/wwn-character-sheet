@@ -3932,6 +3932,64 @@ export default function Home({
                   : sheet.level ? "Complete every level’s roll to calculate maximum HP automatically. Until then, the existing maximum remains editable." : "Choose a level to enter Hit Point rolls."}</p>
               </div>
             </Section>
+            <Section title="Weapons" aside={<span className="caption">Readied items · permanent Unarmed Attack</span>}>
+              {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault") && <div className="whirlwind-focus-controls" role="group" aria-label="Whirlwind Assault combat abilities">
+                <strong>Whirlwind Assault</strong>
+                <p>Level 1 · Once per scene, as an On Turn action, apply your equipped melee weapon’s Shock to every susceptible foe within melee range. Check each foe’s Shock immunity and eligibility separately.</p>
+                <button type="button" disabled={whirlwindSceneUsed} onClick={() => setWhirlwindSceneUsed(true)}>{whirlwindSceneUsed ? "Shock burst used this scene" : "Use Shock burst"}</button>
+                <button type="button" onClick={() => setWhirlwindSceneUsed(false)}>New scene</button>
+                {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault" && pick.level === 2) && <div>
+                  <p>Level 2 · The first time each round that a normal attack kills a foe, including a kill from that attack’s Shock, immediately gain one extra attack with any Ready weapon against a target in range. The burst above does not independently trigger this benefit.</p>
+                  <button type="button" disabled={whirlwindRoundUsed} onClick={() => setWhirlwindRoundUsed(true)}>{whirlwindRoundUsed ? "Bonus attack used this round" : "Mark bonus attack used"}</button>
+                  <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
+                </div>}
+              </div>}
+              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Bow or two-handed ranged weapon used with an enemy in melee range (Deadeye level 1: −4; level 2: no penalty)</label>}
+              {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
+              <label className="skill-context-option"><input type="checkbox" checked={preferThrownMode} onChange={event => setPreferThrownMode(event.target.checked)} /> Throw versatile weapons instead of striking in melee (Shoot skill; no melee Shock)</label>
+              <div className="weapon-list">
+                {displayedWeapons.map(({ name, inventoryIndex }) => {
+                  const pick = { name, skill: -1 };
+                  const calc = weaponCalc(pick);
+                  const displayName = inventoryItemDisplayName(name);
+                  return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
+                    <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{displayName}{calc?.virtual && <small> permanent</small>}</strong>
+                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage, calc.shock)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details">{calc.virtual && selectedFocusPicks.some(focus => focus.name === "Unarmed Combatant" && focus.level === 2) && <div className="weapon-unarmed-miss-actions"><span>Unarmed Combatant 2 · missed Punch attack</span><button type="button" className="roll-affordance" disabled={virtualDiceBusy} onClick={() => rollUnarmedMiss(displayName, calc.shock, false)}>Roll Miss (no Shock)</button>{parseShockMinimum(calc.shock) && <button type="button" className="roll-affordance" disabled={virtualDiceBusy} title="Only select when the target is susceptible to this attack’s Shock; immunity, shielding, or other defenses may prevent it." onClick={() => rollUnarmedMiss(displayName, calc.shock, true)}>Roll Miss + Shock</button>}</div>}<span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
+                  </div>
+                })}
+                {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
+              </div>
+            </Section>
+            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 normally costs two picks; repeated Spirit Familiar level 2 costs one</span>}>
+              {sheet.focusPicks.map((pick, i) => {
+                const focus = foci.find(f => f.name === pick.name);
+                const firstSpiritIndex = sheet.focusPicks.findIndex(candidate => candidate.name === "Spirit Familiar");
+                const repeatedSpiritFamiliar = pick.name === "Spirit Familiar" && firstSpiritIndex >= 0 && i !== firstSpiritIndex;
+                const levelTwoCandidateCost = focusSelectionCost(sheet.focusPicks.map((candidate, index) =>
+                  index === i ? { ...candidate, level: 2 } : candidate));
+                return <div className={`choice-row${focusChoiceLabel(pick.name) ? " has-focus-choice" : ""}`} key={i}>
+                  <select title={focus ? `${focus.intro}\n\nLevel 1: ${focus.level1}${focus.level2 ? `\n\nLevel 2: ${focus.level2}` : ""}` : "Choose a Focus"} value={pick.name} onChange={e => {
+                    const next = e.target.value;
+                    const eligibility = focusEligibility(next, i);
+                    if (!eligibility.eligible) { setTransferMessage(eligibility.reason); return; }
+                    const repeatedSpirit = next === "Spirit Familiar" && sheet.focusPicks.some((candidate, index) => index !== i && candidate.name === "Spirit Familiar");
+                    const nextPicks = sheet.focusPicks.map((x,j) => j===i ? {...x,name:next,level:repeatedSpirit ? 2 : x.level,choice:""}:x);
+                    patch("focusPicks", inferFocusAdvancementFlags(nextPicks, startingFocusSelections));
+                  }}><option value="">Choose a Focus…</option>{foci.map(f => {
+                    const eligibility = focusEligibility(f.name, i);
+                    return <option key={f.name} disabled={!eligibility.eligible} title={eligibility.reason}>{f.name}{eligibility.eligible ? "" : " — unavailable"}</option>;
+                  })}</select>
+                  <select value={pick.level} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,level:Number(e.target.value)}:x))}><option value={1} disabled={repeatedSpiritFamiliar}>Lvl 1</option><option value={2} disabled={(sheet.level < 2 && pick.name !== "Spirit Familiar") || !focus?.level2 || (pick.level !== 2 && levelTwoCandidateCost > allowedFocusPicks)}>{repeatedSpiritFamiliar ? "Lvl 2 repeat" : "Lvl 2"}</option></select>
+                  {pick.name === "Developed Attribute" && <select aria-label="Developed Attribute choice" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose attribute…</option>{attributes.map(attribute => { const available = focusTargetAvailable(sheet.focusPicks, "Developed Attribute", attribute, i); return <option key={attribute} disabled={!available}>{attribute}{available ? "" : " — already improved"}</option>; })}</select>}
+                  {pick.name === "Xenoblooded" && <select aria-label="Xenoblooded gravity adaptation" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose heritage benefit…</option><option>STR +1 / DEX -1</option><option>DEX +1 / STR -1</option><option value="Other">Other non-stat benefit</option></select>}
+                  {pick.name === "Traditional Education" && <select aria-label="Traditional Education tradition" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose tradition…</option><option>High Mage</option><option>Elementalist</option><option>Necromancer</option></select>}
+                  {!["Developed Attribute","Xenoblooded"].includes(pick.name) && bonusSkillChoices(pick.name).length > 1 && <select aria-label={`${pick.name} bonus skill`} value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose bonus skill…</option>{bonusSkillChoices(pick.name).map(skill => { const available = pick.name !== "Specialist" || focusTargetAvailable(sheet.focusPicks, "Specialist", skill, i); return <option key={skill} disabled={!available}>{skill}{available ? "" : " — already specialized"}</option>; })}</select>}
+                  {focus ? <Tip title="?"><b>{focus.name}</b><br/>{focus.intro}<br/><br/><b>Level 1:</b> {focus.level1}{pick.level === 2 && <><br/><br/><b>Level 2:</b> {focus.level2}</>}</Tip> :
+                    <span className="slot-number" aria-label={`Focus selection ${i + 1}`}>{i + 1}</span>}
+                </div>
+              })}
+              {!sheet.focusPicks.length && <p className="empty-slots">Choose a class and level to receive Focus selection slots.</p>}
+            </Section>
             {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker", "Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster", "Well Met", "Connected", "Diplomatic Grace", "Sniper’s Eye"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
               <div className="whirlwind-focus-controls" role="group" aria-label="Situational Focus abilities">
                 <button type="button" onClick={resetFocusAbilities}>Reset tracked uses (new day / session / week as applicable)</button>
@@ -4037,64 +4095,6 @@ export default function Home({
                 </div>}
               </div>
             </Section>}
-            <Section title="Weapons" aside={<span className="caption">Readied items · permanent Unarmed Attack</span>}>
-              {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault") && <div className="whirlwind-focus-controls" role="group" aria-label="Whirlwind Assault combat abilities">
-                <strong>Whirlwind Assault</strong>
-                <p>Level 1 · Once per scene, as an On Turn action, apply your equipped melee weapon’s Shock to every susceptible foe within melee range. Check each foe’s Shock immunity and eligibility separately.</p>
-                <button type="button" disabled={whirlwindSceneUsed} onClick={() => setWhirlwindSceneUsed(true)}>{whirlwindSceneUsed ? "Shock burst used this scene" : "Use Shock burst"}</button>
-                <button type="button" onClick={() => setWhirlwindSceneUsed(false)}>New scene</button>
-                {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault" && pick.level === 2) && <div>
-                  <p>Level 2 · The first time each round that a normal attack kills a foe, including a kill from that attack’s Shock, immediately gain one extra attack with any Ready weapon against a target in range. The burst above does not independently trigger this benefit.</p>
-                  <button type="button" disabled={whirlwindRoundUsed} onClick={() => setWhirlwindRoundUsed(true)}>{whirlwindRoundUsed ? "Bonus attack used this round" : "Mark bonus attack used"}</button>
-                  <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
-                </div>}
-              </div>}
-              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Bow or two-handed ranged weapon used with an enemy in melee range (Deadeye level 1: −4; level 2: no penalty)</label>}
-              {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
-              <label className="skill-context-option"><input type="checkbox" checked={preferThrownMode} onChange={event => setPreferThrownMode(event.target.checked)} /> Throw versatile weapons instead of striking in melee (Shoot skill; no melee Shock)</label>
-              <div className="weapon-list">
-                {displayedWeapons.map(({ name, inventoryIndex }) => {
-                  const pick = { name, skill: -1 };
-                  const calc = weaponCalc(pick);
-                  const displayName = inventoryItemDisplayName(name);
-                  return <div className="weapon-row" key={`${inventoryIndex}-${name}`}>
-                    <strong className="weapon-name" title={`${calc?.w.name}: ${calc?.w.damage} damage, ${calc?.w.shock} Shock, range ${calc?.range || calc?.w.range}, traits ${calc?.w.traits || "none"}.`}>{displayName}{calc?.virtual && <small> permanent</small>}</strong>
-                    {calc && <><div className="weapon-stat-cell weapon-roll-cell"><span>Hit Bonus</span><b>{signed(calc.hit)}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponAttack(displayName, calc.hit)}>Roll Attack</button></div><div className="weapon-stat-cell weapon-roll-cell"><span>Damage</span><b>{calc.damage}</b><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={() => rollWeaponDamage(displayName, calc.damage, calc.shock)}>Roll Damage</button></div><div className="weapon-stat-cell weapon-range-cell"><span>Range</span><b><WeaponRangeValue range={calc.range} /></b></div><div className="weapon-details">{calc.virtual && selectedFocusPicks.some(focus => focus.name === "Unarmed Combatant" && focus.level === 2) && <div className="weapon-unarmed-miss-actions"><span>Unarmed Combatant 2 · missed Punch attack</span><button type="button" className="roll-affordance" disabled={virtualDiceBusy} onClick={() => rollUnarmedMiss(displayName, calc.shock, false)}>Roll Miss (no Shock)</button>{parseShockMinimum(calc.shock) && <button type="button" className="roll-affordance" disabled={virtualDiceBusy} title="Only select when the target is susceptible to this attack’s Shock; immunity, shielding, or other defenses may prevent it." onClick={() => rollUnarmedMiss(displayName, calc.shock, true)}>Roll Miss + Shock</button>}</div>}<span>Shock Damage / AC</span><b>{calc.shock}</b><span>Attack detail</span><small>{calc.note}</small><span>Weapon Trait Codes</span><WeaponTraitCodes traits={calc.w.traits} /></div></>}
-                  </div>
-                })}
-                {!readiedWeapons.length && <p className="empty-slots">Your Unarmed Attack is always available. Ready a weapon on the Inventory tab to add it here.</p>}
-              </div>
-            </Section>
-            <Section title="Foci" buildControlled aside={<span className="caption">{allowedFocusPicks} picks at level {sheet.level || "—"} · {sheet.focusPicks.length} selection {sheet.focusPicks.length === 1 ? "slot" : "slots"} shown · Level 2 normally costs two picks; repeated Spirit Familiar level 2 costs one</span>}>
-              {sheet.focusPicks.map((pick, i) => {
-                const focus = foci.find(f => f.name === pick.name);
-                const firstSpiritIndex = sheet.focusPicks.findIndex(candidate => candidate.name === "Spirit Familiar");
-                const repeatedSpiritFamiliar = pick.name === "Spirit Familiar" && firstSpiritIndex >= 0 && i !== firstSpiritIndex;
-                const levelTwoCandidateCost = focusSelectionCost(sheet.focusPicks.map((candidate, index) =>
-                  index === i ? { ...candidate, level: 2 } : candidate));
-                return <div className={`choice-row${focusChoiceLabel(pick.name) ? " has-focus-choice" : ""}`} key={i}>
-                  <select title={focus ? `${focus.intro}\n\nLevel 1: ${focus.level1}${focus.level2 ? `\n\nLevel 2: ${focus.level2}` : ""}` : "Choose a Focus"} value={pick.name} onChange={e => {
-                    const next = e.target.value;
-                    const eligibility = focusEligibility(next, i);
-                    if (!eligibility.eligible) { setTransferMessage(eligibility.reason); return; }
-                    const repeatedSpirit = next === "Spirit Familiar" && sheet.focusPicks.some((candidate, index) => index !== i && candidate.name === "Spirit Familiar");
-                    const nextPicks = sheet.focusPicks.map((x,j) => j===i ? {...x,name:next,level:repeatedSpirit ? 2 : x.level,choice:""}:x);
-                    patch("focusPicks", inferFocusAdvancementFlags(nextPicks, startingFocusSelections));
-                  }}><option value="">Choose a Focus…</option>{foci.map(f => {
-                    const eligibility = focusEligibility(f.name, i);
-                    return <option key={f.name} disabled={!eligibility.eligible} title={eligibility.reason}>{f.name}{eligibility.eligible ? "" : " — unavailable"}</option>;
-                  })}</select>
-                  <select value={pick.level} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,level:Number(e.target.value)}:x))}><option value={1} disabled={repeatedSpiritFamiliar}>Lvl 1</option><option value={2} disabled={(sheet.level < 2 && pick.name !== "Spirit Familiar") || !focus?.level2 || (pick.level !== 2 && levelTwoCandidateCost > allowedFocusPicks)}>{repeatedSpiritFamiliar ? "Lvl 2 repeat" : "Lvl 2"}</option></select>
-                  {pick.name === "Developed Attribute" && <select aria-label="Developed Attribute choice" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose attribute…</option>{attributes.map(attribute => { const available = focusTargetAvailable(sheet.focusPicks, "Developed Attribute", attribute, i); return <option key={attribute} disabled={!available}>{attribute}{available ? "" : " — already improved"}</option>; })}</select>}
-                  {pick.name === "Xenoblooded" && <select aria-label="Xenoblooded gravity adaptation" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose heritage benefit…</option><option>STR +1 / DEX -1</option><option>DEX +1 / STR -1</option><option value="Other">Other non-stat benefit</option></select>}
-                  {pick.name === "Traditional Education" && <select aria-label="Traditional Education tradition" value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose tradition…</option><option>High Mage</option><option>Elementalist</option><option>Necromancer</option></select>}
-                  {!["Developed Attribute","Xenoblooded"].includes(pick.name) && bonusSkillChoices(pick.name).length > 1 && <select aria-label={`${pick.name} bonus skill`} value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose bonus skill…</option>{bonusSkillChoices(pick.name).map(skill => { const available = pick.name !== "Specialist" || focusTargetAvailable(sheet.focusPicks, "Specialist", skill, i); return <option key={skill} disabled={!available}>{skill}{available ? "" : " — already specialized"}</option>; })}</select>}
-                  {focus ? <Tip title="?"><b>{focus.name}</b><br/>{focus.intro}<br/><br/><b>Level 1:</b> {focus.level1}{pick.level === 2 && <><br/><br/><b>Level 2:</b> {focus.level2}</>}</Tip> :
-                    <span className="slot-number" aria-label={`Focus selection ${i + 1}`}>{i + 1}</span>}
-                </div>
-              })}
-              {!sheet.focusPicks.length && <p className="empty-slots">Choose a class and level to receive Focus selection slots.</p>}
-            </Section>
           </div>
 
           <div className="stack skills-column">

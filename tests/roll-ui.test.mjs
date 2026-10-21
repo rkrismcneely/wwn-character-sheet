@@ -485,3 +485,15 @@ test("situational Focus rerolls are scoped, once per scene, and preserve source 
   assert.match(sheetSource, /label: `\$\{request.label\} — Focus reroll/);
   assert.match(sheetSource, /GM confirms the check failed/);
 });
+
+
+test("Whirlwind Assault exposes distinct once-per-scene Shock and once-per-round bonus attack controls", () => {
+  assert.match(sheetSource, /Whirlwind Assault combat abilities/u);
+  assert.match(sheetSource, /whirlwindSceneUsed/u);
+  assert.match(sheetSource, /setWhirlwindSceneUsed\(true\)/u);
+  assert.match(sheetSource, /setWhirlwindSceneUsed\(false\)/u);
+  assert.match(sheetSource, /Whirlwind Assault" && pick\.level === 2/u);
+  assert.match(sheetSource, /setWhirlwindRoundUsed\(true\)/u);
+  assert.match(sheetSource, /setWhirlwindRoundUsed\(false\)/u);
+  assert.match(sheetSource, /every susceptible foe within melee range/u);
+});

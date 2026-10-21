@@ -105,7 +105,7 @@ export function missingArtPrerequisite(
 
 /** Scene/day commitments refresh after a night's rest; indefinite commitments remain until released. */
 export function artEffortRestRecovers(description: string): boolean {
-  return /commit(?:s|ted)?\\s+(?:one(?:\\s+point\\s+of)?\\s+)?effort\\s+for\\s+the\\s+(?:scene|day)\\b/i.test(description);
+  return /commit(?:s|ted)?\s+(?:one(?:\s+point\s+of)?\s+)?effort\s+for\s+the\s+(?:scene|day)\b/i.test(description);
 }
 
 export function artEffortCommitmentCount(value: unknown) {

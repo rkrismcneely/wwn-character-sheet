@@ -3950,7 +3950,7 @@ export default function Home({
                 <button type="button" disabled={whirlwindSceneUsed} onClick={() => setWhirlwindSceneUsed(true)}>{whirlwindSceneUsed ? "Shock burst used this scene" : "Use Shock burst"}</button>
                 <button type="button" onClick={() => setWhirlwindSceneUsed(false)}>New scene</button>
                 {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault" && pick.level === 2) && <div>
-                  <p>Level 2 · The first time each round that a normal attack kills a foe, including a kill from that attack’s Shock, immediately gain one extra attack with any Ready weapon against a target in range. The burst above does not independently trigger this benefit.</p>
+                  <p>Level 2: first kill each round grants one extra attack.</p>
                   <button type="button" disabled={whirlwindRoundUsed} onClick={() => setWhirlwindRoundUsed(true)}>{whirlwindRoundUsed ? "Bonus attack used this round" : "Mark bonus attack used"}</button>
                   <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
                 </div>}
@@ -4001,7 +4001,7 @@ export default function Home({
               })}
               {!sheet.focusPicks.length && <p className="empty-slots">Choose a class and level to receive Focus selection slots.</p>}
             </Section>
-            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker", "Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster", "Well Met", "Connected", "Diplomatic Grace", "Sniper’s Eye"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
+            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker", "Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster", "Well Met", "Connected", "Diplomatic Grace", "Sniper’s Eye"].includes(pick.name))) && <Section title="Situational Focus Abilities">
               <div className="whirlwind-focus-controls" role="group" aria-label="Situational Focus abilities">
                 <button type="button" onClick={resetFocusAbilities}>Reset tracked uses (new day / session / week as applicable)</button>
                 {selectedFocusPicks.some(pick => pick.name === "Poisoner") && <div>

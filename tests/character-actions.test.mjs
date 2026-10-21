@@ -84,3 +84,11 @@ test("Frail checkbox shares the Strain maximum grid cell", async () => {
   assert.match(sheet, /className="strain-frail-toggle"/u);
   assert.match(css, /\.vitals \.strain-max-frail\{display:grid;grid-template-columns:minmax\(0,1fr\) auto/u);
 });
+
+test("Expert Quick Learner points cannot buy extra combat skill ranks", async () => {
+  const sheet = await readFile("app/character-sheet.tsx", "utf8");
+  assert.match(sheet, /const combatSkillBudget = Math\.max\(0, effectiveLevel - 1\) \* 3/u);
+  assert.match(sheet, /selectedClasses\.includes\("Expert"\) && combatSkillSpending\(values\) > combatSkillBudget/u);
+  assert.match(sheet, /exceedsCombatSkillBudget\(nextPurchases\)/u);
+  assert.match(sheet, /plan\.freePickValue/u);
+});

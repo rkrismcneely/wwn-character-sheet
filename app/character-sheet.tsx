@@ -3895,6 +3895,18 @@ export default function Home({
                 <StepperField label="HP current" value={sheet.hpCurrent} minimum={0} maximum={calculatedHpMax} onChange={value => patch("hpCurrent", value)} />
                 <label className="field calculated-field"><span>HP maximum</span><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} /></label>
                 <label className="skill-context-option"><input type="checkbox" checked={sheet.frail} onChange={event => patch("frail", event.target.checked)} /> Frail (after stabilization from mortal injury; clear only when the WWN recovery requirements are met)</label>
+                <div className="whirlwind-focus-controls" role="group" aria-label="WWN first aid">
+                  <strong>First Aid</strong>
+                  <p>After one minute with a healer’s kit, heal a patient for 1d6 + your Heal skill (1d6−1 if untrained). Each application adds 1 System Strain to the patient; no first aid is possible if the patient is at maximum Strain. First aid can heal a Frail patient but does not remove Frailty.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Gifted Chirurgeon") && <small>Gifted Chirurgeon: first aid after battle restores twice the rolled total.</small>}
+                  <button type="button" disabled={virtualDiceBusy} onClick={() => void completeRoll({
+                    category: "generic",
+                    character: rollCharacter(),
+                    label: "First Aid — apply 1 System Strain to patient (do not remove Frailty)",
+                    dice: { count: 1, sides: 6 },
+                    modifiers: [{ label: "Heal skill", value: skillProfile("Heal").effective }],
+                  })}>Roll First Aid (1d6 + Heal)</button>
+                </div>
                 <StepperField label="System Strain" value={sheet.strainCurrent} minimum={0} maximum={attributeScore("CON")} onChange={value => patch("strainCurrent", value)} />
                 <label className="field calculated-field"><span>Strain maximum</span><input type="number" value={attributeScore("CON") || ""} disabled title="System Strain maximum equals Constitution" /></label>
                 <label className="field"><span>Worn armor</span><select value={officialWornArmor || campaignWornArmor ? sheet.armor : "No Armor"} onChange={e => patch("armor", e.target.value)}>{armors.map(armor => <option key={armor.name} value={armor.name}>{armor.name} (AC {armor.ac})</option>)}{campaignWornArmor && !campaignArmorItems.some(item => campaignInventoryValue(item) === sheet.armor) && <option value={sheet.armor}>{campaignWornArmor.name} (AC {campaignWornArmor.ac}) · Saved snapshot</option>}{campaignArmorItems.filter(item => item.properties?.armor?.shield === "none").map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} (AC {item.properties?.armor?.armorClass}) · Campaign armour</option>)}</select></label>

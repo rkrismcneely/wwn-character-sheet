@@ -497,3 +497,15 @@ test("Whirlwind Assault exposes distinct once-per-scene Shock and once-per-round
   assert.match(sheetSource, /setWhirlwindRoundUsed\(false\)/u);
   assert.match(sheetSource, /every susceptible foe within melee range/u);
 });
+
+
+test("situational Focus actions keep context-sensitive exceptions explicit", () => {
+  for (const focus of ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant"]) {
+    assert.match(sheetSource, new RegExp(`<strong>${focus}</strong>`));
+  }
+  assert.match(sheetSource, /Poisoner — toxin \(2d6 \+ level/u);
+  assert.match(sheetSource, /count: 2, sides: 6/u);
+  assert.match(sheetSource, /Mark failed magical save as success/u);
+  assert.match(sheetSource, /Roll Fortune \(1d6\)/u);
+  assert.match(sheetSource, /Fighting Withdrawal as an On Turn action/u);
+});

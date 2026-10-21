@@ -1076,6 +1076,10 @@ export default function Home({
   const [cloudId, setCloudId] = useState<string | null>(initialCharacter?.id ?? null);
   const [whirlwindSceneUsed, setWhirlwindSceneUsed] = useState(false);
   const [whirlwindRoundUsed, setWhirlwindRoundUsed] = useState(false);
+  const [focusAbilityUsed, setFocusAbilityUsed] = useState<Record<string, boolean>>({});
+  const markFocusAbility = (key: string) => setFocusAbilityUsed(current => ({ ...current, [key]: true }));
+  const resetFocusAbilities = () => setFocusAbilityUsed({});
+
 
   const [cloudVersion, setCloudVersion] = useState<number | null>(initialCharacter?.version ?? null);
   const [cloudVisibility, setCloudVisibility] = useState<CharacterVisibility>(
@@ -3913,6 +3917,38 @@ export default function Home({
                   : sheet.level ? "Complete every level’s roll to calculate maximum HP automatically. Until then, the existing maximum remains editable." : "Choose a level to enter Hit Point rolls."}</p>
               </div>
             </Section>
+            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
+              <div className="whirlwind-focus-controls" role="group" aria-label="Situational Focus abilities">
+                <button type="button" onClick={resetFocusAbilities}>Reset tracked uses (new day / session / week as applicable)</button>
+                {selectedFocusPicks.some(pick => pick.name === "Poisoner") && <div>
+                  <strong>Poisoner</strong>
+                  <p>Reroll a failed save against poison. Venom deals 2d6 + character level on a qualifying hit or Shock; target makes a Physical save for half. Application takes a Main Action, and venom expires after ten minutes or the first hit or Shock. Track fresh doses (up to character level) manually.</p>
+                  <button type="button" disabled={virtualDiceBusy} onClick={() => void completeRoll({ category: "damage", character: rollCharacter(), label: "Poisoner — toxin (2d6 + level; Physical save halves)", dice: { count: 2, sides: 6 }, modifiers: [{ label: "Character level", value: sheet.level }] })}>Roll Toxin Damage</button>
+                  <small>On a failed poison save, use the ordinary save roller again; do not reroll a successful save.</small>
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Die Hard") && <div>
+                  <strong>Die Hard</strong>
+                  <p>Automatically stabilize when Mortally Wounded except by dismemberment, incineration, or similar destruction.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Die Hard" && pick.level === 2) && <><p>Once each day, the first injury that would reduce you to 0 HP leaves you at 1 HP instead. Does not prevent instantly lethal trauma.</p><button type="button" disabled={Boolean(focusAbilityUsed["Die Hard 2"])} onClick={() => markFocusAbility("Die Hard 2")}>{focusAbilityUsed["Die Hard 2"] ? "Daily survival used" : "Mark daily survival used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Nullifier") && <div>
+                  <strong>Nullifier</strong>
+                  <p>Magical saves gain +2 (also for allies within 20 feet). The first failed magical save each day becomes a success. Sense magic within 20 feet as an On Turn action.</p>
+                  <button type="button" disabled={Boolean(focusAbilityUsed["Nullifier save"])} onClick={() => markFocusAbility("Nullifier save")}>{focusAbilityUsed["Nullifier save"] ? "Daily failed-save override used" : "Mark failed magical save as success"}</button>
+                  {selectedFocusPicks.some(pick => pick.name === "Nullifier" && pick.level === 2) && <><p>Once per day, ignore one unwanted magical or supernatural effect as an Instant action, even without a saving throw.</p><button type="button" disabled={Boolean(focusAbilityUsed["Nullifier immunity"])} onClick={() => markFocusAbility("Nullifier immunity")}>{focusAbilityUsed["Nullifier immunity"] ? "Daily immunity used" : "Mark immunity used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Lucky") && <div>
+                  <strong>Lucky</strong>
+                  <p>Once per week, avert a blow or effect that would kill, mortally wound, or render you helpless. For games of chance, roll twice and use the better result.</p>
+                  <button type="button" disabled={Boolean(focusAbilityUsed["Lucky survival"])} onClick={() => markFocusAbility("Lucky survival")}>{focusAbilityUsed["Lucky survival"] ? "Weekly escape used" : "Mark weekly escape used"}</button>
+                  {selectedFocusPicks.some(pick => pick.name === "Lucky" && pick.level === 2) && <><p>Once per game session when in need or peril, roll 1d6: on 2–6 something helpful happens; on 1 matters get worse. GM interprets the result.</p><button type="button" disabled={virtualDiceBusy || Boolean(focusAbilityUsed["Lucky fortune"])} onClick={() => { markFocusAbility("Lucky fortune"); void completeRoll({ category: "generic", character: rollCharacter(), label: "Lucky 2 — Fortune (2–6 helpful; 1 worse)", dice: { count: 1, sides: 6 }, modifiers: [] }); }}>{focusAbilityUsed["Lucky fortune"] ? "Session fortune used" : "Roll Fortune (1d6)"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Close Combatant") && <div>
+                  <strong>Close Combatant</strong>
+                  <p>Ignore Shock from melee assailants, but doing so disrupts spellcasting that round. Level 2 also allows Fighting Withdrawal as an On Turn action without a normal action cost.</p>
+                </div>}
+              </div>
+            </Section>}
             <Section title="Weapons" aside={<span className="caption">Readied items · permanent Unarmed Attack</span>}>
               {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault") && <div className="whirlwind-focus-controls" role="group" aria-label="Whirlwind Assault combat abilities">
                 <strong>Whirlwind Assault</strong>

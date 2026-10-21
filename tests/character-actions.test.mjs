@@ -41,3 +41,12 @@ test("Frailty is persistent character state and never cleared by an ordinary res
   const rest = source.slice(source.indexOf("  function takeRest() {"), source.indexOf("  async function refreshLibrary("));
   assert.doesNotMatch(rest, /frail:/u);
 });
+
+test("Frail characters do not recover hit points from ordinary rest", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  const rest = source.slice(source.indexOf("  function takeRest() {"), source.indexOf("  async function refreshLibrary("));
+  assert.match(rest, /const healing = sheet\.frail \? 0 : Math\.max/u);
+  assert.match(rest, /current\.frail \? 0 : Math\.max\(0, current\.level \|\| 0\)/u);
+  assert.match(rest, /Frail characters cannot heal naturally/u);
+  assert.match(rest, /strainCurrent: Math\.max\(0, current\.strainCurrent - 1\)/u);
+});

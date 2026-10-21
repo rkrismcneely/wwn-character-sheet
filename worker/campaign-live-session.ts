@@ -57,6 +57,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
       character_id TEXT,
       name TEXT,
       initiative INTEGER NOT NULL DEFAULT 0,
+      alert_priority INTEGER NOT NULL DEFAULT 0,
       hp_current INTEGER,
       hp_max INTEGER,
       armor_class INTEGER,
@@ -71,6 +72,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     const columns = [...this.ctx.storage.sql.exec<{ name: string }>("PRAGMA table_info(encounter_combatants)")];
     if (!columns.some(column => column.name === "combat_stats_json")) this.ctx.storage.sql.exec("ALTER TABLE encounter_combatants ADD COLUMN combat_stats_json TEXT");
     if (!columns.some(column => column.name === "friendly")) this.ctx.storage.sql.exec("ALTER TABLE encounter_combatants ADD COLUMN friendly INTEGER NOT NULL DEFAULT 0");
+    if (!columns.some(column => column.name === "alert_priority")) this.ctx.storage.sql.exec("ALTER TABLE encounter_combatants ADD COLUMN alert_priority INTEGER NOT NULL DEFAULT 0");
     if (!columns.some(column => column.name === "inventory_json")) this.ctx.storage.sql.exec("ALTER TABLE encounter_combatants ADD COLUMN inventory_json TEXT NOT NULL DEFAULT '[]'");
   }
 
@@ -154,7 +156,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     return this.broadcastEncounter(sessionId) as CampaignEncounter;
   }
 
-  async addPc(sessionId: string, characterId: string): Promise<CampaignEncounter> {
+  async addPc(sessionId: string, characterId: string, alertPriority = false): Promise<CampaignEncounter> {
     const encounter = this.requireEncounter(sessionId);
     const existing = [...this.ctx.storage.sql.exec<{ combatant_id: string }>(
       "SELECT combatant_id FROM encounter_combatants WHERE encounter_id = ? AND kind = 'pc' AND character_id = ?",
@@ -163,9 +165,9 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     if (!existing) {
       const id = `cmb_${crypto.randomUUID()}`;
       this.ctx.storage.sql.exec(
-        `INSERT INTO encounter_combatants (combatant_id, encounter_id, kind, character_id, initiative, added_order)
-         VALUES (?, ?, 'pc', ?, 0, (SELECT COALESCE(MAX(added_order), 0) + 1 FROM encounter_combatants WHERE encounter_id = ?))`,
-        id, encounter.id, characterId, encounter.id,
+        `INSERT INTO encounter_combatants (combatant_id, encounter_id, kind, character_id, initiative, alert_priority, added_order)
+         VALUES (?, ?, 'pc', ?, 0, ?, (SELECT COALESCE(MAX(added_order), 0) + 1 FROM encounter_combatants WHERE encounter_id = ?))`,
+        id, encounter.id, characterId, alertPriority ? 1 : 0, encounter.id,
       );
       this.ensureCurrentCombatant(encounter.id);
     }
@@ -182,6 +184,12 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
       id, encounter.id, npc.name, npc.initiative, npc.hpCurrent, npc.hpMax, npc.armorClass, npc.notes ?? "", npc.friendly ? 1 : 0, JSON.stringify(npc.inventory ?? []), npc.combatStats ? JSON.stringify(npc.combatStats) : null, encounter.id,
     );
     this.ensureCurrentCombatant(encounter.id);
+    return this.broadcastEncounter(sessionId) as CampaignEncounter;
+  }
+
+  async setAlertPriority(sessionId: string, combatantId: string, enabled: boolean): Promise<CampaignEncounter> {
+    const encounter = this.requireEncounter(sessionId);
+    this.ctx.storage.sql.exec("UPDATE encounter_combatants SET alert_priority = ? WHERE encounter_id = ? AND combatant_id = ?", enabled ? 1 : 0, encounter.id, combatantId);
     return this.broadcastEncounter(sessionId) as CampaignEncounter;
   }
 
@@ -278,14 +286,14 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
     if (!row) return null;
     const combatants = [...this.ctx.storage.sql.exec<{
       combatant_id: string; kind: "pc" | "npc"; character_id: string | null; name: string | null;
-      initiative: number; hp_current: number | null; hp_max: number | null; armor_class: number | null; notes: string; friendly: number; inventory_json: string | null; combat_stats_json: string | null;
-    }>(`SELECT combatant_id, kind, character_id, name, initiative, hp_current, hp_max, armor_class, notes, friendly, inventory_json, combat_stats_json
+      initiative: number; alert_priority: number; hp_current: number | null; hp_max: number | null; armor_class: number | null; notes: string; friendly: number; inventory_json: string | null; combat_stats_json: string | null;
+    }>(`SELECT combatant_id, kind, character_id, name, initiative, alert_priority, hp_current, hp_max, armor_class, notes, friendly, inventory_json, combat_stats_json
       FROM encounter_combatants WHERE encounter_id = ?
-      ORDER BY initiative DESC, added_order ASC, combatant_id ASC`, row.encounter_id)];
+      ORDER BY alert_priority DESC, initiative DESC, added_order ASC, combatant_id ASC`, row.encounter_id)];
     const resolvedCombatants: CampaignEncounterCombatant[] = combatants.map((combatant): CampaignEncounterCombatant => combatant.kind === "pc"
-      ? { id: combatant.combatant_id, kind: "pc", characterId: combatant.character_id as string, initiative: combatant.initiative }
+      ? { id: combatant.combatant_id, kind: "pc", characterId: combatant.character_id as string, initiative: combatant.initiative, alertPriority: combatant.alert_priority === 1 }
       : {
-        id: combatant.combatant_id, kind: "npc", name: combatant.name as string, initiative: combatant.initiative,
+        id: combatant.combatant_id, kind: "npc", name: combatant.name as string, initiative: combatant.initiative, alertPriority: combatant.alert_priority === 1,
         hpCurrent: combatant.hp_current as number, hpMax: combatant.hp_max as number,
         armorClass: combatant.armor_class as number, notes: combatant.notes, friendly: combatant.friendly === 1, inventory: parseInventory(combatant.inventory_json), combatStats: combatant.combat_stats_json ? normalizeCampaignNpcCombatStats(JSON.parse(combatant.combat_stats_json)) : undefined,
       });
@@ -325,7 +333,7 @@ export class CampaignLiveSession extends DurableObject<CloudflareEnv> {
   private ensureCurrentCombatant(encounterId: string): void {
     this.ctx.storage.sql.exec(`UPDATE encounters SET current_combatant_id = (
       SELECT combatant_id FROM encounter_combatants WHERE encounter_id = ?
-      ORDER BY initiative DESC, added_order ASC, combatant_id ASC LIMIT 1
+      ORDER BY alert_priority DESC, initiative DESC, added_order ASC, combatant_id ASC LIMIT 1
     ) WHERE encounter_id = ? AND current_combatant_id IS NULL`, encounterId, encounterId);
   }
 

@@ -101,7 +101,7 @@ import { canRecordSpellCast, spellCastCost, spellCastCount, spellCastingUse } fr
 type Tab = "core" | "magic" | "inventory" | "notes" | `companion:${string}`;
 type AttributeMethod = "rolled" | "array";
 type AttributeName = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
-type FocusPick = { name: string; level: number; choice?: string; advancement?: boolean };
+type FocusPick = { name: string; level: number; choice?: string; advancement?: boolean; redirectSkill?: string };
 type WeaponPick = { name: string; skill: number };
 type SpellPick = { name: string; prepared: boolean; cast: boolean; casts?: number };
 type CompanionKind = "henchman" | "familiar" | "beastmaster";
@@ -2589,7 +2589,8 @@ export default function Home({
     return Math.min(3, value);
   };
   const minimumSkillSources = skillSourcesFor(sheet);
-  const advancementSkillCredits = advancementSkillCreditBySkill(sheet);
+  const advancementSkillCredits = advancementSkillCreditBySkill(sheet, skill =>
+    Math.min(4, (sheet.skillPurchases[skill] ?? -1) + minimumSkillSources[skill].length) >= 4);
   const backgroundGrantResolutions = backgroundSkillGrantResolutions(sheet);
   const backgroundGrantResolution = (id: string, candidate = sheet) =>
     backgroundSkillGrantResolutions(candidate).find(grant => grant.id === id);
@@ -3997,6 +3998,7 @@ export default function Home({
                   {!["Developed Attribute","Xenoblooded"].includes(pick.name) && bonusSkillChoices(pick.name).length > 1 && <select aria-label={`${pick.name} bonus skill`} value={pick.choice || ""} onChange={e => patch("focusPicks", sheet.focusPicks.map((x,j) => j===i ? {...x,choice:e.target.value}:x))}><option value="">Choose bonus skill…</option>{bonusSkillChoices(pick.name).map(skill => { const available = pick.name !== "Specialist" || focusTargetAvailable(sheet.focusPicks, "Specialist", skill, i); return <option key={skill} disabled={!available}>{skill}{available ? "" : " — already specialized"}</option>; })}</select>}
                   {focus ? <Tip title="?"><b>{focus.name}</b><br/>{focus.intro}<br/><br/><b>Level 1:</b> {focus.level1}{pick.level === 2 && <><br/><br/><b>Level 2:</b> {focus.level2}</>}</Tip> :
                     <span className="slot-number" aria-label={`Focus selection ${i + 1}`}>{i + 1}</span>}
+                  {pick.advancement && focusBonusSkill(pick) && skillProfile(focusBonusSkill(pick)).granted >= 4 && <select className="focus-credit-redirect" aria-label={`Redirect ${pick.name} skill credit`} value={pick.redirectSkill || ""} onChange={event => patch("focusPicks", sheet.focusPicks.map((entry, index) => index === i ? { ...entry, redirectSkill: event.target.value } : entry))}><option value="">Redirect 3 skill points…</option>{skills.filter(skill => skill !== focusBonusSkill(pick)).map(skill => <option key={skill} value={skill}>{skill}</option>)}</select>}
                 </div>
               })}
               {!sheet.focusPicks.length && <p className="empty-slots">Choose a class and level to receive Focus selection slots.</p>}

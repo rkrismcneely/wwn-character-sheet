@@ -3917,7 +3917,7 @@ export default function Home({
                   : sheet.level ? "Complete every level’s roll to calculate maximum HP automatically. Until then, the existing maximum remains editable." : "Choose a level to enter Hit Point rolls."}</p>
               </div>
             </Section>
-            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker", "Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
+            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker", "Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster", "Well Met", "Connected", "Diplomatic Grace", "Sniper’s Eye"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
               <div className="whirlwind-focus-controls" role="group" aria-label="Situational Focus abilities">
                 <button type="button" onClick={resetFocusAbilities}>Reset tracked uses (new day / session / week as applicable)</button>
                 {selectedFocusPicks.some(pick => pick.name === "Poisoner") && <div>
@@ -3993,6 +3993,28 @@ export default function Home({
                 {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <div>
                   <strong>Armsmaster</strong>
                   <p>Benefits apply to melee and thrown weapons, not unarmed strikes or non-thrown projectiles. The skill-level bonus may be applied to a weapon’s Shock damage instead of its rolled damage. Level 2 treats targets as AC 10 for eligible melee Shock.</p>
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Well Met") && <div>
+                  <strong>Well Met</strong>
+                  <p>When you are present, first-time reaction rolls for encountered creatures receive +1, even when another party member speaks. Hostile creatures usually allow parley unless ambushing or clearly motivated to attack immediately. The Focus only applies once to each target.</p>
+                  <button type="button" disabled={virtualDiceBusy} onClick={() => void completeRoll({ category: "generic", character: rollCharacter(), label: "Well Met — first meeting reaction (+1)", dice: { count: 2, sides: 6 }, modifiers: [{ label: "Well Met", value: 1 }] })}>Roll First Reaction (2d6+1)</button>
+                  {selectedFocusPicks.some(pick => pick.name === "Well Met" && pick.level === 2) && <><p>Once per session, make the subject of a reaction roll as friendly and helpful as plausibly possible; the GM decides the circumstances.</p><button type="button" disabled={Boolean(focusAbilityUsed["Well Met reaction"])} onClick={() => markFocusAbility("Well Met reaction")}>{focusAbilityUsed["Well Met reaction"] ? "Session reaction used" : "Mark exceptional reaction used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Connected") && <div>
+                  <strong>Connected</strong>
+                  <p>After a week in a sufficiently friendly area, call on one contact favor per game day; the GM determines the limits of the favor.</p>
+                  <button type="button" disabled={Boolean(focusAbilityUsed["Connected favor"])} onClick={() => markFocusAbility("Connected favor")}>{focusAbilityUsed["Connected favor"] ? "Daily favor used" : "Mark daily favor used"}</button>
+                  {selectedFocusPicks.some(pick => pick.name === "Connected" && pick.level === 2) && <><p>Once per session, arrange a plausible meeting with someone you know who can provide a modest favor.</p><button type="button" disabled={Boolean(focusAbilityUsed["Connected meeting"])} onClick={() => markFocusAbility("Connected meeting")}>{focusAbilityUsed["Connected meeting"] ? "Session meeting used" : "Mark session meeting used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Diplomatic Grace") && <div>
+                  <strong>Diplomatic Grace</strong>
+                  <p>Negotiation or diplomacy checks reroll each die that shows 1 once, using the existing skill-roll option.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Diplomatic Grace" && pick.level === 2) && <><p>Once per day, consecrate a specific, time-limited bargain. Breaking it requires a Mental save unless the target or someone dear to them faces great peril.</p><button type="button" disabled={Boolean(focusAbilityUsed["Diplomatic bargain"])} onClick={() => markFocusAbility("Diplomatic bargain")}>{focusAbilityUsed["Diplomatic bargain"] ? "Daily bargain used" : "Mark consecrated bargain used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye") && <div>
+                  <strong>Sniper’s Eye</strong>
+                  <p>Ranged Execution Attacks and target shooting use the existing 3d6 skill-check option, keeping the highest two dice.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye" && pick.level === 2) && <small>Level 2: Ranged Execution Attacks cannot miss; the victim suffers −4 to the Physical save against mortal injury. Successful saves still result in double normal damage.</small>}
                 </div>}
                 {selectedFocusPicks.some(pick => pick.name === "Close Combatant") && <div>
                   <strong>Close Combatant</strong>

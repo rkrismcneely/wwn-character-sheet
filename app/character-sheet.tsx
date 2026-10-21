@@ -1076,6 +1076,7 @@ export default function Home({
   const [cloudId, setCloudId] = useState<string | null>(initialCharacter?.id ?? null);
   const [whirlwindSceneUsed, setWhirlwindSceneUsed] = useState(false);
   const [rangedInMelee, setRangedInMelee] = useState(false);
+  const [armsmasterToShock, setArmsmasterToShock] = useState(false);
   const [whirlwindRoundUsed, setWhirlwindRoundUsed] = useState(false);
   const [focusAbilityUsed, setFocusAbilityUsed] = useState<Record<string, boolean>>({});
   const markFocusAbility = (key: string) => setFocusAbilityUsed(current => ({ ...current, [key]: true }));
@@ -3219,11 +3220,11 @@ export default function Home({
     }
     const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye ? (deadeye.level === 2 ? 0 : -4) : 0;
     const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
-    const extraDamage = attrMod + warriorDamage + Math.max(armsmasterDamage, deadeyeDamage);
+    const extraDamage = attrMod + warriorDamage + Math.max(armsmasterToShock && isMelee && w.shock !== "None" ? 0 : armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {
       const match = w.shock.match(/^(\d+)\/AC\s*(\d+)$/i);
       if (!match) return w.shock;
-      const shockDamage = Number(match[1]) + attrMod + warriorDamage
+      const shockDamage = Number(match[1]) + attrMod + warriorDamage + (armsmasterToShock && isMelee ? armsmasterDamage : 0)
         + (shockingAssault?.level === 2 ? 2 : 0);
       // These Foci treat the target as AC 10 for Shock eligibility; they do
       // not limit Shock to enemies whose actual AC is 10 or lower.
@@ -4037,6 +4038,7 @@ export default function Home({
                 </div>}
               </div>}
               {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Bow or two-handed ranged weapon used with an enemy in melee range (Deadeye level 1: −4; level 2: no penalty)</label>}
+              {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
               <div className="weapon-list">
                 {displayedWeapons.map(({ name, inventoryIndex }) => {
                   const pick = { name, skill: -1 };

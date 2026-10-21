@@ -63,7 +63,7 @@ test("all character-sheet dice affordances use the shared roll request pipeline"
   assert.match(sheetSource, /label: `\$\{name\} — Attack`/);
   assert.match(sheetSource, /label: `\$\{name\} — Damage`/);
   assert.match(sheetSource, /targetKind: "saving-throw"/);
-  assert.match(sheetSource, /function rollInitiative\(\) \{[\s\S]*?category: "initiative",[\s\S]*?label: alert \? "Initiative \(Alert: take better die\)" : "Initiative",[\s\S]*?dice: \{ count: alert \? 2 : 1, sides: 8 \},[\s\S]*?value: calculatedInitiative/);
+  assert.match(sheetSource, /function rollInitiative\(\) \{[\s\S]*?category: "initiative",[\s\S]*?label: alertLevelTwo \? "Initiative \(Alert 2: act first unless another Alert 2 is present\)" : alert \? "Initiative \(Alert: take better die\)" : "Initiative",[\s\S]*?dice: \{ count: alert \? 2 : 1, sides: 8 \},[\s\S]*?value: calculatedInitiative/);
   assert.match(sheetSource, /function rollHeaderDice\(kind: "d20" \| "2d6"\) \{[\s\S]*?category: "generic"/);
 });
 

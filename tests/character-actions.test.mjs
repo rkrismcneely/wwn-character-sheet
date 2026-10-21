@@ -67,3 +67,12 @@ test("Health and Defenses retains a concise Frail toggle without First Aid panel
   assert.doesNotMatch(source, /aria-label="WWN first aid"/u);
   assert.doesNotMatch(source, /Roll First Aid \(1d6 \+ Heal\)/u);
 });
+
+test("Situational Focus Abilities appears below Foci in the same character-sheet column", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  const weapons = source.indexOf('<Section title="Weapons"');
+  const foci = source.indexOf('<Section title="Foci"');
+  const situational = source.indexOf('title="Situational Focus Abilities"');
+  const skills = source.indexOf('<div className="stack skills-column">');
+  assert.ok(weapons >= 0 && foci > weapons && situational > foci && skills > situational);
+});

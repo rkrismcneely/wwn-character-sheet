@@ -285,6 +285,7 @@ const initial = {
   hpMax: 11,
   hpRolls: [] as number[],
   strainCurrent: 0,
+  frail: false,
   strainMax: 12,
   ac: 10,
   baseAttack: 0,
@@ -691,6 +692,7 @@ function normalizeIncomingSheet(incoming: Partial<Sheet>): Sheet {
   return {
     ...initial,
     ...incoming,
+    frail: incoming.frail === true,
     ...migratedAttributeState(incoming),
     ...rulesState,
     artChoices: normalizeArtChoices(incoming.artChoices),
@@ -3892,6 +3894,7 @@ export default function Home({
               <div className="vitals">
                 <StepperField label="HP current" value={sheet.hpCurrent} minimum={0} maximum={calculatedHpMax} onChange={value => patch("hpCurrent", value)} />
                 <label className="field calculated-field"><span>HP maximum</span><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} /></label>
+                <label className="skill-context-option"><input type="checkbox" checked={sheet.frail} onChange={event => patch("frail", event.target.checked)} /> Frail (after stabilization from mortal injury; clear only when the WWN recovery requirements are met)</label>
                 <StepperField label="System Strain" value={sheet.strainCurrent} minimum={0} maximum={attributeScore("CON")} onChange={value => patch("strainCurrent", value)} />
                 <label className="field calculated-field"><span>Strain maximum</span><input type="number" value={attributeScore("CON") || ""} disabled title="System Strain maximum equals Constitution" /></label>
                 <label className="field"><span>Worn armor</span><select value={officialWornArmor || campaignWornArmor ? sheet.armor : "No Armor"} onChange={e => patch("armor", e.target.value)}>{armors.map(armor => <option key={armor.name} value={armor.name}>{armor.name} (AC {armor.ac})</option>)}{campaignWornArmor && !campaignArmorItems.some(item => campaignInventoryValue(item) === sheet.armor) && <option value={sheet.armor}>{campaignWornArmor.name} (AC {campaignWornArmor.ac}) · Saved snapshot</option>}{campaignArmorItems.filter(item => item.properties?.armor?.shield === "none").map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} (AC {item.properties?.armor?.armorClass}) · Campaign armour</option>)}</select></label>

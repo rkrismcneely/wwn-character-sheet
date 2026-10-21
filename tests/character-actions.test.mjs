@@ -32,3 +32,12 @@ test("rest retains sustained Art Effort and recovers scene/day commitments", asy
   assert.match(source, /artEffortRestRecovers\(creationArtForSelection\(availableArts, name\)\?\.text \|\| ""\)/u);
   assert.match(source, /Sustained Art Effort remains committed until released/u);
 });
+
+test("Frailty is persistent character state and never cleared by an ordinary rest", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  assert.match(source, /frail: false,/u);
+  assert.match(source, /frail: incoming\.frail === true/u);
+  assert.match(source, /checked=\{sheet\.frail\}/u);
+  const rest = source.slice(source.indexOf("  function takeRest() {"), source.indexOf("  async function refreshLibrary("));
+  assert.doesNotMatch(rest, /frail:/u);
+});

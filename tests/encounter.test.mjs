@@ -168,7 +168,7 @@ test("Alert level 2 encounter priority persists and controls server turn order",
   assert.match(durable, /ALTER TABLE encounter_combatants ADD COLUMN alert_priority/u);
   assert.match(durable, /ORDER BY alert_priority DESC, initiative DESC, added_order ASC, combatant_id ASC/u);
   assert.match(durable, /async setAlertPriority/u);
-  assert.match(service, /pick\.name === "Alert" && pick\.level === 2/u);
+  assert.match(service, /pick\?\.name === "Alert" && pick\.level === 2/u);
   assert.match(route, /durable\.setAlertPriority/u);
   assert.match(ui, /Alert 2 priority/u);
 });

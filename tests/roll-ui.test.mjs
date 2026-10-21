@@ -523,3 +523,15 @@ test("support Focus batch exposes circumstance-aware combat and social abilities
   assert.match(sheetSource, /Mark daily request used/u);
   assert.match(sheetSource, /Mark session bargain used/u);
 });
+
+
+test("defensive Focus audit presents five situational exceptions and daily use tracking", () => {
+  for (const focus of ["Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster"]) {
+    assert.match(sheetSource, new RegExp(`<strong>${focus}</strong>`));
+  }
+  assert.match(sheetSource, /Mark familiar Effort refresh used/u);
+  assert.match(sheetSource, /Mark protection used/u);
+  assert.match(sheetSource, /surprise round/u);
+  assert.match(sheetSource, /armor with Encumbrance 2 or less/u);
+  assert.match(sheetSource, /applied to a weapon’s Shock damage instead of its rolled damage/u);
+});

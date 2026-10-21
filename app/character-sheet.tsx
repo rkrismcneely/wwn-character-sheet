@@ -3917,7 +3917,7 @@ export default function Home({
                   : sheet.level ? "Complete every level’s roll to calculate maximum HP automatically. Until then, the existing maximum remains editable." : "Choose a level to enter Hit Point rolls."}</p>
               </div>
             </Section>
-            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
+            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker", "Assassin", "Armored Magic", "Spirit Familiar", "Impervious Defense", "Armsmaster"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
               <div className="whirlwind-focus-controls" role="group" aria-label="Situational Focus abilities">
                 <button type="button" onClick={resetFocusAbilities}>Reset tracked uses (new day / session / week as applicable)</button>
                 {selectedFocusPicks.some(pick => pick.name === "Poisoner") && <div>
@@ -3969,6 +3969,30 @@ export default function Home({
                   <strong>Dealmaker</strong>
                   <p>Find available buyers and sellers with half an hour of effort, subject to GM adjudication.</p>
                   {selectedFocusPicks.some(pick => pick.name === "Dealmaker" && pick.level === 2) && <><p>Once per session, make a comprehensible request of someone not currently trying to kill you; a plausible bargain is offered for a price or favor.</p><button type="button" disabled={Boolean(focusAbilityUsed["Dealmaker bargain"])} onClick={() => markFocusAbility("Dealmaker bargain")}>{focusAbilityUsed["Dealmaker bargain"] ? "Session bargain used" : "Mark session bargain used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Assassin") && <div>
+                  <strong>Assassin</strong>
+                  <p>When using a concealed knife-sized object during a surprise round, point-blank thrown and melee attacks with it cannot miss. The object can be produced as an On Turn action. Confirm that the surprise-round conditions apply with the GM.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Assassin" && pick.level === 2) && <small>Level 2: Take and split a Move action before and after an Execution Attack, too quickly to alert the victim or be stopped by bodyguards.</small>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Armored Magic") && <div>
+                  <strong>Armored Magic</strong>
+                  <p>Level 1: Cast spells or use Arts in armor with Encumbrance 2 or less. A shield is permitted while casting if the other hand is free for gestures.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Armored Magic" && pick.level === 2) && <small>Level 2: Spells can be cast in armor of any Encumbrance and with both hands occupied, provided they are not bound.</small>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Spirit Familiar") && <div>
+                  <strong>Spirit Familiar</strong>
+                  <p>The familiar can be summoned or dismissed as a Main Action. If killed, it cannot be summoned again for 24 hours. Once per day it can refresh one point of Committed Effort.</p>
+                  <button type="button" disabled={Boolean(focusAbilityUsed["Spirit Familiar effort"])} onClick={() => markFocusAbility("Spirit Familiar effort")}>{focusAbilityUsed["Spirit Familiar effort"] ? "Daily Effort refresh used" : "Mark familiar Effort refresh used"}</button>
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Impervious Defense") && <div>
+                  <strong>Impervious Defense</strong>
+                  <p>Innate AC is 15 plus half your level rounded up; it does not stack with worn armor, but shield and Dexterity modifiers still apply.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Impervious Defense" && pick.level === 2) && <><p>Once per day, as an Instant action, shrug off one weapon attack or physical trauma inflicted by a foe. It cannot negate falling damage or other environmental harm.</p><button type="button" disabled={Boolean(focusAbilityUsed["Impervious Defense protection"])} onClick={() => markFocusAbility("Impervious Defense protection")}>{focusAbilityUsed["Impervious Defense protection"] ? "Daily protection used" : "Mark protection used"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <div>
+                  <strong>Armsmaster</strong>
+                  <p>Benefits apply to melee and thrown weapons, not unarmed strikes or non-thrown projectiles. The skill-level bonus may be applied to a weapon’s Shock damage instead of its rolled damage. Level 2 treats targets as AC 10 for eligible melee Shock.</p>
                 </div>}
                 {selectedFocusPicks.some(pick => pick.name === "Close Combatant") && <div>
                   <strong>Close Combatant</strong>

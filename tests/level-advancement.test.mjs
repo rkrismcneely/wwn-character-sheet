@@ -569,3 +569,12 @@ test("advancement Focus redirects its three points only when original skill is a
     focusPicks: [{ name: "Armsmaster", level: 1, advancement: true, redirectSkill: "Not a skill" }],
   }), skill => skill === "Stab"), { Stab: 3 });
 });
+
+test("later advancement Focus credits can redirect when earlier credits reach rank four", () => {
+  const character = base({ focusPicks: [
+    { name: "Armsmaster", level: 1, advancement: true },
+    { name: "Armsmaster", level: 1, advancement: true, redirectSkill: "Know" },
+  ] });
+  const atCap = (skill, credits) => skill === "Stab" && (credits.Stab || 0) >= 3;
+  assert.deepEqual(advancementSkillCreditBySkill(character, atCap), { Stab: 3, Know: 3 });
+});

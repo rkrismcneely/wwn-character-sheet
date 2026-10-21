@@ -84,7 +84,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   ]);
   assert.match(durable, /CREATE TABLE IF NOT EXISTS encounters/u);
   assert.match(durable, /encounters_active_idx[\s\S]*?WHERE ended_at IS NULL/u);
-  assert.match(durable, /ORDER BY initiative DESC, added_order ASC, combatant_id ASC/u);
+  assert.match(durable, /ORDER BY alert_priority DESC, initiative DESC, added_order ASC, combatant_id ASC/u);
   assert.match(durable, /roll\.category === "initiative"[\s\S]*?roll\.total[\s\S]*?roll\.character\.id/u);
   assert.match(durable, /type: "session\.encounter"/u);
   assert.match(durable, /UPDATE encounters SET ended_at/u);
@@ -155,4 +155,20 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
   assert.match(sessionCss, /html\[data-theme="dark"\] \.campaign-encounter-order li\{[^}]*color:#ead9b8/u);
   assert.match(sessionCss, /html\[data-theme="dark"\] \.campaign-encounter-stat b\{color:#f0dfbd/u);
   assert.match(sessionCss, /html\[data-theme="dark"\] \.campaign-encounter-stat small[^}]*color:#cdbd9f/u);
+});
+
+
+test("Alert level 2 encounter priority persists and controls server turn order", async () => {
+  const [durable, route, service, ui] = await Promise.all([
+    readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/campaigns/live-session-service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(durable, /ALTER TABLE encounter_combatants ADD COLUMN alert_priority/u);
+  assert.match(durable, /ORDER BY alert_priority DESC, initiative DESC, added_order ASC, combatant_id ASC/u);
+  assert.match(durable, /async setAlertPriority/u);
+  assert.match(service, /pick\.name === "Alert" && pick\.level === 2/u);
+  assert.match(route, /durable\.setAlertPriority/u);
+  assert.match(ui, /Alert 2 priority/u);
 });

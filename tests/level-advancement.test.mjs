@@ -564,6 +564,7 @@ test("advancement Focus redirects its three points only when original skill is a
   });
   assert.deepEqual(advancementSkillCreditBySkill(character), { Stab: 3 });
   assert.deepEqual(advancementSkillCreditBySkill(character, skill => skill === "Stab"), { Know: 3 });
+  assert.deepEqual(advancementSkillCreditBySkill(character, skill => ["Stab", "Know"].includes(skill)), { Stab: 3 });
   assert.deepEqual(advancementSkillCreditBySkill(base({
     focusPicks: [{ name: "Armsmaster", level: 1, advancement: true, redirectSkill: "Not a skill" }],
   }), skill => skill === "Stab"), { Stab: 3 });

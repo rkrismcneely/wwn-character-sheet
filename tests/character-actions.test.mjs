@@ -20,3 +20,15 @@ test("archived character actions are ordered in one menu and reuse permanent del
   assert.match(dashboard, /window\.confirm\(`Delete \$\{characterName\} from My Characters\?\\n\\nThis cannot be undone\.`\)/u);
   assert.match(dashboard, /fetch\(`\/api\/characters\/\$\{character\.id\}`, \{ method: "DELETE" \}\)/u);
 });
+
+test("rest retains sustained Art Effort and recovers scene/day commitments", async () => {
+  const { artEffortRestRecovers } = await import("../app/phase2-rules.ts");
+  assert.equal(artEffortRestRecovers("Commit Effort for the scene to do something"), true);
+  assert.equal(artEffortRestRecovers("Commit Effort for the day; do something"), true);
+  assert.equal(artEffortRestRecovers("Commit Effort to gain AC while Effort remains committed"), false);
+  assert.equal(artEffortRestRecovers("Commit Effort to perceive thermal gradients in darkness"), false);
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  assert.match(source, /sustainedEffort = artEffortTotal\(sheet\.artEffort\) - effort/u);
+  assert.match(source, /artEffortRestRecovers\(creationArtForSelection\(availableArts, name\)\?\.text \|\| ""\)/u);
+  assert.match(source, /Sustained Art Effort remains committed until released/u);
+});

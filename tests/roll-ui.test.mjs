@@ -554,7 +554,7 @@ test("social and ranged Focus audit exposes qualified reaction and session contr
 test("Deadeye ranged melee penalty is explicit and scoped to focus level", () => {
   assert.match(sheetSource, /const \[rangedInMelee, setRangedInMelee\] = useState\(false\)/u);
   assert.match(sheetSource, /rangedMeleePenalty = !isMelee && rangedInMelee && deadeye/u);
-  assert.match(sheetSource, /deadeye\.level === 2 \? 0 : -4/u);
+  assert.match(sheetSource, /deadeye\?\.level === 1 && isBowOrTwoHandedRanged \? -4 : 0/u);
   assert.match(sheetSource, /focusHitBonus \+ rangedMeleePenalty/u);
   assert.match(sheetSource, /Bow or two-handed ranged weapon used with an enemy in melee range/u);
 });

@@ -3386,3 +3386,9 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 .masterful-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
 .masterful-controls button{font-size:12px;padding:5px 8px}
 .masterful-controls small{flex-basis:100%;color:var(--ink-muted,#746b60)}
+
+/* Keep Frail beside Strain maximum instead of consuming a whole vitals grid cell. */
+.vitals .strain-max-frail{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;min-width:0}
+.vitals .strain-max-frail .field{min-width:0}
+.vitals .strain-frail-toggle{display:flex;align-items:center;gap:4px;white-space:nowrap;padding-bottom:11px;font-size:12px}
+.vitals .strain-frail-toggle input{width:auto;flex:none;margin:0}

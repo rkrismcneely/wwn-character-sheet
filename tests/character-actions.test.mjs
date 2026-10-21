@@ -51,15 +51,7 @@ test("Frail characters do not recover hit points from ordinary rest", async () =
   assert.match(rest, /strainCurrent: Math\.max\(0, current\.strainCurrent - \(current\.frail \? 0 : 1\)\)/u);
 });
 
-test("first aid uses Heal rank and explicitly handles target Strain and Frailty", async () => {
-  const source = await readFile("app/character-sheet.tsx", "utf8");
-  assert.match(source, /Roll First Aid \(1d6 \+ Heal\)/u);
-  assert.match(source, /label: "First Aid — apply 1 System Strain to patient \(do not remove Frailty\)"/u);
-  assert.match(source, /dice: \{ count: 1, sides: 6 \}/u);
-  assert.match(source, /"Heal skill", value: skillProfile\("Heal"\)\.effective/u);
-  assert.match(source, /Gifted Chirurgeon: first aid after battle restores twice the rolled total/u);
-  assert.match(source, /no first aid is possible if the patient is at maximum Strain/u);
-});
+
 
 test("Frail characters also cannot recover System Strain through sleep", async () => {
   const source = await readFile("app/character-sheet.tsx", "utf8");
@@ -67,4 +59,20 @@ test("Frail characters also cannot recover System Strain through sleep", async (
   assert.match(rest, /const strainRecovery = !sheet\.frail && sheet\.strainCurrent > 0 \? 1 : 0/u);
   assert.match(rest, /current\.strainCurrent - \(current\.frail \? 0 : 1\)/u);
   assert.match(rest, /Frail characters cannot recover Strain naturally/u);
+});
+
+test("Health and Defenses retains a concise Frail toggle without First Aid panel", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  assert.match(source, /checked=\{sheet\.frail\}[^\n]*\/> Frail<\/label>/u);
+  assert.doesNotMatch(source, /aria-label="WWN first aid"/u);
+  assert.doesNotMatch(source, /Roll First Aid \(1d6 \+ Heal\)/u);
+});
+
+test("Situational Focus Abilities appears below Foci in the same character-sheet column", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  const weapons = source.indexOf('<Section title="Weapons"');
+  const foci = source.indexOf('<Section title="Foci"');
+  const situational = source.indexOf('title="Situational Focus Abilities"');
+  const skills = source.indexOf('<div className="stack skills-column">');
+  assert.ok(weapons >= 0 && foci > weapons && situational > foci && skills > situational);
 });

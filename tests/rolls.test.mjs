@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { clearRollHistory, MAX_ROLL_HISTORY_ENTRIES, persistRollHistory, prependRollHistory, readRollHistory } from "../app/roll-history.ts";
 import { deriveUnarmedAttack } from "../app/phase2-rules.ts";
-import { formatShockMinimumReminder, parseDamageExpression, parseShockMinimum, resolveRoll } from "../app/rolls.ts";
+import { formatShockMinimumReminder, unarmedMissDamageBonus, parseDamageExpression, parseShockMinimum, resolveRoll } from "../app/rolls.ts";
 
 function fixedRoll(results, sides) {
   return (count, requestedSides) => {
@@ -213,4 +213,18 @@ test("AC 10 Shock Foci apply against higher actual AC when the underlying attack
     unarmedCombatantLevel: 2,
   });
   assert.equal(regular.shock, "3/AC 15");
+});
+
+
+test("Unarmed Combatant level 2 miss damage adds Shock instead of applying it as a minimum", async () => {
+  assert.equal(unarmedMissDamageBonus("3/AC 15", false), 0);
+  assert.equal(unarmedMissDamageBonus("3/AC 15", true), 3);
+  assert.equal(unarmedMissDamageBonus("5/-", true), 5);
+  assert.equal(unarmedMissDamageBonus("None", true), 0);
+  const result = await resolveRoll(sampleRequest({
+    category: "damage", label: "Unarmed Combatant level 2 miss",
+    dice: { count: 1, sides: 6 },
+    modifiers: [{ label: "Applicable Shock", value: unarmedMissDamageBonus("3/AC 15", true) }],
+  }), { roll: fixedRoll([2], 6) });
+  assert.equal(result.total, 5);
 });

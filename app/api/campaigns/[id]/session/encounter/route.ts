@@ -63,7 +63,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       if (body.action === "add_pc") {
         const characterId = boundedText(body.characterId, "Character", 100);
         const character = await authorizeEncounterCharacter(db, authorization.campaignId, authorization.sessionId, characterId);
-        encounter = await durable.addPc(authorization.sessionId, character.id);
+        encounter = await durable.addPc(authorization.sessionId, character.id, character.alertPriority);
       } else if (body.action === "add_npc") {
         const hpMax = integer(body.hpMax, "Maximum HP", 1, 100000);
         encounter = await durable.addNpc(authorization.sessionId, {
@@ -82,6 +82,9 @@ export async function POST(request: Request, context: Context): Promise<Response
         const seed = builtInBestiaryEncounterSeed(boundedText(body.bestiaryId, "Built-in creature", 100));
         if (!seed) throw new CampaignServiceError("Built-in creature not found.", 404);
         encounter = await durable.addNpc(authorization.sessionId, seed);
+      } else if (body.action === "alert_priority") {
+        if (typeof body.enabled !== "boolean") throw new CampaignServiceError("Alert priority is invalid.", 422);
+        encounter = await durable.setAlertPriority(authorization.sessionId, combatantId(body.combatantId), body.enabled);
       } else if (body.action === "initiative") {
         encounter = await durable.setInitiative(authorization.sessionId, combatantId(body.combatantId), integer(body.initiative, "Initiative", -1000, 1000));
       } else if (body.action === "npc_hp") {

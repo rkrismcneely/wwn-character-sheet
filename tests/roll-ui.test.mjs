@@ -566,3 +566,11 @@ test("Armsmaster skill bonus can be assigned to eligible melee Shock instead of 
   assert.match(sheetSource, /armsmasterToShock && isMelee \? armsmasterDamage : 0/u);
   assert.match(sheetSource, /Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage/u);
 });
+
+
+test("versatile thrown weapons use player-selected attack mode and melee-only Shock", () => {
+  assert.match(sheetSource, /\[preferThrownMode, setPreferThrownMode\] = useState\(false\)/u);
+  assert.match(sheetSource, /isThrownWeapon && w\.range !== "-" \? !preferThrownMode/u);
+  assert.match(sheetSource, /const shock = !isMelee \|\| w\.shock === "None" \? "None"/u);
+  assert.match(sheetSource, /Throw versatile weapons instead of striking in melee/u);
+});

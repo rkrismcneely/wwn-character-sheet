@@ -3219,7 +3219,8 @@ export default function Home({
       });
       return { w, skillName: "Punch", range: "-", virtual: true, ...result };
     }
-    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye ? (deadeye.level === 2 ? 0 : -4) : 0;
+    const isBowOrTwoHandedRanged = !isThrownWeapon && (w.name.toLowerCase().includes("bow") || w.traits.split(",").some(trait => trait.trim() === "2H"));
+    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye?.level === 1 && isBowOrTwoHandedRanged ? -4 : 0;
     const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
     const extraDamage = attrMod + warriorDamage + Math.max(armsmasterToShock && isMelee && w.shock !== "None" ? 0 : armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {

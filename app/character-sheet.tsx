@@ -1075,6 +1075,7 @@ export default function Home({
   const [libraryError, setLibraryError] = useState("");
   const [cloudId, setCloudId] = useState<string | null>(initialCharacter?.id ?? null);
   const [whirlwindSceneUsed, setWhirlwindSceneUsed] = useState(false);
+  const [rangedInMelee, setRangedInMelee] = useState(false);
   const [whirlwindRoundUsed, setWhirlwindRoundUsed] = useState(false);
   const [focusAbilityUsed, setFocusAbilityUsed] = useState<Record<string, boolean>>({});
   const markFocusAbility = (key: string) => setFocusAbilityUsed(current => ({ ...current, [key]: true }));
@@ -3216,7 +3217,8 @@ export default function Home({
       });
       return { w, skillName: "Punch", range: "-", virtual: true, ...result };
     }
-    const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus;
+    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye && (w.range !== "-" || isThrown) ? (deadeye.level === 2 ? 0 : -4) : 0;
+    const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
     const extraDamage = attrMod + warriorDamage + Math.max(armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {
       const match = w.shock.match(/^(\d+)\/AC\s*(\d+)$/i);
@@ -3233,7 +3235,7 @@ export default function Home({
     const armsmasterNote = armsmasterDamage && w.shock !== "None"
       ? ` · Armsmaster can apply Stab ${signed(armsmasterDamage)} to Shock instead of damage`
       : "";
-    return { w, skillName, hit, damage: `${w.damage}${extraDamage ? signed(extraDamage) : ""}`, shock, range: w.range, virtual: false, note: `${skillName} ${skill >= 0 ? signed(skill) : "untrained"} effective${armsmasterNote}` };
+    return { w, skillName, hit, damage: `${w.damage}${extraDamage ? signed(extraDamage) : ""}`, shock, range: w.range, virtual: false, note: `${skillName} ${skill >= 0 ? signed(skill) : "untrained"} effective${armsmasterNote}${rangedMeleePenalty ? " · Deadeye: −4 for ranged use while threatened in melee" : ""}` };
   }
 
   const updateBackgroundLearningPick = (index: number, update: Partial<BackgroundLearningPick>) => {
@@ -4034,6 +4036,7 @@ export default function Home({
                   <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
                 </div>}
               </div>}
+              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Enemy is within melee range (Deadeye: −4 to applicable ranged attacks at level 1; no penalty at level 2)</label>}
               <div className="weapon-list">
                 {displayedWeapons.map(({ name, inventoryIndex }) => {
                   const pick = { name, skill: -1 };

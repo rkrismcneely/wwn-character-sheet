@@ -558,3 +558,11 @@ test("Deadeye ranged melee penalty is explicit and scoped to focus level", () =>
   assert.match(sheetSource, /focusHitBonus \+ rangedMeleePenalty/u);
   assert.match(sheetSource, /Bow or two-handed ranged weapon used with an enemy in melee range/u);
 });
+
+
+test("Armsmaster skill bonus can be assigned to eligible melee Shock instead of hit damage", () => {
+  assert.match(sheetSource, /\[armsmasterToShock, setArmsmasterToShock\] = useState\(false\)/u);
+  assert.match(sheetSource, /armsmasterToShock && isMelee && w\.shock !== "None" \? 0 : armsmasterDamage/u);
+  assert.match(sheetSource, /armsmasterToShock && isMelee \? armsmasterDamage : 0/u);
+  assert.match(sheetSource, /Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage/u);
+});

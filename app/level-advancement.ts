@@ -110,7 +110,7 @@ export function advancementSkillCreditBySkill(
     if (!pick.advancement) return credits;
     const skill = creationFocusBonusSkill(pick);
     if (skill) {
-      const target = skillAtCap(skill) && pick.redirectSkill && creationSkills.includes(pick.redirectSkill)
+      const target = skillAtCap(skill) && pick.redirectSkill && creationSkills.some((candidate) => candidate === pick.redirectSkill)
         ? pick.redirectSkill : skill;
       credits[target] = (credits[target] || 0) + 3;
     }

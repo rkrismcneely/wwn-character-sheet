@@ -14,6 +14,7 @@ export type AdvancementFocusPick = {
   level: number;
   choice?: string;
   advancement?: boolean;
+  redirectSkill?: string;
 };
 
 export type AdvancementCharacter = {
@@ -92,6 +93,7 @@ export function advancementSkillCreditBySkill(
     AdvancementCharacter,
     "focusPicks" | "classMode" | "classOne" | "classTwo"
   >,
+  skillAtCap: (skill: string) => boolean = () => false,
 ) {
   const startingFocusSelections = character.classOne
     ? classRules(
@@ -107,7 +109,11 @@ export function advancementSkillCreditBySkill(
   ).reduce<Record<string, number>>((credits, pick) => {
     if (!pick.advancement) return credits;
     const skill = creationFocusBonusSkill(pick);
-    if (skill) credits[skill] = (credits[skill] || 0) + 3;
+    if (skill) {
+      const target = skillAtCap(skill) && pick.redirectSkill && creationSkills.includes(pick.redirectSkill)
+        ? pick.redirectSkill : skill;
+      credits[target] = (credits[target] || 0) + 3;
+    }
     return credits;
   }, {});
 }

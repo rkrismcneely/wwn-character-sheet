@@ -3916,11 +3916,11 @@ export default function Home({
             <Section title="Weapons" aside={<span className="caption">Readied items · permanent Unarmed Attack</span>}>
               {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault") && <div className="whirlwind-focus-controls" role="group" aria-label="Whirlwind Assault combat abilities">
                 <strong>Whirlwind Assault</strong>
-                <p>Level 1 · Once per scene, as an On Turn action, apply your equipped melee weapon's Shock to every susceptible foe within melee range. Check each foe's Shock immunity and eligibility separately.</p>
+                <p>Level 1 · Once per scene, as an On Turn action, apply your equipped melee weapon’s Shock to every susceptible foe within melee range. Check each foe’s Shock immunity and eligibility separately.</p>
                 <button type="button" disabled={whirlwindSceneUsed} onClick={() => setWhirlwindSceneUsed(true)}>{whirlwindSceneUsed ? "Shock burst used this scene" : "Use Shock burst"}</button>
                 <button type="button" onClick={() => setWhirlwindSceneUsed(false)}>New scene</button>
                 {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault" && pick.level === 2) && <div>
-                  <p>Level 2 · The first time each round that a normal attack kills a foe, including a kill from that attack's Shock, immediately gain one extra attack with any Ready weapon against a target in range. The burst above does not independently trigger this benefit.</p>
+                  <p>Level 2 · The first time each round that a normal attack kills a foe, including a kill from that attack’s Shock, immediately gain one extra attack with any Ready weapon against a target in range. The burst above does not independently trigger this benefit.</p>
                   <button type="button" disabled={whirlwindRoundUsed} onClick={() => setWhirlwindRoundUsed(true)}>{whirlwindRoundUsed ? "Bonus attack used this round" : "Mark bonus attack used"}</button>
                   <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
                 </div>}

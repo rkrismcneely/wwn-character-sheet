@@ -6,7 +6,7 @@
 
 import { artSlots, classRules, hitPointClassBonus, knownSpellSlots, traditionInfo, traditionKinds, type TraditionName } from "./class-data.ts";
 import { creationFocusBonusSkill, creationSkills } from "./character-creation.ts";
-import { armorRestrictsMagic, focusIsRepeatable, inferFocusAdvancementFlags, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit } from "./phase2-rules.ts";
+import { armorRestrictsMagic, hasNegativeEffectiveAttributeModifier, focusIsRepeatable, inferFocusAdvancementFlags, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit } from "./phase2-rules.ts";
 import { foci } from "./wwn-data.ts";
 
 export type AdvancementFocusPick = {
@@ -188,7 +188,7 @@ export function legalAdvancementFocuses(character: AdvancementCharacter) {
   const classes = plan.classes;
   const mage = classes.some((name) => traditionKinds[name] === "mage");
   const armorRestricted = plan.traditions.some((tradition) => armorRestrictsMagic(traditionInfo[tradition].armor));
-  const hasNegativeAttribute = Object.values(character.attrs).some((score) => score <= 7);
+  const hasNegativeAttribute = hasNegativeEffectiveAttributeModifier(attribute => character.attrs[attribute], character.focusPicks);
   return foci.filter((focus) => {
     const samePicks = character.focusPicks.filter((pick) => pick.name === focus.name);
     const same = samePicks[0];

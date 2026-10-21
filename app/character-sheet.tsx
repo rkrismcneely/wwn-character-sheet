@@ -4744,7 +4744,6 @@ export default function Home({
             </Section>
             <Section title="Inventory" aside={<span className="caption">Readied {readiedCapacity} · Stowed {stowedCapacity} from Strength</span>}>
               <label className="field companion-strength"><span>Strength score</span><input type="number" min="0" max="30" value={companionStrength || ""} readOnly={!familiar} onChange={e => familiar && patchCompanion(companion.id, "strength", Number(e.target.value))} /></label>
-              {!familiar && <p className="section-intro">Carrying capacity follows this archetype’s Strength score. Changing archetype replaces its complete stat spread while preserving equipment and notes.</p>}
               {familiar && <p className="section-intro">A dismissed familiar cannot take carried objects with it.</p>}
               <h3 className="companion-inventory-title">Readied items</h3>
               {companionReadied.map((item, index) => <div className={`inventory-item-row ${index >= readiedCapacity ? "inventory-overflow" : ""}`} key={`r-${index}`}>

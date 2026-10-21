@@ -3392,3 +3392,5 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 .vitals .strain-max-frail .field{min-width:0}
 .vitals .strain-frail-toggle{display:flex;align-items:center;gap:4px;white-space:nowrap;padding-bottom:11px;font-size:12px}
 .vitals .strain-frail-toggle input{width:auto;flex:none;margin:0}
+
+.choice-row .focus-credit-redirect{grid-column:1 / -1;min-width:0;width:100%}

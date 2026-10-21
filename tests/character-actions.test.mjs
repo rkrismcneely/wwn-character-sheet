@@ -48,7 +48,7 @@ test("Frail characters do not recover hit points from ordinary rest", async () =
   assert.match(rest, /const healing = sheet\.frail \? 0 : Math\.max/u);
   assert.match(rest, /current\.frail \? 0 : Math\.max\(0, current\.level \|\| 0\)/u);
   assert.match(rest, /Frail characters cannot heal naturally/u);
-  assert.match(rest, /strainCurrent: Math\.max\(0, current\.strainCurrent - 1\)/u);
+  assert.match(rest, /strainCurrent: Math\.max\(0, current\.strainCurrent - \(current\.frail \? 0 : 1\)\)/u);
 });
 
 test("first aid uses Heal rank and explicitly handles target Strain and Frailty", async () => {
@@ -59,4 +59,12 @@ test("first aid uses Heal rank and explicitly handles target Strain and Frailty"
   assert.match(source, /"Heal skill", value: skillProfile\("Heal"\)\.effective/u);
   assert.match(source, /Gifted Chirurgeon: first aid after battle restores twice the rolled total/u);
   assert.match(source, /no first aid is possible if the patient is at maximum Strain/u);
+});
+
+test("Frail characters also cannot recover System Strain through sleep", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  const rest = source.slice(source.indexOf("  function takeRest() {"), source.indexOf("  async function refreshLibrary("));
+  assert.match(rest, /const strainRecovery = !sheet\.frail && sheet\.strainCurrent > 0 \? 1 : 0/u);
+  assert.match(rest, /current\.strainCurrent - \(current\.frail \? 0 : 1\)/u);
+  assert.match(rest, /Frail characters cannot recover Strain naturally/u);
 });

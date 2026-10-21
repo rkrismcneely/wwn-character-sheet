@@ -535,3 +535,17 @@ test("defensive Focus audit presents five situational exceptions and daily use t
   assert.match(sheetSource, /armor with Encumbrance 2 or less/u);
   assert.match(sheetSource, /applied to a weapon’s Shock damage instead of its rolled damage/u);
 });
+
+
+test("social and ranged Focus audit exposes qualified reaction and session controls", () => {
+  for (const focus of ["Well Met", "Connected", "Diplomatic Grace", "Sniper’s Eye"]) {
+    assert.match(sheetSource, new RegExp(`<strong>${focus}</strong>`));
+  }
+  assert.match(sheetSource, /Roll First Reaction \(2d6\+1\)/u);
+  assert.match(sheetSource, /label: "Well Met — first meeting reaction \(\+1\)"/u);
+  assert.match(sheetSource, /Mark exceptional reaction used/u);
+  assert.match(sheetSource, /Mark daily favor used/u);
+  assert.match(sheetSource, /Mark session meeting used/u);
+  assert.match(sheetSource, /Mark consecrated bargain used/u);
+  assert.match(sheetSource, /victim suffers −4 to the Physical save/u);
+});

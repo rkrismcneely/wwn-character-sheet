@@ -68,3 +68,13 @@ test("Frail characters also cannot recover System Strain through sleep", async (
   assert.match(rest, /current\.strainCurrent - \(current\.frail \? 0 : 1\)/u);
   assert.match(rest, /Frail characters cannot recover Strain naturally/u);
 });
+
+test("mortal wound guidance specifies deadlines and Frailty recovery", async () => {
+  const sheet = await readFile("app/character-sheet.tsx", "utf8");
+  assert.match(sheet, /end of the sixth round after falling/u);
+  assert.match(sheet, /difficulty 8 plus the number of full rounds/u);
+  assert.match(sheet, /\+2 without a healer’s kit/u);
+  assert.match(sheet, /incapacitated for ten minutes, then regains 1 HP and becomes Frail/u);
+  assert.match(sheet, /week of bed rest with medical care and a healer’s kit/u);
+  assert.match(sheet, /one attempt with an hour of work/u);
+});

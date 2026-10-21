@@ -495,7 +495,7 @@ test("Whirlwind Assault exposes distinct once-per-scene Shock and once-per-round
   assert.match(sheetSource, /Whirlwind Assault" && pick\.level === 2/u);
   assert.match(sheetSource, /setWhirlwindRoundUsed\(true\)/u);
   assert.match(sheetSource, /setWhirlwindRoundUsed\(false\)/u);
-  assert.match(sheetSource, /every susceptible foe within melee range/u);
+  assert.match(sheetSource, /apply melee Shock to eligible adjacent foes/u);
 });
 
 

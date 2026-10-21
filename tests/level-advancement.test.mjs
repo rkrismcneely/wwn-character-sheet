@@ -16,6 +16,7 @@ import {
 } from "../app/level-advancement.ts";
 import {
   deriveSkillProfile,
+  hasNegativeEffectiveAttributeModifier,
   focusSelectionCost,
   inferFocusAdvancementFlags,
   reconcileSpiritFamiliarHitPoints,
@@ -577,4 +578,14 @@ test("later advancement Focus credits can redirect when earlier credits reach ra
   ] });
   const atCap = (skill, credits) => skill === "Stab" && (credits.Stab || 0) >= 3;
   assert.deepEqual(advancementSkillCreditBySkill(character, atCap), { Stab: 3, Know: 3 });
+});
+
+
+test("Lucky eligibility uses effective modifiers, including Focus-granted changes", () => {
+  const scores = { STR: 10, DEX: 7, CON: 10, INT: 10, WIS: 10, CHA: 10 };
+  assert.equal(hasNegativeEffectiveAttributeModifier(a => scores[a], []), true);
+  assert.equal(hasNegativeEffectiveAttributeModifier(a => scores[a], [{ name: "Developed Attribute", choice: "DEX" }]), false);
+  assert.equal(hasNegativeEffectiveAttributeModifier(a => scores[a], [{ name: "Xenoblooded", choice: "STR +1 / DEX -1" }]), true);
+  assert.equal(legalAdvancementFocuses(base({ attrs: scores, focusPicks: [{ name: "Developed Attribute", level: 1, choice: "DEX" }] })).some(f => f.name === "Lucky"), false);
+  assert.equal(legalAdvancementFocuses(base({ attrs: { ...scores, DEX: 10 }, focusPicks: [{ name: "Xenoblooded", level: 1, choice: "STR +1 / DEX -1" }] })).some(f => f.name === "Lucky"), true);
 });

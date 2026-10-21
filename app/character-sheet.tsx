@@ -1551,10 +1551,13 @@ export default function Home({
 
   function rollInitiative() {
     const alert = selectedFocusPicks.some(pick => pick.name === "Alert");
+    const alertLevelTwo = selectedFocusPicks.some(pick => pick.name === "Alert" && pick.level === 2);
+    // Alert 2 grants first action regardless of initiative totals, except
+    // when another participant also has Alert 2. Keep the roll for tie handling.
     void completeRoll({
       category: "initiative",
       character: rollCharacter(),
-      label: alert ? "Initiative (Alert: take better die)" : "Initiative",
+      label: alertLevelTwo ? "Initiative (Alert 2: act first unless another Alert 2 is present)" : alert ? "Initiative (Alert: take better die)" : "Initiative",
       dice: { count: alert ? 2 : 1, sides: 8 },
       ...(alert ? { keepHighest: 1 } : {}),
       modifiers: [{ label: "Initiative modifier", value: calculatedInitiative }],
@@ -3876,7 +3879,7 @@ export default function Home({
                 <label className="field"><span>Shield</span><select value={hasShield ? sheet.shield : ""} onChange={e => patch("shield", e.target.value)}>{shields.map(shield => <option key={shield || "none"} value={shield}>{shield || "No Shield"}</option>)}{campaignShield && !campaignArmorItems.some(item => campaignInventoryValue(item) === sheet.shield) && <option value={sheet.shield}>{campaignShield.name} · Saved snapshot</option>}{campaignArmorItems.filter(item => item.properties?.armor?.shield !== "none").map(item => <option key={item.id} value={campaignInventoryValue(item)}>{item.name} ({item.properties?.armor?.shield} shield, AC {item.properties?.armor?.armorClass})</option>)}</select></label>
                 <Field label="Magic / custom AC bonus" value={sheet.armorBonus} onChange={v => patch("armorBonus", Number(v))} />
                 <label className="field calculated-field"><span>Calculated Armor Class</span><input value={calculatedAc} disabled /></label>
-                <div className="field calculated-field initiative-field"><span>Initiative</span><input value={signed(calculatedInitiative)} disabled /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={rollInitiative}>Roll Initiative</button></div>
+                <div className="field calculated-field initiative-field"><span>Initiative</span><input value={signed(calculatedInitiative)} disabled /><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} onClick={rollInitiative}>Roll Initiative</button>{selectedFocusPicks.some(pick => pick.name === "Alert" && pick.level === 2) && <small>Alert 2: You act first unless another combatant also has Alert 2. Roll only to resolve competing Alert characters.</small>}</div>
                 <label className="field calculated-field"><span>Base Attack Bonus</span><input value={signed(baseAttack)} disabled title="Calculated from class and character level" /></label>
               </div>
               <div className="hp-builder">

@@ -4106,7 +4106,6 @@ export default function Home({
                   <span>{skillPointAllowance} total · {advancementPointsRemaining}{"\u00a0"}available</span>
                 </div>
                 <small>
-                  <span>Increase the trained rank with its dropdown. Advancement Focus credit and phantom floors are applied afterward to the Effective rank. {selectedClasses.includes("Expert") ? "Quick Learner grants 4 points per level gained." : "You gain 3 points per level gained."}</span>
                   {skillSpending.freePickSkill && <span className="free-creation-pick">Free creation pick: {skillSpending.freePickSkill}.</span>}
                 </small>
               </div>

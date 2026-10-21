@@ -557,3 +557,14 @@ test("Level-Up Wizard remains transactional, URL-addressable, and version-guarde
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.level-up-hp-controls\s*\{[\s\S]*?grid-template-columns:\s*1fr/u);
   assert.match(css, /\.level-up-hp-result\s*\{[\s\S]*?display:\s*grid/u);
 });
+
+test("advancement Focus redirects its three points only when original skill is at rank 4", () => {
+  const character = base({
+    focusPicks: [{ name: "Armsmaster", level: 1, advancement: true, redirectSkill: "Know" }],
+  });
+  assert.deepEqual(advancementSkillCreditBySkill(character), { Stab: 3 });
+  assert.deepEqual(advancementSkillCreditBySkill(character, skill => skill === "Stab"), { Know: 3 });
+  assert.deepEqual(advancementSkillCreditBySkill(base({
+    focusPicks: [{ name: "Armsmaster", level: 1, advancement: true, redirectSkill: "Not a skill" }],
+  }), skill => skill === "Stab"), { Stab: 3 });
+});

@@ -3180,11 +3180,11 @@ export default function Home({
     const attrMod = w.attribute === "Dex" ? attributeMod("DEX") : w.attribute === "Str" ? attributeMod("STR") : bestPhysicalModifier;
     const isUnarmed = w.name === "Unarmed Attack";
     const isThrownWeapon = w.traits.split(",").map(trait => trait.trim()).includes("T");
-    // A versatile thrown weapon is shown in the mode that uses the character's
-    // best trained combat skill. This keeps Shock tied to melee use only.
+    // Explicit player choice controls versatile thrown weapons, including custom campaign weapons.
+    // Only melee use permits Shock.
     const isMelee = isUnarmed || (isThrownWeapon && w.range !== "-" ? !preferThrownMode : (campaignWeapon ? campaignWeapon.skill !== "Shoot" : w.range === "-"));
     const isThrown = isThrownWeapon && !isMelee;
-    const skillName = isUnarmed ? "Punch" : campaignWeapon?.skill ?? (isMelee ? "Stab" : "Shoot");
+    const skillName = isUnarmed ? "Punch" : isThrownWeapon && w.range !== "-" ? (isMelee ? "Stab" : "Shoot") : campaignWeapon?.skill ?? (isMelee ? "Stab" : "Shoot");
     const skill = effectiveSkill(skillName);
     const unskilled = skill < 0 && w.name !== "Crossbow" ? -2 : 0;
     const armsmaster = selectedFocusPicks.find(focus => focus.name === "Armsmaster");

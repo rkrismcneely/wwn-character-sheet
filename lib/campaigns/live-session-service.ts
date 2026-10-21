@@ -184,15 +184,20 @@ export async function authorizeEncounterCharacter(
   campaignId: string,
   sessionId: string,
   characterPublicId: string,
-): Promise<{ id: string }> {
-  const character = await db.prepare(`SELECT ch.public_id AS id
+): Promise<{ id: string; alertPriority: boolean }> {
+  const character = await db.prepare(`SELECT ch.public_id AS id, ch.data AS data
     FROM campaign_characters cc
     JOIN characters ch ON ch.id = cc.character_id
     JOIN campaign_session_participants p ON p.session_id = ? AND p.user_id = ch.owner_user_id
     WHERE cc.campaign_id = ? AND ch.public_id = ?`)
-    .bind(sessionId, campaignId, characterPublicId).first<{ id: string }>();
+    .bind(sessionId, campaignId, characterPublicId).first<{ id: string; data: string | null }>();
   if (!character) throw new CampaignServiceError("Only a linked session participant can join the encounter.", 422);
-  return character;
+  let alertPriority = false;
+  try {
+    const data = JSON.parse(character.data || "{}") as { focusPicks?: { name?: string; level?: number }[] };
+    alertPriority = Array.isArray(data.focusPicks) && data.focusPicks.some(pick => pick?.name === "Alert" && pick.level === 2);
+  } catch { /* Malformed legacy character data must not block adding a PC. */ }
+  return { id: character.id, alertPriority };
 }
 
 export async function authorizeLiveSessionRoll(

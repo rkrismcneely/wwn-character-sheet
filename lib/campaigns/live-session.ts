@@ -30,6 +30,7 @@ export interface CampaignEncounterPc {
   kind: "pc";
   characterId: string;
   initiative: number;
+  alertPriority?: boolean;
 }
 
 export interface CampaignEncounterNpc {
@@ -37,6 +38,7 @@ export interface CampaignEncounterNpc {
   kind: "npc";
   name: string;
   initiative: number;
+  alertPriority?: boolean;
   hpCurrent: number;
   hpMax?: number;
   armorClass?: number;
@@ -120,7 +122,7 @@ export interface CampaignLiveSessionState {
 
 export function memberEncounterProjection(encounter: CampaignEncounter | null): CampaignEncounter | null {
   if (!encounter) return null;
-  return { ...encounter, combatants: encounter.combatants.map(combatant => combatant.kind === "pc" ? combatant : { id: combatant.id, kind: combatant.kind, name: combatant.name, initiative: combatant.initiative, hpCurrent: combatant.hpCurrent, friendly: combatant.friendly }) };
+  return { ...encounter, combatants: encounter.combatants.map(combatant => combatant.kind === "pc" ? combatant : { id: combatant.id, kind: combatant.kind, name: combatant.name, initiative: combatant.initiative, alertPriority: combatant.alertPriority, hpCurrent: combatant.hpCurrent, friendly: combatant.friendly }) };
 }
 
 export type CampaignLiveSessionEvent =

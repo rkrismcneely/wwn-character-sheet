@@ -103,6 +103,11 @@ export function missingArtPrerequisite(
   return required.find((name) => !selected.has(name)) || "";
 }
 
+/** Scene/day commitments refresh after a night's rest; indefinite commitments remain until released. */
+export function artEffortRestRecovers(description: string): boolean {
+  return /commit(?:s|ted)?\\s+(?:one(?:\\s+point\\s+of)?\\s+)?effort\\s+for\\s+the\\s+(?:scene|day)\\b/i.test(description);
+}
+
 export function artEffortCommitmentCount(value: unknown) {
   if (value === true) return 1;
   if (value === false || value === null || value === undefined) return 0;

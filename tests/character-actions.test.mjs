@@ -76,3 +76,11 @@ test("Situational Focus Abilities appears below Foci in the same character-sheet
   const skills = source.indexOf('<div className="stack skills-column">');
   assert.ok(weapons >= 0 && foci > weapons && situational > foci && skills > situational);
 });
+
+test("Frail checkbox shares the Strain maximum grid cell", async () => {
+  const sheet = await readFile("app/character-sheet.tsx", "utf8");
+  const css = await readFile("app/globals.css", "utf8");
+  assert.match(sheet, /className="strain-max-frail"/u);
+  assert.match(sheet, /className="strain-frail-toggle"/u);
+  assert.match(css, /\.vitals \.strain-max-frail\{display:grid;grid-template-columns:minmax\(0,1fr\) auto/u);
+});

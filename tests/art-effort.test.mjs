@@ -49,8 +49,8 @@ test("character sheet uses counted Art Effort instead of a checkbox", async () =
     sheet,
     /type="checkbox" checked=\{Boolean\(sheet\.artEffort\[i\]\)\}/u,
   );
-  assert.match(sheet, /const effort = artEffortTotal\(sheet\.artEffort\)/u);
-  assert.match(sheet, /artEffort: current\.artPicks\.map\(\(\) => 0\)/u);
+  assert.match(sheet, /const effort = artEffortTotal\(recoverableArtEffort\)/u);
+  assert.match(sheet, /artEffort: current\.artPicks\.map\(\(name, index\) =>/u);
 });
 
 test("Art commitment controls obey the tradition pool and keep release available", async () => {

@@ -74,7 +74,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, artEffortCommitmentCount, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -2002,7 +2002,11 @@ export default function Home({
     const healing = Math.max(0, Math.min(sheet.level || 0, calculatedHpMax - sheet.hpCurrent));
     const strainRecovery = sheet.strainCurrent > 0 ? 1 : 0;
     const castings = sheet.spellPicks.reduce((total, pick) => total + spellCastCount(pick), 0);
-    const effort = artEffortTotal(sheet.artEffort);
+    const recoverableArtEffort = sheet.artPicks.map((name, index) =>
+      artEffortRestRecovers(creationArtForSelection(availableArts, name)?.text || "")
+        ? artEffortCommitmentCount(sheet.artEffort[index]) : 0);
+    const effort = artEffortTotal(recoverableArtEffort);
+    const sustainedEffort = artEffortTotal(sheet.artEffort) - effort;
     const familiarRefreshes = [...sheet.companions, ...sheet.archivedCompanions]
       .filter(companion => companion.kind === "familiar" && companion.effortRefreshUsed)
       .length;
@@ -2010,7 +2014,8 @@ export default function Home({
       healing ? `heal ${healing} HP` : "restore no HP",
       strainRecovery ? "remove 1 System Strain" : "remove no System Strain",
       castings ? `restore ${castings} spell casting${castings === 1 ? "" : "s"}` : "restore no spent spell castings",
-      effort ? `clear ${effort} committed Effort` : "clear no committed Effort",
+      effort ? `recover ${effort} scene/day Effort` : "recover no scene/day Art Effort",
+      sustainedEffort ? `keep ${sustainedEffort} ongoing Art Effort committed` : "",
       familiarRefreshes ? "reset the Spirit Familiar’s daily Effort refresh" : "",
     ].filter(Boolean).join(", ");
     if (!window.confirm(`Take a good night's rest?\n\nThis will ${details}. Prepared spells and other character details will not change.`)) return;
@@ -2023,12 +2028,14 @@ export default function Home({
       hpCurrent: Math.min(calculatedHpMax, current.hpCurrent + Math.max(0, current.level || 0)),
       strainCurrent: Math.max(0, current.strainCurrent - 1),
       spellPicks: current.spellPicks.map(pick => ({ ...pick, cast: false, casts: 0 })),
-      artEffort: current.artPicks.map(() => 0),
+      artEffort: current.artPicks.map((name, index) =>
+        artEffortRestRecovers(creationArtForSelection(availableArts, name)?.text || "")
+          ? 0 : artEffortCommitmentCount(current.artEffort[index])),
       effortUsed: 0,
       companions: current.companions.map(resetFamiliarRefresh),
       archivedCompanions: current.archivedCompanions.map(resetFamiliarRefresh),
     }));
-    setTransferMessage("Rest complete: nightly healing, System Strain, spell castings, committed Effort, and daily familiar refreshes have been updated.");
+    setTransferMessage("Rest complete: HP, System Strain, spell castings, scene/day Art Effort, and familiar refreshes updated. Sustained Art Effort remains committed until released.");
   }
 
   async function refreshLibrary(scope = libraryScope, query = libraryQuery) {
@@ -4218,7 +4225,7 @@ export default function Home({
             </div>
           </Section>}
           <Section title="Arts" buildControlled aside={<span className="caption">{artTraditions.join(" + ")} · {sheet.artPicks.filter(Boolean).length}/{artAllowance} available by level {sheet.level}</span>}>
-            <p className="section-intro">Press Commit each time an Art commits one point of Effort. The same Art can hold multiple commitments. Release one when that commitment ends under the Art’s rules, or to undo a mistaken click; a good night’s rest clears all remaining commitments.</p>
+            <p className="section-intro">Press Commit each time an Art commits one point of Effort. The same Art can hold multiple commitments. Release one when that commitment ends under the Art’s rules, or to undo a mistaken click; a good night’s rest restores scene/day commitments but preserves ongoing commitments until you release them.</p>
             <div className="arts-grid">{sheet.artPicks.map((name, i) => {
               const art = creationArtForSelection(availableArts, name);
               const requiredArt = forcedArts[i];

@@ -2634,6 +2634,18 @@ export default function Home({
       total + Math.max(0, skillRankCost(effectiveValues[skill]) - skillRankCost(minimumSkillRanks[skill])), 0);
     return { spent: Math.max(0, gross - freePickValue), freePickSkill, effectiveValues };
   };
+  // Quick Learner's extra Expert point cannot be spent on Punch, Shoot, or Stab.
+  const combatSkillSpending = (values: Record<string, number>) => {
+    const plan = calculateSkillSpending(values);
+    const gross = combatSkills.reduce((total, skill) => {
+      const rank = skillProfile(skill, values).granted;
+      return total + Math.max(0, skillRankCost(rank) - skillRankCost(minimumSkillRanks[skill]));
+    }, 0);
+    return Math.max(0, gross - (combatSkills.some(skill => skill === plan.freePickSkill) ? skillRankCost(0) : 0));
+  };
+  const combatSkillBudget = Math.max(0, effectiveLevel - 1) * 3;
+  const exceedsCombatSkillBudget = (values: Record<string, number>) =>
+    selectedClasses.includes("Expert") && combatSkillSpending(values) > combatSkillBudget;
   const skillSpending = calculateSkillSpending(sheet.skillPurchases);
   const attributeBoostCount = attributes.reduce((total, attribute) => total + sheet.attributeBoosts[attribute], 0);
   const attributeBoostCost = attributeImprovementCostForCount(attributeBoostCount);
@@ -4134,7 +4146,7 @@ export default function Home({
                     const plan = calculateSkillSpending(nextPurchases);
                     const nextProfile = skillProfile(skill, nextPurchases);
                     if (nextProfile.granted !== selectedRank || nextProfile.granted < minimumSelectable) return;
-                    if (plan.spent > availableSkillPoints && nextProfile.granted > skillProfile(skill).granted) return;
+                    if ((plan.spent > availableSkillPoints || exceedsCombatSkillBudget(nextPurchases)) && nextProfile.granted > skillProfile(skill).granted) return;
                     patch("skillPurchases", nextPurchases);
                   }}>
                     {[-1,0,1,2,3,4].map(n => {
@@ -4145,7 +4157,7 @@ export default function Home({
                       const disabled = n < minimumSelectable ||
                         nextProfile.granted !== n ||
                         (nextProfile.granted > legalCap && nextProfile.granted > profile.granted) ||
-                        (plan.spent > availableSkillPoints && nextProfile.granted > profile.granted);
+                        ((plan.spent > availableSkillPoints || exceedsCombatSkillBudget(nextPurchases)) && nextProfile.granted > profile.granted);
                       return <option key={n} value={n} disabled={disabled}>{n < 0 ? "Untrained" : `+${n}`}</option>;
                     })}
                   </select></label><button type="button" className="roll-affordance" data-readonly-interactive="true" disabled={virtualDiceBusy} aria-busy={virtualDiceBusy || undefined} aria-expanded={skillRollChooser === skill} onClick={() => { setSkillRollChooser(current => current === skill ? null : skill); setSniperEyeContext(false); setDiplomacyContext(false); }}>Roll</button>{skillRollChooser === skill && <div className="skill-roll-chooser" data-readonly-interactive="true" role="group" aria-label={`Choose an attribute for ${skill}`}><span>Roll with</span>{selectedFocusPicks.some(pick => pick.name === "Diplomatic Grace") && <label className="skill-context-option"><input type="checkbox" checked={diplomacyContext} onChange={event => setDiplomacyContext(event.target.checked)} /> Negotiation or diplomacy (Diplomatic Grace: reroll each die showing 1 once)</label>}{skill === "Shoot" && selectedFocusPicks.some(pick => pick.name === "Sniper’s Eye") && <label className="skill-context-option"><input type="checkbox" checked={sniperEyeContext} onChange={event => setSniperEyeContext(event.target.checked)} /> Ranged execution or target shooting (Sniper’s Eye: 3d6, keep highest 2)</label>}<div className="skill-roll-options">{attributes.map(attribute => <button type="button" key={attribute} disabled={virtualDiceBusy} onClick={() => rollSkillCheck(skill, attribute)}>{attribute} {signed(attributeMod(attribute))}</button>)}</div></div>}</div>;

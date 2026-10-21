@@ -2,6 +2,7 @@ name: Deploy Production
 
 # Cloudflare Git Integration is the normal automatic production deployment path.
 # Manual fallback, plus a one-time deploy when this workflow itself is updated on main.
+# Release trigger: PRs #362 and #363, Expert advancement rules and copy cleanup.
 # Release trigger: PR #361 compact Strain maximum and Frail layout.
 # Ordinary source pushes remain owned by Cloudflare Git Integration, avoiding duplicate deployments.
 on:

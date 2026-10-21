@@ -3917,7 +3917,7 @@ export default function Home({
                   : sheet.level ? "Complete every level’s roll to calculate maximum HP automatically. Until then, the existing maximum remains editable." : "Choose a level to enter Hit Point rolls."}</p>
               </div>
             </Section>
-            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
+            {(selectedFocusPicks.some(pick => ["Poisoner", "Die Hard", "Nullifier", "Lucky", "Close Combatant", "Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker"].includes(pick.name))) && <Section title="Situational Focus Abilities" aside={<span className="caption">GM-confirmed conditions · manual tracking</span>}>
               <div className="whirlwind-focus-controls" role="group" aria-label="Situational Focus abilities">
                 <button type="button" onClick={resetFocusAbilities}>Reset tracked uses (new day / session / week as applicable)</button>
                 {selectedFocusPicks.some(pick => pick.name === "Poisoner") && <div>
@@ -3942,6 +3942,33 @@ export default function Home({
                   <p>Once per week, avert a blow or effect that would kill, mortally wound, or render you helpless. For games of chance, roll twice and use the better result.</p>
                   <button type="button" disabled={Boolean(focusAbilityUsed["Lucky survival"])} onClick={() => markFocusAbility("Lucky survival")}>{focusAbilityUsed["Lucky survival"] ? "Weekly escape used" : "Mark weekly escape used"}</button>
                   {selectedFocusPicks.some(pick => pick.name === "Lucky" && pick.level === 2) && <><p>Once per game session when in need or peril, roll 1d6: on 2–6 something helpful happens; on 1 matters get worse. GM interprets the result.</p><button type="button" disabled={virtualDiceBusy || Boolean(focusAbilityUsed["Lucky fortune"])} onClick={() => { markFocusAbility("Lucky fortune"); void completeRoll({ category: "generic", character: rollCharacter(), label: "Lucky 2 — Fortune (2–6 helpful; 1 worse)", dice: { count: 1, sides: 6 }, modifiers: [] }); }}>{focusAbilityUsed["Lucky fortune"] ? "Session fortune used" : "Roll Fortune (1d6)"}</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Gifted Chirurgeon") && <div>
+                  <strong>Gifted Chirurgeon</strong>
+                  <p>Stabilize one adjacent Mortally Wounded creature per round as an On Turn action. Heal skill checks use 3d6, keep the best two; first aid after battle heals twice the usual HP.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Gifted Chirurgeon" && pick.level === 2) && <><p>As a Main Action heal an adjacent wounded ally for 1d6 + Heal skill. This causes 1 System Strain; it cannot heal a target already at maximum System Strain.</p><button type="button" disabled={virtualDiceBusy} onClick={() => void completeRoll({ category: "generic", character: rollCharacter(), label: "Gifted Chirurgeon 2 — healing (add 1 System Strain to target)", dice: { count: 1, sides: 6 }, modifiers: [{ label: "Heal skill", value: skillProfile("Heal").effective }] })}>Roll Curative Healing</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Trapmaster") && <div>
+                  <strong>Trapmaster</strong>
+                  <p>Once per scene, reroll a failed save or skill check involving traps. You can maintain one improvised trap at a time; dangerous traps inflict 1d6 + twice your level and allow a save for half.</p>
+                  <button type="button" disabled={virtualDiceBusy} onClick={() => void completeRoll({ category: "damage", character: rollCharacter(), label: "Trapmaster — improvised hazard (save for half)", dice: { count: 1, sides: 6 }, modifiers: [{ label: "Twice level", value: sheet.level * 2 }] })}>Roll Trap Damage</button>
+                  {selectedFocusPicks.some(pick => pick.name === "Trapmaster" && pick.level === 2) && <small>Level 2: Can attempt to unravel magical traps and arcane hazards. Consult the Focus description for conditions.</small>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Rider") && <div>
+                  <strong>Rider</strong>
+                  <p>Steeds have Morale 12, may use your AC if higher, and travel 50% farther each day. At level 2 you can communicate telepathically with your bonded steed within 200 feet.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Rider" && pick.level === 2) && <><p>Once per scene, negate a successful attack against your steed as an Instant action; this is separate from the once-per-scene Ride check reroll.</p><button type="button" disabled={Boolean(focusAbilityUsed["Rider negate"])} onClick={() => markFocusAbility("Rider negate")}>{focusAbilityUsed["Rider negate"] ? "Steed protection used this scene" : "Mark steed attack negated"}</button><button type="button" onClick={() => setFocusAbilityUsed(current => ({ ...current, "Rider negate": false }))}>New Rider scene</button></>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Authority") && <div>
+                  <strong>Authority</strong>
+                  <p>Once per day request cooperation from a non-hostile NPC using Cha/Lead against their Morale. A request cannot be extremely uncharacteristic or significantly harmful.</p>
+                  <button type="button" disabled={Boolean(focusAbilityUsed["Authority request"])} onClick={() => markFocusAbility("Authority request")}>{focusAbilityUsed["Authority request"] ? "Daily request used" : "Mark daily request used"}</button>
+                  {selectedFocusPicks.some(pick => pick.name === "Authority" && pick.level === 2) && <small>Level 2: Directly led NPC followers gain Morale and hit bonuses equal to your Lead skill, plus +1 to skill checks. This does not affect PCs.</small>}
+                </div>}
+                {selectedFocusPicks.some(pick => pick.name === "Dealmaker") && <div>
+                  <strong>Dealmaker</strong>
+                  <p>Find available buyers and sellers with half an hour of effort, subject to GM adjudication.</p>
+                  {selectedFocusPicks.some(pick => pick.name === "Dealmaker" && pick.level === 2) && <><p>Once per session, make a comprehensible request of someone not currently trying to kill you; a plausible bargain is offered for a price or favor.</p><button type="button" disabled={Boolean(focusAbilityUsed["Dealmaker bargain"])} onClick={() => markFocusAbility("Dealmaker bargain")}>{focusAbilityUsed["Dealmaker bargain"] ? "Session bargain used" : "Mark session bargain used"}</button></>}
                 </div>}
                 {selectedFocusPicks.some(pick => pick.name === "Close Combatant") && <div>
                   <strong>Close Combatant</strong>

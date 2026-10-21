@@ -509,3 +509,17 @@ test("situational Focus actions keep context-sensitive exceptions explicit", () 
   assert.match(sheetSource, /Roll Fortune \(1d6\)/u);
   assert.match(sheetSource, /Fighting Withdrawal as an On Turn action/u);
 });
+
+
+test("support Focus batch exposes circumstance-aware combat and social abilities", () => {
+  for (const focus of ["Gifted Chirurgeon", "Trapmaster", "Rider", "Authority", "Dealmaker"]) {
+    assert.match(sheetSource, new RegExp(`<strong>${focus}</strong>`));
+  }
+  assert.match(sheetSource, /Roll Curative Healing/u);
+  assert.match(sheetSource, /skillProfile\("Heal"\)\.effective/u);
+  assert.match(sheetSource, /Roll Trap Damage/u);
+  assert.match(sheetSource, /sheet\.level \* 2/u);
+  assert.match(sheetSource, /Mark steed attack negated/u);
+  assert.match(sheetSource, /Mark daily request used/u);
+  assert.match(sheetSource, /Mark session bargain used/u);
+});

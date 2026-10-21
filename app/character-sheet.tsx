@@ -3217,7 +3217,7 @@ export default function Home({
       });
       return { w, skillName: "Punch", range: "-", virtual: true, ...result };
     }
-    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye && (w.range !== "-" || isThrown) ? (deadeye.level === 2 ? 0 : -4) : 0;
+    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye ? (deadeye.level === 2 ? 0 : -4) : 0;
     const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
     const extraDamage = attrMod + warriorDamage + Math.max(armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {
@@ -4036,7 +4036,7 @@ export default function Home({
                   <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
                 </div>}
               </div>}
-              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Enemy is within melee range (Deadeye: −4 to applicable ranged attacks at level 1; no penalty at level 2)</label>}
+              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Bow or two-handed ranged weapon used with an enemy in melee range (Deadeye level 1: −4; level 2: no penalty)</label>}
               <div className="weapon-list">
                 {displayedWeapons.map(({ name, inventoryIndex }) => {
                   const pick = { name, skill: -1 };

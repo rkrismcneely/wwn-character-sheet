@@ -50,3 +50,13 @@ test("Frail characters do not recover hit points from ordinary rest", async () =
   assert.match(rest, /Frail characters cannot heal naturally/u);
   assert.match(rest, /strainCurrent: Math\.max\(0, current\.strainCurrent - 1\)/u);
 });
+
+test("first aid uses Heal rank and explicitly handles target Strain and Frailty", async () => {
+  const source = await readFile("app/character-sheet.tsx", "utf8");
+  assert.match(source, /Roll First Aid \(1d6 \+ Heal\)/u);
+  assert.match(source, /label: "First Aid — apply 1 System Strain to patient \(do not remove Frailty\)"/u);
+  assert.match(source, /dice: \{ count: 1, sides: 6 \}/u);
+  assert.match(source, /"Heal skill", value: skillProfile\("Heal"\)\.effective/u);
+  assert.match(source, /Gifted Chirurgeon: first aid after battle restores twice the rolled total/u);
+  assert.match(source, /no first aid is possible if the patient is at maximum Strain/u);
+});

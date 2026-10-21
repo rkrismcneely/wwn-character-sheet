@@ -574,3 +574,9 @@ test("versatile thrown weapons use player-selected attack mode and melee-only Sh
   assert.match(sheetSource, /const shock = !isMelee \|\| w\.shock === "None" \? "None"/u);
   assert.match(sheetSource, /Throw versatile weapons instead of striking in melee/u);
 });
+
+
+test("custom campaign versatile weapons honor explicit thrown versus melee skill", () => {
+  assert.match(sheetSource, /isThrownWeapon && w\.range !== "-" \? \(isMelee \? "Stab" : "Shoot"\) : campaignWeapon\?\.skill/u);
+  assert.match(sheetSource, /Only melee use permits Shock/u);
+});

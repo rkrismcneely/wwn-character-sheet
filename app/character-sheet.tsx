@@ -2001,7 +2001,7 @@ export default function Home({
   }
 
   function takeRest() {
-    const healing = Math.max(0, Math.min(sheet.level || 0, calculatedHpMax - sheet.hpCurrent));
+    const healing = sheet.frail ? 0 : Math.max(0, Math.min(sheet.level || 0, calculatedHpMax - sheet.hpCurrent));
     const strainRecovery = sheet.strainCurrent > 0 ? 1 : 0;
     const castings = sheet.spellPicks.reduce((total, pick) => total + spellCastCount(pick), 0);
     const recoverableArtEffort = sheet.artPicks.map((name, index) =>
@@ -2013,7 +2013,7 @@ export default function Home({
       .filter(companion => companion.kind === "familiar" && companion.effortRefreshUsed)
       .length;
     const details = [
-      healing ? `heal ${healing} HP` : "restore no HP",
+      healing ? `heal ${healing} HP` : sheet.frail ? "restore no HP (Frail characters cannot heal naturally)" : "restore no HP",
       strainRecovery ? "remove 1 System Strain" : "remove no System Strain",
       castings ? `restore ${castings} spell casting${castings === 1 ? "" : "s"}` : "restore no spent spell castings",
       effort ? `recover ${effort} scene/day Effort` : "recover no scene/day Art Effort",
@@ -2027,7 +2027,7 @@ export default function Home({
         : companion;
     setSheet(current => ({
       ...current,
-      hpCurrent: Math.min(calculatedHpMax, current.hpCurrent + Math.max(0, current.level || 0)),
+      hpCurrent: Math.min(calculatedHpMax, current.hpCurrent + (current.frail ? 0 : Math.max(0, current.level || 0))),
       strainCurrent: Math.max(0, current.strainCurrent - 1),
       spellPicks: current.spellPicks.map(pick => ({ ...pick, cast: false, casts: 0 })),
       artEffort: current.artPicks.map((name, index) =>

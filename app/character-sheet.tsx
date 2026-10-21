@@ -3895,6 +3895,12 @@ export default function Home({
                 <StepperField label="HP current" value={sheet.hpCurrent} minimum={0} maximum={calculatedHpMax} onChange={value => patch("hpCurrent", value)} />
                 <label className="field calculated-field"><span>HP maximum</span><input type="number" value={calculatedHpMax || ""} disabled={hpRollsComplete} onChange={e => patch("hpMax", Number(e.target.value))} /></label>
                 <label className="skill-context-option"><input type="checkbox" checked={sheet.frail} onChange={event => patch("frail", event.target.checked)} /> Frail (after stabilization from mortal injury; clear only when the WWN recovery requirements are met)</label>
+                <details className="whirlwind-focus-controls">
+                  <summary>Stabilization and Frailty recovery rules</summary>
+                  <p>A Mortally Wounded character dies at the end of the sixth round after falling. Stabilization requires a Main Action and an Int/Heal or Dex/Heal check at difficulty 8 plus the number of full rounds since they fell (+2 without a healer’s kit or suitable implements). Only one person may attempt stabilization per round, but others may aid.</p>
+                  <p>After successful stabilization, the patient remains incapacitated for ten minutes, then regains 1 HP and becomes Frail. A Frail character reduced to 0 HP again dies immediately.</p>
+                  <p>Frailty can be removed after a week of bed rest with medical care and a healer’s kit. Alternatively, a physician gets one attempt with an hour of work and an Int/Heal or Dex/Heal check at difficulty 10. Clear the Frail checkbox only after one of these conditions is satisfied.</p>
+                </details>
                 <div className="whirlwind-focus-controls" role="group" aria-label="WWN first aid">
                   <strong>First Aid</strong>
                   <p>After one minute with a healer’s kit, heal a patient for 1d6 + your Heal skill (1d6−1 if untrained). Each application adds 1 System Strain to the patient; no first aid is possible if the patient is at maximum Strain. First aid can heal a Frail patient but does not remove Frailty.</p>

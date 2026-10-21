@@ -93,7 +93,7 @@ export function advancementSkillCreditBySkill(
     AdvancementCharacter,
     "focusPicks" | "classMode" | "classOne" | "classTwo"
   >,
-  skillAtCap: (skill: string) => boolean = () => false,
+  skillAtCap: (skill: string, priorCredits: Readonly<Record<string, number>>) => boolean = () => false,
 ) {
   const startingFocusSelections = character.classOne
     ? classRules(
@@ -110,7 +110,7 @@ export function advancementSkillCreditBySkill(
     if (!pick.advancement) return credits;
     const skill = creationFocusBonusSkill(pick);
     if (skill) {
-      const target = skillAtCap(skill) && pick.redirectSkill && !skillAtCap(pick.redirectSkill) && creationSkills.some((candidate) => candidate === pick.redirectSkill)
+      const target = skillAtCap(skill, credits) && pick.redirectSkill && !skillAtCap(pick.redirectSkill, credits) && creationSkills.some((candidate) => candidate === pick.redirectSkill)
         ? pick.redirectSkill : skill;
       credits[target] = (credits[target] || 0) + 3;
     }

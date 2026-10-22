@@ -29,7 +29,7 @@ import {
   spiritFamiliarMaximumHitPoints,
   storedRankForDisplayedSkillRank,
 } from "../app/phase2-rules.ts";
-import { classRules, fullClasses, hitPointClassBonus, partialClasses } from "../app/class-data.ts";
+import { artSlots, casterLimits, classRules, dualCasterLimits, fullClasses, hitPointClassBonus, knownSpellSlots, partialClasses, traditionInfo } from "../app/class-data.ts";
 import { creationPartialClassPairIsLegal } from "../app/character-creation.ts";
 
 const base = (overrides = {}) => ({
@@ -627,4 +627,26 @@ test("Art Effort stays with the selected Art when an earlier Art slot is empty",
   assert.deepEqual(reconcileArtEffortBySlot(["", "Open Mind", "Pavis of Elements"], [0, 1, 2], ["Open Mind", "Pavis of Elements"]), [1, 2]);
   assert.deepEqual(reconcileArtEffortBySlot(["Skilled", "", "Skilled"], [1, 0, 2], ["Skilled", "Skilled"]), [1, 2]);
   assert.deepEqual(reconcileArtEffortBySlot(["Open Mind"], [1], ["Different Art"]), [0]);
+});
+
+
+test("legal class combinations have stable spell and Art progression across levels 1–10", () => {
+  for (const first of partialClasses) for (const second of partialClasses) {
+    if (!creationPartialClassPairIsLegal(first, second)) continue;
+    const traditions = [first, second].filter(name => name in traditionInfo);
+    const casters = traditions.filter(name => traditionInfo[name].spells);
+    let previousKnown = -1;
+    let previousArts = -1;
+    for (let level = 1; level <= 10; level++) {
+      const known = knownSpellSlots(casters, level, true);
+      const arts = traditions.reduce((total, tradition) => total + artSlots(tradition, level, true), 0);
+      const limits = casters.length > 1 ? dualCasterLimits(level) : casterLimits(level, true);
+      const context = `${first}/${second} level ${level}`;
+      assert.ok(Number.isInteger(known) && known >= previousKnown, `known spell slots: ${context}`);
+      assert.ok(Number.isInteger(arts) && arts >= previousArts, `Art slots: ${context}`);
+      assert.ok(limits.max >= 1 && limits.prepared >= 1 && limits.casts >= 1, `caster table: ${context}`);
+      previousKnown = known;
+      previousArts = arts;
+    }
+  }
 });

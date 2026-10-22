@@ -726,7 +726,7 @@ export async function placeCampaignMapCompanionToken(
   requireMapManagement(access);
   const row = requireMapBackground(await requireCampaignMap(db, access, mapIdValue));
   const companionId = identifier(companionIdValue, "Companion");
-  const companion = (await linkedCampaignCompanions(db, access.campaignInternalId))
+  const companion = (await linkedCampaignMapRoster(db, access.campaignInternalId)).companions
     .find(option => option.id === companionId);
   if (!companion) throw new CampaignServiceError("The active linked companion was not found.", 404);
   const position = defaultTokenPosition(row, await tokenCount(db, row.id));

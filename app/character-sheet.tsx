@@ -3246,7 +3246,7 @@ export default function Home({
       });
       return { w, skillName: "Punch", range: "-", virtual: true, ...result };
     }
-    const rangedMeleePenalty = rangedAttackInMeleePenalty({ ranged: !isMelee, threatened: rangedInMelee, deadeyeLevel: deadeye?.level || 0 });
+    const rangedMeleePenalty = rangedAttackInMeleePenalty({ ranged: !isMelee, threatened: rangedInMelee, deadeyeLevel: deadeye?.level || 0, closeCombatantKnife: Boolean(closeCombatant) && isThrown && /knife|dagger/i.test(w.name) });
     const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
     const extraDamage = attrMod + warriorDamage + Math.max(armsmasterToShock && isMelee && w.shock !== "None" ? 0 : armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {

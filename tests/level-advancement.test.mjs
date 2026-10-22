@@ -16,6 +16,7 @@ import {
 } from "../app/level-advancement.ts";
 import {
   deriveSkillProfile,
+  rangedAttackInMeleePenalty,
   deriveUnarmedAttack,
   hasNegativeEffectiveAttributeModifier,
   focusSelectionCost,
@@ -597,4 +598,13 @@ test("unarmed damage combines built-in and character bonuses into a rollable mod
   assert.equal(result.damage, "1d12+4");
   const negative = deriveUnarmedAttack({ baseAttack: 3, punchSkill: 4, physicalModifier: -2, warriorDamage: 0, shockingAssaultBonus: 0, shockThreshold: 15, unarmedCombatantLevel: 2 });
   assert.equal(negative.damage, "1d12-1");
+});
+
+
+test("ranged attacks in melee take -4 unless Deadeye level two applies", () => {
+  assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 0 }), -4);
+  assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 1 }), -4);
+  assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 2 }), 0);
+  assert.equal(rangedAttackInMeleePenalty({ ranged: false, threatened: true, deadeyeLevel: 0 }), 0);
+  assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: false, deadeyeLevel: 0 }), 0);
 });

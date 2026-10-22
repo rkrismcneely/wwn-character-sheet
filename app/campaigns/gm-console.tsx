@@ -214,6 +214,7 @@ function BestiaryDetail({ creature, partyLevels, quantity, activeEncounter, busy
 
 function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { campaignId: string; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
   const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(40);
   const [minHitDice, setMinHitDice] = useState("");
   const [maxHitDice, setMaxHitDice] = useState("");
   const [threatBand, setThreatBand] = useState<WwnThreatBand | "">("");
@@ -243,6 +244,9 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
     { query, minHitDice: wholeNumberOrNull(minHitDice), maxHitDice: wholeNumberOrNull(maxHitDice), partyLevels, threatBand: threatBand || null, quantity },
   ), [creatures, maxHitDice, minHitDice, partyLevels, quantity, query, threatBand]);
   const selectedCreature = selectBestiaryCreature(filteredCreatures, selectedId);
+  const visibleCreatures = filteredCreatures.slice(0, visibleCount);
+  const remainingCreatures = filteredCreatures.length - visibleCreatures.length;
+  function updateFilter(update: () => void) { setVisibleCount(40); update(); }
 
   async function runBestiaryAction(action: () => Promise<void>, fallbackMessage: string) {
     setError("");
@@ -257,16 +261,17 @@ function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, 
     {error && <p className="campaign-error" role="status">{error}</p>}
     <div className="gm-bestiary-browser" data-mobile-view={mobileView}>
       <section className="gm-bestiary-browse" aria-label="Browse built-in creatures">
-        <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name or description" /></label>
+        <label className="gm-bestiary-search"><span>Search creatures</span><input type="search" value={query} onChange={event => updateFilter(() => setQuery(event.target.value))} placeholder="Search name or description" /></label>
         <div className="gm-bestiary-filters" aria-label="Bestiary filters">
-          <label><span>Min HD</span><input aria-label="Minimum Hit Dice" type="number" min={1} max={99} inputMode="numeric" value={minHitDice} onChange={event => setMinHitDice(event.target.value)} placeholder="Any" /></label>
-          <label><span>Max HD</span><input aria-label="Maximum Hit Dice" type="number" min={1} max={99} inputMode="numeric" value={maxHitDice} onChange={event => setMaxHitDice(event.target.value)} placeholder="Any" /></label>
-          <label><span>Assumed quantity</span><input aria-label="Assumed creature quantity" type="number" min={1} max={99} inputMode="numeric" value={quantity} onChange={event => setQuantity(Math.min(99, Math.max(1, wholeNumberOrNull(event.target.value) ?? 1)))} /></label>
-          {partyScore && <label><span>Threat</span><select aria-label="Estimated threat" value={threatBand} onChange={event => setThreatBand(event.target.value as WwnThreatBand | "")}><option value="">Any</option>{wwnThreatBands.map(band => <option key={band} value={band}>{wwnThreatBandDetails[band].label}</option>)}</select></label>}
+          <label><span>Min HD</span><input aria-label="Minimum Hit Dice" type="number" min={1} max={99} inputMode="numeric" value={minHitDice} onChange={event => updateFilter(() => setMinHitDice(event.target.value))} placeholder="Any" /></label>
+          <label><span>Max HD</span><input aria-label="Maximum Hit Dice" type="number" min={1} max={99} inputMode="numeric" value={maxHitDice} onChange={event => updateFilter(() => setMaxHitDice(event.target.value))} placeholder="Any" /></label>
+          <label><span>Assumed quantity</span><input aria-label="Assumed creature quantity" type="number" min={1} max={99} inputMode="numeric" value={quantity} onChange={event => updateFilter(() => setQuantity(Math.min(99, Math.max(1, wholeNumberOrNull(event.target.value) ?? 1))))} /></label>
+          {partyScore && <label><span>Threat</span><select aria-label="Estimated threat" value={threatBand} onChange={event => updateFilter(() => setThreatBand(event.target.value as WwnThreatBand | ""))}><option value="">Any</option>{wwnThreatBands.map(band => <option key={band} value={band}>{wwnThreatBandDetails[band].label}</option>)}</select></label>}
         </div>
         {partyLoaded && !partyScore && <p className="gm-bestiary-party-unavailable">Link campaign characters to estimate encounter threat.</p>}
         <p className="gm-bestiary-result-count" role="status">{filteredCreatures.length} {filteredCreatures.length === 1 ? "creature" : "creatures"} shown · estimate assumes {quantity} {quantity === 1 ? "creature" : "creatures"}</p>
-        {!filteredCreatures.length ? <p className="campaign-empty-copy">No built-in creatures match these filters.</p> : <ul className="gm-bestiary-list">{filteredCreatures.map(creature => <BestiaryBrowseItem key={creature.id} creature={creature} selected={selectedCreature?.id === creature.id} onSelect={() => selectCreature(creature.id)} />)}</ul>}
+        {!filteredCreatures.length ? <p className="campaign-empty-copy">No built-in creatures match these filters.</p> : <ul className="gm-bestiary-list">{visibleCreatures.map(creature => <BestiaryBrowseItem key={creature.id} creature={creature} selected={selectedCreature?.id === creature.id} onSelect={() => selectCreature(creature.id)} />)}</ul>}
+        {remainingCreatures > 0 && <button type="button" className="campaign-secondary" onClick={() => setVisibleCount(count => count + 40)}>Show more creatures ({remainingCreatures} remaining)</button>}
       </section>
       <BestiaryDetail creature={selectedCreature} partyLevels={partyLevels} quantity={quantity} activeEncounter={activeEncounter} busy={busy} onBack={() => setMobileView("browse")} onAddToEncounter={bestiaryId => runBestiaryAction(() => onAddToEncounter(bestiaryId), "The built-in creature could not be added to the encounter.")} onSaveAsNpc={bestiaryId => runBestiaryAction(() => onSaveAsNpc(bestiaryId), "The campaign NPC template could not be created.")} />
     </div>

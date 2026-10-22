@@ -1,5 +1,5 @@
 import { canManageCampaignContent } from "./authorization.ts";
-import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
+import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign, type AuthorizedCampaignAccess } from "./service.ts";
 import type { CampaignActor, CampaignResourceType } from "./types.ts";
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
 
@@ -108,9 +108,10 @@ export async function listCampaignResources(
   db: D1Database,
   actor: CampaignActor | null,
   publicId: string,
+  authorizedAccess?: AuthorizedCampaignAccess,
 ): Promise<CampaignResourcePayload[]> {
   if (!actor) throw new CampaignServiceError("Sign in is required.", 401);
-  const { campaign } = await loadCampaignAccess(db, actor, publicId);
+  const { campaign } = authorizedAccess ?? await loadCampaignAccess(db, actor, publicId);
   const rows = await listRows(db, campaign.id);
   return Promise.all(rows.map((row) => toPayload(campaign.publicId, row)));
 }

@@ -138,8 +138,8 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     window.addEventListener(campaignMapChangedEvent, onLocal);
     const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`twe:campaign-map:${campaignId}`) : null;
     if (channel) channel.onmessage = event => {
-      const msg = event.data as { type?: unknown; campaignId?: unknown } | null;
-      if (msg?.type === "map-changed" && msg.campaignId === campaignId) refresh();
+      const msg = event.data as { type?: unknown; campaignId?: unknown; scope?: unknown } | null;
+      if (msg?.type === "map-changed" && msg.campaignId === campaignId && msg.scope !== "tokens") refresh();
     };
     return () => {
       if (timer !== null) window.clearTimeout(timer);

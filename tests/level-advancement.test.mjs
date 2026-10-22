@@ -16,6 +16,7 @@ import {
 } from "../app/level-advancement.ts";
 import {
   deriveSkillProfile,
+  deriveUnarmedAttack,
   hasNegativeEffectiveAttributeModifier,
   focusSelectionCost,
   inferFocusAdvancementFlags,
@@ -588,4 +589,12 @@ test("Lucky eligibility uses effective modifiers, including Focus-granted change
   assert.equal(hasNegativeEffectiveAttributeModifier(a => scores[a], [{ name: "Xenoblooded", choice: "STR +1 / DEX -1" }]), true);
   assert.equal(legalAdvancementFocuses(base({ attrs: scores, focusPicks: [{ name: "Developed Attribute", level: 1, choice: "DEX" }] })).some(f => f.name === "Lucky"), false);
   assert.equal(legalAdvancementFocuses(base({ attrs: { ...scores, DEX: 10 }, focusPicks: [{ name: "Xenoblooded", level: 1, choice: "STR +1 / DEX -1" }] })).some(f => f.name === "Lucky"), true);
+});
+
+
+test("unarmed damage combines built-in and character bonuses into a rollable modifier", () => {
+  const result = deriveUnarmedAttack({ baseAttack: 3, punchSkill: 4, physicalModifier: 2, warriorDamage: 1, shockingAssaultBonus: 0, shockThreshold: 15, unarmedCombatantLevel: 2 });
+  assert.equal(result.damage, "1d12+4");
+  const negative = deriveUnarmedAttack({ baseAttack: 3, punchSkill: 4, physicalModifier: -2, warriorDamage: 0, shockingAssaultBonus: 0, shockThreshold: 15, unarmedCombatantLevel: 2 });
+  assert.equal(negative.damage, "1d12-1");
 });

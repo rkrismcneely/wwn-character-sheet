@@ -27,8 +27,9 @@ export function rangedAttackInMeleePenalty({ ranged, threatened, deadeyeLevel }:
   ranged: boolean;
   threatened: boolean;
   deadeyeLevel: number;
+  closeCombatantKnife?: boolean;
 }) {
-  return ranged && threatened && deadeyeLevel < 2 ? -4 : 0;
+  return ranged && threatened && deadeyeLevel < 2 && !closeCombatantKnife ? -4 : 0;
 }
 
 export function focusIsRepeatable(focusName: string) {

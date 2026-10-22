@@ -23,6 +23,14 @@ export function hasNegativeEffectiveAttributeModifier(
   });
 }
 
+export function rangedAttackInMeleePenalty({ ranged, threatened, deadeyeLevel }: {
+  ranged: boolean;
+  threatened: boolean;
+  deadeyeLevel: number;
+}) {
+  return ranged && threatened && deadeyeLevel < 2 ? -4 : 0;
+}
+
 export function focusIsRepeatable(focusName: string) {
   return ["Developed Attribute", "Specialist", "Spirit Familiar"].includes(focusName);
 }

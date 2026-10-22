@@ -333,7 +333,11 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
     const current = draftRef.current;
     if (!current || current.mapId !== mapId || current.pointerId !== event.pointerId || !width || !height) return false;
     const point = pointFromEvent(event.currentTarget, event.nativeEvent, width, height); if (!point) return true;
-    event.preventDefault(); let points = current.points;
+    // SVG coordinates are rounded to 0.01 units. Duplicate pointer events at
+    // the same position cannot change the preview and need no React update.
+    event.preventDefault();
+    if (point.x === current.latest.x && point.y === current.latest.y) return true;
+    let points = current.points;
     if (current.kind === "freehand" && points.length < 400 && distance(points.at(-1) ?? current.start, point) >= 2) points = [...points, point];
     setDraft({ ...current, latest: point, points }); return true;
   }, [height, mapId, setDraft, width]);

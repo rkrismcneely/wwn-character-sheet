@@ -261,6 +261,8 @@ export async function loadCampaignAccess(
   return { campaign, membership };
 }
 
+export type AuthorizedCampaignAccess = Awaited<ReturnType<typeof loadCampaignAccess>>;
+
 export async function createCampaign(
   db: D1Database,
   actor: CampaignActor | null,
@@ -352,9 +354,10 @@ export async function readCampaign(
   db: D1Database,
   actor: CampaignActor | null,
   publicId: string,
+  authorizedAccess?: AuthorizedCampaignAccess,
 ): Promise<CampaignPayload> {
   const authenticatedActor = requireActor(actor);
-  const { campaign, membership } = await loadCampaignAccess(
+  const { campaign, membership } = authorizedAccess ?? await loadCampaignAccess(
     db,
     authenticatedActor,
     publicId,
@@ -366,9 +369,10 @@ export async function listCampaignMembers(
   db: D1Database,
   actor: CampaignActor | null,
   publicId: string,
+  authorizedAccess?: AuthorizedCampaignAccess,
 ): Promise<CampaignMemberPayload[]> {
   const authenticatedActor = requireActor(actor);
-  const { campaign } = await loadCampaignAccess(
+  const { campaign } = authorizedAccess ?? await loadCampaignAccess(
     db,
     authenticatedActor,
     publicId,

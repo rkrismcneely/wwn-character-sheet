@@ -518,9 +518,21 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
   }
 
   const canManageEncounter = state.permissions.canManageEncounter;
-  const sharedHistory = session?.recentRolls ?? [];
-  const gmHistory = [...privateGmRolls, ...sharedHistory].sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp)).slice(0, 100);
-  const latestRoll = [pendingLatestRoll, gmHistory[0]].filter((roll): roll is RollResult => Boolean(roll)).sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0] || null;
+  // Campaign live-session updates can be frequent. Only re-sort roll history
+  // when the roll collections actually change, not on each unrelated UI update.
+  const sharedHistory = session?.recentRolls;
+  const gmHistory = useMemo(
+    () => [...privateGmRolls, ...(sharedHistory ?? [])]
+      .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
+      .slice(0, 100),
+    [privateGmRolls, sharedHistory],
+  );
+  const latestRoll = useMemo(() => {
+    const newest = gmHistory[0];
+    if (!pendingLatestRoll) return newest ?? null;
+    if (!newest) return pendingLatestRoll;
+    return Date.parse(pendingLatestRoll.timestamp) >= Date.parse(newest.timestamp) ? pendingLatestRoll : newest;
+  }, [pendingLatestRoll, gmHistory]);
   return <div className={embedded ? "gm-console-embedded" : "campaign-shell gm-console-shell"}>
     {!embedded && <SignedInHeader active="campaigns" />}
     <section className="campaign-hero gm-console-hero">

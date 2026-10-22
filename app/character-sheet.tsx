@@ -3960,7 +3960,7 @@ export default function Home({
                   <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
                 </div>}
               </div>}
-              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Bow or two-handed ranged weapon used with an enemy in melee range (Deadeye level 1: −4; level 2: no penalty)</label>}
+              <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Ranged attack while engaged in melee (bows and two-handed ranged weapons require Deadeye)</label>
               {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
               <label className="skill-context-option"><input type="checkbox" checked={preferThrownMode} onChange={event => setPreferThrownMode(event.target.checked)} /> Throw versatile weapons instead of striking in melee (Shoot skill; no melee Shock)</label>
               <div className="weapon-list">

@@ -82,7 +82,7 @@ test("campaign map foundation supports a private GM map library with one player-
   assert.match(launcher, /patternUnits="userSpaceOnUse"/u);
   assert.match(launcher, /Save display options/u);
   assert.match(launcher, /onClick=\{\(\) => void saveGrid\(\)\}/u);
-  assert.match(campaignPage, /CampaignMapLauncher/u);
+  assert.match(campaignPage, /CampaignMapLazyLauncher/u);
   assert.match(gmPage, /CampaignMapLauncher/u);
   assert.match(characterPage, /CampaignMapLauncher/u);
   assert.match(css, /campaign-map-library-list/u);

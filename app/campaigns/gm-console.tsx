@@ -212,29 +212,12 @@ function BestiaryDetail({ creature, partyLevels, quantity, activeEncounter, busy
   </section>;
 }
 
-function BuiltInBestiary({ campaignId, activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { campaignId: string; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
+function BuiltInBestiary({ partyLevels, partyLoaded, activeEncounter, busy, onAddToEncounter, onSaveAsNpc }: { partyLevels: readonly unknown[]; partyLoaded: boolean; activeEncounter: boolean; busy: boolean; onAddToEncounter: (bestiaryId: string) => Promise<void>; onSaveAsNpc: (bestiaryId: string) => Promise<void> }) {
   const [query, setQuery] = useState("");
   const [minHitDice, setMinHitDice] = useState("");
   const [maxHitDice, setMaxHitDice] = useState("");
   const [threatBand, setThreatBand] = useState<WwnThreatBand | "">("");
   const [quantity, setQuantity] = useState(1);
-  const [partyLevels, setPartyLevels] = useState<readonly unknown[]>([]);
-  const [partyLoaded, setPartyLoaded] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<"browse" | "detail">("browse");
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let cancelled = false;
-    void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
-      .then(async response => {
-        const body = await response.json() as { characters?: CampaignThreatCharacter[] };
-        if (!response.ok || !Array.isArray(body.characters)) throw new Error("Campaign characters are unavailable.");
-        if (!cancelled) setPartyLevels(body.characters.map(character => character.threatLevel));
-      })
-      .catch(() => { if (!cancelled) setPartyLevels([]); })
-      .finally(() => { if (!cancelled) setPartyLoaded(true); });
-    return () => { cancelled = true; };
-  }, [campaignId]);
 
   const partyScore = useMemo(() => calculateWwnPartyScore(partyLevels), [partyLevels]);
   const creatures = useMemo(() => builtInBestiaryCreatures, []);
@@ -410,7 +393,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
   }, []);
 
   useEffect(() => {
-    if (tab !== "encounter") return;
+    if (tab !== "encounter" && tab !== "bestiary") return;
     let cancelled = false;
     void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
       .then(async response => {
@@ -547,7 +530,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
       {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} partyLevels={partyLevels} partyLoaded={partyLoaded} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
-      {tab === "bestiary" && <BuiltInBestiary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
+      {tab === "bestiary" && <BuiltInBestiary partyLevels={partyLevels} partyLoaded={partyLoaded} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
       {tab === "items" && <CampaignItemLibrary campaignId={campaignId} />}
       {tab === "stores" && <CampaignStoreLibrary campaignId={campaignId} />}

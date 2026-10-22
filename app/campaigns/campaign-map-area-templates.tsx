@@ -223,11 +223,8 @@ export function useCampaignMapAreaTemplates({
 
   const publishLocal = useCallback(() => {
     window.dispatchEvent(new CustomEvent(campaignMapChangedEvent, { detail: { campaignId } }));
-    if (typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`);
-      channel.postMessage({ type: "map-changed", campaignId });
-      channel.close();
-    }
+    // The parent map workspace broadcasts to other windows through onChanged.
+    // Broadcasting here too sends duplicate invalidations and reload requests.
     onChanged?.();
   }, [campaignId, onChanged]);
 

@@ -524,10 +524,39 @@ export function CampaignMapWorkspace({
   const loadInteractions = useCallback(async (mapId: string) => { const params = new URLSearchParams({ mapId }); const response = await fetch(`/api/campaigns/${campaignId}/map/interactions?${params.toString()}`, { cache: "no-store" }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.interactions) throw new Error(body.error || "The map interaction settings could not be loaded."); setSnapToGrid(body.interactions.snapEnabled); setTokenSizes(body.interactions.tokenSizes); }, [campaignId]);
   const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null, showLoading = true): Promise<boolean> => { if (showLoading) setLoading(true); setError(""); try { const params = requestedMapId ? `?${new URLSearchParams({ mapId: requestedMapId }).toString()}` : ""; const response = await fetch(`/api/campaigns/${campaignId}/map${params}`, { cache: "no-store" }); const body = await response.json() as MapResponse; if (!response.ok) throw new Error(body.error || "The campaign map could not be loaded."); if (tokenDragRef.current || tokenMovePendingRef.current) return false; applyResponse(body, preserveView); if (body.map) await loadInteractions(body.map.id); else { setSnapToGrid(false); setTokenSizes({}); } return true; } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded."); return false; } finally { if (showLoading) setLoading(false); } }, [applyResponse, campaignId, loadInteractions]);
 
-  useEffect(() => { if (!open || typeof BroadcastChannel === "undefined") return; const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`); mapSyncChannelRef.current = channel; channel.onmessage = event => { const message = event.data as { type?: unknown; campaignId?: unknown } | null; if (message?.type !== "map-changed" || message.campaignId !== campaignId) return; const requestedMapId = playerPreviewRef.current ? null : canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; return () => { if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null; channel.close(); }; }, [campaignId, loadMap, open]);
+  useEffect(() => {
+    if (!open) return;
+    let timer: number | null = null;
+    const refresh = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        const mapId = playerPreviewRef.current ? null : canManageRef.current ? selectedMapIdRef.current : null;
+        void loadMap(true, mapId, false);
+      }, 60);
+    };
+    const onLocal = (event: Event) => {
+      if ((event as CustomEvent<{ campaignId?: string }>).detail?.campaignId === campaignId) refresh();
+    };
+    window.addEventListener(campaignMapChangedEvent, onLocal);
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`twe:campaign-map:${campaignId}`) : null;
+    if (channel) {
+      mapSyncChannelRef.current = channel;
+      channel.onmessage = event => {
+        const msg = event.data as { type?: unknown; campaignId?: unknown } | null;
+        if (msg?.type === "map-changed" && msg.campaignId === campaignId) refresh();
+      };
+    }
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener(campaignMapChangedEvent, onLocal);
+      if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null;
+      channel?.close();
+    };
+  }, [campaignId, loadMap, open]);
   useEffect(() => { if (!initialOpen) return; const initialLoad = window.setTimeout(() => { void loadMap(false); }, 0); return () => window.clearTimeout(initialLoad); }, [initialOpen, initialPresentation, loadMap]);
   useEffect(() => { const onOpenMap = (event: Event) => { const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail; if (detail?.campaignId !== campaignId) return; if (detail.action === "close") { closeMap(); return; } if (open) return; setClosingDrawer(false); dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }; window.addEventListener(campaignMapOpenEvent, onOpenMap); return () => window.removeEventListener(campaignMapOpenEvent, onOpenMap); }, [campaignId, closeMap, loadMap, open]);
-  useEffect(() => { if (!open) return; const onMapChanged = (event: Event) => { const detail = (event as CustomEvent<{ campaignId?: string }>).detail; if (detail?.campaignId !== campaignId) return; const requestedMapId = playerPreviewRef.current ? null : canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; window.addEventListener(campaignMapChangedEvent, onMapChanged); return () => window.removeEventListener(campaignMapChangedEvent, onMapChanged); }, [campaignId, loadMap, open]);
+
 
   function showMap() { if (open) { closeMap(); return; } dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }
   function rememberPresentation(nextPresentation: InPageMapPresentation) { try { window.localStorage.setItem(mapPresentationStorageKey, nextPresentation); } catch {} }

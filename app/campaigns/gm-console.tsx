@@ -380,7 +380,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
   </section>;
 }
 
-export function GmConsole({ campaignId, campaignName, embedded = false, activeTab }: { campaignId: string; campaignName: string; embedded?: boolean; activeTab?: ConsoleTab }) {
+export function GmConsole({ campaignId, campaignName, embedded = false, activeTab, visible = true }: { campaignId: string; campaignName: string; embedded?: boolean; activeTab?: ConsoleTab; visible?: boolean }) {
   const [localTab, setTab] = useState<ConsoleTab>("encounter");
   const tab = activeTab ?? localTab;
   const { state, setState, error, setError, busy, setBusy, action } = useCampaignLiveSession(campaignId);
@@ -410,7 +410,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
   }, []);
 
   useEffect(() => {
-    if (tab !== "encounter") return;
+    if (!visible || tab !== "encounter") return;
     let cancelled = false;
     void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
       .then(async response => {
@@ -421,10 +421,10 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       .catch(() => { if (!cancelled) setPartyLevels([]); })
       .finally(() => { if (!cancelled) setPartyLoaded(true); });
     return () => { cancelled = true; };
-  }, [campaignId, tab]);
+  }, [campaignId, tab, visible]);
 
   useEffect(() => {
-    if (tab !== "party") return;
+    if (!visible || tab !== "party") return;
     let cancelled = false;
     void fetch(`/api/campaigns/${campaignId}/gm/party`, { cache: "no-store" })
       .then(async response => {
@@ -435,7 +435,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       .catch(loadError => { if (!cancelled) { setPartyStatus([]); setPartyStatusError(loadError instanceof Error ? loadError.message : "Party status is unavailable."); } })
       .finally(() => { if (!cancelled) setPartyStatusLoading(false); });
     return () => { cancelled = true; };
-  }, [campaignId, tab]);
+  }, [campaignId, tab, visible]);
 
   async function rollNpc(combatantId: string, npcAction: Record<string, unknown>) {
     if (!state.permissions.canManageEncounter || npcRollBusyRef.current) return;
@@ -518,6 +518,9 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
   }
 
   const canManageEncounter = state.permissions.canManageEncounter;
+  // Keep the live-session subscription and GM state while the campaign overview
+  // is selected, but skip all hidden GM UI construction and roll-history sorting.
+  if (!visible) return null;
   const sharedHistory = session?.recentRolls ?? [];
   const gmHistory = [...privateGmRolls, ...sharedHistory].sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp)).slice(0, 100);
   const latestRoll = [pendingLatestRoll, gmHistory[0]].filter((roll): roll is RollResult => Boolean(roll)).sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0] || null;

@@ -16,6 +16,7 @@ import {
 } from "../app/level-advancement.ts";
 import {
   deriveSkillProfile,
+  reconcileArtEffortBySlot,
   rangedAttackInMeleePenalty,
   deriveUnarmedAttack,
   hasNegativeEffectiveAttributeModifier,
@@ -608,4 +609,11 @@ test("ranged attacks in melee take -4 unless Deadeye level two applies", () => {
   assert.equal(rangedAttackInMeleePenalty({ ranged: false, threatened: true, deadeyeLevel: 0 }), 0);
   assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: false, deadeyeLevel: 0 }), 0);
   assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 0, closeCombatantKnife: true }), 0);
+});
+
+
+test("Art Effort stays with the selected Art when an earlier Art slot is empty", () => {
+  assert.deepEqual(reconcileArtEffortBySlot(["", "Open Mind", "Pavis of Elements"], [0, 1, 2], ["", "Open Mind", "Pavis of Elements"]), [0, 1, 2]);
+  assert.deepEqual(reconcileArtEffortBySlot(["Open Mind", "Pavis of Elements"], [1, 2], ["", "Pavis of Elements"]), [0, 2]);
+  assert.deepEqual(reconcileArtEffortBySlot(["Open Mind"], [1], ["Different Art"]), [0]);
 });

@@ -410,6 +410,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
   }, []);
 
   useEffect(() => {
+    if (tab !== "encounter") return;
     let cancelled = false;
     void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
       .then(async response => {
@@ -420,7 +421,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       .catch(() => { if (!cancelled) setPartyLevels([]); })
       .finally(() => { if (!cancelled) setPartyLoaded(true); });
     return () => { cancelled = true; };
-  }, [campaignId]);
+  }, [campaignId, tab]);
 
   useEffect(() => {
     if (tab !== "party") return;

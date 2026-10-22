@@ -15,12 +15,13 @@ type Props = { campaignId: string; campaignName: string; canManage: boolean };
 
 export function CampaignMapLazyLauncher(props: Props) {
   const [opened, setOpened] = useState(false);
-  const [drawerDock, setDrawerDock] = useState<"left" | "right">("right");
+  const [drawerDock] = useState<"left" | "right">(() => {
+    if (typeof window === "undefined") return "right";
+    try { return window.localStorage.getItem("twe:campaign-map:drawer-dock") === "left" ? "left" : "right"; }
+    catch { return "right"; }
+  });
 
   useEffect(() => {
-    try {
-      if (window.localStorage.getItem("twe:campaign-map:drawer-dock") === "left") setDrawerDock("left");
-    } catch { /* Browser storage may be unavailable. */ }
     const onMapOpen = (event: Event) => {
       const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail;
       if (detail?.campaignId === props.campaignId && detail.action !== "close") setOpened(true);

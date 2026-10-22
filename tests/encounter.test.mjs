@@ -78,6 +78,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/use-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/campaigns/campaign-ui.css", import.meta.url), "utf8"),
   ]);

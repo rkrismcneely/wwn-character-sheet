@@ -25,7 +25,12 @@ export function SessionRecapPanel({ campaignId }: { campaignId: string }) {
       } finally { if (!cancelled) setLoading(false); }
     }
     void load();
-    return () => { cancelled = true; requestNumber.current++; };
+    const onRecapsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ campaignId?: string }>).detail;
+      if (detail?.campaignId === campaignId) void load();
+    };
+    window.addEventListener("twe:session-recaps-changed", onRecapsChanged);
+    return () => { cancelled = true; requestNumber.current++; window.removeEventListener("twe:session-recaps-changed", onRecapsChanged); };
   }, [campaignId]);
 
   async function selectRecap(id: string) {

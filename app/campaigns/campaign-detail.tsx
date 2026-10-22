@@ -466,7 +466,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           )}
           {gmOpened && campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
             <div hidden={campaignTab === "campaign"}>
-              <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded activeTab={campaignTab === "campaign" ? "encounter" : campaignTab} />
+              <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded visible={campaignTab !== "campaign"} activeTab={campaignTab === "campaign" ? "encounter" : campaignTab} />
             </div>
           )}
           <div hidden={campaignTab !== "campaign"}>

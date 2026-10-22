@@ -146,7 +146,10 @@ test("GM Console is owner/admin-gated and reuses the existing session, encounter
   assert.match(encounterRoute, /builtInBestiaryEncounterSeed/u);
   assert.match(encounterRoute, /campaignNpcEncounterSeed/u);
   assert.match(encounterRoute, /durable\.addNpc\(authorization\.sessionId, seed\)/u);
-  assert.match(detail, /Open GM Console/u);
+  assert.match(detail, /aria-label="Campaign pages"/u);
+  assert.match(detail, /campaign.permissions.canUseGmConsole/u);
+  assert.match(detail, /<GmConsole campaignId=\{campaignId\}/u);
+  assert.match(detail, /"encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"/u);
   assert.match(migration, /campaign_npc_templates/u);
   assert.match(migration, /ON DELETE CASCADE/u);
   assert.match(threatMigration, /ADD COLUMN hit_dice/u);

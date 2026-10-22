@@ -23,7 +23,7 @@ export function hasNegativeEffectiveAttributeModifier(
   });
 }
 
-export function rangedAttackInMeleePenalty({ ranged, threatened, deadeyeLevel }: {
+export function rangedAttackInMeleePenalty({ ranged, threatened, deadeyeLevel, closeCombatantKnife = false }: {
   ranged: boolean;
   threatened: boolean;
   deadeyeLevel: number;

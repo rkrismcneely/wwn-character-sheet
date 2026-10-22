@@ -74,7 +74,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, rangedAttackInMeleePenalty, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, rangedAttackInMeleePenalty, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, reconcileArtEffortBySlot, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -3101,12 +3101,7 @@ export default function Home({
         preparedSeen += 1;
         return preparedSeen <= limits.prepared ? pick : { ...pick, prepared: false, cast: false };
       });
-      const selectedEffort = current.artPicks.flatMap((name, index) =>
-        name ? [artEffortCommitmentCount(current.artEffort[index])] : [],
-      );
-      const nextEffort = nextArts.map((name, index) =>
-        name ? artEffortCommitmentCount(selectedEffort[index]) : 0,
-      );
+      const nextEffort = reconcileArtEffortBySlot(current.artPicks, current.artEffort, nextArts);
       const unchanged =
         JSON.stringify(nextFoci) === JSON.stringify(current.focusPicks) &&
         JSON.stringify(nextArts) === JSON.stringify(current.artPicks) &&

@@ -23,6 +23,15 @@ export function hasNegativeEffectiveAttributeModifier(
   });
 }
 
+export function rangedAttackInMeleePenalty({ ranged, threatened, deadeyeLevel, closeCombatantKnife = false }: {
+  ranged: boolean;
+  threatened: boolean;
+  deadeyeLevel: number;
+  closeCombatantKnife?: boolean;
+}) {
+  return ranged && threatened && deadeyeLevel < 2 && !closeCombatantKnife ? -4 : 0;
+}
+
 export function focusIsRepeatable(focusName: string) {
   return ["Developed Attribute", "Specialist", "Spirit Familiar"].includes(focusName);
 }

@@ -74,7 +74,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, rangedAttackInMeleePenalty, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -3246,8 +3246,7 @@ export default function Home({
       });
       return { w, skillName: "Punch", range: "-", virtual: true, ...result };
     }
-    const isBowOrTwoHandedRanged = !isThrownWeapon && (w.name.toLowerCase().includes("bow") || w.traits.split(",").some(trait => trait.trim() === "2H"));
-    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye?.level === 1 && isBowOrTwoHandedRanged ? -4 : 0;
+    const rangedMeleePenalty = rangedAttackInMeleePenalty({ ranged: !isMelee, threatened: rangedInMelee, deadeyeLevel: deadeye?.level || 0, closeCombatantKnife: Boolean(closeCombatant) && isThrown && /knife|dagger/i.test(w.name) });
     const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
     const extraDamage = attrMod + warriorDamage + Math.max(armsmasterToShock && isMelee && w.shock !== "None" ? 0 : armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {
@@ -3961,7 +3960,7 @@ export default function Home({
                   <button type="button" onClick={() => setWhirlwindRoundUsed(false)}>New round</button>
                 </div>}
               </div>}
-              {selectedFocusPicks.some(pick => pick.name === "Deadeye") && <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Bow or two-handed ranged weapon used with an enemy in melee range (Deadeye level 1: −4; level 2: no penalty)</label>}
+              <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Ranged attack while engaged in melee (bows and two-handed ranged weapons require Deadeye)</label>
               {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
               <label className="skill-context-option"><input type="checkbox" checked={preferThrownMode} onChange={event => setPreferThrownMode(event.target.checked)} /> Throw versatile weapons instead of striking in melee (Shoot skill; no melee Shock)</label>
               <div className="weapon-list">

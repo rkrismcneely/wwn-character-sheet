@@ -466,6 +466,12 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       )}
       {!busy && campaign && (
         <>
+          {campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
+            <nav className="gm-console-tabs" aria-label="Campaign pages">
+              <span className="active" aria-current="page">Campaign</span>
+              <Link href={`/campaigns/${campaign.id}/gm`}>GM Console</Link>
+            </nav>
+          )}
           <section className="campaign-hero campaign-detail-hero" aria-labelledby="campaign-title">
             <div>
               <p className="campaign-kicker">PRIVATE CAMPAIGN · {campaignRoleLabel(campaign).toUpperCase()}</p>
@@ -473,7 +479,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               <p>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
             </div>
             <div className="campaign-hero-actions">
-              {campaign.permissions.canUseGmConsole && !campaign.archivedAt && <Link className="campaign-secondary" href={`/campaigns/${campaign.id}/gm`}>Open GM Console</Link>}
+              
               {campaign.permissions.canInviteMembers && (
                 <button type="button" className="campaign-primary" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>
               )}

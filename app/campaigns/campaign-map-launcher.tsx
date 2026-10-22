@@ -451,7 +451,18 @@ export function CampaignMapWorkspace({
       svg.removeEventListener("gesturechange", preventSafariPageGesture);
     };
   }, [open, loading, map?.id, presentation]);
-  useEffect(() => { if (!open || !map || !view) return; try { window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view)); } catch {} }, [campaignId, map, open, presentation, view]);
+  // Zoom/pan emits many view updates per second. Save after interaction settles
+  // instead of doing synchronous localStorage writes for every wheel event.
+  useEffect(() => {
+    if (!map || !view) return;
+    const mapId = map.id;
+    const saveView = () => {
+      try { window.localStorage.setItem(mapViewStorageKey(campaignId, mapId), JSON.stringify(view)); } catch {}
+    };
+    if (!open) { saveView(); return; }
+    const timer = window.setTimeout(saveView, 180);
+    return () => window.clearTimeout(timer);
+  }, [campaignId, map?.id, open, view]);
   useEffect(() => { try { window.localStorage.setItem(mapDrawerDockStorageKey, drawerDock); window.localStorage.setItem(mapDrawerWidthStorageKey, String(drawerWidth)); } catch {} }, [drawerDock, drawerWidth]);
   useEffect(() => {
     const documentElement = document.documentElement;

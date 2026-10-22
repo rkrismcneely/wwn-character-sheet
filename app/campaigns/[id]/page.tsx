@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionActor } from "@/lib/auth-session";
 import { CampaignDetail } from "../campaign-detail";
-import { CampaignMapLauncher } from "../campaign-map-launcher";
+import { CampaignMapLazyLauncher } from "../campaign-map-lazy-launcher";
 import "../campaign-ui.css";
 import "../campaign-map.css";
 import "../gm-encounter-drawer.css";
@@ -19,6 +19,6 @@ export default async function CampaignPage({
   const { id } = await params;
   return <>
     <CampaignDetail campaignId={id} />
-    <CampaignMapLauncher campaignId={id} campaignName="Shared Campaign Map" canManage={false} />
+    <CampaignMapLazyLauncher campaignId={id} campaignName="Shared Campaign Map" canManage={false} />
   </>;
 }

@@ -74,7 +74,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -2508,7 +2508,7 @@ export default function Home({
   const isExpertClass = selectedClasses.includes("Expert") || selectedClasses.includes("Wise");
   const backgroundGrowth = backgroundAttributeGrowth(sheet);
   const attributeScore = (attribute: AttributeName) => Math.min(18, Math.max(0, sheet.attrs[attribute] + backgroundGrowth[attribute]));
-  const hasNegativeAttribute = attributes.some(attribute => attributeScore(attribute) && mod(attributeScore(attribute)) <= -1);
+  const hasNegativeAttribute = hasNegativeEffectiveAttributeModifier(attribute => attributeScore(attribute as AttributeName), sheet.focusPicks);
   const focusRepeatAllowed = focusIsRepeatable;
   const focusEligibility = (name: string, slotIndex: number) => {
     if (!name) return { eligible: true, reason: "" };

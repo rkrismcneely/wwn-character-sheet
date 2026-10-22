@@ -6,6 +6,23 @@ export function explicitFocusSkillChoices(focusName: string) {
   return [];
 }
 
+export function hasNegativeEffectiveAttributeModifier(
+  scoreFor: (attribute: string) => number,
+  focusPicks: readonly { name: string; choice?: string }[],
+) {
+  const developed = new Set(focusPicks.filter(p => p.name === "Developed Attribute").map(p => p.choice));
+  const gravity = focusPicks.find(p => p.name === "Xenoblooded")?.choice;
+  return ["STR", "DEX", "CON", "INT", "WIS", "CHA"].some(attribute => {
+    const score = scoreFor(attribute);
+    if (!Number.isFinite(score) || score < 3) return false;
+    let modifier = score <= 3 ? -2 : score <= 7 ? -1 : score <= 13 ? 0 : score <= 17 ? 1 : 2;
+    if (developed.has(attribute)) modifier = Math.min(3, modifier + 1);
+    if (gravity === "STR +1 / DEX -1") modifier += attribute === "STR" ? 1 : attribute === "DEX" ? -1 : 0;
+    if (gravity === "DEX +1 / STR -1") modifier += attribute === "DEX" ? 1 : attribute === "STR" ? -1 : 0;
+    return modifier <= -1;
+  });
+}
+
 export function focusIsRepeatable(focusName: string) {
   return ["Developed Attribute", "Specialist", "Spirit Familiar"].includes(focusName);
 }

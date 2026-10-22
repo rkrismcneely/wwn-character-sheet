@@ -171,25 +171,24 @@ async function ownCampaignCharacterIds(db: D1Database, actor: CampaignActor, cam
   return new Set(result.results.map(character => character.id));
 }
 
-async function linkedCampaignCharacters(db: D1Database, campaignId: string): Promise<CampaignMapCharacterOption[]> {
-  const result = await db.prepare(`SELECT ch.public_id AS id, ch.name
-    FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
-    WHERE cc.campaign_id = ?
-    ORDER BY lower(ch.name), ch.public_id`)
-    .bind(campaignId).all<CampaignMapCharacterOption>();
-  return result.results;
-}
-
 type CampaignMapCompanionCharacterRow = { id: string; name: string; data: string };
 
-async function linkedCampaignCompanions(db: D1Database, campaignId: string): Promise<CampaignMapCompanionOption[]> {
+// Both selectors are derived from the same authorized campaign character set.
+// Read the rows once instead of querying the same join twice for every map load.
+async function linkedCampaignMapRoster(
+  db: D1Database,
+  campaignId: string,
+): Promise<{ characters: CampaignMapCharacterOption[]; companions: CampaignMapCompanionOption[] }> {
   const result = await db.prepare(`SELECT ch.public_id AS id, ch.name, ch.data
     FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
     WHERE cc.campaign_id = ?
     ORDER BY lower(ch.name), ch.public_id`)
     .bind(campaignId).all<CampaignMapCompanionCharacterRow>();
-  return result.results.flatMap(character =>
-    campaignMapCompanionsFromCharacterData(character.id, character.name, character.data));
+  return {
+    characters: result.results.map(({ id, name }) => ({ id, name })),
+    companions: result.results.flatMap(character =>
+      campaignMapCompanionsFromCharacterData(character.id, character.name, character.data)),
+  };
 }
 
 async function actorOwnsActiveCompanionSource(
@@ -318,12 +317,18 @@ export async function readCampaignMap(
 ): Promise<CampaignMapResponse> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   const row = await selectedCampaignMap(db, access, requestedMapId);
+  const [map, maps, roster] = await Promise.all([
+    row ? mapPayload(db, actor, access, row) : Promise.resolve(null),
+    access.canManage ? allCampaignMaps(db, access.campaignInternalId) : Promise.resolve([]),
+    access.canManage ? linkedCampaignMapRoster(db, access.campaignInternalId)
+      : Promise.resolve({ characters: [], companions: [] }),
+  ]);
   return {
-    map: row ? await mapPayload(db, actor, access, row) : null,
-    maps: access.canManage ? (await allCampaignMaps(db, access.campaignInternalId)).map(mapSummary) : [],
+    map,
+    maps: maps.map(mapSummary),
     permissions: { canManage: access.canManage },
-    characters: access.canManage ? await linkedCampaignCharacters(db, access.campaignInternalId) : [],
-    companions: access.canManage ? await linkedCampaignCompanions(db, access.campaignInternalId) : [],
+    characters: roster.characters,
+    companions: roster.companions,
   };
 }
 
@@ -721,7 +726,7 @@ export async function placeCampaignMapCompanionToken(
   requireMapManagement(access);
   const row = requireMapBackground(await requireCampaignMap(db, access, mapIdValue));
   const companionId = identifier(companionIdValue, "Companion");
-  const companion = (await linkedCampaignCompanions(db, access.campaignInternalId))
+  const companion = (await linkedCampaignMapRoster(db, access.campaignInternalId)).companions
     .find(option => option.id === companionId);
   if (!companion) throw new CampaignServiceError("The active linked companion was not found.", 404);
   const position = defaultTokenPosition(row, await tokenCount(db, row.id));

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  useCallback, useEffect, useId, useRef, useState,
+  memo, useCallback, useEffect, useId, useRef, useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -502,7 +502,7 @@ function annotationSelectionBounds(geometry: CampaignMapAnnotationGeometry): Ann
   return { x: 0, y: 0, width: 1, height: 1 };
 }
 
-function AnnotationSelectionIndicator({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {
+const AnnotationSelectionIndicator = memo(function AnnotationSelectionIndicator({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {
   const bounds = annotationSelectionBounds(geometry);
   const padding = Math.max(6, geometry.kind === "text" ? geometry.fontSize * 0.14 : 6);
   const x = bounds.x - padding, y = bounds.y - padding;
@@ -511,24 +511,24 @@ function AnnotationSelectionIndicator({ geometry }: { geometry: CampaignMapAnnot
     <rect className="campaign-map-annotation-selection-shadow" x={x} y={y} width={width} height={height} rx="4" vectorEffect="non-scaling-stroke" />
     <rect className="campaign-map-annotation-selection-box" x={x} y={y} width={width} height={height} rx="4" vectorEffect="non-scaling-stroke" />
   </g>;
-}
+});
 
-function AnnotationShape({ geometry, className, color, markerId }: { geometry: CampaignMapAnnotationGeometry; className: string; color: string; markerId?: string }) {
+const AnnotationShape = memo(function AnnotationShape({ geometry, className, color, markerId }: { geometry: CampaignMapAnnotationGeometry; className: string; color: string; markerId?: string }) {
   if (geometry.kind === "text") return <text className={`${className} campaign-map-annotation-text`} x={geometry.x} y={geometry.y} fontSize={geometry.fontSize} fill={color} dominantBaseline="hanging">{geometry.text}</text>;
   const path = campaignMapAnnotationPath(geometry);
   if (path) return <>{geometry.kind === "arrow" && markerId && <defs><marker id={markerId} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 z" fill={color} /></marker></defs>}<path className={className} d={path} fill="none" stroke={color} markerEnd={geometry.kind === "arrow" && markerId ? `url(#${markerId})` : undefined} vectorEffect="non-scaling-stroke" /></>;
   if (geometry.kind === "rect") return <rect className={className} x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill="none" stroke={color} vectorEffect="non-scaling-stroke" />;
   if (geometry.kind === "circle") return <circle className={className} cx={geometry.cx} cy={geometry.cy} r={geometry.r} fill="none" stroke={color} vectorEffect="non-scaling-stroke" />;
   return null;
-}
-function AnnotationHitShape({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {
+});
+const AnnotationHitShape = memo(function AnnotationHitShape({ geometry }: { geometry: CampaignMapAnnotationGeometry }) {
   if (geometry.kind === "text") return <text className="campaign-map-annotation-hit is-text" x={geometry.x} y={geometry.y} fontSize={geometry.fontSize} dominantBaseline="hanging">{geometry.text}</text>;
   const path = campaignMapAnnotationPath(geometry);
   if (path) return <path className="campaign-map-annotation-hit" d={path} fill="none" vectorEffect="non-scaling-stroke" />;
   if (geometry.kind === "rect") return <rect className="campaign-map-annotation-hit is-area" x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} vectorEffect="non-scaling-stroke" />;
   if (geometry.kind === "circle") return <circle className="campaign-map-annotation-hit is-area" cx={geometry.cx} cy={geometry.cy} r={geometry.r} vectorEffect="non-scaling-stroke" />;
   return null;
-}
+});
 
 export function CampaignMapAnnotationLayer({ controller, interactionEnabled = true, playerPreview = false, onSelect }: {
   controller: CampaignMapAnnotationController;

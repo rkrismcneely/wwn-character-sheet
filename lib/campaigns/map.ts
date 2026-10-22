@@ -315,8 +315,9 @@ export async function readCampaignMap(
   actor: CampaignActor,
   publicId: string,
   requestedMapId?: string | null,
+  authorizedAccess?: CampaignMapAccess,
 ): Promise<CampaignMapResponse> {
-  const access = await loadCampaignMapAccess(db, actor, publicId);
+  const access = authorizedAccess ?? await loadCampaignMapAccess(db, actor, publicId);
   const row = await selectedCampaignMap(db, access, requestedMapId);
   return {
     map: row ? await mapPayload(db, actor, access, row) : null,

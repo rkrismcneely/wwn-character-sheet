@@ -47,10 +47,11 @@ async function responseFor(
   actor: NonNullable<Awaited<ReturnType<typeof getSessionActor>>>,
   publicId: string,
   mapId?: string | null,
+  includeEncounterAvailability = true,
 ): Promise<CampaignMapResponse> {
   const access = await loadCampaignMapAccess(db, actor, publicId);
   const result = await readCampaignMap(db, actor, publicId, mapId, access);
-  if (access.canManage) {
+  if (includeEncounterAvailability && access.canManage) {
     result.encounterAvailable = await encounterAvailable(db, access.campaignInternalId);
   }
   return result;
@@ -81,7 +82,7 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
       const access = await loadCampaignMapAccess(db, actor, id);
       await announceMapChanged(db, access.campaignInternalId);
     }
-    return Response.json(await responseFor(db, actor, id, map.id), { headers: { "cache-control": "no-store" } });
+    return Response.json(await responseFor(db, actor, id, map.id, false), { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The campaign map settings could not be saved.");
@@ -125,7 +126,7 @@ export async function POST(request: Request, context: Context): Promise<Response
     }
 
     if (announce) await announceMapChanged(db, access.campaignInternalId);
-    return Response.json(await responseFor(db, actor, id, selectedMapId), { headers: { "cache-control": "no-store" } });
+    return Response.json(await responseFor(db, actor, id, selectedMapId, false), { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The campaign map could not be updated.");

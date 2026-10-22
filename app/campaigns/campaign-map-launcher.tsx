@@ -5,10 +5,12 @@ import {
   useEffect,
   useId,
   useReducer,
+  memo,
   useRef,
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type RefObject,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
@@ -68,6 +70,21 @@ import {
   useCampaignMapAreaTemplates,
 } from "./campaign-map-area-templates";
 import { campaignMapChangedEvent, useCampaignLiveSession } from "./use-live-session";
+
+// Fog can contain hundreds of SVG paths. Wheel zoom and panning only update
+// the parent viewBox, so preserve these nodes until cells or grid truly change.
+const CampaignMapFogLayer = memo(function CampaignMapFogLayer({
+  cells, grid, previewLayerRef,
+}: {
+  cells: CampaignMapPayload["fogCells"];
+  grid: CampaignMapPayload["grid"];
+  previewLayerRef: RefObject<SVGGElement | null>;
+}) {
+  return <g className="campaign-map-fog-layer" pointerEvents="none">
+    {cells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, grid)} className="campaign-map-fog-cell" />)}
+    <g ref={previewLayerRef} />
+  </g>;
+});
 
 type ViewBox = { x: number; y: number; width: number; height: number };
 type GridDraft = { enabled: boolean; type: CampaignMapGridType; size: number; offsetX: number; offsetY: number };
@@ -1157,7 +1174,7 @@ export function CampaignMapWorkspace({
         {showAutoAlignOverlay && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight}
           fill={`url(#${autoGridPatternId})`} pointerEvents="none" aria-label="Grid auto-alignment preview" />}
         {(!canManage || playerPreview) && <CampaignMapAnnotationLayer controller={annotations} playerPreview={playerPreview} interactionEnabled={!playerPreview && !fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
-        <g className="campaign-map-fog-layer" pointerEvents="none">{map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}<g ref={fogPreviewLayerRef} /></g>
+        <CampaignMapFogLayer cells={map.fogCells} grid={map.grid} previewLayerRef={fogPreviewLayerRef} />
         {canManage && !playerPreview && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
         <CampaignMapAreaTemplateLayer controller={areaTemplates} grid={map.grid} width={map.backgroundWidth} height={map.backgroundHeight} previewOnly={playerPreview} interactionEnabled={!playerPreview && !fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); annotations.selectAnnotation(null); setSelectedTokenId(null); }} />
         {measureStart && measureEnd && <g className="campaign-map-measure-layer" pointerEvents="none">

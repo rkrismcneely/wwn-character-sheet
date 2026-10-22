@@ -218,6 +218,9 @@ function BuiltInBestiary({ partyLevels, partyLoaded, activeEncounter, busy, onAd
   const [maxHitDice, setMaxHitDice] = useState("");
   const [threatBand, setThreatBand] = useState<WwnThreatBand | "">("");
   const [quantity, setQuantity] = useState(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"browse" | "detail">("browse");
+  const [error, setError] = useState("");
 
   const partyScore = useMemo(() => calculateWwnPartyScore(partyLevels), [partyLevels]);
   const creatures = useMemo(() => builtInBestiaryCreatures, []);
@@ -393,7 +396,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
   }, []);
 
   useEffect(() => {
-    if (tab !== "encounter" && tab !== "bestiary") return;
+    if ((tab !== "encounter" && tab !== "bestiary") || partyLoaded) return;
     let cancelled = false;
     void fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" })
       .then(async response => {
@@ -404,7 +407,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       .catch(() => { if (!cancelled) setPartyLevels([]); })
       .finally(() => { if (!cancelled) setPartyLoaded(true); });
     return () => { cancelled = true; };
-  }, [campaignId, tab]);
+  }, [campaignId, tab, partyLoaded]);
 
   useEffect(() => {
     if (tab !== "party") return;

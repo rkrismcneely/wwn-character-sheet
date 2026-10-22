@@ -292,7 +292,12 @@ export type UnarmedAttackInput = {
   magicalVowedAttack?: boolean;
 };
 
-const withBonus = (dice: string, bonus: number) => `${dice}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ""}`;
+const withBonus = (dice: string, bonus: number) => {
+  const match = dice.match(/^(\\d+d\\d+)([+-]\\d+)?$/);
+  if (!match) return `${dice}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ""}`;
+  const total = Number(match[2] || 0) + bonus;
+  return `${match[1]}${total > 0 ? `+${total}` : total < 0 ? total : ""}`;
+};
 
 export function deriveUnarmedAttack(input: UnarmedAttackInput) {
   const punch = Math.max(-1, Math.min(4, input.punchSkill));

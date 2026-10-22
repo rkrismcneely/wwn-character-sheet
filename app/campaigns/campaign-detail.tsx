@@ -642,7 +642,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               <p className="campaign-management-note">Campaign membership never transfers character ownership or changes character visibility.</p>
             </aside>
           </div>
-          </div>}
+          </div>
         </>
       )}
 

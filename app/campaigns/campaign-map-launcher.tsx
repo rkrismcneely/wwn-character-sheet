@@ -779,11 +779,19 @@ export function CampaignMapWorkspace({
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) throw new Error("This browser cannot analyze map images.");
-        ctx.drawImage(image, 0, 0, width, height);
-        const pixels = ctx.getImageData(0, 0, width, height).data;
-        const estimate = detectSquareGrid(pixels, width, height, image.naturalWidth, image.naturalHeight);
+        let estimate: SquareGridEstimate | null;
+        try {
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (!ctx) throw new Error("This browser cannot analyze map images.");
+          ctx.drawImage(image, 0, 0, width, height);
+          const pixels = ctx.getImageData(0, 0, width, height).data;
+          estimate = detectSquareGrid(pixels, width, height, image.naturalWidth, image.naturalHeight);
+        } finally {
+          // Release the pixel buffer immediately instead of retaining it until
+          // the next garbage collection (particularly costly on mobile Safari).
+          canvas.width = 0;
+          canvas.height = 0;
+        }
         if (selectedMapIdRef.current !== mapId) return;
         if (!estimate) {
           setAutoAlignNotice("Could not confidently detect a square grid. Nothing changed; adjust alignment manually.");

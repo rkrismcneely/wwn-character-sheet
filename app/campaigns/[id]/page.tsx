@@ -5,9 +5,9 @@ import { CampaignDetail } from "../campaign-detail";
 import { CampaignMapLauncher } from "../campaign-map-launcher";
 import "../campaign-ui.css";
 import "../campaign-map.css";
-import "../../gm-encounter-drawer.css";
-import "../../campaign-store.css";
-import "../../gm-console-roll-toolbar.css";
+import "../gm-encounter-drawer.css";
+import "../campaign-store.css";
+import "../gm-console-roll-toolbar.css";
 
 export default async function CampaignPage({
   params,

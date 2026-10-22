@@ -204,22 +204,27 @@ export function useCampaignMapAreaTemplates({
 
   useEffect(() => {
     if (!openMap) return;
-    const refresh = (event: Event) => {
-      if ((event as CustomEvent<{ campaignId?: string }>).detail?.campaignId === campaignId) void reload();
+    let timer: number | null = null;
+    const refresh = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { timer = null; void reload(); }, 60);
     };
-    window.addEventListener(campaignMapChangedEvent, refresh);
-    return () => window.removeEventListener(campaignMapChangedEvent, refresh);
+    const onLocal = (event: Event) => {
+      if ((event as CustomEvent<{ campaignId?: string }>).detail?.campaignId === campaignId) refresh();
+    };
+    window.addEventListener(campaignMapChangedEvent, onLocal);
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`twe:campaign-map:${campaignId}`) : null;
+    if (channel) channel.onmessage = event => {
+      const msg = event.data as { type?: unknown; campaignId?: unknown } | null;
+      if (msg?.type === "map-changed" && msg.campaignId === campaignId) refresh();
+    };
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener(campaignMapChangedEvent, onLocal);
+      channel?.close();
+    };
   }, [campaignId, openMap, reload]);
 
-  useEffect(() => {
-    if (!openMap || typeof BroadcastChannel === "undefined") return;
-    const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`);
-    channel.onmessage = event => {
-      const message = event.data as { type?: unknown; campaignId?: unknown } | null;
-      if (message?.type === "map-changed" && message.campaignId === campaignId) void reload();
-    };
-    return () => channel.close();
-  }, [campaignId, openMap, reload]);
 
   const publishLocal = useCallback(() => {
     window.dispatchEvent(new CustomEvent(campaignMapChangedEvent, { detail: { campaignId } }));

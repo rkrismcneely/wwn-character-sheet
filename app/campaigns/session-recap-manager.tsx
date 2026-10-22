@@ -7,6 +7,13 @@ import { formatRecapDate } from "./session-recap-date";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
 type Draft = { date: string; title: string; content: string };
+const recapCacheDurationMs = 60_000;
+const recapPageCache = new Map<string, { data: SessionRecapPage; savedAt: number }>();
+const sessionRecapChangedEvent = "twe:session-recaps-changed";
+function cachedPage(campaignId: string) {
+  const cached = recapPageCache.get(campaignId);
+  return cached && Date.now() - cached.savedAt < recapCacheDurationMs ? cached.data : null;
+}
 function localToday() {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -14,11 +21,11 @@ function localToday() {
 }
 export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<SessionRecapPage | null>(null);
+  const [data, setData] = useState<SessionRecapPage | null>(() => cachedPage(campaignId));
   const [editing, setEditing] = useState<CampaignSessionRecap | "new" | null>(null);
   const [draft, setDraft] = useState<Draft>({ date: localToday(), title: "", content: "" });
   const [preview, setPreview] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedPage(campaignId));
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importNotice, setImportNotice] = useState("");
@@ -32,15 +39,17 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       const result = await response.json() as SessionRecapPage & { error?: string };
       if (!response.ok || !Array.isArray(result.recaps)) throw new Error(result.error || "Recaps could not be loaded.");
       setData(result); setPage(result.page);
+      if (p === 1) recapPageCache.set(campaignId, { data: result, savedAt: Date.now() });
     } catch (err) { setError(err instanceof Error ? err.message : "Recaps could not be loaded."); }
     finally { setLoading(false); }
   }, [campaignId]);
 
   useEffect(() => {
     // Fetch after mount; keep the list independent of the live encounter session.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadPage(1);
-  }, [loadPage]);
+    if (cachedPage(campaignId)) return;
+    const timer = window.setTimeout(() => void loadPage(1), 0);
+    return () => window.clearTimeout(timer);
+  }, [campaignId, loadPage]);
 
   function startNew() {
     setEditing("new"); setDraft({ date: localToday(), title: "", content: "" });
@@ -90,6 +99,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       const result = await response.json() as { recap?: CampaignSessionRecap; error?: string };
       if (!response.ok || !result.recap) throw new Error(result.error || "Could not save the session recap.");
       setEditing(null); setPreview(false); setImportNotice("");
+      recapPageCache.delete(campaignId);
+      window.dispatchEvent(new CustomEvent(sessionRecapChangedEvent, { detail: { campaignId } }));
       await loadPage(1);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save the session recap."); }
     finally { setSaving(false); }

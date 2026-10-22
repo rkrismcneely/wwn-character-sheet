@@ -74,7 +74,7 @@ import {
   creationSkillSources,
   levelOneCreationStatus,
 } from "./character-creation";
-import { armorRestrictsMagic, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
+import { armorRestrictsMagic, rangedAttackInMeleePenalty, hasNegativeEffectiveAttributeModifier, artEffortCommitmentCount, artEffortRestRecovers, artEffortTotal, deriveSkillProfile, deriveUnarmedAttack, effortMaximum, explicitFocusSkillChoices, focusIsRepeatable, focusSelectionCost, focusTargetAvailable, inferFocusAdvancementFlags, missingArtPrerequisite, reconcileSpiritFamiliarHitPoints, spiritFamiliarBenefitLimit, spiritFamiliarLevelTwoSelectionLimit, spiritFamiliarMaximumHitPoints, storedRankForDisplayedSkillRank } from "./phase2-rules";
 import {
   applyShieldToArmorBase,
   beastmasterArtAvailableForBond,
@@ -3246,8 +3246,7 @@ export default function Home({
       });
       return { w, skillName: "Punch", range: "-", virtual: true, ...result };
     }
-    const isBowOrTwoHandedRanged = !isThrownWeapon && (w.name.toLowerCase().includes("bow") || w.traits.split(",").some(trait => trait.trim() === "2H"));
-    const rangedMeleePenalty = !isMelee && rangedInMelee && deadeye?.level === 1 && isBowOrTwoHandedRanged ? -4 : 0;
+    const rangedMeleePenalty = rangedAttackInMeleePenalty({ ranged: !isMelee, threatened: rangedInMelee, deadeyeLevel: deadeye?.level || 0 });
     const hit = baseAttack + attrMod + Math.max(0, skill) + unskilled + focusHitBonus + rangedMeleePenalty;
     const extraDamage = attrMod + warriorDamage + Math.max(armsmasterToShock && isMelee && w.shock !== "None" ? 0 : armsmasterDamage, deadeyeDamage);
     const shock = !isMelee || w.shock === "None" ? "None" : (() => {

@@ -5,10 +5,12 @@ import {
   useEffect,
   useId,
   useReducer,
+  memo,
   useRef,
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type RefObject,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
@@ -68,6 +70,21 @@ import {
   useCampaignMapAreaTemplates,
 } from "./campaign-map-area-templates";
 import { campaignMapChangedEvent, useCampaignLiveSession } from "./use-live-session";
+
+// Fog can contain hundreds of SVG paths. Wheel zoom and panning only update
+// the parent viewBox, so preserve these nodes until cells or grid truly change.
+const CampaignMapFogLayer = memo(function CampaignMapFogLayer({
+  cells, grid, previewLayerRef,
+}: {
+  cells: CampaignMapPayload["fogCells"];
+  grid: CampaignMapPayload["grid"];
+  previewLayerRef: RefObject<SVGGElement | null>;
+}) {
+  return <g className="campaign-map-fog-layer" pointerEvents="none">
+    {cells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, grid)} className="campaign-map-fog-cell" />)}
+    <g ref={previewLayerRef} />
+  </g>;
+});
 
 type ViewBox = { x: number; y: number; width: number; height: number };
 type GridDraft = { enabled: boolean; type: CampaignMapGridType; size: number; offsetX: number; offsetY: number };
@@ -213,6 +230,20 @@ function tokenInitials(name: string): string {
   return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0]?.slice(0, 2) || "?").toUpperCase();
 }
 
+// The token's visual SVG only depends on its label and radius. Keep these
+// nodes stable while the map viewBox, toolbar or unrelated tokens update.
+const MapTokenArtwork = memo(function MapTokenArtwork({
+  name, radius, distance,
+}: { name: string; radius: number; distance?: string }) {
+  return <>
+    <title>{name}</title>
+    <circle r={radius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
+    <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={radius * 0.72}>{tokenInitials(name)}</text>
+    {distance !== undefined && <text className="campaign-map-token-distance" textAnchor="middle" y={-(radius + Math.max(14, radius * 0.5))} fontSize={Math.max(12, radius * 0.44)}>{distance}</text>}
+    <text className="campaign-map-token-name" textAnchor="middle" y={radius + Math.max(12, radius * 0.48)} fontSize={Math.max(11, radius * 0.42)}>{name}</text>
+  </>;
+});
+
 function filenameMapName(filename: string): string {
   const withoutExtension = filename.replace(/\.[^.]+$/u, "").trim();
   return withoutExtension.slice(0, 80) || "Map";
@@ -347,8 +378,8 @@ export function CampaignMapWorkspace({
     if (!mapId || editInProgressRef.current) return;
     recordMapEdit({ kind: "area", mapId, before, after, currentId: after?.id ?? null });
   }, [recordMapEdit]);
-  const publishMapInvalidation = useCallback(() => {
-    mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId });
+  const publishMapInvalidation = useCallback((scope?: "tokens") => {
+    mapSyncChannelRef.current?.postMessage({ type: "map-changed", campaignId, scope });
   }, [campaignId]);
   const annotations = useCampaignMapAnnotations({
     campaignId,
@@ -459,7 +490,18 @@ export function CampaignMapWorkspace({
       svg.removeEventListener("gesturechange", preventSafariPageGesture);
     };
   }, [open, loading, map?.id, presentation]);
-  useEffect(() => { if (!open || !map || !view) return; try { window.localStorage.setItem(mapViewStorageKey(campaignId, map.id), JSON.stringify(view)); } catch {} }, [campaignId, map, open, presentation, view]);
+  // Zoom/pan emits many view updates per second. Save after interaction settles
+  // instead of doing synchronous localStorage writes for every wheel event.
+  useEffect(() => {
+    if (!map || !view) return;
+    const mapId = map.id;
+    const saveView = () => {
+      try { window.localStorage.setItem(mapViewStorageKey(campaignId, mapId), JSON.stringify(view)); } catch {}
+    };
+    if (!open) { saveView(); return; }
+    const timer = window.setTimeout(saveView, 180);
+    return () => window.clearTimeout(timer);
+  }, [campaignId, map?.id, open, view]);
   useEffect(() => { try { window.localStorage.setItem(mapDrawerDockStorageKey, drawerDock); window.localStorage.setItem(mapDrawerWidthStorageKey, String(drawerWidth)); } catch {} }, [drawerDock, drawerWidth]);
   useEffect(() => {
     const documentElement = document.documentElement;
@@ -716,12 +758,21 @@ export function CampaignMapWorkspace({
     const drag = tokenDragRef.current; if (!drag || drag.pointerId !== event.pointerId || !map?.backgroundWidth || !map.backgroundHeight || !svgRef.current) return; event.stopPropagation(); const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!pointer) return;
     let x = clamp(drag.x + (pointer.x - drag.pointerMapX), 0, map.backgroundWidth); let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) { const sizeCells = tokenSizes[drag.tokenId] ?? 1; const snapped = snapTokenCenterOnGrid({ x, y }, map.grid, sizeCells, map.backgroundWidth, map.backgroundHeight); x = snapped.x; y = snapped.y; }
+    // Most pointer events stay in the same grid cell when snapping is on.
+    // Avoid rebuilding map/token state or measuring the toolbar until the
+    // token actually moves to a new coordinate.
+    if (x === drag.latestX && y === drag.latestY) return;
     drag.latestX = x; drag.latestY = y;
     // Keep React's token position in sync with the live drag. Otherwise a
     // measurement/selection render can restore the old transform mid-drag.
-    setMap(current => current ? { ...current, tokens: current.tokens.map(token =>
-      token.id === drag.tokenId ? { ...token, x, y } : token
-    ) } : current);
+    setMap(current => {
+      if (!current) return current;
+      const token = current.tokens.find(candidate => candidate.id === drag.tokenId);
+      if (!token || (token.x === x && token.y === y)) return current;
+      return { ...current, tokens: current.tokens.map(candidate =>
+        candidate.id === drag.tokenId ? { ...candidate, x, y } : candidate
+      ) };
+    });
     drag.element.setAttribute("transform", `translate(${x} ${y})`);
     const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) distanceElement.textContent = distance;
     // Treat the token and its toolbar as one drag surface. Position directly
@@ -736,7 +787,7 @@ export function CampaignMapWorkspace({
       recordMapEdit({ kind: "token-move", mapId: map.id,
         before: { ...previous, x: drag.x, y: drag.y }, after: moved, currentId: moved.id });
     }
-    publishMapInvalidation(); } catch (moveError) { setError(moveError instanceof Error ? moveError.message : "The token could not be moved."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { tokenMovePendingRef.current = false; setBusy(false); } }
+    publishMapInvalidation("tokens"); } catch (moveError) { setError(moveError instanceof Error ? moveError.message : "The token could not be moved."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { tokenMovePendingRef.current = false; setBusy(false); } }
   function handleTokenPointerEnd(event: ReactPointerEvent<SVGGElement>) {
     const drag = tokenDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -764,7 +815,7 @@ export function CampaignMapWorkspace({
   }
 
   async function tokenAction(body: Record<string, unknown>) { if (!map) return null; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/tokens`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, mapId: map.id }) }); const result = await response.json() as MapResponse; if (!response.ok || !result.map) throw new Error(result.error || "The map token could not be updated."); setMap(result.map); setTokenSizes(current => Object.fromEntries(Object.entries(current).filter(([tokenId]) => result.map?.tokens.some(token => token.id === tokenId)))); publishMapInvalidation(); return result.map; } catch (tokenError) { setError(tokenError instanceof Error ? tokenError.message : "The map token could not be updated."); return null; } finally { setBusy(false); } }
-  async function resizeToken(token: CampaignMapToken, nextSize: number) { if (!map) return; const sizeCells = clampTokenSizeCells(nextSize); if (sizeCells === (tokenSizes[token.id] ?? 1)) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "resize", mapId: map.id, tokenId: token.id, sizeCells }) }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.interactions || !body.token) throw new Error(body.error || "The token could not be resized."); setSnapToGrid(body.interactions.snapEnabled); setTokenSizes(body.interactions.tokenSizes); setMap(current => current ? { ...current, tokens: current.tokens.map(candidate => candidate.id === body.token?.id ? { ...candidate, x: body.token.x, y: body.token.y, version: body.token.version } : candidate) } : current); publishMapInvalidation(); } catch (resizeError) { setError(resizeError instanceof Error ? resizeError.message : "The token could not be resized."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { setBusy(false); } }
+  async function resizeToken(token: CampaignMapToken, nextSize: number) { if (!map) return; const sizeCells = clampTokenSizeCells(nextSize); if (sizeCells === (tokenSizes[token.id] ?? 1)) return; setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map/interactions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "resize", mapId: map.id, tokenId: token.id, sizeCells }) }); const body = await response.json() as InteractionResponse; if (!response.ok || !body.interactions || !body.token) throw new Error(body.error || "The token could not be resized."); setSnapToGrid(body.interactions.snapEnabled); setTokenSizes(body.interactions.tokenSizes); setMap(current => current ? { ...current, tokens: current.tokens.map(candidate => candidate.id === body.token?.id ? { ...candidate, x: body.token.x, y: body.token.y, version: body.token.version } : candidate) } : current); publishMapInvalidation("tokens"); } catch (resizeError) { setError(resizeError instanceof Error ? resizeError.message : "The token could not be resized."); void loadMap(true, canManageRef.current ? selectedMapIdRef.current : null, false); } finally { setBusy(false); } }
   async function mapAction(body: Record<string, unknown>, preserveView = true) { setBusy(true); setError(""); try { const response = await fetch(`/api/campaigns/${campaignId}/map`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json() as MapResponse; if (!response.ok) throw new Error(result.error || "The campaign map could not be updated."); applyResponse(result, preserveView); if (result.map) await loadInteractions(result.map.id); else { setSnapToGrid(false); setTokenSizes({}); } publishMapInvalidation(); return result; } catch (mapError) { setError(mapError instanceof Error ? mapError.message : "The campaign map could not be updated."); return null; } finally { setBusy(false); } }
   async function autoAlignGrid() {
     if (!map?.backgroundUrl || !map.backgroundWidth || !map.backgroundHeight
@@ -1173,7 +1224,7 @@ export function CampaignMapWorkspace({
         {showAutoAlignOverlay && <rect x="0" y="0" width={map.backgroundWidth} height={map.backgroundHeight}
           fill={`url(#${autoGridPatternId})`} pointerEvents="none" aria-label="Grid auto-alignment preview" />}
         {(!canManage || playerPreview) && <CampaignMapAnnotationLayer controller={annotations} playerPreview={playerPreview} interactionEnabled={!playerPreview && !fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
-        <g className="campaign-map-fog-layer" pointerEvents="none">{map.fogCells.map(cell => <path key={`${cell.q}:${cell.r}`} d={gridCellPath(cell, map.grid)} className="campaign-map-fog-cell" />)}<g ref={fogPreviewLayerRef} /></g>
+        <CampaignMapFogLayer cells={map.fogCells} grid={map.grid} previewLayerRef={fogPreviewLayerRef} />
         {canManage && !playerPreview && <CampaignMapAnnotationLayer controller={annotations} interactionEnabled={!fogMode && !measureEnabled && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); areaTemplates.selectTemplate(null); setSelectedTokenId(null); }} />}
         <CampaignMapAreaTemplateLayer controller={areaTemplates} grid={map.grid} width={map.backgroundWidth} height={map.backgroundHeight} previewOnly={playerPreview} interactionEnabled={!playerPreview && !fogMode && !measureEnabled && !annotations.tool && !areaTemplates.open} onSelect={() => { stageRef.current?.focus({ preventScroll: true }); annotations.selectAnnotation(null); setSelectedTokenId(null); }} />
         {measureStart && measureEnd && <g className="campaign-map-measure-layer" pointerEvents="none">
@@ -1184,7 +1235,7 @@ export function CampaignMapWorkspace({
           {map.tokens.map(token => { const sizeCells = tokenSizes[token.id] ?? 1; const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells); return <g key={token.id} className={`campaign-map-token campaign-map-token-${token.kind}${!playerPreview && token.canMove ? " is-movable" : ""}${!playerPreview && selectedTokenId === token.id ? " is-selected" : ""}`} transform={`translate(${token.x} ${token.y})`} onPointerDown={playerPreview ? undefined : event => handleTokenPointerDown(event, token)}
              onPointerMove={playerPreview ? undefined : handleTokenPointerMove}
              onPointerUp={playerPreview ? undefined : handleTokenPointerEnd}
-             onPointerCancel={playerPreview ? undefined : handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${!playerPreview && token.canMove ? ", draggable" : ""}`}><title>{token.name}</title><circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" /><text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text>{tokenDragMeasurement?.tokenId === token.id && <text className="campaign-map-token-distance" textAnchor="middle" y={-(tokenVisualRadius + Math.max(14, tokenVisualRadius * 0.5))} fontSize={Math.max(12, tokenVisualRadius * 0.44)}>{tokenDragMeasurement.distance}</text>}<text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text></g>; })}</g>
+             onPointerCancel={playerPreview ? undefined : handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${!playerPreview && token.canMove ? ", draggable" : ""}`}><MapTokenArtwork name={token.name} radius={tokenVisualRadius} distance={tokenDragMeasurement?.tokenId === token.id ? tokenDragMeasurement.distance : undefined} /></g>; })}</g>
       </svg>}
         <div className="campaign-map-viewport-tools" role="group" aria-label="Map view and window controls">
           {map?.backgroundUrl && <>

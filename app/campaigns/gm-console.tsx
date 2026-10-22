@@ -31,7 +31,7 @@ import { SessionRecapManager } from "./session-recap-manager";
 import type { CampaignItem, CampaignItemManagementPayload } from "@/lib/campaigns/items";
 import { campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
 
-type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "stores" | "party" | "recaps";
+export type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "stores" | "party" | "recaps";
 
 type NpcDraft = {
   name: string; hpMax: number; armorClass: number;
@@ -380,8 +380,9 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
   </section>;
 }
 
-export function GmConsole({ campaignId, campaignName }: { campaignId: string; campaignName: string }) {
-  const [tab, setTab] = useState<ConsoleTab>("encounter");
+export function GmConsole({ campaignId, campaignName, embedded = false, activeTab }: { campaignId: string; campaignName: string; embedded?: boolean; activeTab?: ConsoleTab }) {
+  const [localTab, setTab] = useState<ConsoleTab>("encounter");
+  const tab = activeTab ?? localTab;
   const { state, setState, error, setError, busy, setBusy, action } = useCampaignLiveSession(campaignId);
   const [partyLevels, setPartyLevels] = useState<readonly unknown[]>([]);
   const [partyLoaded, setPartyLoaded] = useState(false);
@@ -519,8 +520,8 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
   const sharedHistory = session?.recentRolls ?? [];
   const gmHistory = [...privateGmRolls, ...sharedHistory].sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp)).slice(0, 100);
   const latestRoll = [pendingLatestRoll, gmHistory[0]].filter((roll): roll is RollResult => Boolean(roll)).sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0] || null;
-  return <main className="campaign-shell gm-console-shell">
-    <SignedInHeader active="campaigns" />
+  return <div className={embedded ? "gm-console-embedded" : "campaign-shell gm-console-shell"}>
+    {!embedded && <SignedInHeader active="campaigns" />}
     <section className="campaign-hero gm-console-hero">
       <div><p className="campaign-kicker">GAME MASTER WORKSPACE</p><h1>{campaignName}</h1><p>Live session controls, encounter flow, and campaign NPC templates.</p></div>
       <div className="campaign-hero-actions"><RulesAssistant className="gm-console-rules-assistant" id="gm-rules-question" /><Link className="campaign-secondary" href={`/campaigns/${campaignId}`}>Back to Campaign</Link><button type="button" className={session ? "campaign-danger" : "campaign-primary"} disabled={busy || npcRollBusy} onClick={() => void action(session ? "end" : "start").then(() => { if (session) { setPrivateGmRolls([]); setLatestRoll(null); setRollHistoryOpen(false); } }).catch(() => {})}>{session ? "End Session" : "Start Session"}</button></div>
@@ -540,7 +541,7 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       </div>
     </section>}
     {(error || rollError) && <div className="campaign-error" role="status">{error || rollError}</div>}
-    <nav className="gm-console-tabs" aria-label="Campaign pages"><Link href={`/campaigns/${campaignId}`}>Campaign</Link><span className="active" aria-current="page">GM Console</span></nav>\n    <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => { if (item === "party" && tab !== "party") { setPartyStatusLoading(true); setPartyStatusError(""); } setTab(item); }}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    {!embedded && <nav className="gm-console-tabs" aria-label="Campaign pages"><Link href={`/campaigns/${campaignId}`}>Campaign</Link><span className="active" aria-current="page">GM Console</span></nav>}\n    {!embedded && <nav className="gm-console-tabs" aria-label="GM Console sections">{(["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as ConsoleTab[]).map(item => <button type="button" key={item} className={tab === item ? "active" : ""} onClick={() => { if (item === "party" && tab !== "party") { setPartyStatusLoading(true); setPartyStatusError(""); } setTab(item); }}>{item === "npcs" ? "My NPCs" : item === "bestiary" ? "Bestiary" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>}
     <section className="campaign-panel gm-console-panel">
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
@@ -553,5 +554,5 @@ export function GmConsole({ campaignId, campaignName }: { campaignId: string; ca
       {tab === "party" && <section className="gm-console-section gm-party-status" aria-labelledby="gm-party-status-title"><div className="campaign-section-heading"><div><p className="campaign-kicker">CURRENT CHARACTER STATUS</p><h2 id="gm-party-status-title">Party</h2></div></div>{partyStatusLoading && <p className="campaign-empty-copy">Loading linked party…</p>}{partyStatusError && <p className="campaign-error" role="status">{partyStatusError}</p>}{!partyStatusLoading && !partyStatusError && !partyStatus.length && <p className="campaign-empty-copy">No characters are linked to this campaign.</p>}{partyStatus.length > 0 && <div className="gm-party-status-grid">{partyStatus.map(character => <GmPartyStatus key={character.id} campaignId={campaignId} character={character} />)}</div>}</section>}
     </section>
     <VirtualDiceOverlay ref={virtualDiceOverlay} theme={displayTheme} />
-  </main>;
+  </div>;
 }

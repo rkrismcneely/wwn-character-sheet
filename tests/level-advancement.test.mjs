@@ -607,4 +607,5 @@ test("ranged attacks in melee take -4 unless Deadeye level two applies", () => {
   assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 2 }), 0);
   assert.equal(rangedAttackInMeleePenalty({ ranged: false, threatened: true, deadeyeLevel: 0 }), 0);
   assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: false, deadeyeLevel: 0 }), 0);
+  assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 0, closeCombatantKnife: true }), 0);
 });

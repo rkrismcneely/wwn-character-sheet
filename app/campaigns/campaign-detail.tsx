@@ -723,6 +723,9 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
             </div>
             <fieldset className="campaign-join-character-list">
               <legend>Choose your replacement character</legend>
+              {eligibleBusy && <p role="status">Loading available characters…</p>}
+              {eligibleError && <p role="alert">{eligibleError}</p>}
+              {!eligibleBusy && !eligibleError && eligibleCharacters.length === 0 && <p>No other eligible characters are available.</p>}
               {eligibleCharacters.map(character => (
                 <label key={character.id} className="campaign-join-character">
                   <input

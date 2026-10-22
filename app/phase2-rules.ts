@@ -141,6 +141,21 @@ export function artEffortCommitmentCount(value: unknown) {
   return Number.isFinite(numeric) ? Math.max(0, Math.trunc(numeric)) : 0;
 }
 
+export function reconcileArtEffortBySlot(
+  previousArts: readonly string[],
+  previousEffort: readonly unknown[],
+  nextArts: readonly string[],
+) {
+  const commitments = new Map<string, number[]>();
+  previousArts.forEach((name, index) => {
+    if (!name) return;
+    const values = commitments.get(name) || [];
+    values.push(artEffortCommitmentCount(previousEffort[index]));
+    commitments.set(name, values);
+  });
+  return nextArts.map(name => name ? (commitments.get(name)?.shift() ?? 0) : 0);
+}
+
 export function artEffortTotal(values: readonly unknown[]) {
   return values.reduce<number>(
     (total, value) => total + artEffortCommitmentCount(value),

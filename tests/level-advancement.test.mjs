@@ -16,6 +16,7 @@ import {
 } from "../app/level-advancement.ts";
 import {
   deriveSkillProfile,
+  reconcileArtEffortBySlot,
   artEffortRestRecovers,
   rangedAttackInMeleePenalty,
   deriveUnarmedAttack,
@@ -617,4 +618,13 @@ test("overnight rest recovers Limb Restoration and ordinary scene/day Effort", (
   assert.equal(artEffortRestRecovers("Commit Effort for the day to cure one disease."), true);
   assert.equal(artEffortRestRecovers("Commit Effort for the scene to leap exceptionally."), true);
   assert.equal(artEffortRestRecovers("Commit Effort to sustain this effect."), false);
+});
+
+
+test("Art Effort stays with the selected Art when an earlier Art slot is empty", () => {
+  assert.deepEqual(reconcileArtEffortBySlot(["", "Open Mind", "Pavis of Elements"], [0, 1, 2], ["", "Open Mind", "Pavis of Elements"]), [0, 1, 2]);
+  assert.deepEqual(reconcileArtEffortBySlot(["Open Mind", "Pavis of Elements"], [1, 2], ["", "Pavis of Elements"]), [0, 2]);
+  assert.deepEqual(reconcileArtEffortBySlot(["", "Open Mind", "Pavis of Elements"], [0, 1, 2], ["Open Mind", "Pavis of Elements"]), [1, 2]);
+  assert.deepEqual(reconcileArtEffortBySlot(["Skilled", "", "Skilled"], [1, 0, 2], ["Skilled", "Skilled"]), [1, 2]);
+  assert.deepEqual(reconcileArtEffortBySlot(["Open Mind"], [1], ["Different Art"]), [0]);
 });

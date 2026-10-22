@@ -168,6 +168,24 @@
   transition: width .24s ease, left .24s ease, right .24s ease;
 }
 
+/* Keep the entire opaque map visible as it slides out on close. */
+.campaign-map-host-drawer.campaign-map-drawer-exiting {
+  pointer-events: none;
+  animation: campaign-map-drawer-exit-right .24s ease-in forwards;
+}
+.campaign-map-host-drawer.campaign-map-drawer-left.campaign-map-drawer-exiting {
+  animation-name: campaign-map-drawer-exit-left;
+}
+@keyframes campaign-map-drawer-exit-right {
+  to { transform: translateX(100%); }
+}
+@keyframes campaign-map-drawer-exit-left {
+  to { transform: translateX(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .campaign-map-host-drawer.campaign-map-drawer-exiting { animation-duration: .01ms; }
+}
+
 .campaign-map-host-drawer.campaign-map-drawer-left {
   right: auto;
   left: 0;

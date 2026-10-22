@@ -293,6 +293,7 @@ export function CampaignMapWorkspace({
   const suppressDrawerCollapseClickRef = useRef(false);
   const [drawerDock, setDrawerDock] = useState<CampaignMapDrawerDock>(preferredDrawerDock);
   const [drawerWidth, setDrawerWidth] = useState(preferredDrawerWidth);
+  const [closingDrawer, setClosingDrawer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -375,8 +376,15 @@ export function CampaignMapWorkspace({
     playerPreviewRef.current = false; gmMapBeforePreviewRef.current = null; setPlayerPreview(false);
     if (presentation === "pip") { pipExitIntentRef.current = "close"; pipWindowRef.current?.close(); pipWindowRef.current = null; setPipDocument(null); dispatchWorkspace({ type: "close" }); setSettingsOpen(false); return; }
     if (presentation === "standalone") { if (window.opener) window.close(); else window.location.assign(`/campaigns/${campaignId}`); return; }
+    if (presentation === "drawer") setClosingDrawer(true);
     dispatchWorkspace({ type: "close" }); setSettingsOpen(false);
   }, [campaignId, presentation]);
+
+  useEffect(() => {
+    if (!closingDrawer) return;
+    const timeout = window.setTimeout(() => setClosingDrawer(false), 240);
+    return () => window.clearTimeout(timeout);
+  }, [closingDrawer]);
 
   useCampaignLiveSession(campaignId, open);
   useEffect(() => {
@@ -475,8 +483,8 @@ export function CampaignMapWorkspace({
   const loadMap = useCallback(async (preserveView = false, requestedMapId?: string | null, showLoading = true): Promise<boolean> => { if (showLoading) setLoading(true); setError(""); try { const params = requestedMapId ? `?${new URLSearchParams({ mapId: requestedMapId }).toString()}` : ""; const response = await fetch(`/api/campaigns/${campaignId}/map${params}`, { cache: "no-store" }); const body = await response.json() as MapResponse; if (!response.ok) throw new Error(body.error || "The campaign map could not be loaded."); if (tokenDragRef.current || tokenMovePendingRef.current) return false; applyResponse(body, preserveView); if (body.map) await loadInteractions(body.map.id); else { setSnapToGrid(false); setTokenSizes({}); } return true; } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "The campaign map could not be loaded."); return false; } finally { if (showLoading) setLoading(false); } }, [applyResponse, campaignId, loadInteractions]);
 
   useEffect(() => { if (!open || typeof BroadcastChannel === "undefined") return; const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`); mapSyncChannelRef.current = channel; channel.onmessage = event => { const message = event.data as { type?: unknown; campaignId?: unknown } | null; if (message?.type !== "map-changed" || message.campaignId !== campaignId) return; const requestedMapId = playerPreviewRef.current ? null : canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; return () => { if (mapSyncChannelRef.current === channel) mapSyncChannelRef.current = null; channel.close(); }; }, [campaignId, loadMap, open]);
-  useEffect(() => { if (!initialPresentation || !initialOpen) return; const initialLoad = window.setTimeout(() => { void loadMap(false); }, 0); return () => window.clearTimeout(initialLoad); }, [initialOpen, initialPresentation, loadMap]);
-  useEffect(() => { const onOpenMap = (event: Event) => { const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail; if (detail?.campaignId !== campaignId) return; if (detail.action === "close") { closeMap(); return; } if (open) return; dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }; window.addEventListener(campaignMapOpenEvent, onOpenMap); return () => window.removeEventListener(campaignMapOpenEvent, onOpenMap); }, [campaignId, closeMap, loadMap, open]);
+  useEffect(() => { if (!initialOpen) return; const initialLoad = window.setTimeout(() => { void loadMap(false); }, 0); return () => window.clearTimeout(initialLoad); }, [initialOpen, initialPresentation, loadMap]);
+  useEffect(() => { const onOpenMap = (event: Event) => { const detail = (event as CustomEvent<CampaignMapOpenDetail>).detail; if (detail?.campaignId !== campaignId) return; if (detail.action === "close") { closeMap(); return; } if (open) return; setClosingDrawer(false); dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }; window.addEventListener(campaignMapOpenEvent, onOpenMap); return () => window.removeEventListener(campaignMapOpenEvent, onOpenMap); }, [campaignId, closeMap, loadMap, open]);
   useEffect(() => { if (!open) return; const onMapChanged = (event: Event) => { const detail = (event as CustomEvent<{ campaignId?: string }>).detail; if (detail?.campaignId !== campaignId) return; const requestedMapId = playerPreviewRef.current ? null : canManageRef.current ? selectedMapIdRef.current : null; void loadMap(true, requestedMapId, false); }; window.addEventListener(campaignMapChangedEvent, onMapChanged); return () => window.removeEventListener(campaignMapChangedEvent, onMapChanged); }, [campaignId, loadMap, open]);
 
   function showMap() { if (open) { closeMap(); return; } dispatchWorkspace({ type: "open" }); setSettingsOpen(false); void loadMap(false); }
@@ -1073,7 +1081,7 @@ export function CampaignMapWorkspace({
   const showAutoAlignOverlay = !playerPreview && autoAlignPreview && settingsOpen && editSection === "grid"
     && grid.type === "square" && Boolean(map?.backgroundUrl);
   const autoGridPatternId = `${patternId}-auto-align`;
-  const mapSurface = open ? <section ref={drawerElementRef} className={`campaign-map-dialog campaign-map-host-${presentation}${presentation === "drawer" ? ` campaign-map-drawer-${drawerDock}` : ""}`} role="dialog" aria-modal={presentation === "fullscreen"} aria-labelledby="campaign-map-title" style={presentation === "drawer" ? { "--campaign-map-drawer-width": `${drawerWidth}px` } as CSSProperties : undefined}>
+  const mapSurface = (open || closingDrawer) ? <section ref={drawerElementRef} className={`campaign-map-dialog campaign-map-host-${open ? presentation : "drawer"}${(presentation === "drawer" || closingDrawer) ? ` campaign-map-drawer-${drawerDock}` : ""}${closingDrawer && !open ? " campaign-map-drawer-exiting" : ""}`} role="dialog" aria-modal={presentation === "fullscreen"} aria-labelledby="campaign-map-title" style={(presentation === "drawer" || closingDrawer) ? { "--campaign-map-drawer-width": `${drawerWidth}px` } as CSSProperties : undefined}>
     {presentation === "drawer" && <div className="campaign-map-drawer-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize map side drawer" onPointerDown={handleDrawerResizeStart} onPointerMove={handleDrawerResizeMove} onPointerUp={handleDrawerResizeEnd} onPointerCancel={handleDrawerResizeEnd} />}
     <header ref={mapToolbarRef} className="campaign-map-toolbar" aria-label="Campaign map tools">
       <div className="campaign-map-toolbar-primary">
@@ -1445,7 +1453,7 @@ export function CampaignMapWorkspace({
   </section> : null;
 
   const drawerCollapseControl = open && presentation === "drawer" ? <button type="button" className={`campaign-map-drawer-collapse campaign-map-drawer-collapse-${drawerDock}`} aria-label="Close map; drag horizontally to resize side drawer" aria-expanded="true" title="Click to close. Drag horizontally to resize the map drawer." onPointerDown={event => handleDrawerResizeStart(event, "collapse")} onPointerMove={handleDrawerResizeMove} onPointerUp={handleDrawerResizeEnd} onPointerCancel={handleDrawerResizeEnd} onClick={handleDrawerCollapseClick}><span className="campaign-map-drawer-collapse-label">Close Map</span></button> : null;
-  return <>{showFloatingButton && !open && <button type="button" className={`campaign-map-collapsed-drawer campaign-map-collapsed-drawer-${drawerDock}`} aria-pressed={open} onClick={showMap}>Open Map</button>}{showFloatingButton && <button type="button" className="campaign-map-mobile-launcher-button" aria-pressed={open} onClick={showMap}>{open ? "Close Map" : "Map"}</button>}{mapSurface && (pipDocument ? createPortal(<main className="campaign-map-pip-host">{mapSurface}</main>, pipDocument.body) : <div className={`campaign-map-backdrop campaign-map-presentation-${presentation}`} role="presentation">{drawerCollapseControl}{mapSurface}</div>)}</>;
+  return <>{showFloatingButton && !open && <button type="button" className={`campaign-map-collapsed-drawer campaign-map-collapsed-drawer-${drawerDock}`} aria-pressed={open} onClick={showMap}>Open Map</button>}{showFloatingButton && <button type="button" className="campaign-map-mobile-launcher-button" aria-pressed={open} onClick={showMap}>{open ? "Close Map" : "Map"}</button>}{mapSurface && (pipDocument ? createPortal(<main className="campaign-map-pip-host">{mapSurface}</main>, pipDocument.body) : <div className={`campaign-map-backdrop campaign-map-presentation-${open ? presentation : "drawer"}`} role="presentation">{drawerCollapseControl}{mapSurface}</div>)}</>;
 }
 
 export function CampaignMapLauncher(props: CampaignMapWorkspaceProps) { return <CampaignMapWorkspace {...props} />; }

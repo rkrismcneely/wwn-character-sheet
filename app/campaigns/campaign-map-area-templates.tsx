@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -223,11 +224,8 @@ export function useCampaignMapAreaTemplates({
 
   const publishLocal = useCallback(() => {
     window.dispatchEvent(new CustomEvent(campaignMapChangedEvent, { detail: { campaignId } }));
-    if (typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`);
-      channel.postMessage({ type: "map-changed", campaignId });
-      channel.close();
-    }
+    // The parent map workspace broadcasts to other windows through onChanged.
+    // Broadcasting here too sends duplicate invalidations and reload requests.
     onChanged?.();
   }, [campaignId, onChanged]);
 
@@ -1035,35 +1033,38 @@ export function CampaignMapAreaTemplateInspector({ controller, grid }: {
   </div>;
 }
 
-export function CampaignMapAreaTemplateLayer({
-  controller,
-  grid,
-  width,
-  height,
-  interactionEnabled = true,
-  previewOnly = false,
-  onSelect,
+// Keep each template's expensive affected-cell and outline path calculation
+// stable during unrelated map renders. Selected/interactive controls still
+// update immediately, including while a template is dragged or rotated.
+function AreaTemplateSvg({
+  template, grid, width, height, selected, interactive, patternPrefix, controller, onSelect,
 }: {
-  controller: CampaignMapAreaTemplateController;
+  template: CampaignMapAreaTemplate;
   grid: CampaignMapGrid;
   width: number;
   height: number;
-  interactionEnabled?: boolean;
-  previewOnly?: boolean;
+  selected: boolean;
+  interactive: boolean;
+  patternPrefix: string;
+  controller: CampaignMapAreaTemplateController;
   onSelect?: (id: string) => void;
 }) {
-  const patternPrefix = useId().replace(/:/gu, "-");
-  const selecting = !previewOnly && interactionEnabled && (!controller.open || controller.mode === "select");
-  return <g className={`campaign-map-area-layer${controller.open ? " is-open" : ""}${selecting ? " is-selecting" : ""}`}>
-    {controller.templates.map(template => {
-      const affected = campaignMapAreaTemplateAffectedPath(template, grid, width, height);
-      const outline = campaignMapAreaTemplateOutlinePath(template, grid);
-      const selected = !previewOnly && controller.selectedId === template.id;
-      const interactive = selecting && template.canEdit;
-      const direction = campaignMapAreaTemplateDirectionPoint(template, grid);
-      const motionPatternId = `spell-motif-${patternPrefix}-${template.id}`;
-      return <g
-        key={template.id}
+  const affected = useMemo(
+    () => campaignMapAreaTemplateAffectedPath(template, grid, width, height),
+    [template, grid, width, height],
+  );
+  const outline = useMemo(
+    () => campaignMapAreaTemplateOutlinePath(template, grid),
+    [template, grid],
+  );
+  const direction = useMemo(
+    () => selected && template.shape !== "radius"
+      ? campaignMapAreaTemplateDirectionPoint(template, grid)
+      : null,
+    [selected, template, grid],
+  );
+  const motionPatternId = `spell-motif-${patternPrefix}-${template.id}`;
+  return <g
         className={`campaign-map-area-template${selected ? " is-selected" : ""}${interactive ? " is-editable" : ""}${template.motionEffect !== "none" ? ` is-motion-${template.motionEffect}` : ""}`}
         style={template.motionEffect !== "none" ? { "--map-area-fx": template.color } as CSSProperties : undefined}
         role={interactive ? "button" : undefined}
@@ -1093,11 +1094,11 @@ export function CampaignMapAreaTemplateLayer({
         {selected && <>
           <circle className="campaign-map-area-origin" cx={template.x} cy={template.y} r="7" vectorEffect="non-scaling-stroke" />
           {template.shape !== "radius" && <>
-            <line className="campaign-map-area-direction" x1={template.x} y1={template.y} x2={direction.x} y2={direction.y} vectorEffect="non-scaling-stroke" />
+            <line className="campaign-map-area-direction" x1={template.x} y1={template.y} x2={direction!.x} y2={direction!.y} vectorEffect="non-scaling-stroke" />
             <circle
               className="campaign-map-area-rotate-handle"
-              cx={direction.x}
-              cy={direction.y}
+              cx={direction!.x}
+              cy={direction!.y}
               r="10"
               vectorEffect="non-scaling-stroke"
               role="slider"
@@ -1111,6 +1112,39 @@ export function CampaignMapAreaTemplateLayer({
         </>}
         {interactive && <path className="campaign-map-area-hit" d={outline} />}
       </g>;
-    })}
+}
+
+export function CampaignMapAreaTemplateLayer({
+  controller,
+  grid,
+  width,
+  height,
+  interactionEnabled = true,
+  previewOnly = false,
+  onSelect,
+}: {
+  controller: CampaignMapAreaTemplateController;
+  grid: CampaignMapGrid;
+  width: number;
+  height: number;
+  interactionEnabled?: boolean;
+  previewOnly?: boolean;
+  onSelect?: (id: string) => void;
+}) {
+  const patternPrefix = useId().replace(/:/gu, "-");
+  const selecting = !previewOnly && interactionEnabled && (!controller.open || controller.mode === "select");
+  return <g className={`campaign-map-area-layer${controller.open ? " is-open" : ""}${selecting ? " is-selecting" : ""}`}>
+    {controller.templates.map(template => <AreaTemplateSvg
+      key={template.id}
+      template={template}
+      grid={grid}
+      width={width}
+      height={height}
+      selected={!previewOnly && controller.selectedId === template.id}
+      interactive={selecting && template.canEdit}
+      patternPrefix={patternPrefix}
+      controller={controller}
+      onSelect={onSelect}
+    />)}
   </g>;
 }

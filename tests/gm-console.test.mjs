@@ -88,7 +88,7 @@ test("GM Console is owner/admin-gated and reuses the existing session, encounter
   assert.match(consoleUi, /Copy to NPC Library/u);
   assert.match(consoleUi, /Source & license/u);
   assert.match(consoleUi, /BestiaryBrowseItem/u);
-  assert.match(consoleUi, /filteredCreatures\.map\(creature => <BestiaryBrowseItem/u);
+  assert.match(consoleUi, /visibleCreatures\.map\(creature => <BestiaryBrowseItem/u);
   assert.match(consoleUi, /WWN Encounter Estimate/u);
   assert.match(consoleUi, /calculateWwnThreatEstimate/u);
   assert.match(consoleUi, /Assumed creature quantity/u);

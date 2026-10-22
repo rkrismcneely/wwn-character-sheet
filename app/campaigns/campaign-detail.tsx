@@ -39,6 +39,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const [resources, setResources] = useState<CampaignResource[]>([]);
   const [eligibleCharacters, setEligibleCharacters] = useState<CampaignCharacter[]>([]);
   const [busy, setBusy] = useState(true);
+  const [detailsBusy, setDetailsBusy] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -57,58 +58,54 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
   async function loadCampaign() {
-    try {
-      const [campaignResponse, memberResponse, characterResponse, resourceResponse] = await Promise.all([
-        fetch(`/api/campaigns/${campaignId}`, { cache: "no-store" }),
-        fetch(`/api/campaigns/${campaignId}/members`, { cache: "no-store" }),
-        fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" }),
-        fetch(`/api/campaigns/${campaignId}/resources`, { cache: "no-store" }),
+    // Request all sections concurrently; release the header and navigation
+    // as soon as campaign access is confirmed.
+    let primaryLoaded = false;
+    const campaignRequest = fetch(`/api/campaigns/${campaignId}`, { cache: "no-store" });
+    const detailRequests = Promise.all([
+      fetch(`/api/campaigns/${campaignId}/members`, { cache: "no-store" }),
+      fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" }),
+      fetch(`/api/campaigns/${campaignId}/resources`, { cache: "no-store" }),
+    ]).then(async ([memberResponse, characterResponse, resourceResponse]) => {
+      const [memberPayload, characterPayload, resourcePayload] = await Promise.all([
+        memberResponse.json() as Promise<{ members?: CampaignMember[]; error?: string }>,
+        characterResponse.json() as Promise<{ characters?: CampaignCharacter[]; eligibleCharacters?: CampaignCharacter[]; error?: string }>,
+        resourceResponse.json() as Promise<{ resources?: CampaignResource[]; error?: string }>,
       ]);
-      const campaignPayload = await campaignResponse.json() as {
-        campaign?: CampaignSummary;
-        error?: string;
-      };
-      const memberPayload = await memberResponse.json() as {
-        members?: CampaignMember[];
-        error?: string;
-      };
-      const characterPayload = await characterResponse.json() as {
-        characters?: CampaignCharacter[];
-        eligibleCharacters?: CampaignCharacter[];
-        error?: string;
-      };
-      const resourcePayload = await resourceResponse.json() as {
-        resources?: CampaignResource[];
-        error?: string;
-      };
-      if (!campaignResponse.ok || !campaignPayload.campaign) {
-        throw new Error(campaignPayload.error || "This campaign could not be opened.");
-      }
-      if (!memberResponse.ok) {
-        throw new Error(memberPayload.error || "The campaign roster could not be loaded.");
-      }
-      if (!characterResponse.ok) {
-        throw new Error(characterPayload.error || "The campaign character library could not be loaded.");
-      }
-      if (!resourceResponse.ok) {
-        throw new Error(resourcePayload.error || "The campaign resources could not be loaded.");
-      }
-      setCampaign(campaignPayload.campaign);
+      if (!memberResponse.ok) throw new Error(memberPayload.error || "The campaign roster could not be loaded.");
+      if (!characterResponse.ok) throw new Error(characterPayload.error || "The campaign character library could not be loaded.");
+      if (!resourceResponse.ok) throw new Error(resourcePayload.error || "The campaign resources could not be loaded.");
+      return { memberPayload, characterPayload, resourcePayload };
+    });
+    // Attach a rejection handler now, including if the primary request fails.
+    void detailRequests.catch(() => {});
+    try {
+      const response = await campaignRequest;
+      const payload = await response.json() as { campaign?: CampaignSummary; error?: string };
+      if (!response.ok || !payload.campaign) throw new Error(payload.error || "This campaign could not be opened.");
+      primaryLoaded = true;
+      setCampaign(payload.campaign);
+      setRenameValue(payload.campaign.name);
+      setDescriptionValue(payload.campaign.description ?? "");
+      setBusy(false);
+      const { memberPayload, characterPayload, resourcePayload } = await detailRequests;
       setMembers(Array.isArray(memberPayload.members) ? memberPayload.members : []);
       setCharacters(Array.isArray(characterPayload.characters) ? characterPayload.characters : []);
       setEligibleCharacters(Array.isArray(characterPayload.eligibleCharacters) ? characterPayload.eligibleCharacters : []);
       setResources(Array.isArray(resourcePayload.resources) ? resourcePayload.resources : []);
-      setRenameValue(campaignPayload.campaign.name);
-      setDescriptionValue(campaignPayload.campaign.description ?? "");
+      setError("");
     } catch (loadError) {
-      setCampaign(null);
-      setMembers([]);
-      setCharacters([]);
-      setEligibleCharacters([]);
-      setResources([]);
+      if (!primaryLoaded) {
+        setCampaign(null);
+        setMembers([]);
+        setCharacters([]);
+        setEligibleCharacters([]);
+        setResources([]);
+      }
       setError(loadError instanceof Error ? loadError.message : "This campaign could not be opened.");
     } finally {
       setBusy(false);
+      setDetailsBusy(false);
     }
   }
 
@@ -514,7 +511,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           {notice && <div className="campaign-notice" role="status">{notice}</div>}
           {error && <div className="campaign-error" role="alert">{error}</div>}
 
-          <div className="campaign-detail-layout">
+          {detailsBusy && <div className="campaign-page-state" role="status">Loading campaign details…</div>}
+          {!detailsBusy && <div className="campaign-detail-layout">
             <section className="campaign-panel campaign-overview-panel" aria-labelledby="campaign-overview-title">
             <div className="campaign-section-heading">
               <div>
@@ -657,7 +655,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               <p className="campaign-management-note">Campaign membership never transfers character ownership or changes character visibility.</p>
             </aside>
           </div>
-          </div>
+          </div>}
         </>
       )}
 

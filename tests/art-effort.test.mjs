@@ -84,10 +84,7 @@ test("changing or resizing Arts cannot transfer stale commitment counts", async 
     sheet,
     /artEffort: current\.artEffort\.map\(\(count, j\) => j === i \? 0 : artEffortCommitmentCount\(count\)\)/u,
   );
-  assert.match(
-    sheet,
-    /name \? \[artEffortCommitmentCount\(current\.artEffort\[index\]\)\] : \[\]/u,
-  );
+  assert.ok(sheet.includes("reconcileArtEffortBySlot(current.artPicks, current.artEffort, nextArts)"));
 });
 
 

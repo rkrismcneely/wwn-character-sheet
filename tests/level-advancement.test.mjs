@@ -16,6 +16,7 @@ import {
 } from "../app/level-advancement.ts";
 import {
   deriveSkillProfile,
+  artEffortRestRecovers,
   rangedAttackInMeleePenalty,
   deriveUnarmedAttack,
   hasNegativeEffectiveAttributeModifier,
@@ -608,4 +609,12 @@ test("ranged attacks in melee take -4 unless Deadeye level two applies", () => {
   assert.equal(rangedAttackInMeleePenalty({ ranged: false, threatened: true, deadeyeLevel: 0 }), 0);
   assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: false, deadeyeLevel: 0 }), 0);
   assert.equal(rangedAttackInMeleePenalty({ ranged: true, threatened: true, deadeyeLevel: 0, closeCombatantKnife: true }), 0);
+});
+
+
+test("overnight rest recovers Limb Restoration and ordinary scene/day Effort", () => {
+  assert.equal(artEffortRestRecovers("Commit all remaining Effort for the day to restore a missing limb or organ."), true);
+  assert.equal(artEffortRestRecovers("Commit Effort for the day to cure one disease."), true);
+  assert.equal(artEffortRestRecovers("Commit Effort for the scene to leap exceptionally."), true);
+  assert.equal(artEffortRestRecovers("Commit Effort to sustain this effect."), false);
 });

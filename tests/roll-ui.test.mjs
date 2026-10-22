@@ -551,14 +551,12 @@ test("social and ranged Focus audit exposes qualified reaction and session contr
 });
 
 
-test("Deadeye ranged melee penalty is explicit and scoped to focus level", () => {
-  assert.match(sheetSource, /const \[rangedInMelee, setRangedInMelee\] = useState\(false\)/u);
-  assert.match(sheetSource, /rangedMeleePenalty = !isMelee && rangedInMelee && deadeye/u);
-  assert.match(sheetSource, /deadeye\?\.level === 1 && isBowOrTwoHandedRanged \? -4 : 0/u);
-  assert.match(sheetSource, /focusHitBonus \+ rangedMeleePenalty/u);
-  assert.match(sheetSource, /Bow or two-handed ranged weapon used with an enemy in melee range/u);
+test("ranged melee penalty is computed for all ranged weapon attacks", () => {
+  assert.match(sheetSource, /const \\[rangedInMelee, setRangedInMelee\\] = useState\\(false\\)/u);
+  assert.match(sheetSource, /rangedMeleePenalty = rangedAttackInMeleePenalty/u);
+  assert.match(sheetSource, /focusHitBonus \\+ rangedMeleePenalty/u);
+  assert.match(sheetSource, /Ranged attack while engaged in melee/u);
 });
-
 
 test("Armsmaster skill bonus can be assigned to eligible melee Shock instead of hit damage", () => {
   assert.match(sheetSource, /\[armsmasterToShock, setArmsmasterToShock\] = useState\(false\)/u);
@@ -582,9 +580,7 @@ test("custom campaign versatile weapons honor explicit thrown versus melee skill
 });
 
 
-test("Deadeye melee-threat penalty excludes thrown and one-handed projectile weapons", () => {
-  assert.match(sheetSource, /const isBowOrTwoHandedRanged = !isThrownWeapon/u);
-  assert.match(sheetSource, /w\.name\.toLowerCase\(\)\.includes\("bow"\)/u);
-  assert.match(sheetSource, /trait\.trim\(\) === "2H"/u);
-  assert.match(sheetSource, /deadeye\?\.level === 1 && isBowOrTwoHandedRanged \? -4 : 0/u);
+test("ranged melee penalty uses existing ranged mode and Deadeye level", () => {
+  assert.match(sheetSource, /ranged: !isMelee, threatened: rangedInMelee/u);
+  assert.match(sheetSource, /deadeyeLevel: deadeye\\?\\.level \\|\\| 0/u);
 });

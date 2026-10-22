@@ -582,5 +582,5 @@ test("custom campaign versatile weapons honor explicit thrown versus melee skill
 
 test("ranged melee penalty uses existing ranged mode and Deadeye level", () => {
   assert.match(sheetSource, /ranged: !isMelee, threatened: rangedInMelee/u);
-  assert.match(sheetSource, /deadeyeLevel: deadeye\\?\\.level \\|\\| 0/u);
+  assert.ok(sheetSource.includes("deadeyeLevel: deadeye?.level || 0"));
 });

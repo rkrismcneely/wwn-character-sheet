@@ -29,7 +29,7 @@ test("player preview renders visible drawings underneath fog and hides GM-only a
     read("../app/campaigns/campaign-map-annotations.tsx"),
   ]);
   const playerLayer = launcher.indexOf('{(!canManage || playerPreview) && <CampaignMapAnnotationLayer');
-  const fogLayer = launcher.indexOf('<g className="campaign-map-fog-layer"');
+  const fogLayer = launcher.indexOf('<CampaignMapFogLayer');
   const gmLayer = launcher.indexOf('{canManage && !playerPreview && <CampaignMapAnnotationLayer');
   assert.ok(playerLayer > 0 && playerLayer < fogLayer && fogLayer < gmLayer);
   assert.match(annotations, /filter\(annotation => !playerPreview \|\| annotation\.visibility === "players"\)/u);
@@ -50,7 +50,7 @@ test("player preview is read-only for tokens, spell areas, tools, editing and ke
   assert.match(launcher, /\{!playerPreview && map\?\.backgroundUrl && <CampaignMapAreaTemplatePalette/u);
   assert.match(launcher, /previewOnly=\{playerPreview\} interactionEnabled=\{!playerPreview/u);
   assert.match(areas, /const selecting = !previewOnly && interactionEnabled/u);
-  assert.match(areas, /const selected = !previewOnly && controller\.selectedId === template\.id/u);
+  assert.match(areas, /selected=\{!previewOnly && controller\.selectedId === template\.id\}/u);
   assert.match(launcher, /onPointerDown=\{playerPreview \? undefined : event => handleTokenPointerDown/u);
   assert.match(launcher, /onPointerMove=\{playerPreview \? undefined : handleTokenPointerMove\}/u);
   assert.match(launcher, /\{!playerPreview && map && !annotations\.tool/u);

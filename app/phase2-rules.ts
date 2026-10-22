@@ -146,9 +146,14 @@ export function reconcileArtEffortBySlot(
   previousEffort: readonly unknown[],
   nextArts: readonly string[],
 ) {
-  return nextArts.map((name, index) =>
-    name && name === previousArts[index] ? artEffortCommitmentCount(previousEffort[index]) : 0,
-  );
+  const commitments = new Map<string, number[]>();
+  previousArts.forEach((name, index) => {
+    if (!name) return;
+    const values = commitments.get(name) || [];
+    values.push(artEffortCommitmentCount(previousEffort[index]));
+    commitments.set(name, values);
+  });
+  return nextArts.map(name => name ? (commitments.get(name)?.shift() ?? 0) : 0);
 }
 
 export function artEffortTotal(values: readonly unknown[]) {

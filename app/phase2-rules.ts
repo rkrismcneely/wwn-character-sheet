@@ -293,7 +293,7 @@ export type UnarmedAttackInput = {
 };
 
 const withBonus = (dice: string, bonus: number) => {
-  const match = dice.match(/^(\\d+d\\d+)([+-]\\d+)?$/);
+  const match = dice.match(/^(\d+d\d+)([+-]\d+)?$/);
   if (!match) return `${dice}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ""}`;
   const total = Number(match[2] || 0) + bonus;
   return `${match[1]}${total > 0 ? `+${total}` : total < 0 ? total : ""}`;

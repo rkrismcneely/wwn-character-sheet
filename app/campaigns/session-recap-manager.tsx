@@ -46,10 +46,9 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
 
   useEffect(() => {
     // Fetch after mount; keep the list independent of the live encounter session.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    const cached = cachedPage(campaignId);
-    if (cached) return;
-    void loadPage(1);
+    if (cachedPage(campaignId)) return;
+    const timer = window.setTimeout(() => void loadPage(1), 0);
+    return () => window.clearTimeout(timer);
   }, [campaignId, loadPage]);
 
   function startNew() {

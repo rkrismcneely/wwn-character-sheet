@@ -48,9 +48,9 @@ async function responseFor(
   publicId: string,
   mapId?: string | null,
 ): Promise<CampaignMapResponse> {
-  const result = await readCampaignMap(db, actor, publicId, mapId);
-  if (result.permissions.canManage) {
-    const access = await loadCampaignMapAccess(db, actor, publicId);
+  const access = await loadCampaignMapAccess(db, actor, publicId);
+  const result = await readCampaignMap(db, actor, publicId, mapId, access);
+  if (access.canManage) {
     result.encounterAvailable = await encounterAvailable(db, access.campaignInternalId);
   }
   return result;

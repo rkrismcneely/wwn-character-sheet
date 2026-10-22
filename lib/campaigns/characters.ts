@@ -6,6 +6,7 @@ import {
 import {
   CampaignServiceError,
   loadCampaignAccess,
+  type AuthorizedCampaignAccess,
   requireActiveCampaign,
 } from "./service.ts";
 import type {
@@ -162,9 +163,10 @@ export async function listCampaignCharacters(
   db: D1Database,
   actor: CampaignActor | null,
   campaignPublicId: string,
+  authorizedAccess?: AuthorizedCampaignAccess,
 ): Promise<CampaignCharacterSummaryPayload[]> {
   const authenticatedActor = requireActor(actor);
-  const { campaign } = await loadCampaignAccess(
+  const { campaign } = authorizedAccess ?? await loadCampaignAccess(
     db,
     authenticatedActor,
     campaignPublicId,

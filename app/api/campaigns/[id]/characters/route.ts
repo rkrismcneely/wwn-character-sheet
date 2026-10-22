@@ -20,11 +20,12 @@ export async function GET(request: Request, context: Context): Promise<Response>
     }
     const { id } = await context.params;
     const db = await getCampaignD1();
-    const [characters, eligibleCharacters] = await Promise.all([
-      listCampaignCharacters(db, actor, id),
-      listEligibleCampaignCharacters(db, actor, id),
-    ]);
-    return Response.json({ characters, eligibleCharacters });
+    if (new URL(request.url).searchParams.get("view") === "eligible") {
+      const eligibleCharacters = await listEligibleCampaignCharacters(db, actor, id);
+      return Response.json({ eligibleCharacters });
+    }
+    const characters = await listCampaignCharacters(db, actor, id);
+    return Response.json({ characters });
   } catch (error) {
     return campaignErrorResponse(
       error,

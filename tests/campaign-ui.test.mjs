@@ -251,7 +251,8 @@ test("ordinary players get an intentional, confirmed character replacement flow"
 
   assert.match(detail, /campaign\.membershipRole === "player" && character\.isMine/u);
   assert.match(detail, /Change Character/u);
-  assert.match(detail, /You don&apos;t have another eligible character to switch to/u);
+  assert.match(detail, /void loadEligibleCharacters\(\)/u);
+  assert.match(detail, /eligibleBusy/u);
   assert.match(detail, /currentCharacterId: changeCharacter\.id/u);
   assert.match(detail, /replacementCharacterId/u);
   assert.match(detail, /Confirm Character Change/u);

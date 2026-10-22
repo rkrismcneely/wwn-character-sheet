@@ -38,6 +38,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const [characters, setCharacters] = useState<CampaignCharacter[]>([]);
   const [resources, setResources] = useState<CampaignResource[]>([]);
   const [eligibleCharacters, setEligibleCharacters] = useState<CampaignCharacter[]>([]);
+  const [eligibleBusy, setEligibleBusy] = useState(false);
+  const [eligibleError, setEligibleError] = useState("");
   const [busy, setBusy] = useState(true);
   const [detailsBusy, setDetailsBusy] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
@@ -58,55 +60,40 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
   async function loadCampaign() {
-    // Request all sections concurrently; release the header and navigation
-    // as soon as campaign access is confirmed.
-    let primaryLoaded = false;
-    const campaignRequest = fetch(`/api/campaigns/${campaignId}`, { cache: "no-store" });
-    const detailRequests = Promise.all([
-      fetch(`/api/campaigns/${campaignId}/members`, { cache: "no-store" }),
-      fetch(`/api/campaigns/${campaignId}/characters`, { cache: "no-store" }),
-      fetch(`/api/campaigns/${campaignId}/resources`, { cache: "no-store" }),
-    ]).then(async ([memberResponse, characterResponse, resourceResponse]) => {
-      const [memberPayload, characterPayload, resourcePayload] = await Promise.all([
-        memberResponse.json() as Promise<{ members?: CampaignMember[]; error?: string }>,
-        characterResponse.json() as Promise<{ characters?: CampaignCharacter[]; eligibleCharacters?: CampaignCharacter[]; error?: string }>,
-        resourceResponse.json() as Promise<{ resources?: CampaignResource[]; error?: string }>,
-      ]);
-      if (!memberResponse.ok) throw new Error(memberPayload.error || "The campaign roster could not be loaded.");
-      if (!characterResponse.ok) throw new Error(characterPayload.error || "The campaign character library could not be loaded.");
-      if (!resourceResponse.ok) throw new Error(resourcePayload.error || "The campaign resources could not be loaded.");
-      return { memberPayload, characterPayload, resourcePayload };
-    });
-    // Attach a rejection handler now, including if the primary request fails.
-    void detailRequests.catch(() => {});
     try {
-      const response = await campaignRequest;
-      const payload = await response.json() as { campaign?: CampaignSummary; error?: string };
+      const response = await fetch(`/api/campaigns/${campaignId}/overview`, { cache: "no-store" });
+      const payload = await response.json() as { campaign?: CampaignSummary; members?: CampaignMember[]; characters?: CampaignCharacter[]; resources?: CampaignResource[]; error?: string };
       if (!response.ok || !payload.campaign) throw new Error(payload.error || "This campaign could not be opened.");
-      primaryLoaded = true;
       setCampaign(payload.campaign);
+      setMembers(Array.isArray(payload.members) ? payload.members : []);
+      setCharacters(Array.isArray(payload.characters) ? payload.characters : []);
+      setResources(Array.isArray(payload.resources) ? payload.resources : []);
       setRenameValue(payload.campaign.name);
       setDescriptionValue(payload.campaign.description ?? "");
-      setBusy(false);
-      const { memberPayload, characterPayload, resourcePayload } = await detailRequests;
-      setMembers(Array.isArray(memberPayload.members) ? memberPayload.members : []);
-      setCharacters(Array.isArray(characterPayload.characters) ? characterPayload.characters : []);
-      setEligibleCharacters(Array.isArray(characterPayload.eligibleCharacters) ? characterPayload.eligibleCharacters : []);
-      setResources(Array.isArray(resourcePayload.resources) ? resourcePayload.resources : []);
       setError("");
     } catch (loadError) {
-      if (!primaryLoaded) {
-        setCampaign(null);
-        setMembers([]);
-        setCharacters([]);
-        setEligibleCharacters([]);
-        setResources([]);
-      }
+      setCampaign(null); setMembers([]); setCharacters([]); setResources([]);
       setError(loadError instanceof Error ? loadError.message : "This campaign could not be opened.");
-    } finally {
-      setBusy(false);
-      setDetailsBusy(false);
-    }
+    } finally { setBusy(false); setDetailsBusy(false); }
+  }
+
+  async function loadEligibleCharacters() {
+    setEligibleBusy(true); setEligibleError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/characters?view=eligible`, { cache: "no-store" });
+      const payload = await response.json() as { eligibleCharacters?: CampaignCharacter[]; error?: string };
+      if (!response.ok || !Array.isArray(payload.eligibleCharacters)) throw new Error(payload.error || "Available characters could not be loaded.");
+      setEligibleCharacters(payload.eligibleCharacters);
+    } catch (loadError) {
+      setEligibleCharacters([]);
+      setEligibleError(loadError instanceof Error ? loadError.message : "Available characters could not be loaded.");
+    } finally { setEligibleBusy(false); }
+  }
+
+  function openAddCharacter() {
+    setEligibleCharacters([]);
+    setAddCharacterOpen(true);
+    void loadEligibleCharacters();
   }
 
   useEffect(() => {
@@ -388,6 +375,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
   function openCharacterReplacement(character: CampaignCharacter) {
     setReplacementCharacterId("");
     setChangeCharacter(character);
+    setEligibleCharacters([]);
+    void loadEligibleCharacters();
   }
 
   async function replaceCharacter(event: React.FormEvent<HTMLFormElement>) {
@@ -551,7 +540,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                 <div className="campaign-character-heading-actions">
                   <span className="campaign-count" aria-label={`${characters.length} linked characters`}>{characters.length}</span>
                   {campaign.permissions.canLinkCharacters && !characters.some(character => character.isMine) && (
-                    <button type="button" className="campaign-primary" onClick={() => setAddCharacterOpen(true)}>Add Your Character</button>
+                    <button type="button" className="campaign-primary" onClick={openAddCharacter}>Add Your Character</button>
                   )}
                 </div>
               </div>
@@ -561,7 +550,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                   <h3>No characters linked yet</h3>
                   <p>Campaign owners and members can add a character they own without changing ownership or global visibility.</p>
                   {campaign.permissions.canLinkCharacters && !characters.some(character => character.isMine) && (
-                    <button type="button" className="campaign-secondary" onClick={() => setAddCharacterOpen(true)}>Add Your Character</button>
+                    <button type="button" className="campaign-secondary" onClick={openAddCharacter}>Add Your Character</button>
                   )}
                 </div>
               ) : (
@@ -593,9 +582,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
                         )}
                       </div>
                       {campaign.membershipRole === "player" && character.isMine && (
-                        eligibleCharacters.length > 0
-                          ? <button type="button" className="campaign-change-character" onClick={() => openCharacterReplacement(character)}>Change Character</button>
-                          : <p className="campaign-character-switch-empty">You don&apos;t have another eligible character to switch to.</p>
+                        <button type="button" className="campaign-change-character" onClick={() => openCharacterReplacement(character)}>Change Character</button>
                       )}
                     </article>
                   ))}
@@ -699,7 +686,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
           description="Choose one of your existing characters for this campaign. Ownership and global visibility will not change."
           onClose={() => setAddCharacterOpen(false)}
         >
-          {eligibleCharacters.length === 0 ? (
+          {eligibleBusy ? <p role="status">Loading available characters…</p> : eligibleError ? <p role="alert">{eligibleError}</p> : eligibleCharacters.length === 0 ? (
             <div className="campaign-link-empty" role="status">
               <strong>Your campaign character is already linked.</strong>
               <p>Each campaign participant may have one character in a campaign. Remove your current character before choosing a different one.</p>

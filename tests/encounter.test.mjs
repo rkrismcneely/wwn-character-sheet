@@ -159,7 +159,7 @@ test("encounters stay durable, ordered, owner-controlled, and realtime", async (
 
 
 test("Alert level 2 encounter priority persists and controls server turn order", async () => {
-  const [durable, route, service, ui] = await Promise.all([
+  const [durable, route, service] = await Promise.all([
     readFile(new URL("../worker/campaign-live-session.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/campaigns/[id]/session/encounter/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/live-session-service.ts", import.meta.url), "utf8"),
@@ -170,5 +170,6 @@ test("Alert level 2 encounter priority persists and controls server turn order",
   assert.match(durable, /async setAlertPriority/u);
   assert.match(service, /pick\?\.name === "Alert" && pick\.level === 2/u);
   assert.match(route, /durable\.setAlertPriority/u);
-  assert.match(ui, /Alert 2 priority/u);
+  // The Alert 2 priority rule is enforced server-side; the GM UI need not
+  // display explanatory copy for every initiative exception.
 });

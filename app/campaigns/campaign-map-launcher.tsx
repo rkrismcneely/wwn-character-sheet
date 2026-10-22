@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  memo,
   useReducer,
   useRef,
   useState,
@@ -212,6 +213,20 @@ function tokenInitials(name: string): string {
   const parts = name.trim().split(/\s+/u).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0]?.slice(0, 2) || "?").toUpperCase();
 }
+
+// The token's visual SVG only depends on its label and radius. Keep these
+// nodes stable while the map viewBox, toolbar or unrelated tokens update.
+const MapTokenArtwork = memo(function MapTokenArtwork({
+  name, radius, distance,
+}: { name: string; radius: number; distance?: string }) {
+  return <>
+    <title>{name}</title>
+    <circle r={radius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
+    <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={radius * 0.72}>{tokenInitials(name)}</text>
+    {distance !== undefined && <text className="campaign-map-token-distance" textAnchor="middle" y={-(radius + Math.max(14, radius * 0.5))} fontSize={Math.max(12, radius * 0.44)}>{distance}</text>}
+    <text className="campaign-map-token-name" textAnchor="middle" y={radius + Math.max(12, radius * 0.48)} fontSize={Math.max(11, radius * 0.42)}>{name}</text>
+  </>;
+});
 
 function filenameMapName(filename: string): string {
   const withoutExtension = filename.replace(/\.[^.]+$/u, "").trim();
@@ -1168,7 +1183,7 @@ export function CampaignMapWorkspace({
           {map.tokens.map(token => { const sizeCells = tokenSizes[token.id] ?? 1; const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells); return <g key={token.id} className={`campaign-map-token campaign-map-token-${token.kind}${!playerPreview && token.canMove ? " is-movable" : ""}${!playerPreview && selectedTokenId === token.id ? " is-selected" : ""}`} transform={`translate(${token.x} ${token.y})`} onPointerDown={playerPreview ? undefined : event => handleTokenPointerDown(event, token)}
              onPointerMove={playerPreview ? undefined : handleTokenPointerMove}
              onPointerUp={playerPreview ? undefined : handleTokenPointerEnd}
-             onPointerCancel={playerPreview ? undefined : handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${!playerPreview && token.canMove ? ", draggable" : ""}`}><title>{token.name}</title><circle r={tokenVisualRadius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" /><text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={tokenVisualRadius * 0.72}>{tokenInitials(token.name)}</text>{tokenDragMeasurement?.tokenId === token.id && <text className="campaign-map-token-distance" textAnchor="middle" y={-(tokenVisualRadius + Math.max(14, tokenVisualRadius * 0.5))} fontSize={Math.max(12, tokenVisualRadius * 0.44)}>{tokenDragMeasurement.distance}</text>}<text className="campaign-map-token-name" textAnchor="middle" y={tokenVisualRadius + Math.max(12, tokenVisualRadius * 0.48)} fontSize={Math.max(11, tokenVisualRadius * 0.42)}>{token.name}</text></g>; })}</g>
+             onPointerCancel={playerPreview ? undefined : handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${!playerPreview && token.canMove ? ", draggable" : ""}`}><MapTokenArtwork name={token.name} radius={tokenVisualRadius} distance={tokenDragMeasurement?.tokenId === token.id ? tokenDragMeasurement.distance : undefined} /></g>; })}</g>
       </svg>}
         <div className="campaign-map-viewport-tools" role="group" aria-label="Map view and window controls">
           {map?.backgroundUrl && <>

@@ -554,7 +554,7 @@ test("social and ranged Focus audit exposes qualified reaction and session contr
 test("ranged melee penalty is computed for all ranged weapon attacks", () => {
   assert.ok(sheetSource.includes("const [rangedInMelee, setRangedInMelee] = useState(false)"));
   assert.match(sheetSource, /rangedMeleePenalty = rangedAttackInMeleePenalty/u);
-  assert.match(sheetSource, /focusHitBonus \\+ rangedMeleePenalty/u);
+  assert.ok(sheetSource.includes("focusHitBonus + rangedMeleePenalty"));
   assert.match(sheetSource, /Ranged attack while engaged in melee/u);
 });
 

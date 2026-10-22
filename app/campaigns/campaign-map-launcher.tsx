@@ -737,12 +737,21 @@ export function CampaignMapWorkspace({
     const drag = tokenDragRef.current; if (!drag || drag.pointerId !== event.pointerId || !map?.backgroundWidth || !map.backgroundHeight || !svgRef.current) return; event.stopPropagation(); const pointer = clientPointToSvg(svgRef.current, event.clientX, event.clientY); if (!pointer) return;
     let x = clamp(drag.x + (pointer.x - drag.pointerMapX), 0, map.backgroundWidth); let y = clamp(drag.y + (pointer.y - drag.pointerMapY), 0, map.backgroundHeight);
     if (snapToGrid) { const sizeCells = tokenSizes[drag.tokenId] ?? 1; const snapped = snapTokenCenterOnGrid({ x, y }, map.grid, sizeCells, map.backgroundWidth, map.backgroundHeight); x = snapped.x; y = snapped.y; }
+    // Most pointer events stay in the same grid cell when snapping is on.
+    // Avoid rebuilding map/token state or measuring the toolbar until the
+    // token actually moves to a new coordinate.
+    if (x === drag.latestX && y === drag.latestY) return;
     drag.latestX = x; drag.latestY = y;
     // Keep React's token position in sync with the live drag. Otherwise a
     // measurement/selection render can restore the old transform mid-drag.
-    setMap(current => current ? { ...current, tokens: current.tokens.map(token =>
-      token.id === drag.tokenId ? { ...token, x, y } : token
-    ) } : current);
+    setMap(current => {
+      if (!current) return current;
+      const token = current.tokens.find(candidate => candidate.id === drag.tokenId);
+      if (!token || (token.x === x && token.y === y)) return current;
+      return { ...current, tokens: current.tokens.map(candidate =>
+        candidate.id === drag.tokenId ? { ...candidate, x, y } : candidate
+      ) };
+    });
     drag.element.setAttribute("transform", `translate(${x} ${y})`);
     const distance = gridMovementDistanceLabel(drag.x, drag.y, x, y, map.grid); const distanceElement = drag.element.querySelector<SVGTextElement>(".campaign-map-token-distance"); if (distanceElement) distanceElement.textContent = distance;
     // Treat the token and its toolbar as one drag surface. Position directly

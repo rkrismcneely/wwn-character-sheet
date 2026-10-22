@@ -54,7 +54,7 @@ test("GM Console is owner/admin-gated and reuses the existing session, encounter
   assert.match(consoleUi, /pendingLatestRoll/u);
   assert.match(consoleUi, /sharedHistory/u);
   assert.match(consoleUi, /privateGmRolls/u);
-  assert.match(consoleUi, /const gmHistory = \[\.\.\.privateGmRolls, \.\.\.sharedHistory\]/u);
+  assert.match(consoleUi, /const gmHistory = useMemo\(/u);
   assert.match(consoleUi, /history=\{gmHistory\}/u);
   assert.match(consoleUi, /Private GM Rolls/u);
   assert.match(consoleUi, /roll\.dice\.results/u);

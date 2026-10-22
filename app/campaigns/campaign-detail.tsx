@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
 import { SignedInHeader } from "../app-header";
 import { SessionRecapPanel } from "./session-recap-panel";
+import { GmConsole, type ConsoleTab } from "./gm-console";
 import { campaignInviteLink } from "@/lib/campaigns/invite-link";
 import {
   campaignRoleLabel,
@@ -26,6 +27,7 @@ type Confirmation =
 
 export function CampaignDetail({ campaignId }: { campaignId: string }) {
   const router = useRouter();
+  const [campaignTab, setCampaignTab] = useState<"campaign" | ConsoleTab>("campaign");
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
   const [members, setMembers] = useState<CampaignMember[]>([]);
   const [characters, setCharacters] = useState<CampaignCharacter[]>([]);
@@ -466,6 +468,13 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       )}
       {!busy && campaign && (
         <>
+          {campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
+            <nav className="gm-console-tabs" aria-label="Campaign pages">
+              {(["campaign", "encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => setCampaignTab(item)}>{item === "campaign" ? "Campaign" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
+            </nav>
+          )}
+          {campaignTab !== "campaign" && campaign.permissions.canUseGmConsole && !campaign.archivedAt && <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded activeTab={campaignTab} />}
+          <div hidden={campaignTab !== "campaign"}>
           <section className="campaign-hero campaign-detail-hero" aria-labelledby="campaign-title">
             <div>
               <p className="campaign-kicker">PRIVATE CAMPAIGN · {campaignRoleLabel(campaign).toUpperCase()}</p>
@@ -473,7 +482,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               <p>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
             </div>
             <div className="campaign-hero-actions">
-              {campaign.permissions.canUseGmConsole && !campaign.archivedAt && <Link className="campaign-secondary" href={`/campaigns/${campaign.id}/gm`}>Open GM Console</Link>}
+              
               {campaign.permissions.canInviteMembers && (
                 <button type="button" className="campaign-primary" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>
               )}
@@ -638,6 +647,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               )}
               <p className="campaign-management-note">Campaign membership never transfers character ownership or changes character visibility.</p>
             </aside>
+          </div>
           </div>
         </>
       )}

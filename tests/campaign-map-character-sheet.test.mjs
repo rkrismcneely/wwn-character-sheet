@@ -53,6 +53,6 @@ test("live map changes refresh without replacing the visible map with the loadin
   assert.match(launcher, /showLoading = true/u);
   assert.match(launcher, /if \(showLoading\) setLoading\(true\)/u);
   assert.match(launcher, /if \(showLoading\) setLoading\(false\)/u);
-  assert.match(launcher, /loadMap\(true, requestedMapId, false\)/u);
+  assert.match(launcher, /loadMap\(true, mapId, false\)/u);
   assert.match(launcher, /Loading campaign map…/u);
 });

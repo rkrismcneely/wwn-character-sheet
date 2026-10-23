@@ -155,7 +155,7 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  const now=new Date().toISOString();
  const statements=[];
  const folderIds=new Map<string,string>();
- const existingFolders=await db.prepare("SELECT id,source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source='obsidian' AND kind='folder'").bind(campaign).all<{id:string;path:string}>();
+ const existingFolders=await db.prepare("SELECT id,source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source=? AND kind='folder'").bind(campaign,source).all<{id:string;path:string}>();
  for(const folder of existingFolders.results)folderIds.set(folder.path,folder.id);
  const folders=new Set<string>();
  for(const note of notes){const parts=note.path.split("/");parts.pop();for(let i=1;i<=parts.length;i++)folders.add(parts.slice(0,i).join("/"));}

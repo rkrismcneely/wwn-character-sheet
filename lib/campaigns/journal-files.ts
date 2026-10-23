@@ -20,3 +20,9 @@ export function verifyJournalFileSignature(mime:string,bytes:Uint8Array):boolean
  if(mime==="application/pdf")return starts([37,80,68,70,45]);
  return false;
 }
+
+export function journalStorageKey(campaignInternalId:string,fileId:string):string{
+ const id=/^[0-9a-f-]{36}$/iu;
+ if(!id.test(campaignInternalId)||!id.test(fileId))throw new Error("Invalid storage identifier.");
+ return "campaign-journal/"+campaignInternalId+"/"+fileId;
+}

@@ -53,3 +53,11 @@ test("schema inspection is bounded for deeply nested values",()=>{
  for(let i=0;i<50;i++)input={child:input};
  assert.ok(describeLegendKeeperSchema(input).split("\n").length<=80);
 });
+
+test("rejects gzip backups whose expanded content exceeds the safe limit",async()=>{
+ const huge=new Uint8Array(20_000_100);
+ huge.fill(32);
+ const compressed=gzipSync(huge);
+ const arrayBuffer=compressed.buffer.slice(compressed.byteOffset,compressed.byteOffset+compressed.byteLength);
+ await assert.rejects(readLegendKeeperBackup(arrayBuffer,"lk"),/Decompressed LegendKeeper backup exceeds 20 MB/);
+});

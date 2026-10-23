@@ -50,7 +50,13 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       }
      }
     }
-    setResult("Imported "+body.result.created+" pages and "+body.result.foldersCreated+" folders; "+uploaded+" attachments linked"+(unlinked?"; "+unlinked+" failed to upload":"")+".");
+    if(unlinked){
+     setError(unlinked+" attachments could not be uploaded. The imported pages are saved; confirm again to retry missing attachments.");
+     setResult(uploaded+" attachments linked successfully.");
+     await onImported();
+     return;
+    }
+    setResult("Imported "+body.result.created+" pages and "+body.result.foldersCreated+" folders; "+uploaded+" attachments linked.");
     setEntries(null);setAssets([]);setPreview(null);await onImported();
    }
   }catch(e){setError(e instanceof Error?e.message:"Import failed");}

@@ -30,8 +30,9 @@ function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>v
       const separator = token.indexOf("](");
       const label = token.slice(1, separator);
       const href = safeLink(token.slice(separator + 2, -1));
+      const asset = /^\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36}$/iu.test(token.slice(separator + 2, -1));
       const local = /^\/journal-page\/([0-9a-f-]{36})(?:#.*)?$/iu.exec(token.slice(separator + 2, -1));
-      output.push(local&&onJournalNavigate ? <button key={key} type="button" className="journal-inline-link" onClick={()=>onJournalNavigate(local[1])}>{label}</button> : href ? <a key={key} href={href} target="_blank" rel="noopener noreferrer">{label}</a> : label);
+      output.push(local&&onJournalNavigate ? <button key={key} type="button" className="journal-inline-link" onClick={()=>onJournalNavigate(local[1])}>{label}</button> : asset ? <a key={key} href={token.slice(separator + 2, -1)} target="_blank" rel="noopener noreferrer">{label}</a> : href ? <a key={key} href={href} target="_blank" rel="noopener noreferrer">{label}</a> : label);
     } else if (token.startsWith("`")) {
       output.push(<code key={key}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**") || token.startsWith("__")) {

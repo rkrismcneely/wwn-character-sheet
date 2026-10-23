@@ -9,6 +9,7 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
   return parts.join("/");
  };
  return markdown.replace(/!?\[\[([^\]\n]+)\]\]/gu,(whole,inside:string)=>{
+  if(whole.startsWith("!"))return whole;
   const [reference,label]=inside.split("|",2);
   const [target,heading]=reference.split("#",2);
   if(!target)return whole;

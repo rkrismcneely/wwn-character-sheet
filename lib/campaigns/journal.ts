@@ -134,3 +134,29 @@ export async function journalReaderOptions(db:D1Database,actor:CampaignActor|nul
  const options=await db.prepare("SELECT m.user_id AS userId, u.name AS name, CASE WHEN r.user_id IS NULL THEN 0 ELSE 1 END AS selected FROM campaign_members m JOIN user u ON u.id=m.user_id LEFT JOIN campaign_journal_readers r ON r.entry_id=? AND r.user_id=m.user_id WHERE m.campaign_id=? AND m.role='player' ORDER BY u.name").bind(entryId,id).all<{userId:string;name:string;selected:number}>();
  return {readers:options.results};
 }
+
+export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,campaignId:string,
+ notes:{path:string;title:string;folder:string;markdown:string}[],confirm:boolean){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(!confirm)throw new CampaignServiceError("Import confirmation is required.",422);
+ if(!Array.isArray(notes)||notes.length>1000)throw new CampaignServiceError("Too many notes.",422);
+ const existing=await db.prepare("SELECT source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source='obsidian'").bind(campaign).all<{path:string}>();
+ const paths=new Set(existing.results.map(row=>row.path.toLowerCase()));
+ const seen=new Set<string>();
+ for(const note of notes){
+  if(typeof note.path!=="string"||!note.path.endsWith(".md")||note.path.includes("..")||note.path.startsWith("/")||note.path.includes("\\")||seen.has(note.path.toLowerCase()))
+   throw new CampaignServiceError("Invalid import path.",422);
+  seen.add(note.path.toLowerCase());
+  cleanTitle(note.title);cleanContent(note.markdown);
+ }
+ const now=new Date().toISOString();
+ const statements=[];
+ let skipped=0;
+ for(const note of notes){
+  if(paths.has(note.path.toLowerCase())){skipped++;continue;}
+  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,NULL,'page',?,?,'gm','obsidian',?,?,?)")
+   .bind(crypto.randomUUID(),campaign,note.title,note.markdown,note.path,now,now));
+ }
+ for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
+ return {created:statements.length,skipped};
+}

@@ -3,6 +3,7 @@ import { getCampaignD1, loadCampaignAccess } from "@/lib/campaigns/service";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { env } from "cloudflare:workers";
+import { staleJournalFileCandidatesSQL, staleUnreferencedJournalFileSQL, deleteStaleUnreferencedJournalFileSQL, journalCleanupCutoff } from "@/lib/campaigns/journal-file-cleanup";
 
 /** Opportunistic cleanup for uploads orphaned by closed tabs or interrupted imports. */
 export async function POST(request:Request,context:{params:Promise<{id:string}>}):Promise<Response>{
@@ -15,22 +16,22 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
   if(!canManageCampaignContent(actor,access.campaign,access.membership))
    return Response.json({error:"Forbidden."},{status:403});
   // Grace period prevents deleting a file while a still-open editor is preparing to save it.
-  const cutoff=new Date(Date.now()-24*60*60*1000).toISOString();
+  const cutoff=journalCleanupCutoff(Date.now());
   const candidates=await db.prepare(
-   "SELECT f.id FROM campaign_journal_files f WHERE f.campaign_id=? AND f.created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=f.campaign_id AND instr(e.content,f.id)>0) ORDER BY f.created_at LIMIT 25"
+   staleJournalFileCandidatesSQL
   ).bind(access.campaign.id,cutoff).all<{id:string}>();
   let removed=0,failed=0;
   for(const candidate of candidates.results){
    // Only unreferenced files qualify. Keep the DB record when object deletion fails
    // so a subsequent import-panel visit can safely retry cleanup.
    const file=await db.prepare(
-    "SELECT f.storage_key AS storageKey FROM campaign_journal_files f WHERE f.campaign_id=? AND f.id=? AND f.created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=f.campaign_id AND instr(e.content,f.id)>0)"
+    staleUnreferencedJournalFileSQL
    ).bind(access.campaign.id,candidate.id,cutoff).first<{storageKey:string}>();
    if(!file)continue;
    try{
     await env.BUCKET.delete(file.storageKey);
     await db.prepare(
-     "DELETE FROM campaign_journal_files WHERE campaign_id=? AND id=? AND created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=? AND instr(e.content,campaign_journal_files.id)>0)"
+     deleteStaleUnreferencedJournalFileSQL
     ).bind(access.campaign.id,candidate.id,cutoff,access.campaign.id).run();
     removed++;
    }catch{failed++;}

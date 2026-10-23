@@ -1,7 +1,7 @@
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignD1 } from "@/lib/campaigns/service";
-import { createJournalEntry, listJournal, setJournalReaders, updateJournalEntry } from "@/lib/campaigns/journal";
+import { createJournalEntry, journalReaderOptions, listJournal, setJournalReaders, updateJournalEntry } from "@/lib/campaigns/journal";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
 type Context = { params: Promise<{ id: string }> };
@@ -11,6 +11,8 @@ export async function GET(request: Request, context: Context): Promise<Response>
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
     const preview = new URL(request.url).searchParams.get("preview") === "player";
+    const query = new URL(request.url).searchParams;
+    if (query.has("readers")) return Response.json(await journalReaderOptions(await getCampaignD1(), actor, id, query.get("readers") ?? ""));
     return Response.json(await listJournal(await getCampaignD1(), actor, id, preview));
   } catch (error) { return campaignErrorResponse(error, "The journal could not be loaded."); }
 }

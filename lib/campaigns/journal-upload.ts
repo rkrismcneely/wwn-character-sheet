@@ -28,5 +28,5 @@ export async function readBoundedJournalForm(request:Request,maxBytes=8_200_000)
  const headers=new Headers();
  const contentType=request.headers.get("content-type");
  if(contentType)headers.set("content-type",contentType);
- return new Request(request.url,{method:"POST",headers,body:bytes}).formData();
+ return new Request(request.url,{method:"POST",headers,body:bytes.buffer as ArrayBuffer}).formData();
 }

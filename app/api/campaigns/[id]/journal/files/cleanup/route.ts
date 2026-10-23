@@ -17,7 +17,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
   // Grace period prevents deleting a file while a still-open editor is preparing to save it.
   const cutoff=new Date(Date.now()-24*60*60*1000).toISOString();
   const candidates=await db.prepare(
-   "SELECT id FROM campaign_journal_files WHERE campaign_id=? AND created_at<? ORDER BY created_at LIMIT 25"
+   "SELECT f.id FROM campaign_journal_files f WHERE f.campaign_id=? AND f.created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=f.campaign_id AND instr(e.content,f.id)>0) ORDER BY f.created_at LIMIT 25"
   ).bind(access.campaign.id,cutoff).all<{id:string}>();
   let removed=0,failed=0;
   for(const candidate of candidates.results){

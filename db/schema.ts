@@ -335,3 +335,21 @@ export const campaignJournalReaders = sqliteTable(
     index("campaign_journal_readers_user_idx").on(table.userId),
   ],
 );
+
+export const campaignJournalFiles = sqliteTable(
+  "campaign_journal_files",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+    entryId: text("entry_id").notNull().references(() => campaignJournalEntries.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    storageKey: text("storage_key").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("campaign_journal_files_entry_idx").on(table.campaignId, table.entryId),
+    uniqueIndex("campaign_journal_files_storage_key_unique").on(table.storageKey),
+  ],
+);

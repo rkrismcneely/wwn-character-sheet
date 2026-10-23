@@ -9,6 +9,9 @@ export type JournalEntry = {
 };
 type Row = JournalEntry;
 const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt";
+export function redactJournalSecrets(markdown:string):string {
+ return markdown.replace(/<!--\s*gm-only:start\s*-->[\s\S]*?<!--\s*gm-only:end\s*-->/giu,"").replace(/<!--\s*gm-only:start\s*-->[\s\S]*$/giu,"");
+}
 export function visibleJournalEntries<T extends {id:string;parentId:string|null;kind:string}>(rows:T[]):T[] {
  const byId=new Map(rows.map(row=>[row.id,row]));
  return rows.filter(row=>{
@@ -71,7 +74,7 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
       )))
     ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC`)
     .bind(ctx.campaignId, gmView ? 1 : 0, actor!.userId).all<Row>();
-  return { entries: visibleJournalEntries(rows.results), canEdit: ctx.isGM && !preview };
+  return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
 }
 export async function createJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
   input: { parentId?: unknown; kind?: unknown; title?: unknown; content?: unknown; visibility?: unknown }) {

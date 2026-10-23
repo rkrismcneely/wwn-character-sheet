@@ -15,11 +15,17 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [result,setResult]=useState("");
  async function cleanupUnusedUploads(){
   const urls=[...new Set(completedUploads.current.values())];
-  completedUploads.current.clear();
-  await Promise.allSettled(urls.map(async url=>{
+  const outcomes=await Promise.allSettled(urls.map(async url=>{
    const response=await fetch(url,{method:"DELETE"});
-   if(!response.ok&&response.status!==404&&response.status!==409)throw new Error("Could not clean an unused attachment.");
+   // 409 means the page saved the reference and the upload must be kept.
+   if(!response.ok&&response.status!==404&&response.status!==409)
+    throw new Error("Could not clean an unused attachment.");
+   for(const [key,value] of completedUploads.current){
+    if(value===url)completedUploads.current.delete(key);
+   }
   }));
+  const failed=outcomes.filter(outcome=>outcome.status==="rejected").length;
+  if(failed)setError(failed+" abandoned attachments could not be cleaned up. Retry before leaving this page.");
  }
  async function send(confirm:boolean){
   if(!entries)return;

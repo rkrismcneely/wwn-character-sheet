@@ -71,7 +71,7 @@ export function CampaignStoreLauncher({
 }: {
   campaignId: string;
   campaignName: string;
-  characterId: string;
+  characterId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [drawerDock, setDrawerDock] = useState<CampaignStoreDrawerDock>(preferredStoreDrawerDock);
@@ -84,7 +84,8 @@ export function CampaignStoreLauncher({
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ characterId });
+      const params = new URLSearchParams();
+      if (characterId) params.set("characterId", characterId);
       const response = await fetch(`/api/campaigns/${campaignId}/stores/active?${params.toString()}`, {
         cache: "no-store",
       });

@@ -19,6 +19,7 @@ const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[
 const [readerEditing,setReaderEditing]=useState(false);
 const [importOpen,setImportOpen]=useState(false);
 const [uploading,setUploading]=useState(false);
+const [uploadNotice,setUploadNotice]=useState("");
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
@@ -39,7 +40,7 @@ async function saveReaders(){
 }
 async function uploadJournalFile(file:File){
  if(!current||current.kind!=="page")return;
- setUploading(true);setError("");
+ setUploading(true);setError("");setUploadNotice("");
  try{
   const body=new FormData();body.set("entryId",current.id);body.set("file",file);
   const response=await fetch(endpoint+"/files",{method:"POST",body});
@@ -49,6 +50,7 @@ async function uploadJournalFile(file:File){
   const markdown=file.type.startsWith("image/")?"!["+file.name+"]("+url+")":"["+file.name+"]("+url+")";
   setDraft({title:current.title,visibility:current.visibility,content:current.content+"\\n"+markdown});
   setEditing(true);
+  setUploadNotice("File uploaded. Save this page to keep the attachment link.");
  }catch(error){setError(error instanceof Error?error.message:"Upload failed.");}
  finally{setUploading(false);}
 }
@@ -69,6 +71,7 @@ return <section className="campaign-panel campaign-journal">
  {canEdit&&<button onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Folder</button>}
  </div>
  {error&&<p role="alert">{error}</p>}
+ {uploadNotice&&<p role="status">{uploadNotice}</p>}
  {importOpen&&canEdit&&<JournalImport endpoint={endpoint} onImported={refresh}/>}
  {readerEditing&&canEdit&&<section aria-label="Selected journal readers"><h3>Share with players</h3>{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}<button onClick={()=>void saveReaders()}>Save Players</button><button onClick={()=>setReaderEditing(false)}>Cancel</button></section>}
  <div className="journal-layout"><aside className="journal-sidebar">

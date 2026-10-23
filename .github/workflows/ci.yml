@@ -13,7 +13,33 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Independent checks run on separate runners, in parallel with the production
+# build/test job. Keep the existing "Validate" job name for branch protection.
 jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
   validate:
     name: Validate
     runs-on: ubuntu-latest
@@ -30,14 +56,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      # npm test already performs the verified production build before running tests.
-      # Do not build a second time in this workflow unless that test contract changes.
+      # npm test builds the production Worker before executing the full test suite.
       - name: Build and test
         run: npm test
 

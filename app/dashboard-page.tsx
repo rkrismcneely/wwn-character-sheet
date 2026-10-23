@@ -85,8 +85,11 @@ export function DashboardPage() {
   }, []);
 
 
-  const activeCharacters = characters.filter(character => !character.archivedAt);
-  const archivedCharacters = characters.filter(character => Boolean(character.archivedAt));
+  const activeCharacters: DashboardCharacter[] = [];
+  const archivedCharacters: DashboardCharacter[] = [];
+  for (const character of characters) {
+    (character.archivedAt ? archivedCharacters : activeCharacters).push(character);
+  }
 
   async function setArchived(character: DashboardCharacter, archived: boolean) {
     if (archived && !window.confirm(`Archive ${character.name || "this character"}? Existing campaign links and character data will be preserved.`)) return;

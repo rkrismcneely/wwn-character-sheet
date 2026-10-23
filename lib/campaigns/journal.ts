@@ -1,5 +1,5 @@
 import { canManageCampaignContent } from "./authorization.ts";
-import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
+import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 
 export type JournalEntry = {

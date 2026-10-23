@@ -13,6 +13,14 @@ export async function GET(request:Request,context:{params:Promise<{id:string;fil
  const file=await db.prepare("SELECT entry_id AS entryId, storage_key AS storageKey, mime_type AS mimeType FROM campaign_journal_files WHERE campaign_id=? AND id=?").bind(access.campaign.id,fileId).first<{entryId:string;storageKey:string;mimeType:string}>();
  if(!file)return Response.json({error:"Not found."},{status:404});
  await requireReadableJournalPage(db,actor,id,file.entryId);
+ // Non-GMs may retrieve only files linked in the redacted, visible page.
+ // This prevents guessing an attachment ID from exposing assets in GM-only sections.
+ const visible=await import("@/lib/campaigns/journal").then(m=>m.listJournal(db,actor,id));
+ if(!visible.canEdit){
+  const page=visible.entries.find(entry=>entry.id===file.entryId);
+  const link="/api/campaigns/"+encodeURIComponent(id)+"/journal/files/"+fileId;
+  if(!page||!page.content.includes(link))return Response.json({error:"Not found."},{status:404});
+ }
  const object=await env.BUCKET.get(file.storageKey);
  if(!object)return Response.json({error:"Not found."},{status:404});
  return new Response(object.body,{headers:{"Content-Type":file.mimeType,"X-Content-Type-Options":"nosniff","Cache-Control":"private, no-store","Content-Security-Policy":"sandbox","X-Frame-Options":"DENY"}});

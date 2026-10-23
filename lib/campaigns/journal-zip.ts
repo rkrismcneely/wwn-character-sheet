@@ -13,6 +13,7 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   if(u32(view,i)===0x06054b50){eocd=i;break;}
  }
  if(eocd<0)throw new Error("Invalid ZIP archive.");
+ if(eocd+22+u16(view,eocd+20)!==buffer.byteLength)throw new Error("Invalid ZIP trailing data.");
  if(u16(view,eocd+4)!==0||u16(view,eocd+6)!==0)throw new Error("Multi-disk ZIP unsupported.");
  const count=u16(view,eocd+10),size=u32(view,eocd+12),start=u32(view,eocd+16);
  if(count>1000||start+size>eocd)throw new Error("ZIP directory exceeds limits.");

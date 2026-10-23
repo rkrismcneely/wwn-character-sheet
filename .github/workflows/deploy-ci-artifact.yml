@@ -105,8 +105,6 @@ jobs:
         with:
           node-version: 22.13.0
           cache: npm
-      - run: npm ci --prefer-offline --no-audit --no-fund
-        if: steps.resolve.outputs.skip != 'true'
       - name: Retrieve CI-built Worker without rebuilding
         if: steps.resolve.outputs.skip != 'true'
         shell: bash
@@ -126,13 +124,13 @@ jobs:
           # The code is exactly the PR-tested bundle; rewrite only its
           # static release identity to the squash-merge commit.
           printf '{"commit":"%s"}\n' "$MERGE_SHA" > dist/client/twe-build-version.json
-          npm run validate:artifact
+          bash scripts/validate-artifact.sh
       - name: Publish verified bundle
         if: steps.resolve.outputs.skip != 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config dist/server/wrangler.json
+        run: npm exec --yes --package=wrangler@4.92.0 -- wrangler deploy --config dist/server/wrangler.json
       - name: Verify exact live merged SHA
         if: steps.resolve.outputs.skip != 'true'
         shell: bash

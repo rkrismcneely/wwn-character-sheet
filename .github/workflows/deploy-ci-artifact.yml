@@ -1,0 +1,110 @@
+name: Deploy verified CI artifact
+
+# HANDOVER: First disable Cloudflare Git auto-deployment, then set the
+# repository Actions variable GITHUB_OWNS_PRODUCTION=true.
+# Deliberately manual until that handover has been verified.
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Merged pull request number"
+        required: true
+        type: number
+      ci_run_id:
+        description: "Successful CI run ID for that PR"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy tested bundle
+    if: ${{ vars.GITHUB_OWNS_PRODUCTION == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Verify merged PR and exact passing CI artifact
+        id: verify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER")
+          [ "$(jq -r .merged_at <<< "$pr")" != null ]
+          [ "$(jq -r .base.ref <<< "$pr")" = main ]
+          merge_sha=$(jq -r .merge_commit_sha <<< "$pr")
+          head_sha=$(jq -r .head.sha <<< "$pr")
+          [ "$merge_sha" = "$GITHUB_SHA" ] || {
+            echo "This merged PR is not the current main commit; refusing stale deployment." >&2
+            exit 1
+          }
+          run=$(gh api "repos/$GH_REPO/actions/runs/$CI_RUN_ID")
+          [ "$(jq -r .conclusion <<< "$run")" = success ]
+          [ "$(jq -r .event <<< "$run")" = pull_request ]
+          [ "$(jq -r .head_sha <<< "$run")" = "$head_sha" ]
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Retrieve CI-built Worker without rebuilding
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          HEAD_SHA: ${{ steps.verify.outputs.head_sha }}
+          MERGE_SHA: ${{ steps.verify.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          gh run download "$CI_RUN_ID" --repo "$GH_REPO" \
+            --name "tested-worker-$HEAD_SHA" --dir dist
+          test -s dist/server/index.js
+          test -s dist/server/wrangler.json
+          test -s dist/.openai/hosting.json
+          # The code is exactly the PR-tested bundle; rewrite only its
+          # static release identity to the squash-merge commit.
+          printf '{"commit":"%s"}\n' "$MERGE_SHA" > dist/client/twe-build-version.json
+          npm run validate:artifact
+      - name: Publish verified bundle
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config dist/server/wrangler.json
+      - name: Verify exact live merged SHA
+        shell: bash
+        env:
+          MERGE_SHA: ${{ steps.verify.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          for n in $(seq 1 30); do
+            observed=$(curl -fsSL --max-time 15 \
+              "https://taleswithoutend.com/twe-build-version.json?release=$MERGE_SHA" \
+              | jq -r '.commit // empty' || true)
+            if [ "$observed" = "$MERGE_SHA" ]; then
+              curl -fsSL --max-time 20 --output /dev/null https://taleswithoutend.com/
+              echo "Live version verified: $MERGE_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Expected release is not visible in production." >&2
+          exit 1

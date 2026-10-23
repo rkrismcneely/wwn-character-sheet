@@ -9,6 +9,21 @@ export type JournalEntry = {
 };
 type Row = JournalEntry;
 const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt";
+export function visibleJournalEntries<T extends {id:string;parentId:string|null;kind:string}>(rows:T[]):T[] {
+ const byId=new Map(rows.map(row=>[row.id,row]));
+ return rows.filter(row=>{
+  const seen=new Set<string>([row.id]);
+  let parent=row.parentId;
+  while(parent){
+   if(seen.has(parent))return false;
+   seen.add(parent);
+   const folder=byId.get(parent);
+   if(!folder||folder.kind!=="folder")return false;
+   parent=folder.parentId;
+  }
+  return true;
+ });
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 async function context(db: D1Database, actor: CampaignActor | null, campaignId: string) {
   if (!actor) throw new CampaignServiceError("Sign in is required.", 401);
@@ -52,25 +67,11 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
   const rows = await db.prepare(`SELECT ${columns} FROM campaign_journal_entries j
     WHERE j.campaign_id = ? AND (? = 1 OR j.visibility = 'players'
       OR (j.visibility = 'selected' AND EXISTS (
-        SELECT 1 FROM campaign_journal_readers r WHERE r.entry_id = j.id AND r.user_id = ?
+        SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
       )))
     ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC`)
     .bind(ctx.campaignId, gmView ? 1 : 0, actor!.userId).all<Row>();
-  // Hide nested pages under restricted folders as well.
-  const visible = new Map(rows.results.map(row => [row.id, row]));
-  const canSee = (row: Row): boolean => {
-    let parent = row.parentId;
-    const seen = new Set<string>();
-    while (parent) {
-      if (seen.has(parent)) return false;
-      seen.add(parent);
-      const folder = visible.get(parent);
-      if (!folder || folder.kind !== "folder") return false;
-      parent = folder.parentId;
-    }
-    return true;
-  };
-  return { entries: rows.results.filter(canSee), canEdit: ctx.isGM && !preview };
+  return { entries: visibleJournalEntries(rows.results), canEdit: ctx.isGM && !preview };
 }
 export async function createJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
   input: { parentId?: unknown; kind?: unknown; title?: unknown; content?: unknown; visibility?: unknown }) {

@@ -54,3 +54,12 @@ test("Markdown links inside GM-only blocks do not authorize players",()=>{
  const redacted=redactJournalSecrets(markdown);
  assert.equal(hasJournalAttachmentReference(redacted,campaign,id),false);
 });
+
+test("inline code examples never authorize player attachment access",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const ref="![Map](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ assert.equal(hasJournalAttachmentReference("Example: `"+ref+"`",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("Example: ``"+ref+"``",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("Example: `"+ref+"` then "+ref,campaign,id),true);
+});

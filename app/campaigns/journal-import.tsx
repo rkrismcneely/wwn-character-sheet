@@ -3,6 +3,7 @@ import { extractObsidianZip, type VaultAsset } from "@/lib/campaigns/journal-zip
 import { referencedJournalAssets, replaceJournalAssetLinks } from "@/lib/campaigns/journal-asset-links";
 import { useEffect, useRef, useState } from "react";
 import { JOURNAL_FILE_TYPES, MAX_JOURNAL_FILE_BYTES, verifyJournalFileSignature } from "@/lib/campaigns/journal-files";
+import { readLegendKeeperBackup, inspectLegendKeeperBackup } from "@/lib/campaigns/legendkeeper-native";
 
 type VaultEntry={path:string;content:string};
 type Preview={notes:{path:string;title:string}[];folders:string[];unresolvedLinks:{source:string;target:string}[]};
@@ -16,6 +17,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
  const [progress,setProgress]=useState("");
+ const [nativeInspection,setNativeInspection]=useState<string>("");
  useEffect(()=>{
   // Opening the import panel opportunistically reclaims abandoned uploads older than a day.
   void fetch(endpoint+"/files/cleanup",{method:"POST"}).catch(()=>{});
@@ -91,6 +93,19 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   }catch(e){setError(e instanceof Error?e.message:"Import failed");}
   finally{setBusy(false);setProgress("");}
  }
+ async function chooseNative(file:File|undefined){
+  if(!file||busy)return;
+  setNativeInspection("");setError("");
+  try{
+   const format=file.name.toLowerCase().endsWith(".lk")?"lk":file.name.toLowerCase().endsWith(".json")?"json":null;
+   if(!format)throw new Error("Choose a .lk or .json LegendKeeper backup.");
+   const inspected=inspectLegendKeeperBackup(await readLegendKeeperBackup(await file.arrayBuffer(),format));
+   const summary=inspected.recognized
+    ? inspected.resourceCount+" resources, "+inspected.pageCount+" pages, "+inspected.mapCount+" maps, "+inspected.boardCount+" boards, "+inspected.unknownCount+" unclassified records."
+    : "Unrecognized native backup structure.";
+   setNativeInspection(summary+" Inspection only: no pages or assets were imported.");
+  }catch(error){setError(error instanceof Error?error.message:"Could not inspect native backup.");}
+ }
  async function chooseZip(file:File|undefined){
   if(!file||busy)return;
   if(!await cleanupUnusedUploads())return;
@@ -140,8 +155,10 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  return <section className="journal-import">
   <h3>Import campaign notes</h3>
-  <label>Exported from <select disabled={busy||!!entries} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
-  <p>Select an exported Markdown ZIP or folder. LegendKeeper: export as Markdown, not .lk or JSON. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
+  <label>Exported from <select disabled={busy||!!entries} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
+  <p>Select an exported Markdown ZIP or folder. For import, export LegendKeeper as Markdown; native .lk/JSON files can be inspected but not imported. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
+  {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
+  {nativeInspection&&<p role="status">{nativeInspection}</p>}
   <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
   <label>Markdown folder<input type="file" multiple disabled={busy} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
   {entries&&<><p>{entries.length} Markdown notes selected{assets.length?", "+assets.length+" attachment files":""}.</p><button disabled={busy} onClick={()=>void send(false)}>Preview Import</button></>}

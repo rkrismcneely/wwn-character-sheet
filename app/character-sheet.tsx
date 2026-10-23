@@ -3171,8 +3171,13 @@ export default function Home({
         : [];
       const next = [...nextHenchmen, ...nextFamiliars, ...nextBeastmasters];
       const activeIds = new Set(next.map(companion => companion.id));
+      const archivedIds = new Set<string>();
       const nextArchive = [...current.archivedCompanions, ...current.companions]
-        .filter((companion, index, all) => !activeIds.has(companion.id) && all.findIndex(item => item.id === companion.id) === index);
+        .filter(companion => {
+          if (activeIds.has(companion.id) || archivedIds.has(companion.id)) return false;
+          archivedIds.add(companion.id);
+          return true;
+        });
       return JSON.stringify(next) === JSON.stringify(current.companions) &&
         JSON.stringify(nextArchive) === JSON.stringify(current.archivedCompanions)
         ? current

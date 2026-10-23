@@ -26,3 +26,7 @@ test("prefers exact folder path over duplicate page titles",()=>{
  const result=resolveJournalWikilinks("[[World/People]]",pages[0],[...pages.slice(0,2),duplicate]);
  assert.match(result,/journal-page\/22222222/);
 });
+
+test("keeps embedded Obsidian media references unchanged",()=>{
+ assert.equal(resolveJournalWikilinks("![[People]]",pages[0],pages.slice(0,2)),"![[People]]");
+});

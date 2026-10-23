@@ -29,3 +29,11 @@ test("rejects traversal, absolute paths, duplicate paths and excessive entries",
     { path: "Notes/A.md", content: "" }, { path: "notes/a.md", content: "" },
   ]));
 });
+
+test("attachment wikilinks are handled by file importer, not missing-page warnings",()=>{
+ const result=inventoryObsidianVault([
+  {path:"Notes/Overview.md",content:"![[art/map.png]] and [[docs/guide.pdf|PDF]] and [[Missing Page]]"},
+ ]);
+ assert.deepEqual(result.unresolvedLinks,[{source:"Notes/Overview.md",target:"Missing Page"}]);
+ assert.deepEqual(result.notes[0].links.map(link=>link.target),["Missing Page"]);
+});

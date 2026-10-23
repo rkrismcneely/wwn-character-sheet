@@ -30,7 +30,7 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   cursor+=46+nameLength+extra+comment;
   if(name.endsWith("/"))continue;
   const path=safeVaultPath(name);
-  if((flags&0x800)===0&&/[^\\x00-\\x7f]/u.test(name))throw new Error("ZIP filenames must use UTF-8.");
+  if((flags&0x800)===0&&/[^\x00-\x7f]/u.test(name))throw new Error("ZIP filenames must use UTF-8.");
   if(seen.has(path.toLowerCase()))throw new Error("Duplicate ZIP path.");
   seen.add(path.toLowerCase());
   if(!path.toLowerCase().endsWith(".md")||path.split("/").includes(".obsidian"))continue;

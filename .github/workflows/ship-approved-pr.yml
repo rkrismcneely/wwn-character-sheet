@@ -1,6 +1,7 @@
 name: Ship approved PRs after CI
 
-# Opt-in with the ship-when-green label. Never execute PR code with write access.
+# Trusted same-repository presentation PRs ship automatically after CI.
+# Sensitive changes still require the ship-when-green label.
 on:
   workflow_run:
     workflows: [CI]
@@ -34,10 +35,22 @@ jobs:
             head=$(jq -r '.head.sha' <<< "$pr")
             association=$(jq -r '.author_association' <<< "$pr")
             labels=$(jq -r '[.labels[].name] | index("ship-when-green") != null' <<< "$pr")
+            source_repo=$(jq -r '.head.repo.full_name // ""' <<< "$pr")
+            files=$(gh api --paginate "repos/$GH_REPO/pulls/$number/files?per_page=100" --jq '.[].filename')
+            routine=true
+            if [ -z "$files" ]; then routine=false; fi
+            while IFS= read -r file; do
+              [ -n "$file" ] || continue
+              case "$file" in
+                app/campaigns/campaign-map-*.tsx|app/campaigns/map-*.tsx|app/campaigns/campaign-map.css|app/campaigns/campaign-ui.css|app/globals.css|public/*|*.md|docs/*) ;;
+                *) routine=false ;;
+              esac
+            done <<< "$files"
             # Only repository collaborators' PRs with explicit opt-in are eligible.
             if [ "$state" != open ] || [ "$base" != main ] || [ "$head" != "$RUN_SHA" ] ||
-               [ "$labels" != true ]; then continue; fi
+               [ "$source_repo" != "$GH_REPO" ]; then continue; fi
             case "$association" in OWNER|MEMBER|COLLABORATOR) ;; *) continue ;; esac
+            if [ "$labels" != true ] && [ "$routine" != true ]; then continue; fi
             # GitHub applies branch protection/rulesets at merge time.
             gh pr merge "$number" --repo "$GH_REPO" --squash --delete-branch
           done

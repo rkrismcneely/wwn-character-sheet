@@ -36,3 +36,11 @@ test("does not mistake external or unsafe links for local vault assets",()=>{
 test("preserves safe relative paths with a dot-segment",()=>{
  assert.deepEqual(referencedJournalAssets("![[./assets/map.png]]","Town/Notes.md",[image]).map(x=>x.path),[image.path]);
 });
+
+test("imports ordinary Obsidian PDF wikilinks without treating note links as files",()=>{
+ const source="[[docs/guide.pdf|Read the guide]] and [[Campaign Timeline]]";
+ assert.deepEqual(referencedJournalAssets(source,"Town/Notes.md",[image,pdf]).map(asset=>asset.path),[pdf.path]);
+ const url="/api/campaigns/cmp_abcdefghijklmnopqrstuv/journal/files/22222222-2222-4222-8222-222222222222";
+ assert.equal(replaceJournalAssetLinks(source,"Town/Notes.md",[image,pdf],new Map([[pdf.path,url]])),
+  "[Read the guide]("+url+") and [[Campaign Timeline]]");
+});

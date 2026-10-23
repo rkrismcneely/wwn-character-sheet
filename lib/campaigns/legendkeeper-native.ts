@@ -62,3 +62,34 @@ export function inspectLegendKeeperBackup(value:unknown):{
    ...(root.resources.length>10000?["Resource inventory truncated at 10,000."]:[]),
   ]};
 }
+
+/**
+ * Privacy-preserving schema sketch for troubleshooting a native backup.
+ * Returns property names and value categories, never page text or identifiers.
+ * Uses bounded traversal to avoid expensive inspection of unusual backups.
+ */
+export function describeLegendKeeperSchema(value:unknown):string{
+ const lines:string[]=[];
+ const seen=new WeakSet<object>();
+ function describe(node:unknown,path:string,depth:number){
+  if(lines.length>=80||depth>3)return;
+  if(node===null){lines.push(path+": null");return;}
+  if(Array.isArray(node)){
+   lines.push(path+": array ("+node.length+" items)");
+   if(node.length)describe(node[0],path+"[0]",depth+1);
+   return;
+  }
+  if(typeof node!=="object"){lines.push(path+": "+typeof node);return;}
+  if(seen.has(node))return;
+  seen.add(node);
+  const entries=Object.entries(node as Record<string,unknown>);
+  lines.push(path+": object ("+entries.length+" keys)");
+  for(const [key,entry] of entries.slice(0,20)){
+   if(lines.length>=80)break;
+   // Key names only; non-structural values never enter the diagnostic.
+   describe(entry,path+"."+key.slice(0,60),depth+1);
+  }
+ }
+ describe(value,"root",0);
+ return lines.join("\n");
+}

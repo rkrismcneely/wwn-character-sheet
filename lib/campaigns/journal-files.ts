@@ -27,11 +27,20 @@ export function journalStorageKey(campaignInternalId:string,fileId:string):strin
  return "campaign-journal/"+campaignInternalId+"/"+fileId;
 }
 
-/** Check rendered Markdown references, not incidental text or partial URL matches. */
+/** Only explicit Markdown references outside fenced code grant file access. */
 export function hasJournalAttachmentReference(markdown:string,publicCampaignId:string,fileId:string):boolean{
  const url="/api/campaigns/"+publicCampaignId+"/journal/files/"+fileId;
- return markdown.split("\n").some(line=>{
-  const pattern=/!?\[[^\]\n]*\]\((\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36})\)/giu;
-  return [...line.matchAll(pattern)].some(match=>match[1]===url);
- });
+ const pattern=/!?\[[^\]\n]*\]\((\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36})\)/giu;
+ let fence:string|null=null;
+ for(const line of markdown.split("\n")){
+  const marker=/^\s*(`{3,}|~{3,})/.exec(line);
+  if(marker){
+   if(!fence)fence=marker[1];
+   else if(marker[1][0]===fence[0]&&marker[1].length>=fence.length)fence=null;
+   continue;
+  }
+  if(fence)continue;
+  if([...line.matchAll(pattern)].some(match=>match[1]===url))return true;
+ }
+ return false;
 }

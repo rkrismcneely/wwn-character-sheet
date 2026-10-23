@@ -37,12 +37,19 @@ export async function DELETE(request:Request,context:{params:Promise<{id:string;
  const access=await loadCampaignAccess(db,actor,id);
  if(!canManageCampaignContent(actor,access.campaign,access.membership))
   return Response.json({error:"Forbidden."},{status:403});
- const file=await db.prepare("SELECT f.storage_key AS storageKey, e.content AS content FROM campaign_journal_files f JOIN campaign_journal_entries e ON e.id=f.entry_id AND e.campaign_id=f.campaign_id WHERE f.campaign_id=? AND f.id=?").bind(access.campaign.id,fileId).first<{storageKey:string;content:string}>();
+ const file=await db.prepare(
+  "SELECT f.storage_key AS storageKey FROM campaign_journal_files f WHERE f.campaign_id=? AND f.id=?"
+ ).bind(access.campaign.id,fileId).first<{storageKey:string}>();
  if(!file)return Response.json({error:"Not found."},{status:404});
- // A literal reference anywhere in saved content is sufficient to prevent deletion.
- // The deletion endpoint is meant for uploads never attached to a page.
- if(file.content.includes(fileId))return Response.json({error:"File is still referenced by this page."},{status:409});
- await db.prepare("DELETE FROM campaign_journal_files WHERE campaign_id=? AND id=?").bind(access.campaign.id,fileId).run();
+ // An attachment can be linked from more than its original page.
+ const referenced=await db.prepare(
+  "SELECT 1 AS found FROM campaign_journal_entries WHERE campaign_id=? AND instr(content,?)>0 LIMIT 1"
+ ).bind(access.campaign.id,fileId).first();
+ if(referenced)return Response.json({error:"File is referenced by a saved page."},{status:409});
+ // Keep its database record if the storage operation fails, allowing retries.
  await env.BUCKET.delete(file.storageKey);
+ await db.prepare(
+  "DELETE FROM campaign_journal_files WHERE campaign_id=? AND id=? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=? AND instr(e.content,?)>0)"
+ ).bind(access.campaign.id,fileId,access.campaign.id,fileId).run();
  return new Response(null,{status:204});
 }

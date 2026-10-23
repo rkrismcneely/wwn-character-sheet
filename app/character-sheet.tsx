@@ -3919,7 +3919,7 @@ export default function Home({
                 <label className="field calculated-field"><span>Base Attack Bonus</span><input value={signed(baseAttack)} disabled title="Calculated from class and character level" /></label>
               </div>
               <div className="hp-builder">
-                <div className="hp-builder-heading"><strong>Hit Point Rolls</strong><span>Enter the total shown on all d6 Hit Dice at each level, before modifiers.</span></div>
+                <div className="hp-builder-heading"><strong>Hit Point Rolls</strong></div>
                 <div className="hp-roll-grid">
                   {Array.from({ length: sheet.level || 0 }, (_, index) => {
                     const raw = sheet.hpRolls[index] || "";
@@ -3934,19 +3934,17 @@ export default function Home({
                       previousMaximum = step === 0 ? rolled : Math.max(previousMaximum + 1, rolled);
                       result = previousMaximum;
                     }
-                    return <label key={index}><span>Level {index + 1}</span><input type="number" min={1} max={(index + 1) * 6} value={raw} placeholder={`${index + 1}d6 total`} onChange={e => {
+                    return <label key={index}><span>Level {index + 1}</span><input type="number" min={1} max={(index + 1) * 6} value={raw} disabled={!buildFieldsEditable} placeholder={`${index + 1}d6 total`} onChange={e => {
                       const rolls = [...sheet.hpRolls];
                       rolls[index] = Number(e.target.value);
                       patch("hpRolls", rolls);
                     }} /><small>{result ? `Max HP ${result}` : "Enter roll"}</small></label>;
                   })}
                 </div>
-                <p className="hp-rule-note">{hpRollsComplete
-                  ? `Calculated maximum: ${calculatedHpMax}. Each level keeps the rerolled total only when it beats the prior maximum; otherwise HP rises by 1.${dieHardBonus ? ` Die Hard adds ${dieHardBonus} HP retroactively.` : ""}`
-                  : sheet.level ? "Complete every level’s roll to calculate maximum HP automatically. Until then, the existing maximum remains editable." : "Choose a level to enter Hit Point rolls."}</p>
+
               </div>
             </Section>
-            <Section title="Weapons" aside={<span className="caption">Readied items · permanent Unarmed Attack</span>}>
+            <Section title="Weapons">
               {selectedFocusPicks.some(pick => pick.name === "Whirlwind Assault") && <div className="whirlwind-focus-controls" role="group" aria-label="Whirlwind Assault combat abilities">
                 <strong>Whirlwind Assault</strong>
                 <p>Once per scene: apply melee Shock to eligible adjacent foes.</p>

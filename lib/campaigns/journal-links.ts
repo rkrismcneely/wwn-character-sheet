@@ -8,7 +8,7 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
   while(parent&&!seen.has(parent)){seen.add(parent);const node=byId.get(parent);if(!node)break;parts.unshift(node.title);parent=node.parentId;}
   return parts.join("/");
  };
- return markdown.replace(/!?\\[\\[([^\\]\\n]+)\\]\\]/gu,(whole,inside:string)=>{
+ return markdown.replace(/!?\[\[([^\]\n]+)\]\]/gu,(whole,inside:string)=>{
   const [reference,label]=inside.split("|",2);
   const [target,heading]=reference.split("#",2);
   if(!target)return whole;

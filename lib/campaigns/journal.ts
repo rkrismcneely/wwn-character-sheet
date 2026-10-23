@@ -1,4 +1,4 @@
-import { inventoryObsidianVault, safeVaultPath } from "./journal-import.ts";
+import { safeVaultPath } from "./journal-import.ts";
 import { canManageCampaignContent } from "./authorization.ts";
 import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
@@ -152,11 +152,22 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  }
  const now=new Date().toISOString();
  const statements=[];
+ const folderIds=new Map<string,string>();
+ const existingFolders=await db.prepare("SELECT id,source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source='obsidian' AND kind='folder'").bind(campaign).all<{id:string;path:string}>();
+ for(const folder of existingFolders.results)folderIds.set(folder.path,folder.id);
+ const folders=new Set<string>();
+ for(const note of notes){const parts=note.path.split("/");parts.pop();for(let i=1;i<=parts.length;i++)folders.add(parts.slice(0,i).join("/"));}
+ for(const folder of [...folders].sort((a,b)=>a.split("/").length-b.split("/").length)){
+  if(folderIds.has(folder))continue;
+  const id=crypto.randomUUID();folderIds.set(folder,id);
+  const parent=folder.includes("/")?folderIds.get(folder.slice(0,folder.lastIndexOf("/")))??null:null;
+  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'folder',?,'','gm','obsidian',?,?,?)").bind(id,campaign,parent,folder.split("/").at(-1),folder,now,now));
+ }
  let skipped=0;
  for(const note of notes){
   if(paths.has(note.path.toLowerCase())){skipped++;continue;}
-  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,NULL,'page',?,?,'gm','obsidian',?,?,?)")
-   .bind(crypto.randomUUID(),campaign,note.title,note.markdown,note.path,now,now));
+  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'page',?,?,'gm','obsidian',?,?,?)")
+   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder)??null,note.title,note.markdown,note.path,now,now));
  }
  for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
  return {created:statements.length,skipped};

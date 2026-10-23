@@ -18,3 +18,21 @@ test("ignores nonexistent and ambiguous attachments",()=>{
  assert.equal(referencedJournalAssets(source,"Elsewhere/Notes.md",[image,duplicate]).length,0);
  assert.equal(replaceJournalAssetLinks(source,"Elsewhere/Notes.md",[image,duplicate],new Map()),source);
 });
+
+test("does not mistake external or unsafe links for local vault assets",()=>{
+ const references=[
+  "![remote](https://example.com/map.png)",
+  "![remote](//example.com/map.png)",
+  "[remote](ftp://example.com/map.png)",
+  "![[../assets/map.png]]",
+  "![absolute](/Town/assets/map.png)",
+  "![encoded](%2E%2E/assets/map.png)"
+ ];
+ for(const reference of references){
+  assert.deepEqual(referencedJournalAssets(reference,"Town/Notes.md",[image]),[],reference);
+  assert.equal(replaceJournalAssetLinks(reference,"Town/Notes.md",[image],new Map([[image.path,"/api/campaigns/cmp_abcdefghijklmnopqrstuv/journal/files/11111111-1111-4111-8111-111111111111"]])),reference);
+ }
+});
+test("preserves safe relative paths with a dot-segment",()=>{
+ assert.deepEqual(referencedJournalAssets("![[./assets/map.png]]","Town/Notes.md",[image]).map(x=>x.path),[image.path]);
+});

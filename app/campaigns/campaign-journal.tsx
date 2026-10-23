@@ -23,20 +23,32 @@ const [uploadNotice,setUploadNotice]=useState("");
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
- const j=await r.json();
+ const j=await r.json() as {error?:string;entries:Entry[];canEdit:boolean};
  if(!r.ok){setError(j.error||"Journal unavailable");return;}
  setEntries(j.entries);setCanEdit(j.canEdit);setError("");
 }
-useEffect(()=>{void refresh();},[campaignId,preview]);
+useEffect(()=>{
+ const controller=new AbortController();
+ void (async()=>{
+  try{
+   const response=await fetch(endpoint+(preview?"?preview=player":""),{signal:controller.signal});
+   const body=await response.json() as {error?:string;entries:Entry[];canEdit:boolean};
+   if(controller.signal.aborted)return;
+   if(!response.ok){setError(body.error||"Journal unavailable");return;}
+   setEntries(body.entries);setCanEdit(body.canEdit);setError("");
+  }catch{if(!controller.signal.aborted)setError("Journal unavailable");}
+ })();
+ return ()=>controller.abort();
+},[endpoint,preview]);
 const current=entries.find(e=>e.id===selected);
 async function openReaders(id:string){
- const r=await fetch(endpoint+"?readers="+encodeURIComponent(id));const j=await r.json();
+ const r=await fetch(endpoint+"?readers="+encodeURIComponent(id));const j=await r.json() as {error?:string;readers:{userId:string;name:string;selected:number}[]};
  if(!r.ok){setError(j.error||"Could not load players");return;}
  setReaders(j.readers);setReaderEditing(true);
 }
 async function saveReaders(){
  const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:selected,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
- const j=await r.json();if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
+ const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
 }
 async function uploadJournalFile(file:File){
  if(!current||current.kind!=="page")return;
@@ -44,11 +56,11 @@ async function uploadJournalFile(file:File){
  try{
   const body=new FormData();body.set("entryId",current.id);body.set("file",file);
   const response=await fetch(endpoint+"/files",{method:"POST",body});
-  const result=await response.json();
+  const result=await response.json() as {error?:string;id:string};
   if(!response.ok)throw new Error(result.error||"Upload failed.");
   const url=endpoint+"/files/"+encodeURIComponent(result.id);
   const markdown=file.type.startsWith("image/")?"!["+file.name+"]("+url+")":"["+file.name+"]("+url+")";
-  setDraft({title:current.title,visibility:current.visibility,content:current.content+"\\n"+markdown});
+  setDraft({title:current.title,visibility:current.visibility,content:current.content+"\n"+markdown});
   setEditing(true);
   setUploadNotice("File uploaded. Save this page to keep the attachment link.");
  }catch(error){setError(error instanceof Error?error.message:"Upload failed.");}
@@ -57,7 +69,7 @@ async function uploadJournalFile(file:File){
 async function save(e:React.FormEvent){
  e.preventDefault();
  const r=await fetch(endpoint,{method:selected?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(selected?{id:selected,...draft}:{kind:creatingFolder?"folder":"page",parentId,...draft})});
- const j=await r.json();
+ const j=await r.json() as {error?:string;entry:Entry};
  if(!r.ok){setError(j.error||"Save failed");return;}
  setSelected(j.entry.id);setEditing(false);setCreatingFolder(false);await refresh();
 }

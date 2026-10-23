@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionActor } from "@/lib/auth-session";
 import { CampaignDetail } from "../campaign-detail";
 import { CampaignMapLazyLauncher } from "../campaign-map-lazy-launcher";
+import { CampaignStoreLauncher } from "../campaign-store-launcher";
 import "../campaign-ui.css";
 import "../campaign-map.css";
 import "../gm-encounter-drawer.css";
@@ -20,5 +21,6 @@ export default async function CampaignPage({
   return <>
     <CampaignDetail campaignId={id} />
     <CampaignMapLazyLauncher campaignId={id} campaignName="Shared Campaign Map" canManage={false} />
+    <CampaignStoreLauncher campaignId={id} campaignName="Campaign Store" />
   </>;
 }

@@ -31,6 +31,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
    if(file.size>100000){setError("A note exceeds the 100 KB limit.");return;}
    notes.push({path,content:await file.text()});
   }
+  if(notes.length>1000){setError("Select at most 1000 Markdown notes.");return;}
   if(!notes.length){setError("Select a folder containing Markdown notes.");return;}
   const root=notes[0].path.split("/")[0]+"/";
   setEntries(notes.map(note=>({...note,path:note.path.startsWith(root)?note.path.slice(root.length):note.path})));
@@ -38,7 +39,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  return <section className="journal-import">
   <h3>Import Obsidian notes</h3>
   <p>Select an exported Markdown folder. Notes import as GM-only; existing imported pages are kept unchanged.</p>
-  <input type="file" multiple accept=".md,text/markdown" onChange={e=>void chooseFiles(e.target.files)}/>
+  <input type="file" multiple ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/>
   {entries&&<><p>{entries.length} Markdown notes selected.</p><button disabled={busy} onClick={()=>void send(false)}>Preview Import</button></>}
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}

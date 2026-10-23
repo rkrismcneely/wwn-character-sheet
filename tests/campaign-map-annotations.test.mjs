@@ -252,7 +252,7 @@ test("keyboard map edits support copy cut paste delete and reversible persistenc
 test("placing a note switches to edit mode with resizing immediately available", async () => {
   const annotations = await readFile(new URL("../app/campaigns/campaign-map-annotations.tsx", import.meta.url), "utf8");
   const launcher = await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx", import.meta.url), "utf8");
-  assert.match(annotations, /if \(geometry\.kind === "text"\) \{[\s\S]*?setToolState\(null\);[\s\S]*?setSelectedId\(body\.annotation\.id\)/u);
+  assert.match(annotations, /onEdited\?\.\(null, body\.annotation\);[\s\S]*?setToolState\(null\);[\s\S]*?if \(geometry\.kind === "text"\) \{[\s\S]*?setSelectedId\(body\.annotation\.id\)/u);
   assert.match(annotations, /const selecting = !playerPreview && interactionEnabled && controller\.tool !== "erase"/u);
   assert.match(launcher, /aria-label="Label font size"/u);
   assert.match(launcher, /annotations\.commitTextSize\(\)/u);

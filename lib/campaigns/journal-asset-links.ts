@@ -20,7 +20,7 @@ function findAsset(target:string,notePath:string,assets:readonly VaultAsset[]):V
 }
 export function referencedJournalAssets(markdown:string,notePath:string,assets:readonly VaultAsset[]){
  const paths=new Map<string,VaultAsset>();
- for(const match of markdown.matchAll(/!\[\[([^\]\n]+)\]\]|!?\[[^\]\n]*\]\(([^)\n]+)\)/gu)){
+ for(const match of markdown.matchAll(/!?\[\[([^\]\n]+)\]\]|!?\[[^\]\n]*\]\(([^)\n]+)\)/gu)){
   const target=(match[1]?.split("|",1)[0]??match[2]??"").trim();
   let asset:VaultAsset|undefined;
   try{asset=findAsset(target,notePath,assets);}catch{continue;}
@@ -29,7 +29,7 @@ export function referencedJournalAssets(markdown:string,notePath:string,assets:r
  return [...paths.values()];
 }
 export function replaceJournalAssetLinks(markdown:string,notePath:string,assets:readonly VaultAsset[],urls:ReadonlyMap<string,string>):string{
- return markdown.replace(/!\[\[([^\]\n]+)\]\]|(!?)\[([^\]\n]*)\]\(([^)\n]+)\)/gu,(whole,wiki:string|undefined,bang:string|undefined,label:string|undefined,target:string|undefined)=>{
+ return markdown.replace(/!?\[\[([^\]\n]+)\]\]|(!?)\[([^\]\n]*)\]\(([^)\n]+)\)/gu,(whole,wiki:string|undefined,bang:string|undefined,label:string|undefined,target:string|undefined)=>{
   const path=(wiki?.split("|",1)[0]??target??"").trim();
   let asset:VaultAsset|undefined;
   try{asset=findAsset(path,notePath,assets);}catch{return whole;}

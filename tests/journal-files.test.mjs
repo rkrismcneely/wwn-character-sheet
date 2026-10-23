@@ -35,3 +35,12 @@ test("only explicit visible Markdown links grant attachment access",()=>{
  assert.equal(hasJournalAttachmentReference("[External]("+url+"?download=1)",campaign,id),false);
  assert.equal(hasJournalAttachmentReference("![Map]("+url+")",campaign,"33333333-3333-4333-8333-333333333333"),false);
 });
+
+test("fenced Markdown code cannot grant player file access",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const reference="![Map](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ assert.equal(hasJournalAttachmentReference("```md\n"+reference+"\n```",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("~~~md\n"+reference+"\n~~~",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("```md\n"+reference+"\n```\n"+reference,campaign,id),true);
+});

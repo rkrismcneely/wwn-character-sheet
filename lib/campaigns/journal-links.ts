@@ -25,6 +25,6 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
   if(!chosen)return whole;
   const text=label||chosen.title;
   const fragment=heading?"#"+encodeURIComponent(heading):"";
-  return "["+text.replace(/[\\[\\]]/gu,"")+"]("+"/journal-page/"+encodeURIComponent(chosen.id)+fragment+")";
+  return "["+text.replaceAll("[","").replaceAll("]","")+"]("+"/journal-page/"+encodeURIComponent(chosen.id)+fragment+")";
  });
 }

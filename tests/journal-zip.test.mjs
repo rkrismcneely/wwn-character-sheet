@@ -95,3 +95,15 @@ test("extracts a PNG asset with its safe relative path",async()=>{
 test("rejects disguised PDF content in an Obsidian ZIP",async()=>{
  await assert.rejects(extractObsidianZip(zipStored("assets/fake.pdf","<html>oops</html>")),/Invalid ZIP attachment signature/);
 });
+
+test("rejects inconsistent central ZIP entry counts",async()=>{
+ const buffer=zipStored("Notes.md","hello"),view=new DataView(buffer);
+ view.setUint16(buffer.byteLength-22+8,2,true);
+ await assert.rejects(extractMarkdownZip(buffer),/ZIP entry count mismatch/);
+});
+test("rejects unparsed central directory bytes",async()=>{
+ const buffer=zipStored("Notes.md","hello"),view=new DataView(buffer);
+ const end=buffer.byteLength-22;
+ view.setUint32(end+12,view.getUint32(end+12,true)+1,true);
+ await assert.rejects(extractMarkdownZip(buffer),/ZIP directory size mismatch|ZIP directory exceeds limits/);
+});

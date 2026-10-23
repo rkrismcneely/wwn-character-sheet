@@ -2,8 +2,13 @@ name: Deploy verified CI artifact
 
 # HANDOVER: First disable Cloudflare Git auto-deployment, then set the
 # repository Actions variable TWE_GITHUB_DEPLOYS_PRODUCTION=true.
-# Deliberately manual until that handover has been verified.
+# GitHub owns normal production deployment only when the ownership variable is true.
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -35,14 +40,46 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+      - name: Resolve merged PR and successful CI run
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          INPUT_RUN: ${{ inputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = push ]; then
+            changed=$(git diff-tree --no-commit-id --name-only -r HEAD)
+            if echo "$changed" | grep -Eq '^(drizzle/|scripts/migrate-|\.github/workflows/migrate-)'; then
+              echo "Migration release stays with its dedicated workflow."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            pr=$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA/pulls" --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0]')
+            [ "$pr" != null ] || { echo "No merged PR for this release" >&2; exit 1; }
+            number=$(jq -r .number <<< "$pr")
+            head=$(jq -r .head.sha <<< "$pr")
+            runs=$(gh api "repos/$GH_REPO/actions/runs?event=pull_request&head_sha=$head&per_page=100")
+            run=$(jq -r '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success" and .head_sha == "'"$head"'")] | sort_by(.created_at) | last | .id // empty' <<< "$runs")
+            [ -n "$run" ] || { echo "No successful PR CI for $head" >&2; exit 1; }
+          else
+            number="$INPUT_PR"
+            run="$INPUT_RUN"
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
       - name: Verify merged PR and exact passing CI artifact
+        if: steps.resolve.outputs.skip != 'true'
         id: verify
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          PR_NUMBER: ${{ steps.resolve.outputs.number }}
+          CI_RUN_ID: ${{ steps.resolve.outputs.run }}
         run: |
           set -euo pipefail
           pr=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER")
@@ -61,16 +98,19 @@ jobs:
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.resolve.outputs.skip != 'true'
         with:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
+        if: steps.resolve.outputs.skip != 'true'
       - name: Retrieve CI-built Worker without rebuilding
+        if: steps.resolve.outputs.skip != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_RUN_ID: ${{ steps.resolve.outputs.run }}
           HEAD_SHA: ${{ steps.verify.outputs.head_sha }}
           MERGE_SHA: ${{ steps.verify.outputs.merge_sha }}
         run: |
@@ -85,11 +125,13 @@ jobs:
           printf '{"commit":"%s"}\n' "$MERGE_SHA" > dist/client/twe-build-version.json
           npm run validate:artifact
       - name: Publish verified bundle
+        if: steps.resolve.outputs.skip != 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config dist/server/wrangler.json
       - name: Verify exact live merged SHA
+        if: steps.resolve.outputs.skip != 'true'
         shell: bash
         env:
           MERGE_SHA: ${{ steps.verify.outputs.merge_sha }}

@@ -1,0 +1,37 @@
+name: Verify production availability
+
+# Cloudflare Git Integration owns normal production deployment. This checks
+# reachability after main changes; it does not falsely claim SHA parity.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Production health
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check production HTTP response
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --retry 18 --retry-delay 10 --retry-all-errors \
+            --connect-timeout 10 --max-time 20 \
+            --output /dev/null \
+            --write-out 'Production health: HTTP %{http_code}\n' \
+            https://taleswithoutend.com/
+          echo "Health succeeded. Commit-to-deployment identity is not verified by this check."

@@ -49,7 +49,7 @@ test("Markdown links inside GM-only blocks do not authorize players",()=>{
  const campaign="cmp_abcdefghijklmnopqrstuv";
  const id="22222222-2222-4222-8222-222222222222";
  const url="/api/campaigns/"+campaign+"/journal/files/"+id;
- const markdown="Public\\n<!-- gm-only:start -->\\n![Secret]("+url+")\\n<!-- gm-only:end -->";
+ const markdown=["Public","<!-- gm-only:start -->","![Secret]("+url+")","<!-- gm-only:end -->"].join("\n");
  const redacted=markdown.replace(/<!--\\s*gm-only:start\\s*-->[\\s\\S]*?<!--\\s*gm-only:end\\s*-->/giu,"");
  assert.equal(hasJournalAttachmentReference(redacted,campaign,id),false);
 });

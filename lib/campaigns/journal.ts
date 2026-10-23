@@ -105,3 +105,19 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
     WHERE campaign_id = ? AND id = ?`).bind(title, content, visibility, updatedAt, id, old.id).run();
   return { ...old, title, content, visibility, updatedAt };
 }
+
+export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string,userIds:string[]){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(!uuidPattern.test(entryId)||!Array.isArray(userIds)||userIds.length>100||userIds.some(id=>typeof id!=="string"||!uuidPattern.test(id)))
+   throw new CampaignServiceError("Invalid readers.",422);
+ const entry=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,entryId).first();
+ if(!entry)throw new CampaignServiceError("Journal entry not found.",404);
+ const unique=[...new Set(userIds)];
+ for(const userId of unique){
+   const member=await db.prepare("SELECT user_id FROM campaign_members WHERE campaign_id=? AND user_id=?").bind(campaign,userId).first();
+   if(!member)throw new CampaignServiceError("Reader is not a campaign member.",422);
+ }
+ await db.batch([db.prepare("DELETE FROM campaign_journal_readers WHERE entry_id=?").bind(entryId),
+ ...unique.map(userId=>db.prepare("INSERT INTO campaign_journal_readers (entry_id,user_id) VALUES (?,?)").bind(entryId,userId))]);
+ return {entryId,userIds:unique};
+}

@@ -1,6 +1,6 @@
 /** Convert Obsidian wiki links to local journal page IDs without exposing private pages. */
 export type LinkedPage={id:string;title:string;sourcePath?:string|null;parentId:string|null};
-function norm(value:string){return value.toLocaleLowerCase().replace(/\\\\/gu,"/").replace(/\\.md$/iu,"");}
+function norm(value:string){return value.toLocaleLowerCase().replace(/\\/gu,"/").replace(/\\.md$/iu,"");}
 export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages:readonly LinkedPage[]):string{
  const byId=new Map(pages.map(page=>[page.id,page]));
  const folder=(page:LinkedPage):string=>{

@@ -1,7 +1,7 @@
 "use client";
 import { extractObsidianZip, type VaultAsset } from "@/lib/campaigns/journal-zip";
 import { referencedJournalAssets, replaceJournalAssetLinks } from "@/lib/campaigns/journal-asset-links";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type VaultEntry={path:string;content:string};
 type Preview={notes:{path:string;title:string}[];folders:string[];unresolvedLinks:{source:string;target:string}[]};
@@ -9,6 +9,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [entries,setEntries]=useState<VaultEntry[]|null>(null);
  const [preview,setPreview]=useState<Preview|null>(null);
  const [assets,setAssets]=useState<VaultAsset[]>([]);
+ const completedUploads=useRef(new Map<string,string>());
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
@@ -33,6 +34,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       if(!links.length)continue;
       const urls=new Map<string,string>();
       for(const asset of links){
+       const key=page.id+"\u0000"+asset.path;
+       const previous=completedUploads.current.get(key);
+       if(previous){urls.set(asset.path,previous);continue;}
        try{
         const data=new FormData();
         data.set("entryId",page.id);
@@ -40,7 +44,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
         const response=await fetch(endpoint+"/files",{method:"POST",body:data});
         const upload=await response.json() as {id?:string;error?:string};
         if(!response.ok||!upload.id)throw new Error(upload.error||"Upload failed");
-        urls.set(asset.path,endpoint+"/files/"+upload.id);uploaded++;
+        const url=endpoint+"/files/"+upload.id;
+        completedUploads.current.set(key,url);
+        urls.set(asset.path,url);uploaded++;
        }catch{unlinked++;}
       }
       const updated=replaceJournalAssetLinks(page.content,note.path,assets,urls);
@@ -57,6 +63,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
      return;
     }
     setResult("Imported "+body.result.created+" pages and "+body.result.foldersCreated+" folders; "+uploaded+" attachments linked.");
+    completedUploads.current.clear();
     setEntries(null);setAssets([]);setPreview(null);await onImported();
    }
   }catch(e){setError(e instanceof Error?e.message:"Import failed");}
@@ -64,7 +71,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  async function chooseZip(file:File|undefined){
   if(!file)return;
-  setError("");setPreview(null);setResult("");
+  setError("");setPreview(null);setResult("");completedUploads.current.clear();
   try{
    const extracted=await extractObsidianZip(await file.arrayBuffer());
    const notes=extracted.notes;
@@ -103,7 +110,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}
    <button disabled={busy} onClick={()=>void send(true)}>Confirm Import</button>
-   <button disabled={busy} onClick={()=>{setPreview(null);setEntries(null);}}>Cancel</button>
+   <button disabled={busy} onClick={()=>{setPreview(null);setEntries(null);setAssets([]);completedUploads.current.clear();}}>Cancel</button>
   </div>}
   {error&&<p role="alert">{error}</p>}{result&&<p role="status">{result}</p>}
  </section>;

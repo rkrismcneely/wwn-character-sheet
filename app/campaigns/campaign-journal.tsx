@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { JournalImport } from "./journal-import";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
 type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string};
 export function CampaignJournal({campaignId}:{campaignId:string}){
@@ -15,6 +16,7 @@ const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
 const [readerEditing,setReaderEditing]=useState(false);
+const [importOpen,setImportOpen]=useState(false);
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
@@ -46,9 +48,11 @@ return <section className="campaign-panel campaign-journal">
  {canEdit&&<button onClick={()=>setPreview(true)}>View as Player</button>}
  {preview&&<button onClick={()=>setPreview(false)}>Return to GM View</button>}
  {canEdit&&<button onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page</button>}
+ {canEdit&&<button onClick={()=>setImportOpen(open=>!open)}>{importOpen?"Close Import":"Import Obsidian"}</button>}
  {canEdit&&<button onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Folder</button>}
  </div>
  {error&&<p role="alert">{error}</p>}
+ {importOpen&&canEdit&&<JournalImport endpoint={endpoint} onImported={refresh}/>}
  {readerEditing&&canEdit&&<section aria-label="Selected journal readers"><h3>Share with players</h3>{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}<button onClick={()=>void saveReaders()}>Save Players</button><button onClick={()=>setReaderEditing(false)}>Cancel</button></section>}
  <div className="journal-layout"><aside className="journal-sidebar">
  <input aria-label="Search journal" placeholder="Search pages" value={search} onChange={e=>setSearch(e.target.value)}/>

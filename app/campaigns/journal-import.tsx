@@ -13,6 +13,14 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
+ async function cleanupUnusedUploads(){
+  const urls=[...new Set(completedUploads.current.values())];
+  completedUploads.current.clear();
+  await Promise.allSettled(urls.map(async url=>{
+   const response=await fetch(url,{method:"DELETE"});
+   if(!response.ok&&response.status!==404&&response.status!==409)throw new Error("Could not clean an unused attachment.");
+  }));
+ }
  async function send(confirm:boolean){
   if(!entries)return;
   setBusy(true);setError("");
@@ -71,7 +79,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  async function chooseZip(file:File|undefined){
   if(!file)return;
-  setError("");setPreview(null);setResult("");completedUploads.current.clear();
+  await cleanupUnusedUploads();
+  setError("");setPreview(null);setResult("");
   try{
    const extracted=await extractObsidianZip(await file.arrayBuffer());
    const notes=extracted.notes;
@@ -85,6 +94,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  async function chooseFiles(files:FileList|null){
   if(!files)return;
+  await cleanupUnusedUploads();
   setError("");setPreview(null);setResult("");
   const notes:VaultEntry[]=[];
   for(const file of Array.from(files)){
@@ -110,7 +120,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}
    <button disabled={busy} onClick={()=>void send(true)}>Confirm Import</button>
-   <button disabled={busy} onClick={()=>{setPreview(null);setEntries(null);setAssets([]);completedUploads.current.clear();}}>Cancel</button>
+   <button disabled={busy} onClick={()=>{void cleanupUnusedUploads();setPreview(null);setEntries(null);setAssets([]);}}>Cancel</button>
   </div>}
   {error&&<p role="alert">{error}</p>}{result&&<p role="status">{result}</p>}
  </section>;

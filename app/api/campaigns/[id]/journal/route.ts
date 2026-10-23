@@ -1,7 +1,7 @@
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignD1 } from "@/lib/campaigns/service";
-import { createJournalEntry, listJournal, updateJournalEntry } from "@/lib/campaigns/journal";
+import { createJournalEntry, listJournal, setJournalReaders, updateJournalEntry } from "@/lib/campaigns/journal";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
 type Context = { params: Promise<{ id: string }> };
@@ -36,5 +36,18 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The journal entry could not be updated.");
+  }
+}
+
+export async function PUT(request: Request, context: Context): Promise<Response> {
+  try {
+    const actor = await getSessionActor(request);
+    if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
+    const { id } = await context.params;
+    const body = await readBoundedJson(request, 16 * 1024) as { entryId?: string; userIds?: string[] };
+    return Response.json(await setJournalReaders(await getCampaignD1(), actor, id, body.entryId ?? "", body.userIds ?? []));
+  } catch (error) {
+    if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
+    return campaignErrorResponse(error, "Journal readers could not be updated.");
   }
 }

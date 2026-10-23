@@ -110,9 +110,21 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   if(!await cleanupUnusedUploads())return;
   setError("");setPreview(null);setResult("");
   const notes:VaultEntry[]=[];
+  const folderAssets:VaultAsset[]=[];
+  let assetBytes=0;
   for(const file of Array.from(files)){
    const path=file.webkitRelativePath||file.name;
-   if(!path.toLowerCase().endsWith(".md"))continue;
+   if(!path.toLowerCase().endsWith(".md")){
+    const extension=path.split(".").at(-1)?.toLowerCase()??"";
+    const mime=JOURNAL_FILE_TYPES[extension];
+    if(!mime)continue;
+    if(file.size>MAX_JOURNAL_FILE_BYTES||assetBytes+file.size>16_000_000){setError("Folder attachments exceed the import size limit.");return;}
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    if(!verifyJournalFileSignature(mime,bytes)){setError("An attachment has an invalid file signature.");return;}
+    folderAssets.push({path,filename:file.name,mime,bytes});
+    assetBytes+=file.size;
+    continue;
+   }
    if(file.size>100000){setError("A note exceeds the 100 KB limit.");return;}
    notes.push({path,content:await file.text()});
   }
@@ -122,7 +134,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   const cleaned=notes.map(note=>({...note,path:note.path.startsWith(root)?note.path.slice(root.length):note.path}));
   const size=new Blob([JSON.stringify({entries:cleaned,confirm:true})]).size;
   if(size>900000){setError("This folder exceeds the current 900 KB import limit. Split it into smaller folders.");return;}
-  setEntries(cleaned);setAssets([]);
+  setEntries(cleaned);
+  setAssets(folderAssets.map(asset=>({...asset,path:asset.path.startsWith(root)?asset.path.slice(root.length):asset.path})));
  }
  return <section className="journal-import">
   <h3>Import Obsidian notes</h3>

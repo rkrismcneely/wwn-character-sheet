@@ -9,7 +9,7 @@ export type JournalEntry = {
   createdAt: string; updatedAt: string;
 };
 type Row = JournalEntry;
-const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt";
+const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath";
 export function redactJournalSecrets(markdown:string):string {
  return markdown.replace(/<!--\s*gm-only:start\s*-->[\s\S]*?<!--\s*gm-only:end\s*-->/giu,"").replace(/<!--\s*gm-only:start\s*-->[\s\S]*$/giu,"");
 }

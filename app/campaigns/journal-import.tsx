@@ -89,7 +89,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   finally{setBusy(false);}
  }
  async function chooseZip(file:File|undefined){
-  if(!file)return;
+  if(!file||busy)return;
   if(!await cleanupUnusedUploads())return;
   setError("");setPreview(null);setResult("");
   try{
@@ -104,8 +104,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   }catch(e){setError(e instanceof Error?e.message:"Could not open ZIP.");}
  }
  async function chooseFiles(files:FileList|null){
-  if(!files)return;
-  await cleanupUnusedUploads();
+  if(!files||busy)return;
+  if(!await cleanupUnusedUploads())return;
   setError("");setPreview(null);setResult("");
   const notes:VaultEntry[]=[];
   for(const file of Array.from(files)){
@@ -125,8 +125,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  return <section className="journal-import">
   <h3>Import Obsidian notes</h3>
   <p>Select an exported Markdown folder. Notes import as GM-only; existing imported pages are kept unchanged.</p>
-  <label>Obsidian ZIP<input type="file" accept=".zip,application/zip" onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
-  <label>Markdown folder<input type="file" multiple ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
+  <label>Obsidian ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
+  <label>Markdown folder<input type="file" multiple disabled={busy} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
   {entries&&<><p>{entries.length} Markdown notes selected{assets.length?", "+assets.length+" attachment files":""}.</p><button disabled={busy} onClick={()=>void send(false)}>Preview Import</button></>}
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}

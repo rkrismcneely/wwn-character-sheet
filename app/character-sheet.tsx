@@ -942,11 +942,11 @@ const weaponTraitDescriptions: Record<string, string> = {
   T: "Throwable: Can be thrown to its listed range without Shock; throwing while in melee gives -4 to hit.",
 };
 
-const WeaponRangeValue = memo(function WeaponRangeValue({ range }: { range: string }) {
+function WeaponRangeValue({ range }: { range: string }) {
   const parts = range.split("/");
   if (parts.length < 2) return <>{range}</>;
   return <><span className="weapon-range-part">{parts[0]}/</span><wbr /><span className="weapon-range-part">{parts.slice(1).join("/")}</span></>;
-});
+}
 
 const WeaponTraitCodes = memo(function WeaponTraitCodes({ traits }: { traits: string }) {
   const codes = traits.split(",").map(trait => trait.trim()).filter(Boolean);
@@ -1180,7 +1180,7 @@ export default function Home({
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
   const levelOneStatus = useMemo(() => levelOneCreationStatus(sheet), [sheet]);
   const { items: campaignInventoryItems, error: campaignInventoryError } = useCampaignInventoryItems(cloudId, campaignLinks, canEdit);
-  const campaignArmorItems = useMemo(() => campaignInventoryItems.filter(item => item.kind === "armor"), [campaignInventoryItems]);
+  const campaignArmorItems = campaignInventoryItems.filter(item => item.kind === "armor");
   const buildFieldsEditable = canEdit && (!cloudId || characterEditMode);
   const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
 
@@ -2501,12 +2501,12 @@ export default function Home({
     ? classRules(sheet.classMode, sheet.classOne, sheet.classTwo, 1).focusPicks +
       (selectedClasses.includes("Mageslayer") ? 1 : 0)
     : 0;
-  const selectedFocusPicks = useMemo(() => sheet.focusPicks.filter(pick => Boolean(pick.name)), [sheet.focusPicks]);
-  const magicalTraditions = useMemo(() => selectedClasses.filter(c => c in traditionInfo) as TraditionName[], [sheet.classMode, sheet.classOne, sheet.classTwo]);
+  const selectedFocusPicks = sheet.focusPicks.filter(pick => Boolean(pick.name));
+  const magicalTraditions = selectedClasses.filter(c => c in traditionInfo) as TraditionName[];
   const armorRestrictedTraditions = magicalTraditions.filter(tradition => armorRestrictsMagic(traditionInfo[tradition].armor));
   const isMageClass = selectedClasses.some(name => traditionKinds[name] === "mage");
   const isExpertClass = selectedClasses.includes("Expert") || selectedClasses.includes("Wise");
-  const backgroundGrowth = useMemo(() => backgroundAttributeGrowth(sheet), [sheet]);
+  const backgroundGrowth = backgroundAttributeGrowth(sheet);
   const attributeScore = (attribute: AttributeName) => Math.min(18, Math.max(0, sheet.attrs[attribute] + backgroundGrowth[attribute]));
   const hasNegativeAttribute = hasNegativeEffectiveAttributeModifier(attribute => attributeScore(attribute as AttributeName), sheet.focusPicks);
   const focusRepeatAllowed = focusIsRepeatable;
@@ -2561,19 +2561,19 @@ export default function Home({
   const spiritFamiliars = useMemo(() => sheet.focusPicks
     .map((pick, index) => ({ pick, index }))
     .filter(({ pick }) => pick.name === "Spirit Familiar"), [sheet.focusPicks]);
-  const spiritFamiliarBenefitCap = useMemo(() => spiritFamiliarBenefitLimit(sheet.focusPicks), [sheet.focusPicks]);
+  const spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit(sheet.focusPicks);
   const hasHenchkeeper = Boolean(henchkeeper);
   const hasSpiritFamiliar = spiritFamiliars.length > 0;
   const hasBeastmaster = selectedClasses.includes("Beastmaster");
   const chosenFriend = hasBeastmaster && sheet.beastmasterBond === "chosen-friend";
   const henchmanCount = henchkeeper ? Math.ceil(Math.max(1, sheet.level) / 3) : 0;
-  const companionTabs = useMemo(() => sheet.companions.filter(companion =>
+  const companionTabs = sheet.companions.filter(companion =>
     companion.kind === "henchman"
-      ? hasHenchkeeper
+      ? Boolean(henchkeeper)
       : companion.kind === "familiar"
         ? hasSpiritFamiliar
         : hasBeastmaster
-  ), [sheet.companions, hasHenchkeeper, hasSpiritFamiliar, hasBeastmaster]);
+  );
   const armoredMagicLevel = selectedFocusPicks.find(pick => pick.name === "Armored Magic")?.level || 0;
   const focusPicksUsed = focusSelectionCost(selectedFocusPicks);
   const developedAttributes = selectedFocusPicks
@@ -2588,7 +2588,7 @@ export default function Home({
     if (xenobloodedGravity === "DEX +1 / STR -1") value += attribute === "DEX" ? 1 : attribute === "STR" ? -1 : 0;
     return Math.min(3, value);
   };
-  const minimumSkillSources = useMemo(() => skillSourcesFor(sheet), [sheet]);
+  const minimumSkillSources = skillSourcesFor(sheet);
   const focusCreditAtCap = (skill: string, priorCredits: Readonly<Record<string, number>>) =>
     deriveSkillProfile({
       purchased: sheet.skillPurchases[skill] ?? -1,
@@ -2596,7 +2596,7 @@ export default function Home({
       credit: priorCredits[skill] || 0,
     }).effective >= 4;
   const advancementSkillCredits = advancementSkillCreditBySkill(sheet, focusCreditAtCap);
-  const backgroundGrantResolutions = useMemo(() => backgroundSkillGrantResolutions(sheet), [sheet]);
+  const backgroundGrantResolutions = backgroundSkillGrantResolutions(sheet);
   const backgroundGrantResolution = (id: string, candidate = sheet) =>
     backgroundSkillGrantResolutions(candidate).find(grant => grant.id === id);
   const activeBackground = backgrounds[sheet.background];

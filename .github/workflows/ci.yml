@@ -87,6 +87,8 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Identify slow migration test files
+        run: rg -l "Phase 4C campaign foundation is additive|existing character data remains readable and unchanged|Phase 4D migration is additive" tests/ || true
       - name: Run tests that do not need the compiled Worker
         shell: bash
         env:

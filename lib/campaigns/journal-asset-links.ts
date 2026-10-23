@@ -20,7 +20,7 @@ function findAsset(target:string,notePath:string,assets:readonly VaultAsset[]):V
 }
 
 /** Preserve fenced and inline Markdown code verbatim during attachment conversion. */
-function outsideMarkdownCode(markdown:string, transform:(text:string)=>string):string{
+export function outsideMarkdownCode(markdown:string, transform:(text:string)=>string):string{
  let fence:{character:string;length:number}|null=null;
  return markdown.split(/(\r?\n)/u).map(line=>{
   if(line==="\n"||line==="\r\n")return line;

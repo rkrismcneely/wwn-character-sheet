@@ -1,0 +1,39 @@
+name: Merge approved development PRs
+
+# workflow_run executes from the trusted default branch, not from PR code.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-main
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge only explicitly opted-in owner PRs with passing CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Never merge forks or PRs from other authors.
+          [ "$RUN_REPO" = "$REPO" ] || exit 0
+          case "$RUN_BRANCH" in auto/*) ;; *) exit 0 ;; esac
+          prs=$(gh pr list --repo "$REPO" --state open --head "$RUN_BRANCH" --json number,headRefOid,baseRefName,author,body,isDraft)
+          number=$(jq -r --arg sha "$RUN_SHA" '.[] | select(.headRefOid == $sha and .baseRefName == "main" and .author.login == "rkrismcneely" and (.body | contains("[auto-publish]")) and (.isDraft | not)) | .number' <<< "$prs" | head -n 1)
+          [ -n "$number" ] || exit 0
+          # Require that the complete CI run still belongs to this exact PR head.
+          gh pr merge "$number" --repo "$REPO" --squash --delete-branch

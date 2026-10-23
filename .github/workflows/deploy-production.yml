@@ -1,20 +1,10 @@
 name: Deploy Production
 
-# Cloudflare Git Integration is the normal automatic production deployment path.
-# Release trigger: return to selection pointer after placing map annotations, PR #409.
-# Release trigger: coalesced map refresh optimization, PR #408 (2026-10-22).
-# Manual fallback, plus a one-time deploy when this workflow itself is updated on main.
-# Manual release trigger: fix lazy map first-open and drawer exit (PR #402, 2026-10-22).
-# Manual release trigger: publish map optimizations through PR #400 (2026-10-22).
-# Release trigger: PRs #362 and #363, Expert advancement rules and copy cleanup.
-# Release trigger: PR #361 compact Strain maximum and Frail layout.
-# Ordinary source pushes remain owned by Cloudflare Git Integration, avoiding duplicate deployments.
+# Deploy each merged change to main automatically, retaining manual fallback.
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - .github/workflows/deploy-production.yml
 
 permissions:
   contents: read

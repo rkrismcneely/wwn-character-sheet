@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
 import { JournalImport } from "./journal-import";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
-type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string};
+type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string;sourcePath?:string|null};
 export function CampaignJournal({campaignId}:{campaignId:string}){
 const [entries,setEntries]=useState<Entry[]>([]);
 const [canEdit,setCanEdit]=useState(false);
@@ -63,6 +64,6 @@ return <section className="campaign-panel campaign-journal">
  {!creatingFolder&&<label>Markdown<textarea rows={12} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}
  <label>Visibility<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label>
  <button type="submit">Save</button><button type="button" onClick={()=>setEditing(false)}>Cancel</button>
- </form>:current?<article><h3>{current.title}</h3>{canEdit&&<button onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit</button>}{canEdit&&current.visibility==="selected"&&<button onClick={()=>void openReaders(current.id)}>Choose Players</button>}{canEdit&&current.kind==="folder"&&<button onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page Here</button>}{current.kind==="page"&&<SessionRecapMarkdown content={current.content}/>}</article>:<p>Select a page.</p>}
+ </form>:current?<article><h3>{current.title}</h3>{canEdit&&<button onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit</button>}{canEdit&&current.visibility==="selected"&&<button onClick={()=>void openReaders(current.id)}>Choose Players</button>}{canEdit&&current.kind==="folder"&&<button onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page Here</button>}{current.kind==="page"&&<SessionRecapMarkdown content={resolveJournalWikilinks(current.content,current,entries)} onJournalNavigate={id=>{if(entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/>}</article>:<p>Select a page.</p>}
  </div></div></section>;
 }

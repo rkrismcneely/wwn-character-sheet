@@ -21,12 +21,19 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
   ).bind(access.campaign.id,cutoff).all<{id:string}>();
   let removed=0,failed=0;
   for(const candidate of candidates.results){
-   // Recheck references at deletion time, including references from other pages.
-   const deleted=await db.prepare(
-    "DELETE FROM campaign_journal_files WHERE campaign_id=? AND id=? AND created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=? AND instr(e.content,campaign_journal_files.id)>0) RETURNING storage_key AS storageKey"
-   ).bind(access.campaign.id,candidate.id,cutoff,access.campaign.id).first<{storageKey:string}>();
-   if(!deleted)continue;
-   try{await env.BUCKET.delete(deleted.storageKey);removed++;}catch{failed++;}
+   // Only unreferenced files qualify. Keep the DB record when object deletion fails
+   // so a subsequent import-panel visit can safely retry cleanup.
+   const file=await db.prepare(
+    "SELECT f.storage_key AS storageKey FROM campaign_journal_files f WHERE f.campaign_id=? AND f.id=? AND f.created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=f.campaign_id AND instr(e.content,f.id)>0)"
+   ).bind(access.campaign.id,candidate.id,cutoff).first<{storageKey:string}>();
+   if(!file)continue;
+   try{
+    await env.BUCKET.delete(file.storageKey);
+    await db.prepare(
+     "DELETE FROM campaign_journal_files WHERE campaign_id=? AND id=? AND created_at<? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=? AND instr(e.content,campaign_journal_files.id)>0)"
+    ).bind(access.campaign.id,candidate.id,cutoff,access.campaign.id).run();
+    removed++;
+   }catch{failed++;}
   }
   return Response.json({removed,failed});
  }catch(error){return campaignErrorResponse(error,"Unused journal files could not be cleaned.");}

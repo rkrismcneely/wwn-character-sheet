@@ -11,6 +11,7 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
+  actions: write
 
 jobs:
   merge:
@@ -23,6 +24,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
           PRS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
         shell: bash
         run: |
@@ -53,4 +55,8 @@ jobs:
             if [ "$labels" != true ] && [ "$routine" != true ]; then continue; fi
             # GitHub applies branch protection/rulesets at merge time.
             gh pr merge "$number" --repo "$GH_REPO" --squash --delete-branch
+            # GITHUB_TOKEN merges do not emit ordinary push workflows.
+            # Dispatch the guarded deployment explicitly instead.
+            gh workflow run deploy-ci-artifact.yml --repo "$GH_REPO" --ref main \
+              -f pr_number="$number" -f ci_run_id="$CI_RUN_ID"
           done

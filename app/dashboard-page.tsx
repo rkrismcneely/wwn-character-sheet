@@ -19,6 +19,18 @@ type DashboardCharacter = {
   updatedAt: string;
 };
 
+const rosterUrl = "/api/characters?scope=mine&archive=all";
+
+async function fetchCharacters(signal?: AbortSignal): Promise<DashboardCharacter[]> {
+  const response = await fetch(rosterUrl, { cache: "no-store", signal });
+  const payload = await response.json() as {
+    characters?: DashboardCharacter[];
+    error?: string;
+  };
+  if (!response.ok) throw new Error(payload.error || "Your character roster could not be loaded.");
+  return Array.isArray(payload.characters) ? payload.characters : [];
+}
+
 const visibilityLabels: Record<CharacterVisibility, string> = {
   private: "Private",
   unlisted: "Unlisted",
@@ -48,13 +60,7 @@ export function DashboardPage() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/characters?scope=mine&archive=all", { cache: "no-store" });
-      const payload = await response.json() as {
-        characters?: DashboardCharacter[];
-        error?: string;
-      };
-      if (!response.ok) throw new Error(payload.error || "Your character roster could not be loaded.");
-      setCharacters(Array.isArray(payload.characters) ? payload.characters : []);
+      setCharacters(await fetchCharacters());
     } catch (loadError) {
       setCharacters([]);
       setError(loadError instanceof Error ? loadError.message : "Your character roster could not be loaded.");
@@ -64,27 +70,18 @@ export function DashboardPage() {
   }
 
   useEffect(() => {
-    let active = true;
-    fetch("/api/characters?scope=mine&archive=all", { cache: "no-store" })
-      .then(async response => {
-        const payload = await response.json() as {
-          characters?: DashboardCharacter[];
-          error?: string;
-        };
-        if (!response.ok) throw new Error(payload.error || "Your character roster could not be loaded.");
-        if (active) setCharacters(Array.isArray(payload.characters) ? payload.characters : []);
-      })
+    const controller = new AbortController();
+    fetchCharacters(controller.signal)
+      .then(setCharacters)
       .catch(loadError => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         setCharacters([]);
         setError(loadError instanceof Error ? loadError.message : "Your character roster could not be loaded.");
       })
       .finally(() => {
-        if (active) setBusy(false);
+        if (!controller.signal.aborted) setBusy(false);
       });
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, []);
 
 

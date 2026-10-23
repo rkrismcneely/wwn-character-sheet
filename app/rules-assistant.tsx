@@ -125,8 +125,10 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
   const assistant = useRef<HTMLFormElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const panelId = `${id}-panel`;
+  const requestId = useRef(0);
 
   const close = useCallback(() => {
+    requestId.current += 1;
     setSearched(false);
     setSelectedRule(null);
     if (compact) setOpen(false);
@@ -136,14 +138,18 @@ export function RulesAssistant({ compact = false, className = "", id = "rules-qu
     event.preventDefault();
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion) return;
-    setResults(await searchRules(trimmedQuestion));
+    const currentRequest = ++requestId.current;
+    const matches = await searchRules(trimmedQuestion);
+    if (currentRequest !== requestId.current) return;
+    setResults(matches);
     setSelectedRule(null);
     setSearched(true);
   }
 
   async function openRuleDetail(title: string) {
+    const currentRequest = requestId.current;
     const detail = await getRuleDetail(title, question.trim());
-    if (detail) setSelectedRule(detail);
+    if (currentRequest === requestId.current && detail) setSelectedRule(detail);
   }
 
   useEffect(() => {

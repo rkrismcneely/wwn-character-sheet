@@ -72,7 +72,7 @@ export function describeLegendKeeperSchema(value:unknown):string{
  const lines:string[]=[];
  const seen=new WeakSet<object>();
  function describe(node:unknown,path:string,depth:number){
-  if(lines.length>=80||depth>3)return;
+  if(lines.length>=80||depth>6)return;
   if(node===null){lines.push(path+": null");return;}
   if(Array.isArray(node)){
    lines.push(path+": array ("+node.length+" items)");

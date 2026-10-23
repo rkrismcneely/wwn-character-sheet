@@ -140,7 +140,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  return <section className="journal-import">
   <h3>Import campaign notes</h3>
-  <label>Exported from <select disabled={busy} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
+  <label>Exported from <select disabled={busy||!!entries} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
   <p>Select an exported Markdown ZIP or folder. LegendKeeper: export as Markdown, not .lk or JSON. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
   <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
   <label>Markdown folder<input type="file" multiple disabled={busy} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>

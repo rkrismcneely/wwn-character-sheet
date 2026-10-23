@@ -26,3 +26,12 @@ export function journalStorageKey(campaignInternalId:string,fileId:string):strin
  if(!id.test(campaignInternalId)||!id.test(fileId))throw new Error("Invalid storage identifier.");
  return "campaign-journal/"+campaignInternalId+"/"+fileId;
 }
+
+/** Check rendered Markdown references, not incidental text or partial URL matches. */
+export function hasJournalAttachmentReference(markdown:string,publicCampaignId:string,fileId:string):boolean{
+ const url="/api/campaigns/"+publicCampaignId+"/journal/files/"+fileId;
+ return markdown.split("\n").some(line=>{
+  const pattern=/!?\[[^\]\n]*\]\((\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36})\)/giu;
+  return [...line.matchAll(pattern)].some(match=>match[1]===url);
+ });
+}

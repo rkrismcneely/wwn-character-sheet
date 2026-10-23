@@ -2554,8 +2554,7 @@ export default function Home({
   const traditionalEducationTradition = (["High Mage", "Elementalist", "Necromancer"].includes(traditionalEducation?.choice || "")
     ? traditionalEducation?.choice
     : "") as "" | "High Mage" | "Elementalist" | "Necromancer";
-  const artTraditions = [...magicalTraditions, ...(traditionalEducationTradition ? [traditionalEducationTradition] : [])]
-    .filter((name, index, all) => all.indexOf(name) === index) as TraditionName[];
+  const artTraditions = [...new Set([...magicalTraditions, ...(traditionalEducationTradition ? [traditionalEducationTradition] : [])])] as TraditionName[];
   const rules = classRules(sheet.classMode, sheet.classOne, sheet.classTwo, effectiveLevel);
   const henchkeeper = selectedFocusPicks.find(pick => pick.name === "Henchkeeper");
   const spiritFamiliars = useMemo(() => sheet.focusPicks
@@ -2576,10 +2575,9 @@ export default function Home({
   );
   const armoredMagicLevel = selectedFocusPicks.find(pick => pick.name === "Armored Magic")?.level || 0;
   const focusPicksUsed = focusSelectionCost(selectedFocusPicks);
-  const developedAttributes = selectedFocusPicks
+  const developedAttributes = [...new Set(selectedFocusPicks
     .filter(pick => pick.name === "Developed Attribute" && attributes.includes(pick.choice as typeof attributes[number]))
-    .map(pick => pick.choice as typeof attributes[number])
-    .filter((attribute, index, all) => all.indexOf(attribute) === index);
+    .map(pick => pick.choice as typeof attributes[number]))];
   const xenobloodedGravity = selectedFocusPicks.find(pick => pick.name === "Xenoblooded")?.choice || "";
   const attributeMod = (attribute: typeof attributes[number]) => {
     let value = mod(attributeScore(attribute));

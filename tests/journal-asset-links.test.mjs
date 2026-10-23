@@ -66,3 +66,12 @@ test("unclosed fenced code remains untouched",()=>{
  assert.deepEqual(referencedJournalAssets(source,"Town/Notes.md",[image]),[]);
  assert.equal(replaceJournalAssetLinks(source,"Town/Notes.md",[image],new Map([[image.path,"/protected"]])),source);
 });
+
+test("Obsidian image dimensions do not replace the imported filename",()=>{
+ const url="/api/campaigns/cmp_abcdefghijklmnopqrstuv/journal/files/11111111-1111-4111-8111-111111111111";
+ const urls=new Map([[image.path,url]]);
+ for(const embed of ["![[assets/map.png|400]]","![[assets/map.png|400x300]]"]){
+  assert.equal(replaceJournalAssetLinks(embed,"Town/Notes.md",[image],urls),"![map.png]("+url+")");
+ }
+ assert.equal(replaceJournalAssetLinks("![[assets/map.png|Town map]]","Town/Notes.md",[image],urls),"![Town map]("+url+")");
+});

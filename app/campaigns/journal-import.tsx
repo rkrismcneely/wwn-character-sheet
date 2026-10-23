@@ -8,6 +8,7 @@ type VaultEntry={path:string;content:string};
 type Preview={notes:{path:string;title:string}[];folders:string[];unresolvedLinks:{source:string;target:string}[]};
 export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:()=>Promise<void>}){
  const [entries,setEntries]=useState<VaultEntry[]|null>(null);
+ const [source,setSource]=useState<"obsidian"|"legendkeeper">("obsidian");
  const [preview,setPreview]=useState<Preview|null>(null);
  const [assets,setAssets]=useState<VaultAsset[]>([]);
  const completedUploads=useRef(new Map<string,string>());
@@ -38,7 +39,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   if(!entries)return;
   setBusy(true);setError("");setProgress(confirm?"Importing pages...":"Preparing preview...");
   try{
-   const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm})});
+   const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm,source})});
    const body=await response.json() as {error?:string;preview:Preview;result:{created:number;foldersCreated:number;skipped:number}};
    if(!response.ok)throw new Error(body.error||"Import failed");
    setPreview(body.preview);
@@ -47,9 +48,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
     if(assets.length){
      const listing=await fetch(endpoint);
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
-     const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;content:string}[]};
+     const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string}[]};
      for(const note of entries){
-      const page=journal.entries.find(e=>e.kind==="page"&&e.sourcePath===note.path);
+      const page=journal.entries.find(e=>e.kind==="page"&&e.source===source&&e.sourcePath===note.path);
       if(!page){unlinked++;continue;}
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
@@ -138,9 +139,10 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   setAssets(folderAssets.map(asset=>({...asset,path:asset.path.startsWith(root)?asset.path.slice(root.length):asset.path})));
  }
  return <section className="journal-import">
-  <h3>Import Obsidian notes</h3>
-  <p>Select an Obsidian ZIP or folder. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
-  <label>Obsidian ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
+  <h3>Import campaign notes</h3>
+  <label>Exported from <select disabled={busy} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
+  <p>Select an exported Markdown ZIP or folder. LegendKeeper: export as Markdown, not .lk or JSON. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
+  <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
   <label>Markdown folder<input type="file" multiple disabled={busy} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
   {entries&&<><p>{entries.length} Markdown notes selected{assets.length?", "+assets.length+" attachment files":""}.</p><button disabled={busy} onClick={()=>void send(false)}>Preview Import</button></>}
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>

@@ -45,21 +45,8 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run lint -- --cache --cache-location .eslintcache
 
-  tests:
-    name: Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.13.0
-          cache: npm
-      - run: npm ci --prefer-offline --no-audit --no-fund
-      # The unit and regression suite does not require the production bundle.
-      - run: node --experimental-strip-types --test tests/*.test.mjs
-
   build:
-    name: Production build
+    name: Production build and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,23 +55,23 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
-      # npm run build already validates the output artifact.
-      - run: npm run build
+      # Some integration tests boot the built Worker; keep the build and the
+      # complete 659+ test suite together, without running the build twice.
+      - run: npm test
 
   validate:
     name: Validate
     runs-on: ubuntu-latest
     if: always()
-    needs: [typecheck, lint, tests, build]
+    needs: [typecheck, lint, build]
     steps:
       - name: Require every CI check to pass
         env:
           TYPECHECK: ${{ needs.typecheck.result }}
           LINT: ${{ needs.lint.result }}
-          TESTS: ${{ needs.tests.result }}
           BUILD: ${{ needs.build.result }}
         run: |
-          for result in "$TYPECHECK" "$LINT" "$TESTS" "$BUILD"; do
+          for result in "$TYPECHECK" "$LINT" "$BUILD"; do
             if [ "$result" != success ]; then
               echo "One or more required CI checks failed or were skipped."
               exit 1

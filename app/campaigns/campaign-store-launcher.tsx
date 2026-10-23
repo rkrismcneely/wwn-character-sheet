@@ -197,6 +197,7 @@ export function CampaignStoreLauncher({
     );
   }, [query, store]);
 
+  if (!open && !characterId) return <button type="button" className="campaign-overview-store-tab" onClick={() => { window.dispatchEvent(new CustomEvent(campaignMapOpenEvent, { detail: { campaignId, action: "close" } })); setOpen(true); void loadStore(); }}>Open Store</button>;
   if (!open) return null;
   const drawerCollapseControl = <button
     type="button"

@@ -2731,6 +2731,7 @@ export default function Home({
   const enteredHpRolls = sheet.hpRolls.slice(0, effectiveLevel);
   let calculatedHp = 0;
   let hpRollsComplete = Boolean(sheet.level) && enteredHpRolls.length >= effectiveLevel;
+  const hasArmsmaster = selectedFocusPicks.some(pick => pick.name === "Armsmaster");
   const hasDieHard = selectedFocusPicks.some(pick => pick.name === "Die Hard");
   for (let index = 0; index < effectiveLevel; index += 1) {
     const rawRoll = Number(enteredHpRolls[index]);
@@ -3957,7 +3958,7 @@ export default function Home({
                 </div>}
               </div>}
               <label className="skill-context-option"><input type="checkbox" checked={rangedInMelee} onChange={event => setRangedInMelee(event.target.checked)} /> Ranged attack while engaged in melee (bows and two-handed ranged weapons require Deadeye)</label>
-              {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
+              {hasArmsmaster && <label className="skill-context-option"><input type="checkbox" checked={armsmasterToShock} onChange={event => setArmsmasterToShock(event.target.checked)} /> Armsmaster: apply Stab bonus to eligible melee Shock instead of rolled damage</label>}
               <label className="skill-context-option"><input type="checkbox" checked={preferThrownMode} onChange={event => setPreferThrownMode(event.target.checked)} /> Throw versatile weapons instead of striking in melee (Shoot skill; no melee Shock)</label>
               <div className="weapon-list">
                 {displayedWeapons.map(({ name, inventoryIndex }) => {
@@ -4012,7 +4013,7 @@ export default function Home({
                   <button type="button" disabled={virtualDiceBusy} onClick={() => void completeRoll({ category: "damage", character: rollCharacter(), label: "Poisoner — toxin (2d6 + level; Physical save halves)", dice: { count: 2, sides: 6 }, modifiers: [{ label: "Character level", value: sheet.level }] })}>Roll Toxin Damage</button>
                   
                 </div>}
-                {selectedFocusPicks.some(pick => pick.name === "Die Hard") && <div>
+                {hasDieHard && <div>
                   <strong>Die Hard</strong>
                   <p>Automatically stabilize when Mortally Wounded except by dismemberment, incineration, or similar destruction.</p>
                   {selectedFocusPicks.some(pick => pick.name === "Die Hard" && pick.level === 2) && <><p>Once each day, the first injury that would reduce you to 0 HP leaves you at 1 HP instead. Does not prevent instantly lethal trauma.</p><button type="button" disabled={Boolean(focusAbilityUsed["Die Hard 2"])} onClick={() => markFocusAbility("Die Hard 2")}>{focusAbilityUsed["Die Hard 2"] ? "Daily survival used" : "Mark daily survival used"}</button></>}
@@ -4076,7 +4077,7 @@ export default function Home({
                   <p>Innate AC is 15 plus half your level rounded up; it does not stack with worn armor, but shield and Dexterity modifiers still apply.</p>
                   {selectedFocusPicks.some(pick => pick.name === "Impervious Defense" && pick.level === 2) && <><p>Once per day, as an Instant action, shrug off one weapon attack or physical trauma inflicted by a foe. It cannot negate falling damage or other environmental harm.</p><button type="button" disabled={Boolean(focusAbilityUsed["Impervious Defense protection"])} onClick={() => markFocusAbility("Impervious Defense protection")}>{focusAbilityUsed["Impervious Defense protection"] ? "Daily protection used" : "Mark protection used"}</button></>}
                 </div>}
-                {selectedFocusPicks.some(pick => pick.name === "Armsmaster") && <div>
+                {hasArmsmaster && <div>
                   <strong>Armsmaster</strong>
                   <p>Benefits apply to melee and thrown weapons, not unarmed strikes or non-thrown projectiles. The skill-level bonus may be applied to a weapon’s Shock damage instead of its rolled damage. Level 2 treats targets as AC 10 for eligible melee Shock.</p>
                 </div>}

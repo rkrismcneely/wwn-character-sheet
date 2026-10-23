@@ -48,8 +48,12 @@ jobs:
       - run: npm run lint -- --cache --cache-location .eslintcache
 
   source_tests:
-    name: Source and migration tests
+    name: Source and migration tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,6 +95,7 @@ jobs:
         shell: bash
         env:
           FAST_SUITE: ${{ steps.scope.outputs.fast }}
+          TEST_SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           files=(tests/*.test.mjs)
@@ -99,11 +104,11 @@ jobs:
             if [ "$file" != tests/rendered-html.test.mjs ]; then selected+=("$file"); fi
           done
           if [ "$FAST_SUITE" = true ]; then
-            node --experimental-strip-types --test \
+            node --experimental-strip-types --test --test-shard="$TEST_SHARD/2" \
               --test-skip-pattern='Phase 4C campaign foundation is additive|existing character data remains readable and unchanged after Phase 4B migrations|Phase 4D migration is additive|Rules Search Phase 4 broad benchmark meets Top-1 and Top-3 accuracy targets' \
               "${selected[@]}"
           else
-            node --experimental-strip-types --test "${selected[@]}"
+            node --experimental-strip-types --test --test-shard="$TEST_SHARD/2" "${selected[@]}"
           fi
 
   build:

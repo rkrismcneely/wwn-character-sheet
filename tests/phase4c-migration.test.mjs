@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -30,6 +30,14 @@ function runWrangler(persistTo, environment, args) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function runMigrationBatch(persistTo, environment, migrationFiles) {
+  const bundle = resolve(persistTo, "migration-batch.sql");
+  writeFileSync(bundle, migrationFiles.map(name =>
+    readFileSync(resolve(projectRoot, "drizzle", name), "utf8")
+  ).join("\n"));
+  runWrangler(persistTo, environment, ["--file", bundle]);
 }
 
 function results(output) {
@@ -67,19 +75,7 @@ test("Phase 4C campaign foundation is additive and preserves existing data", { t
   const persistTo = resolve(temporaryRoot, "state");
   const environment = migrationEnvironment(temporaryRoot);
 
-  for (const migration of [
-    "0000_brainy_killraven.sql",
-    "0001_better_auth_core.sql",
-    "0002_character_ownership_and_claims.sql",
-    "0003_better_auth_rate_limit_compatibility.sql",
-    "0004_better_auth_verification_camel_case_compatibility.sql",
-    "0005_user_role.sql",
-  ]) {
-    runWrangler(persistTo, environment, [
-      "--file",
-      resolve(projectRoot, `drizzle/${migration}`),
-    ]);
-  }
+  runMigrationBatch(persistTo, environment, ["0000_brainy_killraven.sql", "0001_better_auth_core.sql", "0002_character_ownership_and_claims.sql", "0003_better_auth_rate_limit_compatibility.sql", "0004_better_auth_verification_camel_case_compatibility.sql", "0005_user_role.sql"]);
 
   const characterData = JSON.stringify({
     name: "Preserved Hero",

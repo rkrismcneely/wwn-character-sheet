@@ -33,7 +33,7 @@ function runWrangler(persistTo, environment, args) {
 }
 
 function runMigrationBatch(persistTo, environment, migrationFiles) {
-  const bundle = resolve(persistTo, "migration-batch.sql");
+  const bundle = `${persistTo}-migration-batch.sql`;
   writeFileSync(bundle, migrationFiles.map(name =>
     readFileSync(resolve(projectRoot, "drizzle", name), "utf8")
   ).join("\n"));

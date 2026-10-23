@@ -25,14 +25,16 @@ const visibilityLabels: Record<CharacterVisibility, string> = {
   public: "Public",
 };
 
+const updatedAtFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
 function formatUpdatedAt(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return "Recently";
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  return updatedAtFormatter.format(date);
 }
 
 export function DashboardPage() {

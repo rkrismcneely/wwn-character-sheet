@@ -48,7 +48,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
      const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;content:string}[]};
      for(const note of entries){
       const page=journal.entries.find(e=>e.kind==="page"&&e.sourcePath===note.path);
-      if(!page)continue;
+      if(!page){unlinked++;continue;}
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
       const urls=new Map<string,string>();

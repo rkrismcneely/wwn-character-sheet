@@ -20,7 +20,7 @@ export async function POST(request: Request, context: Context): Promise<Response
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
     const body = await readBoundedJson(request, 120 * 1024);
-    return Response.json({ entry: await createJournalEntry(await getCampaignD1(), actor, id, body ?? {}) }, { status: 201 });
+    return Response.json({ entry: await createJournalEntry(await getCampaignD1(), actor, id, (body ?? {}) as Record<string, unknown>) }, { status: 201 });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The journal entry could not be created.");

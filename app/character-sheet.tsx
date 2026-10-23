@@ -942,11 +942,11 @@ const weaponTraitDescriptions: Record<string, string> = {
   T: "Throwable: Can be thrown to its listed range without Shock; throwing while in melee gives -4 to hit.",
 };
 
-function WeaponRangeValue({ range }: { range: string }) {
+const WeaponRangeValue = memo(function WeaponRangeValue({ range }: { range: string }) {
   const parts = range.split("/");
   if (parts.length < 2) return <>{range}</>;
   return <><span className="weapon-range-part">{parts[0]}/</span><wbr /><span className="weapon-range-part">{parts.slice(1).join("/")}</span></>;
-}
+});
 
 const WeaponTraitCodes = memo(function WeaponTraitCodes({ traits }: { traits: string }) {
   const codes = traits.split(",").map(trait => trait.trim()).filter(Boolean);

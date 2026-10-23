@@ -67,7 +67,9 @@ export function replaceJournalAssetLinks(markdown:string,notePath:string,assets:
   if(!asset)return whole;
   const url=urls.get(asset.path);
   if(!url)return whole;
-  const display=(wiki?.split("|",2)[1]??label??asset.filename).replace(/[\[\]]/gu,"");
+  // Obsidian image embeds use numeric aliases for dimensions, not link labels.
+  const alias=wiki?.split("|",2)[1];
+  const display=(alias&&/^\d+(?:x\d+)?$/iu.test(alias)?asset.filename:(alias??label??asset.filename)).replace(/[\[\]]/gu,"");
   return (asset.mime.startsWith("image/")?"!":"")+"["+display+"]("+url+")";
  }));
 }

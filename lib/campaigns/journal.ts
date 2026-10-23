@@ -137,11 +137,11 @@ export async function journalReaderOptions(db:D1Database,actor:CampaignActor|nul
 }
 
 export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,campaignId:string,
- notes:{path:string;title:string;folder:string;markdown:string}[],confirm:boolean){
+ notes:{path:string;title:string;folder:string;markdown:string}[],confirm:boolean,source:"obsidian"|"legendkeeper"="obsidian"){
  const campaign=await requireGM(db,actor,campaignId);
  if(!confirm)throw new CampaignServiceError("Import confirmation is required.",422);
  if(!Array.isArray(notes)||notes.length>1000)throw new CampaignServiceError("Too many notes.",422);
- const existing=await db.prepare("SELECT source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source='obsidian'").bind(campaign).all<{path:string}>();
+ const existing=await db.prepare("SELECT source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source=?").bind(campaign,source).all<{path:string}>();
  const paths=new Set(existing.results.map(row=>row.path.toLowerCase()));
  const seen=new Set<string>();
  for(const note of notes){
@@ -163,14 +163,14 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
   if(folderIds.has(folder))continue;
   const id=crypto.randomUUID();folderIds.set(folder,id);
   const parent=folder.includes("/")?folderIds.get(folder.slice(0,folder.lastIndexOf("/")))??null:null;
-  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'folder',?,'','gm','obsidian',?,?,?)").bind(id,campaign,parent,folder.split("/").at(-1),folder,now,now));
+  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'folder',?,'','gm',?,?,?,?)").bind(id,campaign,parent,folder.split("/").at(-1),source,folder,now,now));
  }
  const foldersCreated=statements.length;
  let skipped=0;
  for(const note of notes){
   if(paths.has(note.path.toLowerCase())){skipped++;continue;}
-  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'page',?,?,'gm','obsidian',?,?,?)")
-   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder)??null,note.title,note.markdown,note.path,now,now));
+  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'page',?,?,'gm',?,?,?,?)")
+   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder)??null,note.title,note.markdown,source,note.path,now,now));
  }
  for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
  return {created:statements.length-foldersCreated,foldersCreated,skipped};

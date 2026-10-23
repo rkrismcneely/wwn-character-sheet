@@ -2,8 +2,13 @@ import type { VaultAsset } from "./journal-zip.ts";
 
 function normalize(path:string){return path.replace(/^\.\//u,"").replace(/\\/gu,"/");}
 function findAsset(target:string,notePath:string,assets:readonly VaultAsset[]):VaultAsset|undefined{
- const clean=normalize(decodeURIComponent(target.split("#")[0])).replace(/^\/+/, "");
- if(!clean||clean.includes("..")||/^(?:https?:|data:)/iu.test(clean))return;
+ const decoded=normalize(decodeURIComponent(target.split("#")[0].split("?")[0]));
+ // Import only safe vault-relative paths; remote URLs must never resolve to local files.
+ if(!decoded||decoded.startsWith("/")||/^[a-z][a-z0-9+.-]*:/iu.test(decoded))return;
+ const segments=decoded.split("/");
+ if(segments.some(segment=>segment===".."||segment===""))return;
+ const clean=segments.filter(segment=>segment!==".").join("/");
+ if(!clean)return;
  const folder=notePath.split("/").slice(0,-1).join("/");
  const relative=folder?folder+"/"+clean:clean;
  const exact=assets.find(asset=>asset.path.toLowerCase()===relative.toLowerCase())

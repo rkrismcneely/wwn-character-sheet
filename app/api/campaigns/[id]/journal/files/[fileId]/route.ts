@@ -15,5 +15,5 @@ export async function GET(request:Request,context:{params:Promise<{id:string;fil
  await requireReadableJournalPage(db,actor,id,file.entryId);
  const object=await env.BUCKET.get(file.storageKey);
  if(!object)return Response.json({error:"Not found."},{status:404});
- return new Response(object.body,{headers:{"Content-Type":file.mimeType,"X-Content-Type-Options":"nosniff","Cache-Control":"private, no-store","Content-Security-Policy":"sandbox"}});
+ return new Response(object.body,{headers:{"Content-Type":file.mimeType,"X-Content-Type-Options":"nosniff","Cache-Control":"private, no-store","Content-Security-Policy":"sandbox","X-Frame-Options":"DENY"}});
 }

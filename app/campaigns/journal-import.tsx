@@ -30,6 +30,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   }));
   const failed=outcomes.filter(outcome=>outcome.status==="rejected").length;
   if(failed)setError(failed+" abandoned attachments could not be cleaned up. Retry before leaving this page.");
+  return failed===0;
  }
  async function send(confirm:boolean){
   if(!entries)return;
@@ -89,7 +90,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  async function chooseZip(file:File|undefined){
   if(!file)return;
-  await cleanupUnusedUploads();
+  if(!await cleanupUnusedUploads())return;
   setError("");setPreview(null);setResult("");
   try{
    const extracted=await extractObsidianZip(await file.arrayBuffer());
@@ -130,7 +131,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}
    <button disabled={busy} onClick={()=>void send(true)}>Confirm Import</button>
-   <button disabled={busy} onClick={()=>{void cleanupUnusedUploads();setPreview(null);setEntries(null);setAssets([]);}}>Cancel</button>
+   <button disabled={busy} onClick={()=>{void (async()=>{if(!await cleanupUnusedUploads())return;setPreview(null);setEntries(null);setAssets([]);})();}}>Cancel</button>
   </div>}
   {error&&<p role="alert">{error}</p>}{result&&<p role="status">{result}</p>}
  </section>;

@@ -18,6 +18,7 @@ const [search,setSearch]=useState("");
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
 const [readerEditing,setReaderEditing]=useState(false);
 const [importOpen,setImportOpen]=useState(false);
+const [uploading,setUploading]=useState(false);
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
@@ -35,6 +36,21 @@ async function openReaders(id:string){
 async function saveReaders(){
  const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:selected,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
  const j=await r.json();if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
+}
+async function uploadJournalFile(file:File){
+ if(!current||current.kind!=="page")return;
+ setUploading(true);setError("");
+ try{
+  const body=new FormData();body.set("entryId",current.id);body.set("file",file);
+  const response=await fetch(endpoint+"/files",{method:"POST",body});
+  const result=await response.json();
+  if(!response.ok)throw new Error(result.error||"Upload failed.");
+  const url=endpoint+"/files/"+encodeURIComponent(result.id);
+  const markdown=file.type.startsWith("image/")?"!["+file.name+"]("+url+")":"["+file.name+"]("+url+")";
+  setDraft({title:current.title,visibility:current.visibility,content:current.content+"\\n"+markdown});
+  setEditing(true);
+ }catch(error){setError(error instanceof Error?error.message:"Upload failed.");}
+ finally{setUploading(false);}
 }
 async function save(e:React.FormEvent){
  e.preventDefault();
@@ -64,6 +80,6 @@ return <section className="campaign-panel campaign-journal">
  {!creatingFolder&&<label>Markdown<textarea rows={12} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}
  <label>Visibility<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label>
  <button type="submit">Save</button><button type="button" onClick={()=>setEditing(false)}>Cancel</button>
- </form>:current?<article><h3>{current.title}</h3>{canEdit&&<button onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit</button>}{canEdit&&current.visibility==="selected"&&<button onClick={()=>void openReaders(current.id)}>Choose Players</button>}{canEdit&&current.kind==="folder"&&<button onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page Here</button>}{current.kind==="page"&&<SessionRecapMarkdown content={resolveJournalWikilinks(current.content,current,entries)} onJournalNavigate={id=>{if(entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/>}</article>:<p>Select a page.</p>}
+ </form>:current?<article><h3>{current.title}</h3>{canEdit&&<button onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit</button>}{canEdit&&current.kind==="page"&&<label>Attach image or PDF <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" disabled={uploading} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadJournalFile(file);event.target.value="";}}/></label>}{canEdit&&current.visibility==="selected"&&<button onClick={()=>void openReaders(current.id)}>Choose Players</button>}{canEdit&&current.kind==="folder"&&<button onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page Here</button>}{current.kind==="page"&&<SessionRecapMarkdown content={resolveJournalWikilinks(current.content,current,entries)} onJournalNavigate={id=>{if(entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/>}</article>:<p>Select a page.</p>}
  </div></div></section>;
 }

@@ -18,18 +18,49 @@ function findAsset(target:string,notePath:string,assets:readonly VaultAsset[]):V
  const matches=assets.filter(asset=>asset.filename.toLowerCase()===basename);
  return matches.length===1?matches[0]:undefined;
 }
+
+/** Preserve fenced and inline Markdown code verbatim during attachment conversion. */
+function outsideMarkdownCode(markdown:string, transform:(text:string)=>string):string{
+ let fence:{character:string;length:number}|null=null;
+ return markdown.split(/(\r?\n)/u).map(line=>{
+  if(line==="\n"||line==="\r\n")return line;
+  const opening=/^ {0,3}(`{3,}|~{3,})/u.exec(line);
+  if(fence){
+   if(opening&&opening[1][0]===fence.character&&opening[1].length>=fence.length
+     &&line.slice(opening[0].length).trim()==="")fence=null;
+   return line;
+  }
+  if(opening){fence={character:opening[1][0],length:opening[1].length};return line;}
+  let output="",cursor=0;
+  while(cursor<line.length){
+   const start=line.indexOf("`",cursor);
+   if(start<0){output+=transform(line.slice(cursor));break;}
+   let endRun=start+1;
+   while(line[endRun]==="`")endRun++;
+   const marker=line.slice(start,endRun);
+   let closing=line.indexOf(marker,endRun);
+   while(closing>=0&&(line[closing+marker.length]==="`"||line[closing-1]==="`"))
+    closing=line.indexOf(marker,closing+marker.length);
+   if(closing<0){output+=transform(line.slice(cursor,endRun));cursor=endRun;continue;}
+   output+=transform(line.slice(cursor,start))+line.slice(start,closing+marker.length);
+   cursor=closing+marker.length;
+  }
+  return output;
+ }).join("");
+}
+
 export function referencedJournalAssets(markdown:string,notePath:string,assets:readonly VaultAsset[]){
  const paths=new Map<string,VaultAsset>();
- for(const match of markdown.matchAll(/!?\[\[([^\]\n]+)\]\]|!?\[[^\]\n]*\]\(([^)\n]+)\)/gu)){
+ outsideMarkdownCode(markdown,text=>{for(const match of text.matchAll(/!?\[\[([^\]\n]+)\]\]|!?\[[^\]\n]*\]\(([^)\n]+)\)/gu)){
   const target=(match[1]?.split("|",1)[0]??match[2]??"").trim();
   let asset:VaultAsset|undefined;
   try{asset=findAsset(target,notePath,assets);}catch{continue;}
   if(asset)paths.set(asset.path,asset);
- }
+ }return text;});
  return [...paths.values()];
 }
 export function replaceJournalAssetLinks(markdown:string,notePath:string,assets:readonly VaultAsset[],urls:ReadonlyMap<string,string>):string{
- return markdown.replace(/!?\[\[([^\]\n]+)\]\]|(!?)\[([^\]\n]*)\]\(([^)\n]+)\)/gu,(whole,wiki:string|undefined,bang:string|undefined,label:string|undefined,target:string|undefined)=>{
+ return outsideMarkdownCode(markdown,text=>text.replace(/!?\[\[([^\]\n]+)\]\]|(!?)\[([^\]\n]*)\]\(([^)\n]+)\)/gu,(whole,wiki:string|undefined,bang:string|undefined,label:string|undefined,target:string|undefined)=>{
   const path=(wiki?.split("|",1)[0]??target??"").trim();
   let asset:VaultAsset|undefined;
   try{asset=findAsset(path,notePath,assets);}catch{return whole;}
@@ -38,5 +69,5 @@ export function replaceJournalAssetLinks(markdown:string,notePath:string,assets:
   if(!url)return whole;
   const display=(wiki?.split("|",2)[1]??label??asset.filename).replace(/[\[\]]/gu,"");
   return (asset.mime.startsWith("image/")?"!":"")+"["+display+"]("+url+")";
- });
+ }));
 }

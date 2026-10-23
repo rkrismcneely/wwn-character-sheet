@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -30,6 +30,14 @@ function runWrangler(persistTo, environment, args) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function runMigrationBatch(persistTo, environment, migrationFiles) {
+  const bundle = `${persistTo}-migration-batch.sql`;
+  writeFileSync(bundle, migrationFiles.map(name =>
+    readFileSync(resolve(projectRoot, "drizzle", name), "utf8")
+  ).join("\n"));
+  runWrangler(persistTo, environment, ["--file", bundle]);
 }
 
 function results(output) {
@@ -83,11 +91,7 @@ test("existing character data remains readable and unchanged after Phase 4B migr
      VALUES ('legacy-internal-id', 6, ${sqlLiteral(legacyCharacter)}, '2026-01-31');`,
   ]);
 
-  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0001_better_auth_core.sql")]);
-  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0002_character_ownership_and_claims.sql")]);
-  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0003_better_auth_rate_limit_compatibility.sql")]);
-  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0004_better_auth_verification_camel_case_compatibility.sql")]);
-  runWrangler(persistTo, environment, ["--file", resolve(projectRoot, "drizzle/0005_user_role.sql")]);
+  runMigrationBatch(persistTo, environment, ["0001_better_auth_core.sql", "0002_character_ownership_and_claims.sql", "0003_better_auth_rate_limit_compatibility.sql", "0004_better_auth_verification_camel_case_compatibility.sql", "0005_user_role.sql"]);
 
   const characters = results(runWrangler(persistTo, environment, [
     "--command",

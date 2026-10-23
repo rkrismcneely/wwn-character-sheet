@@ -148,6 +148,8 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
   if(typeof note.path!=="string"||!note.path.endsWith(".md")||safeVaultPath(note.path)!==note.path||seen.has(note.path.toLowerCase()))
    throw new CampaignServiceError("Invalid import path.",422);
   seen.add(note.path.toLowerCase());
+  if(note.folder!==note.path.split("/").slice(0,-1).join("/"))throw new CampaignServiceError("Invalid import folder.",422);
+  if(note.title!==note.path.split("/").at(-1)?.replace(/\\.md$/iu,""))throw new CampaignServiceError("Invalid import title.",422);
   cleanTitle(note.title);cleanContent(note.markdown);
  }
  const now=new Date().toISOString();

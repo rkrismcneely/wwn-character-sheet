@@ -175,3 +175,12 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
  return {created:statements.length-foldersCreated,foldersCreated,skipped};
 }
+
+/** Resolve a page through the same server-side visibility rules used by journal listings. */
+export async function requireReadableJournalPage(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string){
+ if(!uuidPattern.test(entryId))throw new CampaignServiceError("Journal page not found.",404);
+ const journal=await listJournal(db,actor,campaignId);
+ const page=journal.entries.find(entry=>entry.id===entryId&&entry.kind==="page");
+ if(!page)throw new CampaignServiceError("Journal page not found.",404);
+ return page;
+}

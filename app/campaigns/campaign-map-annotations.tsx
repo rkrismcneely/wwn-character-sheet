@@ -177,11 +177,13 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
       if (!response.ok || !body.annotation) throw new Error(body.error || "Annotation could not be saved.");
       setAnnotations(current => [...current.filter(a => a.id !== body.annotation?.id), body.annotation as CampaignMapAnnotation]);
       onEdited?.(null, body.annotation);
+      // Drawing tools are single-use: restore normal pointer/select behavior
+      // once a shape, line, arrow, freehand stroke, or label is created.
+      setToolState(null);
       if (geometry.kind === "text") {
         // A label is an editable object immediately after placement. Remaining
         // in text creation mode blocked hit testing and made resizing impossible.
         setTextValue("");
-        setToolState(null);
         setSelectedId(body.annotation.id);
         setTextSizeState(geometry.fontSize);
       }

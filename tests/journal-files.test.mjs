@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {validateJournalFile,verifyJournalFileSignature,journalStorageKey} from "../lib/campaigns/journal-files.ts";
+import {validateJournalFile,verifyJournalFileSignature,journalStorageKey,hasJournalAttachmentReference} from "../lib/campaigns/journal-files.ts";
 test("accepts a bounded PNG",()=>{
  assert.deepEqual(validateJournalFile("portrait.png","image/png",100),{filename:"portrait.png",mime:"image/png",size:100});
 });
@@ -22,4 +22,16 @@ test("uses campaign-scoped opaque storage keys",()=>{
  const key=journalStorageKey("11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222");
  assert.equal(key,"campaign-journal/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222");
  assert.throws(()=>journalStorageKey("../unsafe","22222222-2222-4222-8222-222222222222"));
+});
+
+test("only explicit visible Markdown links grant attachment access",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const url="/api/campaigns/"+campaign+"/journal/files/"+id;
+ assert.equal(hasJournalAttachmentReference("![Map]("+url+")",campaign,id),true);
+ assert.equal(hasJournalAttachmentReference("[PDF]("+url+")",campaign,id),true);
+ assert.equal(hasJournalAttachmentReference("Plain "+url,campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("[Other]("+url+"-extra)",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("[External]("+url+"?download=1)",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("![Map]("+url+")",campaign,"33333333-3333-4333-8333-333333333333"),false);
 });

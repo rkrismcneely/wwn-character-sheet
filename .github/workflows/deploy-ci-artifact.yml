@@ -1,7 +1,7 @@
 name: Deploy verified CI artifact
 
 # HANDOVER: First disable Cloudflare Git auto-deployment, then set the
-# repository Actions variable GITHUB_OWNS_PRODUCTION=true.
+# repository Actions variable TWE_GITHUB_DEPLOYS_PRODUCTION=true.
 # Deliberately manual until that handover has been verified.
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy tested bundle
-    if: ${{ vars.GITHUB_OWNS_PRODUCTION == 'true' }}
+    if: ${{ vars.TWE_GITHUB_DEPLOYS_PRODUCTION == 'true' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15

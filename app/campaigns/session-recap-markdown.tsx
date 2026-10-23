@@ -11,7 +11,7 @@ function safeLink(href: string): string | null {
   } catch { return null; }
 }
 
-function inline(text: string, keyPrefix = ""): ReactNode[] {
+function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>void): ReactNode[] {
   const pattern = /(\[[^\]\n]+\]\([^\s)]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/gu;
   const output: ReactNode[] = [];
   let start = 0;
@@ -24,15 +24,16 @@ function inline(text: string, keyPrefix = ""): ReactNode[] {
       const separator = token.indexOf("](");
       const label = token.slice(1, separator);
       const href = safeLink(token.slice(separator + 2, -1));
-      output.push(href ? <a key={key} href={href} target="_blank" rel="noopener noreferrer">{label}</a> : label);
+      const local = /^\/journal-page\/([0-9a-f-]{36})(?:#.*)?$/iu.exec(token.slice(separator + 2, -1));
+      output.push(local&&onJournalNavigate ? <button key={key} type="button" className="journal-inline-link" onClick={()=>onJournalNavigate(local[1])}>{label}</button> : href ? <a key={key} href={href} target="_blank" rel="noopener noreferrer">{label}</a> : label);
     } else if (token.startsWith("`")) {
       output.push(<code key={key}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**") || token.startsWith("__")) {
-      output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":")}</strong>);
+      output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate)}</strong>);
     } else if (token.startsWith("~~")) {
       output.push(<del key={key}>{inline(token.slice(2, -2), key + ":")}</del>);
     } else {
-      output.push(<em key={key}>{inline(token.slice(1, -1), key + ":")}</em>);
+      output.push(<em key={key}>{inline(token.slice(1, -1), key + ":",onJournalNavigate)}</em>);
     }
     start = index + token.length;
   }
@@ -44,7 +45,7 @@ function isSpecial(line: string) {
   return /^\s*(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s?|```|---+\s*$)/u.test(line);
 }
 
-export function SessionRecapMarkdown({ content }: { content: string }) {
+export function SessionRecapMarkdown({ content,onJournalNavigate }: { content: string;onJournalNavigate?: (id:string)=>void }) {
   const lines = content.replaceAll("\r\n", "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -62,7 +63,7 @@ export function SessionRecapMarkdown({ content }: { content: string }) {
     }
     const heading = /^(#{1,6})\s+(.+)$/u.exec(line);
     if (heading) {
-      const text = inline(heading[2], String(key));
+      const text = inline(heading[2], String(key),onJournalNavigate);
       const level = heading[1].length;
       blocks.push(level === 1 ? <h2 key={key}>{text}</h2> : level === 2 ? <h3 key={key}>{text}</h3> : <h4 key={key}>{text}</h4>);
       i++; continue;
@@ -73,7 +74,7 @@ export function SessionRecapMarkdown({ content }: { content: string }) {
     if (/^\s*>/u.test(line)) {
       const quote: string[] = [];
       while (i < lines.length && /^\s*>/u.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/u, ""));
-      blocks.push(<blockquote key={key}>{quote.map((item, n) => <p key={n}>{inline(item, String(key) + ":" + n)}</p>)}</blockquote>);
+      blocks.push(<blockquote key={key}>{quote.map((item, n) => <p key={n}>{inline(item, String(key) + ":" + n,onJournalNavigate)}</p>)}</blockquote>);
       continue;
     }
     const isBullet = /^\s*[-*+]\s+/u.test(line);
@@ -83,7 +84,7 @@ export function SessionRecapMarkdown({ content }: { content: string }) {
       const matcher = isBullet ? /^\s*[-*+]\s+(.+)$/u : /^\s*\d+\.\s+(.+)$/u;
       while (i < lines.length && matcher.test(lines[i])) {
         const item = matcher.exec(lines[i])?.[1] ?? "";
-        items.push(<li key={i}>{inline(item, String(i))}</li>);
+        items.push(<li key={i}>{inline(item, String(i),onJournalNavigate)}</li>);
         i++;
       }
       blocks.push(isBullet ? <ul key={key}>{items}</ul> : <ol key={key}>{items}</ol>);
@@ -96,7 +97,7 @@ export function SessionRecapMarkdown({ content }: { content: string }) {
       const rows: string[][] = [];
       i += 2;
       while (i < lines.length && lines[i].trim() && lines[i].includes("|")) rows.push(parse(lines[i++]));
-      blocks.push(<div key={key} className="session-recap-table-wrap"><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "")}</td>)}</tr>)}</tbody></table></div>);
+      blocks.push(<div key={key} className="session-recap-table-wrap"><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
     const para: string[] = [];
@@ -104,7 +105,7 @@ export function SessionRecapMarkdown({ content }: { content: string }) {
       para.push(lines[i++]);
     }
     // Two trailing spaces create a deliberate Markdown hard break.
-    blocks.push(<p key={key}>{para.map((part, n) => <Fragment key={n}>{n > 0 ? (para[n - 1].endsWith("  ") ? <br /> : " ") : null}{inline(part.trim(), String(key) + ":" + n)}</Fragment>)}</p>);
+    blocks.push(<p key={key}>{para.map((part, n) => <Fragment key={n}>{n > 0 ? (para[n - 1].endsWith("  ") ? <br /> : " ") : null}{inline(part.trim(), String(key) + ":" + n,onJournalNavigate)}</Fragment>)}</p>);
   }
   return <div className="session-recap-markdown">{blocks}</div>;
 }

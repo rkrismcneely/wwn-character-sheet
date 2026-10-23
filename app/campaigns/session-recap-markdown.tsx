@@ -12,7 +12,7 @@ function safeLink(href: string): string | null {
 }
 
 function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>void): ReactNode[] {
-  const pattern = /(\[[^\]\n]+\]\([^\s)]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/gu;
+  const pattern = /(!\[[^\]\n]+\]\([^\s)]+\)|\[[^\]\n]+\]\([^\s)]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/gu;
   const output: ReactNode[] = [];
   let start = 0;
   for (const match of text.matchAll(pattern)) {
@@ -20,7 +20,13 @@ function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>v
     if (index > start) output.push(text.slice(start, index));
     const token = match[0];
     const key = keyPrefix + index;
-    if (token.startsWith("[")) {
+    if (token.startsWith("![")) {
+      const separator=token.indexOf("](");
+      const label=token.slice(2,separator);
+      const source=token.slice(separator+2,-1);
+      const image=/^\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36}$/iu.test(source);
+      output.push(image?<img key={key} src={source} alt={label} loading="lazy" style={{maxWidth:"100%"}}/>:label);
+    } else if (token.startsWith("[")) {
       const separator = token.indexOf("](");
       const label = token.slice(1, separator);
       const href = safeLink(token.slice(separator + 2, -1));

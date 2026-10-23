@@ -2,7 +2,7 @@ import { getSessionActor } from "@/lib/auth-session";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { loadCampaignAccess } from "@/lib/campaigns/service";
 import { env } from "cloudflare:workers";
-import { requireReadableJournalPage } from "@/lib/campaigns/journal";
+import { listJournal } from "@/lib/campaigns/journal";
 
 export async function GET(request:Request,context:{params:Promise<{id:string;fileId:string}>}){
  const actor=await getSessionActor(request);
@@ -12,12 +12,12 @@ export async function GET(request:Request,context:{params:Promise<{id:string;fil
  const access=await loadCampaignAccess(db,actor,id);
  const file=await db.prepare("SELECT entry_id AS entryId, storage_key AS storageKey, mime_type AS mimeType FROM campaign_journal_files WHERE campaign_id=? AND id=?").bind(access.campaign.id,fileId).first<{entryId:string;storageKey:string;mimeType:string}>();
  if(!file)return Response.json({error:"Not found."},{status:404});
- await requireReadableJournalPage(db,actor,id,file.entryId);
  // Non-GMs may retrieve only files linked in the redacted, visible page.
  // This prevents guessing an attachment ID from exposing assets in GM-only sections.
- const visible=await import("@/lib/campaigns/journal").then(m=>m.listJournal(db,actor,id));
+ const visible=await listJournal(db,actor,id);
+ const page=visible.entries.find(entry=>entry.id===file.entryId&&entry.kind==="page");
+ if(!page)return Response.json({error:"Not found."},{status:404});
  if(!visible.canEdit){
-  const page=visible.entries.find(entry=>entry.id===file.entryId);
   const link="/api/campaigns/"+encodeURIComponent(id)+"/journal/files/"+fileId;
   if(!page||!page.content.includes(link))return Response.json({error:"Not found."},{status:404});
  }

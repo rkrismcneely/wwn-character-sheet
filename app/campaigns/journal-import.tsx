@@ -33,8 +33,11 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   }
   if(notes.length>1000){setError("Select at most 1000 Markdown notes.");return;}
   if(!notes.length){setError("Select a folder containing Markdown notes.");return;}
-  const root=notes[0].path.split("/")[0]+"/";
-  setEntries(notes.map(note=>({...note,path:note.path.startsWith(root)?note.path.slice(root.length):note.path})));
+  const root=notes.every(note=>note.path.includes("/")&&note.path.split("/")[0]===notes[0].path.split("/")[0])?notes[0].path.split("/")[0]+"/":"";
+  const cleaned=notes.map(note=>({...note,path:note.path.startsWith(root)?note.path.slice(root.length):note.path}));
+  const size=new Blob([JSON.stringify({entries:cleaned,confirm:true})]).size;
+  if(size>900000){setError("This folder exceeds the current 900 KB import limit. Split it into smaller folders.");return;}
+  setEntries(cleaned);
  }
  return <section className="journal-import">
   <h3>Import Obsidian notes</h3>

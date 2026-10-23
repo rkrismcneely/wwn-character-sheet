@@ -52,7 +52,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
      const listing=await fetch(endpoint);
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
      const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string}[]};
-     for(const note of entries){
+     for(const [index,note] of entries.entries()){
+      setProgress("Linking attachments: page "+(index+1)+" of "+entries.length);
       const page=journal.entries.find(e=>e.kind==="page"&&e.source===source&&e.sourcePath===note.path);
       if(!page){unlinked++;continue;}
       const links=referencedJournalAssets(page.content,note.path,assets);

@@ -29,10 +29,36 @@ export async function readLegendKeeperBackup(buffer:ArrayBuffer,format:"lk"|"jso
  return decoded;
 }
 
-/** Never import an unknown native schema as if it were a Markdown page tree. */
-export function inspectLegendKeeperBackup(value:unknown):{recognized:boolean;resourceCount:number}{
- if(!value||typeof value!=="object"||Array.isArray(value))return {recognized:false,resourceCount:0};
+/**
+ * Conservative inventory of a native backup. The format has no guaranteed
+ * stable export schema, so this only counts explicitly typed records.
+ * No native data is sent to the Journal import API.
+ */
+export function inspectLegendKeeperBackup(value:unknown):{
+ recognized:boolean;resourceCount:number;pageCount:number;mapCount:number;
+ boardCount:number;unknownCount:number;warnings:string[];
+}{
+ const empty={recognized:false,resourceCount:0,pageCount:0,mapCount:0,boardCount:0,unknownCount:0,warnings:[] as string[]};
+ if(!value||typeof value!=="object"||Array.isArray(value))return empty;
  const root=value as Record<string,unknown>;
- const resources=root.resources;
- return {recognized:Array.isArray(resources),resourceCount:Array.isArray(resources)?resources.length:0};
+ if(!Array.isArray(root.resources))return {...empty,warnings:["No recognized resources array; native schema requires review."]};
+ let pageCount=0,mapCount=0,boardCount=0,unknownCount=0;
+ for(const resource of root.resources.slice(0,10000)){
+  if(!resource||typeof resource!=="object"||Array.isArray(resource)){unknownCount++;continue;}
+  const documents=(resource as {documents?:unknown}).documents;
+  if(!Array.isArray(documents)){unknownCount++;continue;}
+  for(const document of documents.slice(0,100)){
+   if(!document||typeof document!=="object"||Array.isArray(document)){unknownCount++;continue;}
+   const type=(document as {type?:unknown}).type;
+   if(type==="page")pageCount++;
+   else if(type==="map")mapCount++;
+   else if(type==="board")boardCount++;
+   else unknownCount++;
+  }
+ }
+ return {recognized:true,resourceCount:root.resources.length,pageCount,mapCount,boardCount,
+  unknownCount,warnings:[
+   "Native LegendKeeper data is inspection-only until its export schema is verified.",
+   ...(root.resources.length>10000?["Resource inventory truncated at 10,000."]:[]),
+  ]};
 }

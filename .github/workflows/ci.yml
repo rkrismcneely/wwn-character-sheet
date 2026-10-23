@@ -103,6 +103,15 @@ jobs:
           else
             npm test
           fi
+      - name: Save tested production bundle
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-worker-${{ github.event.pull_request.head.sha }}
+          path: dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
 
   validate:
     name: Validate

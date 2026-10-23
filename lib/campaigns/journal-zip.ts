@@ -51,7 +51,7 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   if(method===0)content=raw;
   else{
    if(typeof DecompressionStream==="undefined")throw new Error("ZIP decompression unavailable.");
-   const stream=new Blob([new Uint8Array(raw)]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+   const stream=new Blob([new Uint8Array(raw)]).stream().pipeThrough(new DecompressionStream("deflate-raw" as CompressionFormat));
    const reader=stream.getReader();
    const chunks:Uint8Array[]=[];let length=0;
    try{

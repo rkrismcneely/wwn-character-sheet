@@ -127,14 +127,25 @@ export function useCampaignMapAnnotations({ campaignId, mapId, mapName, width, h
   useEffect(() => { const timer = window.setTimeout(() => void reload(), 0); return () => window.clearTimeout(timer); }, [reload]);
   useEffect(() => {
     if (!open) return;
-    const refresh = (event: Event) => { if ((event as CustomEvent<{campaignId?: string}>).detail?.campaignId === campaignId) void reload(); };
-    window.addEventListener(campaignMapChangedEvent, refresh); return () => window.removeEventListener(campaignMapChangedEvent, refresh);
-  }, [campaignId, open, reload]);
-  useEffect(() => {
-    if (!open || typeof BroadcastChannel === "undefined") return;
-    const channel = new BroadcastChannel(`twe:campaign-map:${campaignId}`);
-    channel.onmessage = e => { const m = e.data as {type?: unknown; campaignId?: unknown} | null; if (m?.type === "map-changed" && m.campaignId === campaignId) void reload(); };
-    return () => channel.close();
+    let timer: number | null = null;
+    const refresh = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { timer = null; void reload(); }, 60);
+    };
+    const onLocal = (event: Event) => {
+      if ((event as CustomEvent<{ campaignId?: string }>).detail?.campaignId === campaignId) refresh();
+    };
+    window.addEventListener(campaignMapChangedEvent, onLocal);
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`twe:campaign-map:${campaignId}`) : null;
+    if (channel) channel.onmessage = event => {
+      const msg = event.data as { type?: unknown; campaignId?: unknown; scope?: unknown } | null;
+      if (msg?.type === "map-changed" && msg.campaignId === campaignId && msg.scope !== "tokens") refresh();
+    };
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener(campaignMapChangedEvent, onLocal);
+      channel?.close();
+    };
   }, [campaignId, open, reload]);
 
   const saveUpdate = useCallback(async (annotation: CampaignMapAnnotation, geometry: CampaignMapAnnotationGeometry, nextColor = annotation.color, previous = annotation) => {

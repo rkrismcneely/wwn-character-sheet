@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -20,6 +20,38 @@ async function availablePort() {
   const port = typeof address === "object" && address ? address.port : 0;
   await new Promise(resolveClose => server.close(resolveClose));
   return port;
+}
+
+// Prepare the schema once. Each Worker still gets its own copied local D1
+// database, so mutation and authentication tests never share writable state.
+let migratedState;
+
+function migrationBaseline() {
+  if (migratedState) return migratedState;
+  const projectRoot = resolve(new URL("..", import.meta.url).pathname);
+  const root = mkdtempSync(`${tmpdir()}/wwn-worker-schema-`);
+  for (const directory of ["home", "config", "state"]) {
+    mkdirSync(resolve(root, directory), { recursive: true });
+  }
+  const environment = {
+    ...process.env,
+    HOME: resolve(root, "home"),
+    XDG_CONFIG_HOME: resolve(root, "config"),
+    CI: "true",
+    WRANGLER_LOG_PATH: resolve(root, "wrangler.log"),
+    WRANGLER_WRITE_LOGS: "false",
+    WRANGLER_SEND_METRICS: "false",
+  };
+  for (const name of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) {
+    delete environment[name];
+  }
+  execFileSync(resolve(projectRoot, "node_modules/.bin/wrangler"), [
+    "d1", "migrations", "apply", "wwn-character-sheet-db",
+    "--local", "--config", resolve(projectRoot, "wrangler.jsonc"),
+    "--persist-to", resolve(root, "state"),
+  ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"] });
+  migratedState = resolve(root, "state");
+  return migratedState;
 }
 
 async function startLocalWorker({ auth = false } = {}) {
@@ -54,17 +86,7 @@ async function startLocalWorker({ auth = false } = {}) {
   const wrangler = resolve(projectRoot, "node_modules/.bin/wrangler");
   const sourceConfig = resolve(projectRoot, "wrangler.jsonc");
   const persistence = resolve(temporaryRoot, "state");
-  execFileSync(wrangler, [
-    "d1",
-    "migrations",
-    "apply",
-    "wwn-character-sheet-db",
-    "--local",
-    "--config",
-    sourceConfig,
-    "--persist-to",
-    persistence,
-  ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"] });
+  cpSync(migrationBaseline(), persistence, { recursive: true });
   const fixtureIds = {
     public: `chr_${"P".repeat(22)}`,
     unlisted: `chr_${"U".repeat(22)}`,

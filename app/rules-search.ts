@@ -92,7 +92,7 @@ const sectionHeadingPattern = /(?:^|(?<=[.!?·])\s+)(\d+(?:\.\d+){2,})\s+([A-Z][
 
 function parentSectionNumber(sectionNumber: string) {
   const parts = sectionNumber.split(".");
-  return parts.length > 3 ? parts.slice(0, -1).join(".") : parts.slice(0, -1).join(".");
+  return parts.slice(0, -1).join(".");
 }
 
 function segmentSrdEntry(entry: RuleEntry): IndexedRule[] {

@@ -22,16 +22,30 @@ jobs:
   smoke:
     name: Production health
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 9
     steps:
-      - name: Check production HTTP response
+      - name: Confirm exact merged commit is live
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location \
-            --retry 18 --retry-delay 10 --retry-all-errors \
-            --connect-timeout 10 --max-time 20 \
-            --output /dev/null \
-            --write-out 'Production health: HTTP %{http_code}\n' \
-            https://taleswithoutend.com/
-          echo "Health succeeded. Commit-to-deployment identity is not verified by this check."
+          # Cloudflare Git Integration publishes asynchronously. Poll its
+          # static build marker rather than accepting a healthy older release.
+          for attempt in $(seq 1 36); do
+            status=$(curl --silent --show-error --location --connect-timeout 10 \
+              --max-time 15 --output /tmp/twe-version \
+              --write-out '%{http_code}' \
+              "https://taleswithoutend.com/twe-build-version.json?check=$EXPECTED_SHA" || true)
+            actual=$(jq -r '.commit // empty' /tmp/twe-version 2>/dev/null || true)
+            if [ "$status" = 200 ] && [ "$actual" = "$EXPECTED_SHA" ]; then
+              echo "Verified live release: $actual"
+              curl --fail --silent --show-error --location --max-time 20 \
+                --output /dev/null https://taleswithoutend.com/
+              exit 0
+            fi
+            echo "Waiting for Cloudflare to deploy $EXPECTED_SHA (observed ${actual:-none})."
+            sleep 10
+          done
+          echo "Production did not confirm this commit. Check Cloudflare deployment status." >&2
+          exit 1

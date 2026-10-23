@@ -1,7 +1,7 @@
 "use client";
 import { extractObsidianZip, type VaultAsset } from "@/lib/campaigns/journal-zip";
 import { referencedJournalAssets, replaceJournalAssetLinks } from "@/lib/campaigns/journal-asset-links";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type VaultEntry={path:string;content:string};
 type Preview={notes:{path:string;title:string}[];folders:string[];unresolvedLinks:{source:string;target:string}[]};
@@ -13,6 +13,10 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
+ useEffect(()=>{
+  // Opening the import panel opportunistically reclaims abandoned uploads older than a day.
+  void fetch(endpoint+"/files/cleanup",{method:"POST"}).catch(()=>{});
+ },[endpoint]);
  async function cleanupUnusedUploads(){
   const urls=[...new Set(completedUploads.current.values())];
   const outcomes=await Promise.allSettled(urls.map(async url=>{

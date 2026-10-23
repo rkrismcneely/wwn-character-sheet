@@ -3,6 +3,7 @@ import { getCampaignD1, loadCampaignAccess } from "@/lib/campaigns/service";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
 import { validateJournalFile, verifyJournalFileSignature, journalStorageKey } from "@/lib/campaigns/journal-files";
 import { env } from "cloudflare:workers";
+import { readBoundedJournalForm, JournalUploadTooLargeError } from "@/lib/campaigns/journal-upload";
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
  const actor=await getSessionActor(request);
@@ -12,10 +13,11 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
  const access=await loadCampaignAccess(db,actor,id);
  if(!canManageCampaignContent(actor,access.campaign,access.membership))
   return Response.json({error:"Forbidden."},{status:403});
- const length=request.headers.get("content-length");
- const declaredSize=length===null?NaN:Number(length);
- if(!Number.isFinite(declaredSize)||declaredSize>8_200_000)return Response.json({error:"Upload exceeds size limit."},{status:413});
- const form=await request.formData();
+ let form:FormData;
+ try{form=await readBoundedJournalForm(request);}catch(error){
+  if(error instanceof JournalUploadTooLargeError)return Response.json({error:error.message},{status:413});
+  return Response.json({error:"Invalid multipart upload."},{status:422});
+ }
  const entryId=form.get("entryId");
  const file=form.get("file");
  if(typeof entryId!=="string"||!(file instanceof File))return Response.json({error:"Missing page or file."},{status:422});

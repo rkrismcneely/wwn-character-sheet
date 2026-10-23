@@ -163,6 +163,7 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
   const parent=folder.includes("/")?folderIds.get(folder.slice(0,folder.lastIndexOf("/")))??null:null;
   statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'folder',?,'','gm','obsidian',?,?,?)").bind(id,campaign,parent,folder.split("/").at(-1),folder,now,now));
  }
+ const foldersCreated=statements.length;
  let skipped=0;
  for(const note of notes){
   if(paths.has(note.path.toLowerCase())){skipped++;continue;}
@@ -170,5 +171,5 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
    .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder)??null,note.title,note.markdown,note.path,now,now));
  }
  for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
- return {created:statements.length,skipped};
+ return {created:statements.length-foldersCreated,foldersCreated,skipped};
 }

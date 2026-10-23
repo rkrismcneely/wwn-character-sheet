@@ -109,7 +109,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
 
 export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string,userIds:string[]){
  const campaign=await requireGM(db,actor,campaignId);
- if(!uuidPattern.test(entryId)||!Array.isArray(userIds)||userIds.length>100||userIds.some(id=>typeof id!=="string"||!uuidPattern.test(id)))
+ if(!uuidPattern.test(entryId)||!Array.isArray(userIds)||userIds.length>100||userIds.some(id=>typeof id!=="string"||id.length<1||id.length>128))
    throw new CampaignServiceError("Invalid readers.",422);
  const entry=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,entryId).first();
  if(!entry)throw new CampaignServiceError("Journal entry not found.",404);

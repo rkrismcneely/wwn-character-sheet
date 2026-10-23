@@ -142,7 +142,7 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  if(!confirm)throw new CampaignServiceError("Import confirmation is required.",422);
  if(!Array.isArray(notes)||notes.length>1000)throw new CampaignServiceError("Too many notes.",422);
  const existing=await db.prepare("SELECT source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source=?").bind(campaign,source).all<{path:string}>();
- const paths=new Set(existing.results.map(row=>row.path.toLowerCase()));
+ const paths=new Set(existing.results.filter(row=>typeof row.path==="string").map(row=>row.path.toLowerCase()));
  const seen=new Set<string>();
  for(const note of notes){
   if(typeof note.path!=="string"||!note.path.endsWith(".md")||safeVaultPath(note.path)!==note.path||seen.has(note.path.toLowerCase()))
@@ -156,13 +156,13 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  const statements=[];
  const folderIds=new Map<string,string>();
  const existingFolders=await db.prepare("SELECT id,source_path AS path FROM campaign_journal_entries WHERE campaign_id=? AND source=? AND kind='folder'").bind(campaign,source).all<{id:string;path:string}>();
- for(const folder of existingFolders.results)folderIds.set(folder.path,folder.id);
+ for(const folder of existingFolders.results)folderIds.set(folder.path.toLowerCase(),folder.id);
  const folders=new Set<string>();
  for(const note of notes){const parts=note.path.split("/");parts.pop();for(let i=1;i<=parts.length;i++)folders.add(parts.slice(0,i).join("/"));}
  for(const folder of [...folders].sort((a,b)=>a.split("/").length-b.split("/").length)){
-  if(folderIds.has(folder))continue;
-  const id=crypto.randomUUID();folderIds.set(folder,id);
-  const parent=folder.includes("/")?folderIds.get(folder.slice(0,folder.lastIndexOf("/")))??null:null;
+  if(folderIds.has(folder.toLowerCase()))continue;
+  const id=crypto.randomUUID();folderIds.set(folder.toLowerCase(),id);
+  const parent=folder.includes("/")?folderIds.get(folder.slice(0,folder.lastIndexOf("/")).toLowerCase())??null:null;
   statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'folder',?,'','gm',?,?,?,?)").bind(id,campaign,parent,folder.split("/").at(-1),source,folder,now,now));
  }
  const foldersCreated=statements.length;
@@ -170,7 +170,7 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  for(const note of notes){
   if(paths.has(note.path.toLowerCase())){skipped++;continue;}
   statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'page',?,?,'gm',?,?,?,?)")
-   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder)??null,note.title,note.markdown,source,note.path,now,now));
+   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder.toLowerCase())??null,note.title,note.markdown,source,note.path,now,now));
  }
  for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
  return {created:statements.length-foldersCreated,foldersCreated,skipped};

@@ -27,7 +27,12 @@ export function journalStorageKey(campaignInternalId:string,fileId:string):strin
  return "campaign-journal/"+campaignInternalId+"/"+fileId;
 }
 
-/** Only explicit Markdown references outside fenced code grant file access. */
+/** Inline code is literal text, not an attachment link. */
+function stripInlineCode(line:string):string{
+ return line.replace(/(`+)(.*?)\1/gu,"");
+}
+
+/** Only explicit Markdown references outside code grant file access. */
 export function hasJournalAttachmentReference(markdown:string,publicCampaignId:string,fileId:string):boolean{
  const url="/api/campaigns/"+publicCampaignId+"/journal/files/"+fileId;
  const pattern=/!?\[[^\]\n]*\]\((\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36})\)/giu;
@@ -40,7 +45,7 @@ export function hasJournalAttachmentReference(markdown:string,publicCampaignId:s
    continue;
   }
   if(fence)continue;
-  if([...line.matchAll(pattern)].some(match=>match[1]===url))return true;
+  if([...stripInlineCode(line).matchAll(pattern)].some(match=>match[1]===url))return true;
  }
  return false;
 }

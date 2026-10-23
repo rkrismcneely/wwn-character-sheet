@@ -122,3 +122,12 @@ export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,c
  ...unique.map(userId=>db.prepare("INSERT INTO campaign_journal_readers (entry_id,user_id) VALUES (?,?)").bind(entryId,userId))]);
  return {entryId,userIds:unique};
 }
+
+export async function journalReaderOptions(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string){
+ const id=await requireGM(db,actor,campaignId);
+ if(!uuidPattern.test(entryId))throw new CampaignServiceError("Invalid journal entry.",422);
+ const entry=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(id,entryId).first();
+ if(!entry)throw new CampaignServiceError("Journal entry not found.",404);
+ const options=await db.prepare("SELECT m.user_id AS userId, u.name AS name, CASE WHEN r.user_id IS NULL THEN 0 ELSE 1 END AS selected FROM campaign_members m JOIN user u ON u.id=m.user_id LEFT JOIN campaign_journal_readers r ON r.entry_id=? AND r.user_id=m.user_id WHERE m.campaign_id=? AND m.role='player' ORDER BY u.name").bind(entryId,id).all<{userId:string;name:string;selected:number}>();
+ return {readers:options.results};
+}

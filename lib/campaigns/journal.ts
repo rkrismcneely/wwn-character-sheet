@@ -8,7 +8,7 @@ export type JournalEntry = {
   createdAt: string; updatedAt: string;
 };
 type Row = JournalEntry;
-const columns = "id, parent_id AS parentId, kind, title, content, visibility, created_at AS createdAt, updated_at AS updatedAt";
+const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 async function context(db: D1Database, actor: CampaignActor | null, campaignId: string) {
   if (!actor) throw new CampaignServiceError("Sign in is required.", 401);
@@ -94,7 +94,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   const id = await requireGM(db, actor, campaignId);
   if (typeof input.id !== "string" || !uuidPattern.test(input.id))
     throw new CampaignServiceError("Invalid journal entry.", 422);
-  const old = await db.prepare(`SELECT ${columns} FROM campaign_journal_entries WHERE campaign_id = ? AND id = ?`)
+  const old = await db.prepare(`SELECT ${columns} FROM campaign_journal_entries j WHERE j.campaign_id = ? AND j.id = ?`)
     .bind(id, input.id).first<Row>();
   if (!old) throw new CampaignServiceError("Journal entry not found.", 404);
   const title = input.title === undefined ? old.title : cleanTitle(input.title);

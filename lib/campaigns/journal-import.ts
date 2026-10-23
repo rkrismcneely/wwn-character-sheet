@@ -1,3 +1,4 @@
+import { outsideMarkdownCode } from "./journal-asset-links.ts";
 /**
  * Obsidian vault inventory and link resolver for the campaign journal.
  * This module does not read archives or publish pages. Callers must validate
@@ -60,7 +61,8 @@ export function inventoryObsidianVault(entries: readonly VaultEntry[]): JournalI
     const folder = parts.join("/");
     for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/"));
     const links: JournalImportNote["links"] = [];
-    for (const match of entry.content.matchAll(/!?\[\[([^\]\n]+)\]\]/gu)) {
+    outsideMarkdownCode(entry.content, text => {
+    for (const match of text.matchAll(/!?\[\[([^\]\n]+)\]\]/gu)) {
       const [targetAndHeading, label] = match[1].split("|", 2);
       const [target, heading] = targetAndHeading.split("#", 2);
       if (!target) continue;
@@ -76,6 +78,8 @@ export function inventoryObsidianVault(entries: readonly VaultEntry[]): JournalI
       if (!resolvedPath) unresolvedLinks.push({ source: entry.path, target });
       links.push({ target, ...(heading ? { heading } : {}), ...(label ? { label } : {}), ...(resolvedPath ? { resolvedPath } : {}) });
     }
+    return text;
+    });
     return { path: entry.path, title, folder, markdown: entry.content, visibility: "gm" as const, links };
   });
   return { notes, folders: [...folders].sort(), unresolvedLinks };

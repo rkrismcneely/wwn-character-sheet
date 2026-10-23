@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {redactJournalSecrets} from "../lib/campaigns/journal.ts";
 import {validateJournalFile,verifyJournalFileSignature,journalStorageKey,hasJournalAttachmentReference} from "../lib/campaigns/journal-files.ts";
 test("accepts a bounded PNG",()=>{
  assert.deepEqual(validateJournalFile("portrait.png","image/png",100),{filename:"portrait.png",mime:"image/png",size:100});
@@ -50,6 +51,6 @@ test("Markdown links inside GM-only blocks do not authorize players",()=>{
  const id="22222222-2222-4222-8222-222222222222";
  const url="/api/campaigns/"+campaign+"/journal/files/"+id;
  const markdown=["Public","<!-- gm-only:start -->","![Secret]("+url+")","<!-- gm-only:end -->"].join("\n");
- const redacted=markdown.replace(/<!--\\s*gm-only:start\\s*-->[\\s\\S]*?<!--\\s*gm-only:end\\s*-->/giu,"");
+ const redacted=redactJournalSecrets(markdown);
  assert.equal(hasJournalAttachmentReference(redacted,campaign,id),false);
 });

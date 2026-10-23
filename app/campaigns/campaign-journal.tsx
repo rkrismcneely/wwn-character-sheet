@@ -13,6 +13,8 @@ const [editing,setEditing]=useState(false);
 const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
+const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
+const [readerEditing,setReaderEditing]=useState(false);
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
@@ -22,6 +24,15 @@ async function refresh(){
 }
 useEffect(()=>{void refresh();},[campaignId,preview]);
 const current=entries.find(e=>e.id===selected);
+async function openReaders(id:string){
+ const r=await fetch(endpoint+"?readers="+encodeURIComponent(id));const j=await r.json();
+ if(!r.ok){setError(j.error||"Could not load players");return;}
+ setReaders(j.readers);setReaderEditing(true);
+}
+async function saveReaders(){
+ const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:selected,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
+ const j=await r.json();if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
+}
 async function save(e:React.FormEvent){
  e.preventDefault();
  const r=await fetch(endpoint,{method:selected?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(selected?{id:selected,...draft}:{kind:creatingFolder?"folder":"page",parentId,...draft})});
@@ -38,6 +49,7 @@ return <section className="campaign-panel campaign-journal">
  {canEdit&&<button onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Folder</button>}
  </div>
  {error&&<p role="alert">{error}</p>}
+ {readerEditing&&canEdit&&<section aria-label="Selected journal readers"><h3>Share with players</h3>{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}<button onClick={()=>void saveReaders()}>Save Players</button><button onClick={()=>setReaderEditing(false)}>Cancel</button></section>}
  <div className="journal-layout"><aside className="journal-sidebar">
  <input aria-label="Search journal" placeholder="Search pages" value={search} onChange={e=>setSearch(e.target.value)}/>
  {entries.filter(e=>e.title.toLowerCase().includes(search.toLowerCase())).map(e=><button key={e.id} style={{textAlign:"left",paddingLeft:e.parentId?24:8}} onClick={()=>{setSelected(e.id);setEditing(false);}}>{e.kind==="folder"?"📁 ":"▤ "}{e.title}</button>)}
@@ -45,8 +57,8 @@ return <section className="campaign-panel campaign-journal">
  {editing&&canEdit?<form onSubmit={save}>
  <label>Title<input required value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
  {!creatingFolder&&<label>Markdown<textarea rows={12} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}
- <label>Visibility<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option></select></label>
+ <label>Visibility<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label>
  <button type="submit">Save</button><button type="button" onClick={()=>setEditing(false)}>Cancel</button>
- </form>:current?<article><h3>{current.title}</h3>{canEdit&&<button onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit</button>}{canEdit&&current.kind==="folder"&&<button onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page Here</button>}{current.kind==="page"&&<SessionRecapMarkdown content={current.content}/>}</article>:<p>Select a page.</p>}
+ </form>:current?<article><h3>{current.title}</h3>{canEdit&&<button onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit</button>}{canEdit&&current.visibility==="selected"&&<button onClick={()=>void openReaders(current.id)}>Choose Players</button>}{canEdit&&current.kind==="folder"&&<button onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New Page Here</button>}{current.kind==="page"&&<SessionRecapMarkdown content={current.content}/>}</article>:<p>Select a page.</p>}
  </div></div></section>;
 }

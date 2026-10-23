@@ -464,6 +464,7 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
               {(["campaign", "encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => { setCampaignTab(item); if (item !== "campaign") setGmOpened(true); }}>{item === "campaign" ? "Campaign" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
             </nav>
           )}
+          <nav className="gm-console-tabs" aria-label="Journal navigation"><Link href={`/campaigns/${encodeURIComponent(campaignId)}/journal`}>Campaign Journal</Link></nav>
           {gmOpened && campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
             <div hidden={campaignTab === "campaign"}>
               <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded visible={campaignTab !== "campaign"} activeTab={campaignTab === "campaign" ? "encounter" : campaignTab} />

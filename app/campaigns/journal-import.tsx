@@ -2,6 +2,7 @@
 import { extractObsidianZip, type VaultAsset } from "@/lib/campaigns/journal-zip";
 import { referencedJournalAssets, replaceJournalAssetLinks } from "@/lib/campaigns/journal-asset-links";
 import { useEffect, useRef, useState } from "react";
+import { JOURNAL_FILE_TYPES, MAX_JOURNAL_FILE_BYTES, verifyJournalFileSignature } from "@/lib/campaigns/journal-files";
 
 type VaultEntry={path:string;content:string};
 type Preview={notes:{path:string;title:string}[];folders:string[];unresolvedLinks:{source:string;target:string}[]};

@@ -64,6 +64,9 @@ export function inventoryObsidianVault(entries: readonly VaultEntry[]): JournalI
       const [targetAndHeading, label] = match[1].split("|", 2);
       const [target, heading] = targetAndHeading.split("#", 2);
       if (!target) continue;
+      // Attachment links are handled separately by the authenticated file importer.
+      // Do not report PDFs or images as unresolved journal page links.
+      if (/\.(?:png|jpe?g|gif|webp|pdf)$/iu.test(target.split(/[?#]/u, 1)[0])) continue;
       const normalizedTarget = target.replace(/\\/gu, "/").replace(/\.md$/iu, "");
       const candidate = normalizedTarget + ".md";
       const relative = folder ? folder + "/" + candidate : candidate;

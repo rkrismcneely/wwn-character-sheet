@@ -18,6 +18,13 @@ if [[ ! -x "${vinext}" ]]; then
   exit 69
 fi
 
+# Include a public release marker in the same build Cloudflare deploys.
+# CI, Cloudflare Git Integration and manual deployments all use this script.
+release_sha="$(git -C "${SITES_PROJECT_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+if [[ "${release_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+  printf '{"commit":"%s"}\n' "${release_sha}" > "${SITES_PROJECT_ROOT}/public/twe-build-version.json"
+fi
+
 rm -rf "${SITES_PROJECT_ROOT}/dist"
 
 echo "Running bounded vinext build..."

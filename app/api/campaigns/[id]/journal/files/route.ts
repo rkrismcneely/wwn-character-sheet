@@ -12,7 +12,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
  const access=await loadCampaignAccess(db,actor,id);
  if(!canManageCampaignContent(actor,access.campaign,access.membership))
   return Response.json({error:"Forbidden."},{status:403});
- const declaredSize=Number(request.headers.get("content-length"));
+ const length=request.headers.get("content-length");
+ const declaredSize=length===null?NaN:Number(length);
  if(!Number.isFinite(declaredSize)||declaredSize>8_200_000)return Response.json({error:"Upload exceeds size limit."},{status:413});
  const form=await request.formData();
  const entryId=form.get("entryId");

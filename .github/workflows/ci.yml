@@ -72,7 +72,7 @@ jobs:
           if [ ! -s /tmp/ci-changed-files ]; then exit 0; fi
           while IFS= read -r file; do
             case "$file" in
-              app/campaigns/*.tsx|app/campaigns/*.css|app/globals.css|public/*|*.md|docs/*)
+              app/campaigns/campaign-map-*.tsx|app/campaigns/map-*.tsx|app/campaigns/campaign-map.css|app/campaigns/campaign-ui.css|app/globals.css|public/*|*.md|docs/*)
                 ;;
               *)
                 echo "Full suite required by: $file"

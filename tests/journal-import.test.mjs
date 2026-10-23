@@ -37,3 +37,15 @@ test("attachment wikilinks are handled by file importer, not missing-page warnin
  assert.deepEqual(result.unresolvedLinks,[{source:"Notes/Overview.md",target:"Missing Page"}]);
  assert.deepEqual(result.notes[0].links.map(link=>link.target),["Missing Page"]);
 });
+
+test("Markdown code examples are not unresolved Journal page links",()=>{
+ const text=[
+  "```md",
+  "[[Fictional Example]]",
+  "```",
+  "Instructions: `[[Not A Page]]`",
+  "Real link: [[Missing Actual Page]]"
+ ].join("\n");
+ const preview=inventoryObsidianVault([{path:"Notes.md",content:text}]);
+ assert.deepEqual(preview.unresolvedLinks,[{source:"Notes.md",target:"Missing Actual Page"}]);
+});

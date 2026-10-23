@@ -70,11 +70,11 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
   // evaluated against the authenticated user, never an ID supplied by the client.
   const rows = await db.prepare(`SELECT ${columns} FROM campaign_journal_entries j
     WHERE j.campaign_id = ? AND (? = 1 OR j.visibility = 'players'
-      OR (j.visibility = 'selected' AND EXISTS (
+      OR (? = 0 AND j.visibility = 'selected' AND EXISTS (
         SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
       )))
     ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC`)
-    .bind(ctx.campaignId, gmView ? 1 : 0, actor!.userId).all<Row>();
+    .bind(ctx.campaignId, gmView ? 1 : 0, preview ? 1 : 0, actor!.userId).all<Row>();
   return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
 }
 export async function createJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,

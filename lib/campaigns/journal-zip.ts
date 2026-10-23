@@ -30,6 +30,7 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   cursor+=46+nameLength+extra+comment;
   if(name.endsWith("/"))continue;
   const path=safeVaultPath(name);
+  if((flags&0x800)===0&&/[^\\x00-\\x7f]/u.test(name))throw new Error("ZIP filenames must use UTF-8.");
   if(seen.has(path.toLowerCase()))throw new Error("Duplicate ZIP path.");
   seen.add(path.toLowerCase());
   if(!path.toLowerCase().endsWith(".md")||path.split("/").includes(".obsidian"))continue;
@@ -47,7 +48,18 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   else{
    if(typeof DecompressionStream==="undefined")throw new Error("ZIP decompression unavailable.");
    const stream=new Blob([new Uint8Array(raw)]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-   content=new Uint8Array(await new Response(stream).arrayBuffer());
+   const reader=stream.getReader();
+   const chunks:Uint8Array[]=[];let length=0;
+   try{
+    while(true){
+     const {value,done}=await reader.read();if(done)break;
+     length+=value.byteLength;
+     if(length>uncompressed||length>100000){await reader.cancel();throw new Error("ZIP decompression exceeds declared size.");}
+     chunks.push(value);
+    }
+   }finally{reader.releaseLock();}
+   content=new Uint8Array(length);let position=0;
+   for(const chunk of chunks){content.set(chunk,position);position+=chunk.length;}
   }
   if(content.byteLength!==uncompressed)throw new Error("ZIP entry size mismatch.");
   notes.push({path,content:decoder.decode(content)});

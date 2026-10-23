@@ -18,6 +18,7 @@ export async function extractObsidianZip(buffer:ArrayBuffer):Promise<{notes:Vaul
  if(eocd<0)throw new Error("Invalid ZIP archive.");
  if(eocd+22+u16(view,eocd+20)!==buffer.byteLength)throw new Error("Invalid ZIP trailing data.");
  if(u16(view,eocd+4)!==0||u16(view,eocd+6)!==0)throw new Error("Multi-disk ZIP unsupported.");
+ if(u16(view,eocd+8)!==u16(view,eocd+10))throw new Error("ZIP entry count mismatch.");
  const count=u16(view,eocd+10),size=u32(view,eocd+12),start=u32(view,eocd+16);
  if(count>1000||start+size>eocd)throw new Error("ZIP directory exceeds limits.");
  let cursor=start,total=0,assetTotal=0;
@@ -88,6 +89,7 @@ export async function extractObsidianZip(buffer:ArrayBuffer):Promise<{notes:Vaul
    assets.push({path,filename:path.split("/").at(-1)!,mime,bytes:new Uint8Array(content)});
   }
  }
+ if(cursor!==start+size)throw new Error("ZIP directory size mismatch.");
  return {notes,assets};
 }
 /** Preserve the Markdown-only API for existing import previews. */

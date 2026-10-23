@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { listJournal } from "@/lib/campaigns/journal";
 import { hasJournalAttachmentReference } from "@/lib/campaigns/journal-files";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
+import { deleteUnreferencedJournalFileSQL } from "@/lib/campaigns/journal-file-cleanup";
 
 export async function GET(request:Request,context:{params:Promise<{id:string;fileId:string}>}){
  const actor=await getSessionActor(request);
@@ -49,7 +50,7 @@ export async function DELETE(request:Request,context:{params:Promise<{id:string;
  // Keep its database record if the storage operation fails, allowing retries.
  await env.BUCKET.delete(file.storageKey);
  await db.prepare(
-  "DELETE FROM campaign_journal_files WHERE campaign_id=? AND id=? AND NOT EXISTS (SELECT 1 FROM campaign_journal_entries e WHERE e.campaign_id=? AND instr(e.content,?)>0)"
+  deleteUnreferencedJournalFileSQL
  ).bind(access.campaign.id,fileId,access.campaign.id,fileId).run();
  return new Response(null,{status:204});
 }

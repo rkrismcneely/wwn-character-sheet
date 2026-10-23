@@ -241,3 +241,6 @@
   .campaign-store-current-stock-heading{display:grid}
   .campaign-store-current-stock-heading input{width:100%;min-width:0}
 }
+/* Campaign overview Store tab, stacked below the lazy Map launcher. */
+.campaign-overview-store-tab{position:fixed;left:0;top:calc(50% + 4rem);z-index:194;writing-mode:vertical-rl;padding:.75rem .4rem;min-height:7.5rem;border:1px solid rgba(204,163,83,.7);border-left:0;border-radius:0 .55rem .55rem 0;background:#241d14;color:#f4ead8;cursor:pointer;font:600 .78rem var(--font-ui,sans-serif)}
+@media(max-width:820px){.campaign-overview-store-tab{top:auto;bottom:1rem;left:6rem;min-height:0;writing-mode:horizontal-tb;border-radius:999px;padding:.7rem 1rem}}

@@ -19,9 +19,11 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
    norm(page.sourcePath||"")===(sameFolder?sameFolder+"/"+candidate:candidate)||
    norm(page.title)===candidate
   ));
-  if(matches.length!==1)return whole;
-  const text=label||matches[0].title;
+  const exact=matches.filter(page=>norm(page.sourcePath||"")===candidate);
+  const chosen=exact.length===1?exact[0]:exact.length>1?null:matches.length===1?matches[0]:null;
+  if(!chosen)return whole;
+  const text=label||chosen.title;
   const fragment=heading?"#"+encodeURIComponent(heading):"";
-  return "["+text.replace(/[\\[\\]]/gu,"")+"]("+"/journal-page/"+encodeURIComponent(matches[0].id)+fragment+")";
+  return "["+text.replace(/[\\[\\]]/gu,"")+"]("+"/journal-page/"+encodeURIComponent(chosen.id)+fragment+")";
  });
 }

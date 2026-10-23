@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {gzipSync} from "node:zlib";
-import {readLegendKeeperBackup,inspectLegendKeeperBackup} from "../lib/campaigns/legendkeeper-native.ts";
+import {readLegendKeeperBackup,inspectLegendKeeperBackup,describeLegendKeeperSchema} from "../lib/campaigns/legendkeeper-native.ts";
 
 test("reads bounded JSON and gzipped LK backups",async()=>{
  const data={version:"example",resources:[{id:"r1"},{id:"r2"}]};
@@ -36,4 +36,20 @@ test("reports page, map and board counts without converting native records",()=>
  assert.equal(result.boardCount,1);
  assert.equal(result.unknownCount,1);
  assert.match(result.warnings.join(" "),/inspection-only/);
+});
+
+test("schema inspection reveals types but not document text or IDs",()=>{
+ const secret="PRIVATE_CAMPAIGN_TEXT_DO_NOT_EXPOSE";
+ const backup={resources:[{id:"secret-resource-id",documents:[{type:"page",content:secret}]}]};
+ const diagnostic=describeLegendKeeperSchema(backup);
+ assert.match(diagnostic,/root\.resources: array/);
+ assert.match(diagnostic,/content: string/);
+ assert.doesNotMatch(diagnostic,/PRIVATE_CAMPAIGN_TEXT/);
+ assert.doesNotMatch(diagnostic,/secret-resource-id/);
+ assert.ok(diagnostic.length<10000);
+});
+test("schema inspection is bounded for deeply nested values",()=>{
+ let input={value:"end"};
+ for(let i=0;i<50;i++)input={child:input};
+ assert.ok(describeLegendKeeperSchema(input).split("\n").length<=80);
 });

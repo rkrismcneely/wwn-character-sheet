@@ -6,10 +6,10 @@ import type { CampaignActor } from "./types.ts";
 export type JournalEntry = {
   id: string; parentId: string | null; kind: "folder" | "page"; title: string;
   content: string; visibility: "gm" | "players" | "selected";
-  createdAt: string; updatedAt: string; sourcePath?: string | null;
+  createdAt: string; updatedAt: string; sourcePath?: string | null; source?: string | null;
 };
 type Row = JournalEntry;
-const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath";
+const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath, j.source AS source";
 export function redactJournalSecrets(markdown:string):string {
  return markdown.replace(/<!--\s*gm-only:start\s*-->[\s\S]*?<!--\s*gm-only:end\s*-->/giu,"").replace(/<!--\s*gm-only:start\s*-->[\s\S]*$/giu,"");
 }

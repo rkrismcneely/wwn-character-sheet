@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- portraits can be local blobs or user-uploaded URLs */
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { viewportTooltipPosition } from "./tooltip-position";
 import { foci, highMageArts, highMagic, weapons } from "./wwn-data";
@@ -913,7 +913,7 @@ function Tip({ title, ariaLabel, children }: { title: string; ariaLabel?: string
   </>;
 }
 
-function RulesTooltip({ name, text, extra }: { name: string; text: string; extra?: string }) {
+const RulesTooltip = memo(function RulesTooltip({ name, text, extra }: { name: string; text: string; extra?: string }) {
   return <div className="rules-tooltip">
     <strong className="tooltip-name">{name}</strong>
     <section className="official-description">
@@ -925,7 +925,7 @@ function RulesTooltip({ name, text, extra }: { name: string; text: string; extra
       <p>{sharedPlainLanguageSummary(name.split(" · ")[0], text)}</p>
     </section>
   </div>;
-}
+});
 
 const weaponTraitDescriptions: Record<string, string> = {
   "2H": "Two Handed: Requires two hands; ranged two-handed weapons cannot be fired effectively while an enemy is in melee range.",
@@ -948,7 +948,7 @@ function WeaponRangeValue({ range }: { range: string }) {
   return <><span className="weapon-range-part">{parts[0]}/</span><wbr /><span className="weapon-range-part">{parts.slice(1).join("/")}</span></>;
 }
 
-function WeaponTraitCodes({ traits }: { traits: string }) {
+const WeaponTraitCodes = memo(function WeaponTraitCodes({ traits }: { traits: string }) {
   const codes = traits.split(",").map(trait => trait.trim()).filter(Boolean);
   if (!codes.length) return <small>None</small>;
   return <small className="weapon-trait-codes">{codes.map((code, index) => (
@@ -958,7 +958,7 @@ function WeaponTraitCodes({ traits }: { traits: string }) {
       <span className="weapon-trait-popup" role="tooltip">{weaponTraitDescriptions[code] || code}</span>
     </span>
   ))}</small>;
-}
+});
 
 function Field({ label, value, onChange, className = "" }: { label: string; value: string | number; onChange: (v: string) => void; className?: string }) {
   return <label className={`field ${className}`}><span>{label}</span><input value={value} onChange={e => onChange(e.target.value)} /></label>;

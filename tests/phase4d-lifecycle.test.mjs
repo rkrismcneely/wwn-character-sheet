@@ -16,7 +16,7 @@ function run(persistTo, args) {
   for (const name of ["HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","http_proxy","https_proxy","all_proxy"]) delete env[name];
   return execFileSync(wrangler, ["d1","execute","wwn-character-sheet-db","--local","--config",resolve(root,"wrangler.jsonc"),"--persist-to",persistTo,"--json",...args], { cwd: root, env, encoding: "utf8", stdio: ["ignore","pipe","pipe"] });
 }
-function runMigrationBatch(persistTo, environment, migrationFiles) {
+function runMigrationBatch(persistTo, migrationFiles) {
   const bundle = resolve(persistTo, "migration-batch.sql");
   writeFileSync(bundle, migrationFiles.map(name =>
     readFileSync(resolve(root, "drizzle", name), "utf8")
@@ -28,7 +28,7 @@ function rows(output) { return JSON.parse(output).flatMap(entry => entry.results
 
 test("Phase 4D migration is additive and existing records remain active", { timeout: 60_000 }, () => {
   const temporary = mkdtempSync(`${tmpdir()}/wwn-phase4d-`);
-  runMigrationBatch(temporary, null, ["0000_brainy_killraven.sql","0001_better_auth_core.sql","0002_character_ownership_and_claims.sql","0003_better_auth_rate_limit_compatibility.sql","0004_better_auth_verification_camel_case_compatibility.sql","0005_user_role.sql","0006_campaign_foundation.sql","0007_user_display_name.sql","0008_campaign_resources.sql"]);
+  runMigrationBatch(temporary, ["0000_brainy_killraven.sql","0001_better_auth_core.sql","0002_character_ownership_and_claims.sql","0003_better_auth_rate_limit_compatibility.sql","0004_better_auth_verification_camel_case_compatibility.sql","0005_user_role.sql","0006_campaign_foundation.sql","0007_user_display_name.sql","0008_campaign_resources.sql"]);
   run(temporary, ["--command", `INSERT INTO user (id,name,email,email_verified,role,created_at,updated_at) VALUES ('u1','Owner','owner@example.invalid',1,'user',1,1);
     INSERT INTO characters (id,owner_user_id,public_id,visibility,name,player,class_label,level,data,version,created_at,updated_at) VALUES ('ch1','u1','chr_abcdefghijklmnopqrstuv','public','Hero','Owner','Expert',3,'{"name":"Hero"}',4,'before','before');
     INSERT INTO campaigns (id,public_id,owner_user_id,name,description,version,created_at,updated_at) VALUES ('ca1','cmp_abcdefghijklmnopqrstuv','u1','Campaign',NULL,2,'before','before');

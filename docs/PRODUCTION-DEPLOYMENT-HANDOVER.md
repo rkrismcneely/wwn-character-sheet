@@ -2,12 +2,12 @@
 
 Ordinary production deployments currently belong to Cloudflare Git Integration. The repository now stores the already-tested `dist/` bundle from PR CI for seven days and includes a guarded GitHub deployment workflow.
 
-**Do not set `GITHUB_OWNS_PRODUCTION=true` while Cloudflare Git auto-deployment is enabled.** The guarded workflow will not publish until the variable is set.
+**Do not set `TWE_GITHUB_DEPLOYS_PRODUCTION=true` while Cloudflare Git auto-deployment is enabled.** The guarded workflow will not publish until the variable is set.
 
 To switch without two competing publishers:
 
 1. In Cloudflare, disable automatic Git-based deployment of this Worker while retaining the Worker, bindings, routes, databases, and secrets.
-2. In GitHub repository Settings → Secrets and variables → Actions → Variables, create `GITHUB_OWNS_PRODUCTION` with value `true`.
+2. In GitHub repository Settings → Secrets and variables → Actions → Variables, create `TWE_GITHUB_DEPLOYS_PRODUCTION` with value `true`.
 3. For a recently merged PR (where its squash-merge commit is still the current `main` HEAD), run **Deploy verified CI artifact** with its PR number and successful PR CI workflow run ID.
 4. Verify the workflow publishes the retained Worker bundle and confirms the squash-merge SHA on `/twe-build-version.json`.
 

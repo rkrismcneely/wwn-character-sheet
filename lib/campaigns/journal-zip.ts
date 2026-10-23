@@ -1,9 +1,12 @@
 /** Read-only ZIP extractor for Obsidian Markdown archives. No dependencies. */
 import { safeVaultPath, type VaultEntry } from "./journal-import.ts";
+import { JOURNAL_FILE_TYPES, MAX_JOURNAL_FILE_BYTES, verifyJournalFileSignature } from "./journal-files.ts";
+
+export type VaultAsset={path:string;filename:string;mime:string;bytes:Uint8Array};
 
 function u16(v:DataView,p:number){return v.getUint16(p,true);}
 function u32(v:DataView,p:number){return v.getUint32(p,true);}
-export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[]>{
+export async function extractObsidianZip(buffer:ArrayBuffer):Promise<{notes:VaultEntry[];assets:VaultAsset[]}>{
  if(buffer.byteLength>20_000_000)throw new Error("ZIP exceeds 20 MB.");
  const view=new DataView(buffer);
  const bytes=new Uint8Array(buffer);
@@ -17,8 +20,9 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
  if(u16(view,eocd+4)!==0||u16(view,eocd+6)!==0)throw new Error("Multi-disk ZIP unsupported.");
  const count=u16(view,eocd+10),size=u32(view,eocd+12),start=u32(view,eocd+16);
  if(count>1000||start+size>eocd)throw new Error("ZIP directory exceeds limits.");
- let cursor=start,total=0;
+ let cursor=start,total=0,assetTotal=0;
  const notes:VaultEntry[]=[];
+ const assets:VaultAsset[]=[];
  const seen=new Set<string>();
  for(let i=0;i<count;i++){
   if(cursor+46>start+size||u32(view,cursor)!==0x02014b50)throw new Error("Invalid ZIP directory.");
@@ -34,12 +38,22 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   if((flags&0x800)===0&&/[^\x00-\x7f]/u.test(name))throw new Error("ZIP filenames must use UTF-8.");
   if(seen.has(path.toLowerCase()))throw new Error("Duplicate ZIP path.");
   seen.add(path.toLowerCase());
-  if(!path.toLowerCase().endsWith(".md")||path.split("/").includes(".obsidian"))continue;
+  if(path.split("/").includes(".obsidian"))continue;
+  const isNote=path.toLowerCase().endsWith(".md");
+  const extension=path.split(".").at(-1)?.toLowerCase()??"";
+  const mime=JOURNAL_FILE_TYPES[extension];
+  if(!isNote&&!mime)continue;
   if(flags&1)throw new Error("Encrypted ZIP entries unsupported.");
   if(method!==0&&method!==8)throw new Error("Unsupported ZIP compression.");
-  if(uncompressed>100000||compressed>1000000)throw new Error("Note exceeds size limit.");
-  total+=uncompressed;
-  if(total>900000)throw new Error("ZIP notes exceed the import limit.");
+  if(isNote){
+   if(uncompressed>100000||compressed>1000000)throw new Error("Note exceeds size limit.");
+   total+=uncompressed;
+   if(total>900000)throw new Error("ZIP notes exceed the import limit.");
+  }else{
+   if(uncompressed>MAX_JOURNAL_FILE_BYTES||compressed>MAX_JOURNAL_FILE_BYTES)throw new Error("ZIP attachment exceeds 8 MB.");
+   assetTotal+=uncompressed;
+   if(assetTotal>16_000_000)throw new Error("ZIP attachments exceed 16 MB.");
+  }
   if(offset+30>buffer.byteLength||u32(view,offset)!==0x04034b50)throw new Error("Invalid ZIP entry.");
   if(u16(view,offset+8)!==method)throw new Error("ZIP entry compression mismatch.");
   if(u16(view,offset+6)!==flags)throw new Error("ZIP entry flags mismatch.");
@@ -60,7 +74,7 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
     while(true){
      const {value,done}=await reader.read();if(done)break;
      length+=value.byteLength;
-     if(length>uncompressed||length>100000){await reader.cancel();throw new Error("ZIP decompression exceeds declared size.");}
+     if(length>uncompressed||length>(isNote?100000:MAX_JOURNAL_FILE_BYTES)){await reader.cancel();throw new Error("ZIP decompression exceeds declared size.");}
      chunks.push(value);
     }
    }finally{reader.releaseLock();}
@@ -68,7 +82,15 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
    for(const chunk of chunks){content.set(chunk,position);position+=chunk.length;}
   }
   if(content.byteLength!==uncompressed)throw new Error("ZIP entry size mismatch.");
-  notes.push({path,content:decoder.decode(content)});
+  if(isNote)notes.push({path,content:decoder.decode(content)});
+  else {
+   if(!verifyJournalFileSignature(mime,content))throw new Error("Invalid ZIP attachment signature.");
+   assets.push({path,filename:path.split("/").at(-1)!,mime,bytes:new Uint8Array(content)});
+  }
  }
- return notes;
+ return {notes,assets};
+}
+/** Preserve the Markdown-only API for existing import previews. */
+export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[]>{
+ return (await extractObsidianZip(buffer)).notes;
 }

@@ -13,6 +13,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
+ const [progress,setProgress]=useState("");
  useEffect(()=>{
   // Opening the import panel opportunistically reclaims abandoned uploads older than a day.
   void fetch(endpoint+"/files/cleanup",{method:"POST"}).catch(()=>{});
@@ -34,7 +35,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  async function send(confirm:boolean){
   if(!entries)return;
-  setBusy(true);setError("");
+  setBusy(true);setError("");setProgress(confirm?"Importing pages...":"Preparing preview...");
   try{
    const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm})});
    const body=await response.json() as {error?:string;preview:Preview;result:{created:number;foldersCreated:number;skipped:number}};
@@ -86,7 +87,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
     setEntries(null);setAssets([]);setPreview(null);await onImported();
    }
   }catch(e){setError(e instanceof Error?e.message:"Import failed");}
-  finally{setBusy(false);}
+  finally{setBusy(false);setProgress("");}
  }
  async function chooseZip(file:File|undefined){
   if(!file||busy)return;
@@ -133,6 +134,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
    <button disabled={busy} onClick={()=>void send(true)}>Confirm Import</button>
    <button disabled={busy} onClick={()=>{void (async()=>{if(!await cleanupUnusedUploads())return;setPreview(null);setEntries(null);setAssets([]);})();}}>Cancel</button>
   </div>}
+  {progress&&<p role="status">{progress}</p>}
   {error&&<p role="alert">{error}</p>}{result&&<p role="status">{result}</p>}
  </section>;
 }

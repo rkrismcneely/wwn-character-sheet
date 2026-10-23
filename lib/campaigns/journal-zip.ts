@@ -41,11 +41,12 @@ export async function extractMarkdownZip(buffer:ArrayBuffer):Promise<VaultEntry[
   if(total>900000)throw new Error("ZIP notes exceed the import limit.");
   if(offset+30>buffer.byteLength||u32(view,offset)!==0x04034b50)throw new Error("Invalid ZIP entry.");
   if(u16(view,offset+8)!==method)throw new Error("ZIP entry compression mismatch.");
+  if(u16(view,offset+6)!==flags)throw new Error("ZIP entry flags mismatch.");
   const localNameLength=u16(view,offset+26);
   if(offset+30+localNameLength>buffer.byteLength||decoder.decode(bytes.subarray(offset+30,offset+30+localNameLength))!==name)
    throw new Error("ZIP entry path mismatch.");
   const dataStart=offset+30+localNameLength+u16(view,offset+28);
-  if(dataStart+compressed>buffer.byteLength)throw new Error("Truncated ZIP entry.");
+  if(dataStart+compressed>start)throw new Error("ZIP entry overlaps directory.");
   const raw=bytes.subarray(dataStart,dataStart+compressed);
   let content:Uint8Array;
   if(method===0)content=raw;

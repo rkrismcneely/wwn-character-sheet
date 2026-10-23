@@ -12,7 +12,7 @@ test("the full SRD corpus stays out of the initial character-sheet bundle and th
   assert.doesNotMatch(rulesSearchSource, /^import \{ completeSrdRules \}/mu);
   assert.match(characterSheetSource, /<RulesAssistant \/>/u);
   assert.match(rulesAssistantSource, /onFocus=\{preloadRulesSearch\}/u);
-  assert.match(rulesAssistantSource, /setResults\(await searchRules\(trimmedQuestion\)\)/u);
+  assert.match(rulesAssistantSource, /const matches = await searchRules\(trimmedQuestion\);\s*setResults\(matches\)/u);
 });
 
 test("natural-language zero HP question prioritizes the injury rule", async () => {

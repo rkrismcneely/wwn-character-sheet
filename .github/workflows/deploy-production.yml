@@ -3,8 +3,6 @@ name: Deploy Production
 # Deploy each merged change to main automatically, retaining manual fallback.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read

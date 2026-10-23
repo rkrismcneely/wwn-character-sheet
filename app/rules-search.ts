@@ -139,7 +139,9 @@ function loadRulesIndex(): Promise<IndexedRule[]> {
 // question. Keep the familiar local answers available immediately, but load
 // the complete search corpus on demand instead of in every character sheet.
 export function preloadRulesSearch() {
-  void loadRulesIndex();
+  // Preloading is opportunistic; an unavailable corpus should not cause an
+  // unhandled rejection before the user actually submits a search.
+  void loadRulesIndex().catch(() => {});
 }
 
 const stopWords = new Set([

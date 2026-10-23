@@ -52,3 +52,18 @@ test("extracts DEFLATE-compressed Markdown",async()=>{
  output.set(local);output.set(central,local.length);output.set(end,local.length+central.length);
  assert.deepEqual(await extractMarkdownZip(output.buffer),[{path:"Lore.md",content:"# Compressed"}]);
 });
+
+test("rejects mismatched local and central ZIP flags",async()=>{
+ const buffer=zipStored("Notes.md","hello");
+ const bytes=new Uint8Array(buffer);
+ const view=new DataView(buffer);
+ view.setUint16(6,1,true);
+ await assert.rejects(extractMarkdownZip(bytes.buffer),/ZIP entry flags mismatch/);
+});
+test("rejects ZIP entries that overlap the directory",async()=>{
+ const buffer=zipStored("Notes.md","hello");
+ const view=new DataView(buffer);
+ const centralOffset=view.getUint32(buffer.byteLength-6,true);
+ view.setUint32(centralOffset+20,1000,true);
+ await assert.rejects(extractMarkdownZip(buffer),/ZIP entry overlaps directory/);
+});

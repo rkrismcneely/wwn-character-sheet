@@ -483,7 +483,7 @@ test("Spirit Familiar UI enforces benefit caps and lifecycle behavior", async ()
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/level-up-wizard-impl.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(sheet, /spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit\(sheet\.focusPicks\)/u);
+  assert.match(sheet, /spiritFamiliarBenefitCap = useMemo\(\(\) => spiritFamiliarBenefitLimit\(sheet\.focusPicks\), \[sheet\.focusPicks\]\)/u);
   assert.match(
     sheet,
     /\(sheet\.level < 2 && pick\.name !== "Spirit Familiar"\)/u,

@@ -44,3 +44,25 @@ test("imports ordinary Obsidian PDF wikilinks without treating note links as fil
  assert.equal(replaceJournalAssetLinks(source,"Town/Notes.md",[image,pdf],new Map([[pdf.path,url]])),
   "[Read the guide]("+url+") and [[Campaign Timeline]]");
 });
+
+test("code examples never cause attachment uploads or link rewriting",()=>{
+ const source=[
+  "~~~md",
+  "![[assets/map.png]]",
+  "~~~",
+  "````markdown",
+  "[Handout](docs/guide.pdf)",
+  "````",
+  "Example: `![[assets/map.png]]` and ``[Handout](docs/guide.pdf)``",
+  "Actual: ![[assets/map.png]]"
+ ].join("\n");
+ assert.deepEqual(referencedJournalAssets(source,"Town/Notes.md",[image,pdf]).map(asset=>asset.path),[image.path]);
+ const url="/api/campaigns/cmp_abcdefghijklmnopqrstuv/journal/files/11111111-1111-4111-8111-111111111111";
+ const expected=source.replace("Actual: ![[assets/map.png]]","Actual: ![map.png]("+url+")");
+ assert.equal(replaceJournalAssetLinks(source,"Town/Notes.md",[image,pdf],new Map([[image.path,url]])),expected);
+});
+test("unclosed fenced code remains untouched",()=>{
+ const source="~~~markdown\n![[assets/map.png]]";
+ assert.deepEqual(referencedJournalAssets(source,"Town/Notes.md",[image]),[]);
+ assert.equal(replaceJournalAssetLinks(source,"Town/Notes.md",[image],new Map([[image.path,"/protected"]])),source);
+});

@@ -34,7 +34,7 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
     const body = await readBoundedJson(request, 120 * 1024);
-    return Response.json({ entry: await updateJournalEntry(await getCampaignD1(), actor, id, body ?? {}) });
+    return Response.json({ entry: await updateJournalEntry(await getCampaignD1(), actor, id, (body ?? {}) as Record<string, unknown>) });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The journal entry could not be updated.");
@@ -46,8 +46,8 @@ export async function PUT(request: Request, context: Context): Promise<Response>
     const actor = await getSessionActor(request);
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
-    const body = await readBoundedJson(request, 16 * 1024) as { entryId?: string; userIds?: string[] };
-    return Response.json(await setJournalReaders(await getCampaignD1(), actor, id, body.entryId ?? "", body.userIds ?? []));
+    const body = await readBoundedJson(request, 16 * 1024) as { entryId?: string; userIds?: string[] } | null;
+    return Response.json(await setJournalReaders(await getCampaignD1(), actor, id, body?.entryId ?? "", body?.userIds ?? []));
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "Journal readers could not be updated.");

@@ -3,6 +3,7 @@ import { getCampaignD1 } from "@/lib/campaigns/service";
 import { loadCampaignAccess } from "@/lib/campaigns/service";
 import { env } from "cloudflare:workers";
 import { listJournal } from "@/lib/campaigns/journal";
+import { hasJournalAttachmentReference } from "@/lib/campaigns/journal-files";
 
 export async function GET(request:Request,context:{params:Promise<{id:string;fileId:string}>}){
  const actor=await getSessionActor(request);
@@ -18,8 +19,7 @@ export async function GET(request:Request,context:{params:Promise<{id:string;fil
  const page=visible.entries.find(entry=>entry.id===file.entryId&&entry.kind==="page");
  if(!page)return Response.json({error:"Not found."},{status:404});
  if(!visible.canEdit){
-  const link="/api/campaigns/"+encodeURIComponent(id)+"/journal/files/"+fileId;
-  if(!page||!page.content.includes(link))return Response.json({error:"Not found."},{status:404});
+  if(!hasJournalAttachmentReference(page.content,id,fileId))return Response.json({error:"Not found."},{status:404});
  }
  const object=await env.BUCKET.get(file.storageKey);
  if(!object)return Response.json({error:"Not found."},{status:404});

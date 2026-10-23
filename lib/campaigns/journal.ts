@@ -1,3 +1,4 @@
+import { inventoryObsidianVault, safeVaultPath } from "./journal-import.ts";
 import { canManageCampaignContent } from "./authorization.ts";
 import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
@@ -144,7 +145,7 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  const paths=new Set(existing.results.map(row=>row.path.toLowerCase()));
  const seen=new Set<string>();
  for(const note of notes){
-  if(typeof note.path!=="string"||!note.path.endsWith(".md")||note.path.includes("..")||note.path.startsWith("/")||note.path.includes("\\")||seen.has(note.path.toLowerCase()))
+  if(typeof note.path!=="string"||!note.path.endsWith(".md")||safeVaultPath(note.path)!==note.path||seen.has(note.path.toLowerCase()))
    throw new CampaignServiceError("Invalid import path.",422);
   seen.add(note.path.toLowerCase());
   cleanTitle(note.title);cleanContent(note.markdown);

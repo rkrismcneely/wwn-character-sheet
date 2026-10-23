@@ -1180,7 +1180,7 @@ export default function Home({
   const canEdit = signedIn && (!cloudId || cloudCanEdit);
   const levelOneStatus = useMemo(() => levelOneCreationStatus(sheet), [sheet]);
   const { items: campaignInventoryItems, error: campaignInventoryError } = useCampaignInventoryItems(cloudId, campaignLinks, canEdit);
-  const campaignArmorItems = campaignInventoryItems.filter(item => item.kind === "armor");
+  const campaignArmorItems = useMemo(() => campaignInventoryItems.filter(item => item.kind === "armor"), [campaignInventoryItems]);
   const buildFieldsEditable = canEdit && (!cloudId || characterEditMode);
   const updateJoinedLiveSessionCampaign = useCallback((campaignId: string | null) => setJoinedLiveSessionCampaignId(campaignId), []);
 
@@ -2561,19 +2561,19 @@ export default function Home({
   const spiritFamiliars = useMemo(() => sheet.focusPicks
     .map((pick, index) => ({ pick, index }))
     .filter(({ pick }) => pick.name === "Spirit Familiar"), [sheet.focusPicks]);
-  const spiritFamiliarBenefitCap = spiritFamiliarBenefitLimit(sheet.focusPicks);
+  const spiritFamiliarBenefitCap = useMemo(() => spiritFamiliarBenefitLimit(sheet.focusPicks), [sheet.focusPicks]);
   const hasHenchkeeper = Boolean(henchkeeper);
   const hasSpiritFamiliar = spiritFamiliars.length > 0;
   const hasBeastmaster = selectedClasses.includes("Beastmaster");
   const chosenFriend = hasBeastmaster && sheet.beastmasterBond === "chosen-friend";
   const henchmanCount = henchkeeper ? Math.ceil(Math.max(1, sheet.level) / 3) : 0;
-  const companionTabs = sheet.companions.filter(companion =>
+  const companionTabs = useMemo(() => sheet.companions.filter(companion =>
     companion.kind === "henchman"
-      ? Boolean(henchkeeper)
+      ? hasHenchkeeper
       : companion.kind === "familiar"
         ? hasSpiritFamiliar
         : hasBeastmaster
-  );
+  ), [sheet.companions, hasHenchkeeper, hasSpiritFamiliar, hasBeastmaster]);
   const armoredMagicLevel = selectedFocusPicks.find(pick => pick.name === "Armored Magic")?.level || 0;
   const focusPicksUsed = focusSelectionCost(selectedFocusPicks);
   const developedAttributes = selectedFocusPicks

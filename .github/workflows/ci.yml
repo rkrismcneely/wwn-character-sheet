@@ -99,11 +99,11 @@ jobs:
             if [ "$file" != tests/rendered-html.test.mjs ]; then selected+=("$file"); fi
           done
           if [ "$FAST_SUITE" = true ]; then
-            node --experimental-strip-types --test \
+            node --experimental-strip-types --test --test-concurrency=4 \
               --test-skip-pattern='Phase 4C campaign foundation is additive|existing character data remains readable and unchanged after Phase 4B migrations|Phase 4D migration is additive|Rules Search Phase 4 broad benchmark meets Top-1 and Top-3 accuracy targets' \
               "${selected[@]}"
           else
-            node --experimental-strip-types --test "${selected[@]}"
+            node --experimental-strip-types --test --test-concurrency=4 "${selected[@]}"
           fi
 
   build:

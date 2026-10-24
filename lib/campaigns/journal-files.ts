@@ -28,7 +28,6 @@ export function journalStorageKey(campaignInternalId:string,fileId:string):strin
  return "campaign-journal/"+campaignInternalId+"/"+fileId;
 }
 
-/** Inline code is literal text, not an attachment link. */
 
 /** Only explicit Markdown references outside code grant file access. */
 export function hasJournalAttachmentReference(markdown:string,publicCampaignId:string,fileId:string):boolean{
@@ -40,5 +39,5 @@ export function hasJournalAttachmentReference(markdown:string,publicCampaignId:s
   if([...text.matchAll(pattern)].some(match=>match[1]===url))found=true;
   return text;
  });
- return false;
+ return found;
 }

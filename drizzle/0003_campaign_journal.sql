@@ -5,6 +5,7 @@ CREATE TABLE `campaign_journal_entries` (
   `kind` text DEFAULT 'page' NOT NULL CHECK (`kind` IN ('folder', 'page')),
   `title` text NOT NULL,
   `content` text DEFAULT '' NOT NULL,
+  `icon` text DEFAULT 'file-text' NOT NULL,
   `visibility` text DEFAULT 'gm' NOT NULL CHECK (`visibility` IN ('gm', 'players', 'selected')),
   `source` text,
   `source_path` text,

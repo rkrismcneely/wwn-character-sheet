@@ -131,7 +131,7 @@ export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,c
  if(!entry)throw new CampaignServiceError("Journal entry not found.",404);
  const unique=[...new Set(userIds)];
  for(const userId of unique){
-   const member=await db.prepare("SELECT user_id FROM campaign_members WHERE campaign_id=? AND user_id=?").bind(campaign,userId).first();
+   const member=await db.prepare("SELECT user_id FROM campaign_members WHERE campaign_id=? AND user_id=? AND role='player'").bind(campaign,userId).first();
    if(!member)throw new CampaignServiceError("Reader is not a campaign member.",422);
  }
  await db.batch([db.prepare("DELETE FROM campaign_journal_readers WHERE entry_id=?").bind(entryId),
@@ -157,7 +157,7 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  const paths=new Set(existing.results.filter(row=>typeof row.path==="string").map(row=>row.path.toLowerCase()));
  const seen=new Set<string>();
  for(const note of notes){
-  if(typeof note.path!=="string"||!note.path.endsWith(".md")||safeVaultPath(note.path)!==note.path||seen.has(note.path.toLowerCase()))
+  if(typeof note.path!=="string"||!/\.md$/iu.test(note.path)||safeVaultPath(note.path)!==note.path||seen.has(note.path.toLowerCase()))
    throw new CampaignServiceError("Invalid import path.",422);
   seen.add(note.path.toLowerCase());
   if(note.folder!==note.path.split("/").slice(0,-1).join("/"))throw new CampaignServiceError("Invalid import folder.",422);

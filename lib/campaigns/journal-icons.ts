@@ -1,0 +1,73 @@
+/** Stable, reusable article icon choices. Stored values are Lucide icon names. */
+export const JOURNAL_PAGE_ICONS = [
+ {id:"castle",label:"City / Settlement"},
+ {id:"user-round",label:"NPC"},
+ {id:"skull",label:"Monster"},
+ {id:"sparkles",label:"Spell"},
+ {id:"sword",label:"Item / Equipment"},
+ {id:"map-pin",label:"Location"},
+ {id:"landmark",label:"Faction"},
+ {id:"scroll-text",label:"Quest"},
+ {id:"book-open",label:"Lore / History"},
+ {id:"map",label:"Region / Map"},
+ {id:"calendar-days",label:"Session Notes"},
+ {id:"file-text",label:"General Article"},
+ {id:"shield",label:"Organization / Guild"},
+ {id:"crown",label:"Ruler / Nobility"},
+ {id:"users",label:"Party / Group"},
+ {id:"church",label:"Religion / Deity"},
+ {id:"mountain",label:"Mountain / Landmark"},
+ {id:"trees",label:"Forest / Wilderness"},
+ {id:"house",label:"Building / Residence"},
+ {id:"coins",label:"Treasure / Currency"},
+ {id:"gem",label:"Magic Item / Artifact"},
+ {id:"flask-conical",label:"Potion / Alchemy"},
+ {id:"book-marked",label:"Book / Document"},
+ {id:"compass",label:"Exploration / Travel"},
+ {id:"ship",label:"Ship / Vessel"},
+ {id:"tent",label:"Camp / Outpost"},
+ {id:"key-round",label:"Key / Secret"},
+ {id:"flag",label:"Kingdom / Nation"},
+ {id:"swords",label:"Battle / Conflict"},
+ {id:"shield-alert",label:"Hazard / Danger"},
+ {id:"ghost",label:"Undead / Spirit"},
+ {id:"paw-print",label:"Beast / Animal"},
+ {id:"footprints",label:"Tracks / Clues"},
+ {id:"scroll",label:"Prophecy / Legend"},
+ {id:"handshake",label:"Alliance / Treaty"},
+ {id:"land-plot",label:"Territory / Province"},
+ {id:"route",label:"Road / Route"},
+ {id:"waves",label:"Sea / River / Lake"},
+ {id:"sun",label:"Plane / Celestial Realm"},
+ {id:"moon",label:"Night / Lunar Lore"},
+ {id:"hourglass",label:"Timeline / Era"},
+ {id:"calendar-clock",label:"Event / Holiday"},
+ {id:"package",label:"Goods / Supplies"},
+ {id:"hammer",label:"Crafting / Profession"},
+ {id:"pickaxe",label:"Mine / Resource"},
+ {id:"axe",label:"Weapon"},
+ {id:"shield-check",label:"Armor / Protection"},
+ {id:"wand-sparkles",label:"Enchantment / Ritual"},
+ {id:"eye",label:"Vision / Divination"},
+ {id:"lock-keyhole",label:"Puzzle / Locked Area"},
+ {id:"message-circle",label:"Rumour / Conversation"},
+ {id:"scale",label:"Law / Politics"},
+ {id:"warehouse",label:"Market / Trade Hub"},
+ {id:"anchor",label:"Port / Harbour"},
+ {id:"flame",label:"Element / Fire"},
+ {id:"snowflake",label:"Climate / Ice"},
+ {id:"leaf",label:"Herbs / Plants"},
+ {id:"bone",label:"Remains / Fossils"},
+ {id:"dices",label:"Rules / Mechanics"},
+ {id:"bookmark",label:"Reference / Miscellaneous"},
+] as const;
+export type JournalPageIcon = (typeof JOURNAL_PAGE_ICONS)[number]["id"];
+export const DEFAULT_JOURNAL_PAGE_ICON:JournalPageIcon="file-text";
+const allowed=new Set<string>(JOURNAL_PAGE_ICONS.map(icon=>icon.id));
+export function journalPageIcon(value:unknown):JournalPageIcon{
+ return typeof value==="string"&&allowed.has(value)?value as JournalPageIcon:DEFAULT_JOURNAL_PAGE_ICON;
+}
+export function validateJournalPageIcon(value:unknown):JournalPageIcon{
+ if(typeof value!=="string"||!allowed.has(value))throw new Error("Unsupported journal page icon.");
+ return value as JournalPageIcon;
+}

@@ -1,0 +1,114 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {redactJournalSecrets} from "../lib/campaigns/journal.ts";
+import {validateJournalFile,verifyJournalFileSignature,journalStorageKey,hasJournalAttachmentReference,canReadJournalAttachment} from "../lib/campaigns/journal-files.ts";
+test("accepts a bounded PNG",()=>{
+ assert.deepEqual(validateJournalFile("portrait.png","image/png",100),{filename:"portrait.png",mime:"image/png",size:100});
+});
+test("rejects unsupported types and MIME mismatches",()=>{
+ assert.throws(()=>validateJournalFile("script.svg","image/svg+xml",100));
+ assert.throws(()=>validateJournalFile("portrait.png","text/html",100));
+});
+test("rejects oversized and unsafe names",()=>{
+ assert.throws(()=>validateJournalFile("../portrait.png","image/png",100));
+ assert.throws(()=>validateJournalFile("portrait.png","image/png",8_000_001));
+});
+
+test("rejects disguised image payloads",()=>{
+ assert.equal(verifyJournalFileSignature("image/png",new TextEncoder().encode("<html>")),false);
+ assert.equal(verifyJournalFileSignature("image/png",Uint8Array.from([137,80,78,71,13,10,26,10])),true);
+});
+
+test("uses campaign-scoped opaque storage keys",()=>{
+ const key=journalStorageKey("11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222");
+ assert.equal(key,"campaign-journal/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222");
+ assert.throws(()=>journalStorageKey("../unsafe","22222222-2222-4222-8222-222222222222"));
+});
+
+test("only explicit visible Markdown links grant attachment access",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const url="/api/campaigns/"+campaign+"/journal/files/"+id;
+ assert.equal(hasJournalAttachmentReference("![Map]("+url+")",campaign,id),true);
+ assert.equal(hasJournalAttachmentReference("[PDF]("+url+")",campaign,id),true);
+ assert.equal(hasJournalAttachmentReference("Plain "+url,campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("[Other]("+url+"-extra)",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("[External]("+url+"?download=1)",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("![Map]("+url+")",campaign,"33333333-3333-4333-8333-333333333333"),false);
+});
+
+test("fenced Markdown code cannot grant player file access",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const reference="![Map](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ assert.equal(hasJournalAttachmentReference("```md\n"+reference+"\n```",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("~~~md\n"+reference+"\n~~~",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("```md\n"+reference+"\n```\n"+reference,campaign,id),true);
+});
+
+test("Markdown links inside GM-only blocks do not authorize players",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const url="/api/campaigns/"+campaign+"/journal/files/"+id;
+ const markdown=["Public","<!-- gm-only:start -->","![Secret]("+url+")","<!-- gm-only:end -->"].join("\n");
+ const redacted=redactJournalSecrets(markdown);
+ assert.equal(hasJournalAttachmentReference(redacted,campaign,id),false);
+});
+
+test("inline code examples never authorize player attachment access",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const ref="![Map](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ assert.equal(hasJournalAttachmentReference("Example: `"+ref+"`",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("Example: ``"+ref+"``",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("Example: `"+ref+"` then "+ref,campaign,id),true);
+});
+
+test("HTML comments cannot authorize attachment downloads",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const link="![Hidden](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ assert.equal(hasJournalAttachmentReference("<!-- "+link+" -->",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("<!-- start\n"+link+"\nend -->",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("Visible\n<!-- "+link+" -->\n"+link,campaign,id),true);
+});
+
+test("fence markers with info strings inside a code block do not expose files",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const link="![Secret](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ const markdown=["```markdown","```js",link,"```"].join("\n");
+ assert.equal(hasJournalAttachmentReference(markdown,campaign,id),false);
+ assert.equal(hasJournalAttachmentReference(markdown+"\n"+link,campaign,id),true);
+});
+
+test("unknown file signatures always fail closed",()=>{
+ assert.equal(verifyJournalFileSignature("text/html",new TextEncoder().encode("<h1>hi</h1>")),false);
+ assert.equal(verifyJournalFileSignature("application/octet-stream",new Uint8Array([37,80,68,70,45])),false);
+});
+
+test("private attachments require a visible page with a rendered link",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const link="![Map](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ const visible=[{id:"public-page",kind:"page",content:link}];
+ assert.equal(canReadJournalAttachment(visible,false,"private-page",campaign,id),true);
+ assert.equal(canReadJournalAttachment([{id:"private-page",kind:"page",content:link}],false,"private-page",campaign,id),true);
+ assert.equal(canReadJournalAttachment([{id:"public-page",kind:"page",content:"See the map"}],false,"private-page",campaign,id),false);
+ assert.equal(canReadJournalAttachment([{id:"public-folder",kind:"folder",content:link}],false,"private-page",campaign,id),false);
+ assert.equal(canReadJournalAttachment(visible,false,"private-page",campaign,"33333333-3333-4333-8333-333333333333"),false);
+});
+test("GM attachment access requires owning page to exist",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ assert.equal(canReadJournalAttachment([{id:"owner",kind:"page",content:""}],true,"owner",campaign,id),true);
+ assert.equal(canReadJournalAttachment([{id:"another",kind:"page",content:""}],true,"owner",campaign,id),false);
+});
+test("GM-only blocks and code examples do not authorize player attachments",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const link="[Secret](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ const markdown=["Public","<!-- gm-only:start -->",link,"<!-- gm-only:end -->","Example: "+String.fromCharCode(96)+link+String.fromCharCode(96)].join("\n");
+ const page={id:"shared",kind:"page",content:redactJournalSecrets(markdown)};
+ assert.equal(canReadJournalAttachment([page],false,"secret",campaign,id),false);
+});

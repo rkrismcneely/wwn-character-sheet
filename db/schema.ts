@@ -299,3 +299,58 @@ export const campaignSessionParticipants = sqliteTable(
     index("campaign_session_participants_user_idx").on(table.userId),
   ],
 );
+
+/** Campaign journal pages, including folders (kind = folder). */
+export const campaignJournalEntries = sqliteTable(
+  "campaign_journal_entries",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+    parentId: text("parent_id"),
+    kind: text("kind", { enum: ["folder", "page"] }).notNull().default("page"),
+    title: text("title").notNull(),
+    content: text("content").notNull().default(""),
+    icon: text("icon").notNull().default("file-text"),
+    visibility: text("visibility", { enum: ["gm", "players", "selected"] }).notNull().default("gm"),
+    source: text("source"),
+    sourcePath: text("source_path"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("campaign_journal_campaign_parent_idx").on(table.campaignId, table.parentId),
+    uniqueIndex("campaign_journal_source_path_idx").on(table.campaignId, table.source, table.sourcePath),
+    check("campaign_journal_kind_check", sql`${table.kind} in ('folder', 'page')`),
+    check("campaign_journal_visibility_check", sql`${table.visibility} in ('gm', 'players', 'selected')`),
+  ],
+);
+
+export const campaignJournalReaders = sqliteTable(
+  "campaign_journal_readers",
+  {
+    entryId: text("entry_id").notNull().references(() => campaignJournalEntries.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.entryId, table.userId] }),
+    index("campaign_journal_readers_user_idx").on(table.userId),
+  ],
+);
+
+export const campaignJournalFiles = sqliteTable(
+  "campaign_journal_files",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+    entryId: text("entry_id").notNull().references(() => campaignJournalEntries.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    storageKey: text("storage_key").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("campaign_journal_files_entry_idx").on(table.campaignId, table.entryId),
+    uniqueIndex("campaign_journal_files_storage_key_unique").on(table.storageKey),
+  ],
+);

@@ -1,0 +1,44 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {resolveJournalWikilinks} from "../lib/campaigns/journal-links.ts";
+
+const pages=[
+ {id:"11111111-1111-4111-8111-111111111111",title:"Lore",sourcePath:"World/Lore.md",parentId:null},
+ {id:"22222222-2222-4222-8222-222222222222",title:"People",sourcePath:"World/People.md",parentId:null},
+ {id:"33333333-3333-4333-8333-333333333333",title:"Secrets",sourcePath:"World/Secrets.md",parentId:null}
+];
+test("resolves Obsidian title and folder-path links",()=>{
+ const result=resolveJournalWikilinks("[[People|Friends]] and [[World/People]]",pages[0],pages.slice(0,2));
+ assert.match(result,/\[Friends\]\(\/journal-page\/22222222/);
+ assert.match(result,/\[People\]\(\/journal-page\/22222222/);
+});
+test("never resolves a page excluded from the visible list",()=>{
+ const result=resolveJournalWikilinks("[[Secrets]]",pages[0],pages.slice(0,2));
+ assert.equal(result,"[[Secrets]]");
+});
+test("does not resolve ambiguous titles",()=>{
+ const duplicate={...pages[1],id:"44444444-4444-4444-8444-444444444444",sourcePath:"Elsewhere/People.md"};
+ assert.equal(resolveJournalWikilinks("[[People]]",pages[0],[...pages.slice(0,2),duplicate]),"[[People]]");
+});
+
+test("prefers exact folder path over duplicate page titles",()=>{
+ const duplicate={...pages[1],id:"44444444-4444-4444-8444-444444444444",sourcePath:"Elsewhere/People.md"};
+ const result=resolveJournalWikilinks("[[World/People]]",pages[0],[...pages.slice(0,2),duplicate]);
+ assert.match(result,/journal-page\/22222222/);
+});
+
+test("keeps embedded Obsidian media references unchanged",()=>{
+ assert.equal(resolveJournalWikilinks("![[People]]",pages[0],pages.slice(0,2)),"![[People]]");
+});
+
+test("does not resolve wikilinks in inline or fenced code examples",()=>{
+ const source=[
+  "```md","[[People]]","```",
+  "Example: `[[People]]`",
+  "Actual: [[People]]"
+ ].join("\n");
+ const result=resolveJournalWikilinks(source,pages[0],pages.slice(0,2));
+ assert.equal(result.split("\n")[1],"[[People]]");
+ assert.match(result,/Example: `\[\[People\]\]`/);
+ assert.match(result,/Actual: \[People\]\(\/journal-page\/22222222/);
+});

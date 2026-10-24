@@ -1,0 +1,1 @@
+.campaign-journal{max-width:1280px;margin:24px auto}.journal-layout{display:grid;grid-template-columns:240px 1fr;gap:16px}.journal-sidebar{display:grid;align-content:start;gap:6px}.journal-main{min-height:350px;padding:18px}.journal-actions{display:flex;gap:8px;flex-wrap:wrap}@media(max-width:680px){.journal-layout{grid-template-columns:1fr}}

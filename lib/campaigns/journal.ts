@@ -109,9 +109,12 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   if(input.expectedContent!==undefined){
     if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)
       throw new CampaignServiceError("Invalid expected journal content.",422);
-    const result=await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?
-      WHERE campaign_id = ? AND id = ? AND content = ?`)
-      .bind(title,content,visibility,updatedAt,id,old.id,input.expectedContent).run();
+    // Attachment imports only change content; never restore stale title or visibility.
+    if(input.title!==undefined||input.visibility!==undefined)
+      throw new CampaignServiceError("Conditional journal updates may only change content.",422);
+    const result=await db.prepare(`UPDATE campaign_journal_entries SET content = ?, updated_at = ?
+      WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ?`)
+      .bind(content,updatedAt,id,old.id,input.expectedContent).run();
     if(!result.meta.changes)throw new CampaignServiceError("Journal page changed since it was loaded. Refresh before retrying.",409);
   }else{
     await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?

@@ -310,6 +310,7 @@ export const campaignJournalEntries = sqliteTable(
     kind: text("kind", { enum: ["folder", "page"] }).notNull().default("page"),
     title: text("title").notNull(),
     content: text("content").notNull().default(""),
+    icon: text("icon").notNull().default("file-text"),
     visibility: text("visibility", { enum: ["gm", "players", "selected"] }).notNull().default("gm"),
     source: text("source"),
     sourcePath: text("source_path"),

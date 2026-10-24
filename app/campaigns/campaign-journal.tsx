@@ -19,7 +19,6 @@ const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
 const [iconSearch,setIconSearch]=useState("");
-useEffect(()=>{if(editing)setIconSearch("");},[editing]);
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
@@ -86,7 +85,7 @@ async function uploadJournalFile(file:File){
   const url=endpoint+"/files/"+encodeURIComponent(result.id);
   const markdown=file.type.startsWith("image/")?"!["+file.name+"]("+url+")":"["+file.name+"]("+url+")";
   setDraft({title:current.title,visibility:current.visibility,content:current.content+"\n"+markdown,icon:journalPageIcon(current.icon)});
-  setEditing(true);
+  setIconSearch("");setEditing(true);
   setUploadNotice("File uploaded. Save this page to keep the attachment link.");
  }catch(error){setError(error instanceof Error?error.message:"Upload failed.");}
  finally{setUploading(false);}
@@ -102,8 +101,8 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  <header className="twe-workspace-header">
   <div className="twe-workspace-heading"><span className="twe-workspace-eyebrow">Campaign knowledge</span><h2>Campaign Journal</h2><p>Notes, places, characters and stories from your world.</p></div>
   <div className="twe-workspace-header-actions">
-   {canEdit&&!preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>+ New page</button>}
-   {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>New folder</button>}
+   {canEdit&&!preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>+ New page</button>}
+   {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>New folder</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" aria-expanded={importOpen} onClick={()=>setImportOpen(open=>!open)}>{importOpen?"Close import":"Import"}</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>setPreview(true)}>View as player</button>}
    {preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>setPreview(false)}>Return to GM view</button>}
@@ -134,7 +133,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
   <main className="twe-workspace-document">
    <div className="twe-workspace-document-toolbar">
     <div className="twe-workspace-crumbs">{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>
-    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setEditing(true);}}>Edit page</button>}</div>}
+    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setIconSearch("");setEditing(true);}}>Edit page</button>}</div>}
    </div>
    {editing&&canEdit?<form className="twe-workspace-editor" onSubmit={save}>
     <div className="twe-workspace-editor-top"><span className="twe-workspace-eyebrow">{creatingFolder?"New folder":selected?"Edit page":"New page"}</span><span className="twe-workspace-editor-hint">Markdown</span></div>
@@ -145,9 +144,9 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
    </form>:current?<article className="twe-workspace-page">
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":"Journal entry"}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge · Markdown"}</div></div>
     {canEdit&&current.kind==="page"&&<div className="twe-workspace-page-tools"><label className="twe-workspace-attach">Attach image or PDF <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" disabled={uploading} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadJournalFile(file);event.target.value="";}}/></label>{current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}</div>}
-    {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>+ New page here</button></div>}
+    {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>+ New page here</button></div>}
     {current.kind==="page"&&<div className="twe-workspace-prose"><SessionRecapMarkdown content={resolveJournalWikilinks(current.content,current,entries)} onJournalNavigate={id=>{if(entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/></div>}
-   </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>Create a page</button>}</div>}
+   </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>
 </section>;

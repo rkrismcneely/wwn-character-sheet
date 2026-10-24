@@ -2,6 +2,16 @@
 
 Journal development lives in PR #429 on `auto/journal-phase-1`. Keep it unmerged until the gates below pass. Production deployment is owned by Cloudflare Workers Builds on `main`; GitHub-hosted Actions are **not** available and failed/queued Actions jobs must not be treated as an application test result.
 
+## Confirmed blockers as of October 24, 2026
+
+- **Cloudflare Preview CLI compatibility:** `package.json` pins `wrangler@4.92.0`, but current Worker Previews require `wrangler >=4.135.0`. Upgrade Wrangler together with `package-lock.json` using an npm-capable environment; don't alter only the manifest and leave a broken `npm ci`. See https://developers.cloudflare.com/workers/previews/get-started/
+- **Cloudflare dashboard unknown:** Confirm the existing Worker has preview builds enabled and (if needed) the one-way transition to Worker Previews has been made. Validate non-production branch settings, secrets, D1/R2 resources and Durable Objects before building.
+- **No trustworthy CI execution:** Five GitHub-hosted jobs failed without meaningful test execution after Actions minutes were exhausted. They do not establish lint, TypeScript or test failures/successes.
+- **Native LegendKeeper:** converter and UI are committed, but no full committed-source end-to-end test has executed on an authorized checkout. Confirm table rendering, path-specific wiki links, strict GM secret access and real JSON reimport behavior.
+- **Folder moves:** cycle-safe backend, drag/drop UI and selector are committed; validate cross-campaign isolation, real D1 persistence, touch operation and concurrent editing.
+- **Production database:** pending D1 migrations and actual binding availability must be checked before merging.
+- **Production remains unchanged:** do not merge, run production migrations or publish without passing gates.
+
 ## Free/off-Actions validation
 
 Use an authorized local checkout or an already available free external build machine; **do not** dispatch/retry paid GitHub Actions jobs. Requires Node >= 22.13, npm and the build script's GNU `timeout` dependency.

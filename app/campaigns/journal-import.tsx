@@ -88,7 +88,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       }
       const updated=replaceJournalAssetLinks(page.content,note.path,assets,urls);
       if(updated!==page.content){
-       const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content:updated})});
+       const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content:updated,expectedContent:page.content})});
        if(!response.ok)throw new Error("Attachments uploaded but page links could not be saved.");
       }
      }

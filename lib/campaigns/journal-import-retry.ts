@@ -1,7 +1,7 @@
-/** Reimports must never overwrite pages that a GM may have edited. */
+/** Existing pages may have GM edits; attachment retries must not overwrite them. */
 export function mayLinkImportedAssets(
  path:string,originalContent:string,currentContent:string,
- createdPaths:ReadonlySet<string>,hasPendingUploads:boolean
+ createdPaths:ReadonlySet<string>,_hasPendingUploads:boolean
 ):boolean{
- return createdPaths.has(path)||currentContent===originalContent||hasPendingUploads;
+ return createdPaths.has(path)||currentContent===originalContent;
 }

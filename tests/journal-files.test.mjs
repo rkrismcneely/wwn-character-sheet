@@ -108,6 +108,7 @@ test("GM-only blocks and code examples do not authorize player attachments",()=>
  const campaign="cmp_abcdefghijklmnopqrstuv";
  const id="22222222-2222-4222-8222-222222222222";
  const link="[Secret](/api/campaigns/"+campaign+"/journal/files/"+id+")";
- const page={id:"shared",kind:"page",content:redactJournalSecrets("Public\\n<!-- gm-only:start -->"+link+"<!-- gm-only:end -->\\n\\`"+link+"\\`")};
+ const markdown=["Public","<!-- gm-only:start -->",link,"<!-- gm-only:end -->","Example: "+String.fromCharCode(96)+link+String.fromCharCode(96)].join("\n");
+ const page={id:"shared",kind:"page",content:redactJournalSecrets(markdown)};
  assert.equal(canReadJournalAttachment([page],false,"secret",campaign,id),false);
 });

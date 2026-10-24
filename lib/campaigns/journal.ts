@@ -110,7 +110,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
     if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)
       throw new CampaignServiceError("Invalid expected journal content.",422);
     if(typeof input.expectedUpdatedAt!=="string"||input.expectedUpdatedAt.length>40||
-      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/u.test(input.expectedUpdatedAt))
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(input.expectedUpdatedAt))
       throw new CampaignServiceError("Invalid expected journal version.",422);
     // Attachment imports only change content; never restore stale title or visibility.
     if(input.title!==undefined||input.visibility!==undefined)

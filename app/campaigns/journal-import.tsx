@@ -133,7 +133,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   finally{selecting.current=false;}
  }
  async function chooseZip(file:File|undefined){
-  if(!file||busy||selecting.current)return;
+  if(!file||busy||sending.current||selecting.current)return;
   selecting.current=true;
   try{
    setError("");
@@ -188,7 +188,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  return <section className="journal-import">
   <h3>Import campaign notes</h3>
-  <label>Exported from <select disabled={busy||!!entries} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");setNativeSchema("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
+  <label>Exported from <select disabled={busy||!!entries||selecting.current} value={source} onChange={e=>{if(selecting.current||sending.current)return;setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");setNativeSchema("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
   <p>Select an exported Markdown ZIP or folder. For import, export LegendKeeper as Markdown; native .lk/JSON files can be inspected but not imported. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
   {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy||selecting.current} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
   {nativeInspection&&<p role="status">{nativeInspection}</p>}

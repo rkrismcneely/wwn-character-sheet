@@ -1,3 +1,4 @@
+import { journalPageIcon, validateJournalPageIcon } from "./journal-icons.ts";
 import { safeVaultPath } from "./journal-import.ts";
 import { canManageCampaignContent } from "./authorization.ts";
 import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
@@ -5,11 +6,11 @@ import type { CampaignActor } from "./types.ts";
 
 export type JournalEntry = {
   id: string; parentId: string | null; kind: "folder" | "page"; title: string;
-  content: string; visibility: "gm" | "players" | "selected";
+  content: string; icon: string; visibility: "gm" | "players" | "selected";
   createdAt: string; updatedAt: string; sourcePath?: string | null; source?: string | null;
 };
 type Row = JournalEntry;
-const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath, j.source AS source";
+const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.icon, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath, j.source AS source";
 export function redactJournalSecrets(markdown:string):string {
  return markdown.replace(/<!--\s*gm-only:start\s*-->[\s\S]*?<!--\s*gm-only:end\s*-->/giu,"").replace(/<!--\s*gm-only:start\s*-->[\s\S]*$/giu,"");
 }
@@ -82,7 +83,7 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
   return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
 }
 export async function createJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
-  input: { parentId?: unknown; kind?: unknown; title?: unknown; content?: unknown; visibility?: unknown }) {
+  input: { parentId?: unknown; kind?: unknown; title?: unknown; content?: unknown; visibility?: unknown; icon?: unknown }) {
   const id = await requireGM(db, actor, campaignId);
   const kind = input.kind === "folder" ? "folder" : input.kind === "page" ? "page" : null;
   if (!kind) throw new CampaignServiceError("Invalid entry type.", 422);
@@ -90,16 +91,17 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = cleanTitle(input.title);
   const content = kind === "folder" ? "" : cleanContent(input.content ?? "");
   const visibility = cleanVisibility(input.visibility ?? "gm");
+  const icon = kind === "folder" ? "file-text" : input.icon === undefined ? journalPageIcon(null) : validateJournalPageIcon(input.icon);
   const entryId = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.prepare(`INSERT INTO campaign_journal_entries
-    (id, campaign_id, parent_id, kind, title, content, visibility, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(entryId, id, parentId, kind, title, content, visibility, now, now).run();
-  return { id: entryId, parentId, kind, title, content, visibility, createdAt: now, updatedAt: now };
+    (id, campaign_id, parent_id, kind, title, content, icon, visibility, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(entryId, id, parentId, kind, title, content, icon, visibility, now, now).run();
+  return { id: entryId, parentId, kind, title, content, icon, visibility, createdAt: now, updatedAt: now };
 }
 export async function updateJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
-  input: { id?: unknown; title?: unknown; content?: unknown; visibility?: unknown; expectedContent?: unknown; expectedUpdatedAt?: unknown }) {
+  input: { id?: unknown; title?: unknown; content?: unknown; visibility?: unknown; expectedContent?: unknown; expectedUpdatedAt?: unknown; icon?: unknown }) {
   const id = await requireGM(db, actor, campaignId);
   if (typeof input.id !== "string" || !uuidPattern.test(input.id))
     throw new CampaignServiceError("Invalid journal entry.", 422);
@@ -109,6 +111,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = input.title === undefined ? old.title : cleanTitle(input.title);
   const content = old.kind === "folder" ? "" : input.content === undefined ? old.content : cleanContent(input.content);
   const visibility = input.visibility === undefined ? old.visibility : cleanVisibility(input.visibility);
+  const icon = old.kind === "folder" ? "file-text" : input.icon === undefined ? old.icon : validateJournalPageIcon(input.icon);
   const updatedAt = new Date().toISOString();
   if(input.expectedContent!==undefined){
     if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)
@@ -117,16 +120,16 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
       !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(input.expectedUpdatedAt))
       throw new CampaignServiceError("Invalid expected journal version.",422);
     // Attachment imports only change content; never restore stale title or visibility.
-    if(input.title!==undefined||input.visibility!==undefined)
+    if(input.title!==undefined||input.visibility!==undefined||input.icon!==undefined)
       throw new CampaignServiceError("Conditional journal updates may only change content.",422);
     const result=await db.prepare(conditionalJournalContentUpdateSQL)
       .bind(content,updatedAt,id,old.id,input.expectedContent,input.expectedUpdatedAt).run();
     if(!result.meta.changes)throw new CampaignServiceError("Journal page changed since it was loaded. Refresh before retrying.",409);
   }else{
-    await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?
-      WHERE campaign_id = ? AND id = ?`).bind(title,content,visibility,updatedAt,id,old.id).run();
+    await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, icon = ?, visibility = ?, updated_at = ?
+      WHERE campaign_id = ? AND id = ?`).bind(title,content,icon,visibility,updatedAt,id,old.id).run();
   }
-  return { ...old, title, content, visibility, updatedAt };
+  return { ...old, title, content, icon, visibility, updatedAt };
 }
 
 export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string,userIds:string[]){

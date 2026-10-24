@@ -60,5 +60,5 @@ execFileSync("npx", [
 // for the new Worker Previews API, which older locked versions may not expose.
 execFileSync("npx", [
   "--yes", "wrangler@latest", "preview",
-  "--config", previewPath, "--name", "journal-pr429",
+  "--config", previewPath,
 ], { stdio: "inherit" });

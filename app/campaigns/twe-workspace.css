@@ -3,7 +3,7 @@
  * Scoped classes keep this usable by Journal, future compendiums, GM notes,
  * and other document-focused campaign tools without changing global controls.
  */
-.twe-workspace{
+.campaign-journal.twe-workspace{
  --twe-w-ink:#332a20;--twe-w-muted:#796d5d;--twe-w-gold:#a97934;
  --twe-w-line:#d9c7a5;--twe-w-paper:#fffaf0;--twe-w-surface:#f4ebd8;
  --twe-w-sidebar:#eae0c9;--twe-w-focus:#8c631f;
@@ -97,7 +97,7 @@
  .twe-workspace-page{padding:26px 25px 40px}
 }
 @media(max-width:620px){
- .twe-workspace{width:calc(100% - 18px);margin:10px auto}
+ .campaign-journal.twe-workspace{width:calc(100% - 18px);margin:10px auto}
  .twe-workspace-shell{grid-template-columns:minmax(0,1fr)}
  .twe-workspace-nav{border-right:0;border-bottom:1px solid #d6c4a4;max-height:320px}
  .twe-workspace-document{min-height:380px}
@@ -107,3 +107,15 @@
  .twe-workspace-prose{font-size:16px}
 }
 @media(prefers-reduced-motion:reduce){.twe-workspace *{transition:none!important}}
+
+/* Optional import panel; uses the same design language without changing logic. */
+.twe-workspace .journal-import{display:grid;gap:12px;max-width:900px}
+.twe-workspace .journal-import h3{margin:0;color:#49351d;font:600 23px/1.2 var(--font-display,Georgia,serif)}
+.twe-workspace .journal-import p{margin:0;color:#73624d;font:12px/1.55 var(--font-ui,Arial,sans-serif)}
+.twe-workspace .journal-import label{display:grid;gap:6px;color:#68563b;font:700 11px/1.4 var(--font-ui,Arial,sans-serif)}
+.twe-workspace .journal-import input[type="file"],.twe-workspace .journal-import select{max-width:520px;padding:9px;border:1px solid #c8b48e;border-radius:6px;background:#fffaf0;color:#49351d;font:12px var(--font-ui,Arial,sans-serif)}
+.twe-workspace .journal-import button{width:fit-content;padding:8px 12px;border:1px solid #bda67e;border-radius:6px;background:#fff6e4;color:#654c2d;font:600 12px var(--font-ui,Arial,sans-serif);cursor:pointer}
+.twe-workspace .journal-import button:hover{background:#fffaf0;border-color:#a77d3e}
+.twe-workspace .journal-import details{padding:10px 12px;border:1px solid #d9c6a5;border-radius:6px;background:#fff9ed}
+.twe-workspace .journal-import summary{cursor:pointer;font:700 12px var(--font-ui,Arial,sans-serif)}
+.twe-workspace .journal-import pre{max-width:100%;overflow:auto}

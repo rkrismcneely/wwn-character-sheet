@@ -56,7 +56,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
     if(assets.length){
      const listing=await fetch(endpoint);
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
-     const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string}[]};
+     const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string;updatedAt:string}[]};
      const pagesByPath=new Map(journal.entries.filter(e=>e.kind==="page"&&e.source===source&&e.sourcePath).map(e=>[e.sourcePath!.toLowerCase(),e]));
      for(const [index,note] of entries.entries()){
       setProgress("Linking attachments: page "+(index+1)+" of "+entries.length);
@@ -94,7 +94,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       }
       const updated=replaceJournalAssetLinks(page.content,note.path,assets,urls);
       if(updated!==page.content){
-       const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content:updated,expectedContent:page.content})});
+       const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content:updated,expectedContent:page.content,expectedUpdatedAt:page.updatedAt})});
        if(!response.ok){
         if(response.status===409)throw new Error("This Journal page was edited during import. Your edits were preserved; refresh before retrying attachments.");
         throw new Error("Attachments uploaded but page links could not be saved.");

@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
+
+import { convertLegendKeeperNative } from "../lib/campaigns/legendkeeper-convert.ts";
+import { extractObsidianZip } from "../lib/campaigns/journal-zip.ts";
+import { inventoryObsidianVault } from "../lib/campaigns/journal-import.ts";
+import { resolveJournalWikilinks } from "../lib/campaigns/journal-links.ts";
 
 const developmentPreviewMeta =
   /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
@@ -78,6 +83,7 @@ async function startLocalWorker({ auth = false } = {}) {
   const authSecret = "local-runtime-proof-secret-2026-08-10-very-long";
   const authSessionToken = "runtime-proof-session-token";
   const adminSessionToken = "runtime-admin-session-token";
+  const gmSessionToken = "runtime-gm-session-token";
   const inserts = [
     ["fixture-public", "other-owner", fixtureIds.public, "public", "Public Scout"],
     ["fixture-unlisted", "other-owner", fixtureIds.unlisted, "unlisted", "Unlisted Mage"],
@@ -116,20 +122,22 @@ async function startLocalWorker({ auth = false } = {}) {
        'runtime-proof-user'),
       ('runtime-admin-session', 1893456000000, '${adminSessionToken}',
        1786348800000, 1786348800000, '127.0.0.1', 'runtime-admin',
-       'runtime-admin');
+       'runtime-admin'),
+      ('runtime-gm-session', 1893456000000, '${gmSessionToken}',
+       1786348800000, 1786348800000, '127.0.0.1', 'runtime-gm', 'other-owner');
   ` : "";
   const campaignInserts = auth ? `
     INSERT INTO campaigns
       (id, public_id, owner_user_id, name, description, version, created_at, updated_at)
     VALUES
-      ('runtime-campaign', '${fixtureIds.campaign}', 'other-owner',
+      ('11111111-1111-4111-8111-111111111111', '${fixtureIds.campaign}', 'other-owner',
        'Runtime Company', NULL, 1, '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
     INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
     VALUES
-      ('runtime-campaign', 'other-owner', 'gm', '2026-08-04T00:00:00.000Z'),
-      ('runtime-campaign', 'runtime-proof-user', 'player', '2026-08-04T00:00:00.000Z');
+      ('11111111-1111-4111-8111-111111111111', 'other-owner', 'gm', '2026-08-04T00:00:00.000Z'),
+      ('11111111-1111-4111-8111-111111111111', 'runtime-proof-user', 'player', '2026-08-04T00:00:00.000Z');
     INSERT INTO campaign_characters (campaign_id, character_id, added_at)
-    VALUES ('runtime-campaign', 'fixture-private', '2026-08-04T00:00:00.000Z');
+    VALUES ('11111111-1111-4111-8111-111111111111', 'fixture-private', '2026-08-04T00:00:00.000Z');
   ` : "";
   const fixtureSql = `${userInserts}\n${characterInserts}\n${campaignInserts}\n${sessionInserts}`;
   execFileSync(wrangler, [
@@ -210,6 +218,7 @@ async function startLocalWorker({ auth = false } = {}) {
     authSecret,
     authSessionToken,
     adminSessionToken,
+    gmSessionToken,
     output: () => output,
     async stop() {
       if (child.exitCode !== null) return;
@@ -627,4 +636,108 @@ test("local Worker signs out an authenticated session and reports the request", 
   } finally {
     await worker.stop();
   }
+});
+test("local Journal API enforces visibility, nested secrets, attachment access and atomic moves", { timeout: 90_000 }, async () => {
+ const worker=await startLocalWorker({auth:true});
+ try {
+  const base=worker.origin+"/api/campaigns/"+worker.fixtureIds.campaign+"/journal";
+  const gm=authenticatedHeaders(worker,worker.gmSessionToken);
+  const player=authenticatedHeaders(worker,worker.authSessionToken);
+  async function request(path,method,body,headers=gm){
+   return fetchAfterWorkerRestart(base+path,{method,headers:{...headers,...(body instanceof FormData?{}:{"content-type":"application/json"})},...(body===undefined?{}:{body:body instanceof FormData?body:JSON.stringify(body)})});
+  }
+  async function create(body){
+   const r=await request("","POST",body);assert.equal(r.status,201,await r.clone().text());return (await r.json()).entry;
+  }
+  async function entries(headers=player){
+   const r=await request("","GET",undefined,headers);assert.equal(r.status,200);
+   assert.match(r.headers.get("cache-control")??"",/no-store/);
+   return (await r.json()).entries;
+  }
+  assert.equal((await fetch(base)).status,401);
+  for(const method of ["POST","PATCH","PUT","DELETE"]){
+   const r=await request("",method,{kind:"page",title:"Denied"},player);assert.equal(r.status,403,method);
+  }
+  const folder=await create({kind:"folder",title:"Private Folder"});
+  const page=await create({kind:"page",parentId:folder.id,title:"Public child",visibility:"players",content:"Visible <!--gm-only:start-->outer <!--gm-only:start-->inner<!--gm-only:end--> remaining secret<!--gm-only:end--> End"});
+  assert.equal((await entries()).length,0);
+  assert.equal((await request("","PATCH",{id:folder.id,visibility:"players"})).status,200);
+  let visible=await entries();
+  assert.equal(visible.length,2);
+  assert.equal(visible.find(e=>e.id===page.id).content,"Visible  End");
+  assert.equal((await request("","PATCH",{id:page.id,visibility:"selected"})).status,200);
+  assert.equal((await entries()).some(e=>e.id===page.id),false);
+  assert.equal((await request("","PUT",{entryId:page.id,userIds:["runtime-proof-user"]})).status,200);
+  assert.equal((await entries()).some(e=>e.id===page.id),true);
+  const form=new FormData();
+  form.set("entryId",page.id);
+  form.set("file",new Blob([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2T8AAAAASUVORK5CYII=","base64")],{type:"image/png"}),"fixture.png");
+  const upload=await request("/files","POST",form);
+  assert.equal(upload.status,201,await upload.clone().text());
+  const payload=await upload.json();
+  const file=payload.file??payload;
+  assert.ok(file.id,JSON.stringify(payload));
+  const filePath="/files/"+file.id;
+  assert.equal((await request(filePath,"GET",undefined,player)).status,404);
+  const url=base.replace(worker.origin,"")+filePath;
+  assert.equal((await request("","PATCH",{id:page.id,content:"<!--gm-only:start-->[secret]("+url+")<!--gm-only:end-->"})).status,200);
+  assert.equal((await request(filePath,"GET",undefined,player)).status,404);
+  const shared=await create({kind:"page",title:"Shared attachment",visibility:"players",content:"![fixture]("+url+")"});
+  assert.equal((await request(filePath,"GET",undefined,player)).status,200);
+  assert.equal((await request(filePath,"DELETE")).status,409);
+  assert.equal((await request("","PATCH",{id:page.id,content:""})).status,200);
+  assert.equal((await request("","PATCH",{id:shared.id,content:""})).status,200);
+  assert.equal((await request(filePath,"DELETE")).status,204);
+  assert.equal((await request("","PATCH",{id:shared.id,content:"[gone]("+url+")"})).status,409);
+  const a=await create({kind:"folder",title:"Folder A",visibility:"players"});
+  const b=await create({kind:"folder",title:"Folder B",visibility:"players"});
+  const moves=await Promise.all([
+   request("","DELETE",{id:a.id,parentId:b.id}),
+   request("","DELETE",{id:b.id,parentId:a.id})
+  ]);
+  assert.equal(moves.filter(r=>r.status===200).length,1);
+  assert.ok(moves.every(r=>[200,409,422].includes(r.status)));
+  assert.equal((await entries(gm)).filter(e=>[a.id,b.id].includes(e.id)).length,2);
+
+  const datasets=[{name:"Synthetic",source:"legendkeeper",notes:[{path:"Import/Main.md",content:"# Imported\n[[Second]]"},{path:"Import/Second.md",content:"Linked page"}]}];
+  if(process.env.TWE_JOURNAL_SAMPLE_DIR){
+   const root=process.env.TWE_JOURNAL_SAMPLE_DIR;
+   const native=convertLegendKeeperNative(JSON.parse(readFileSync(resolve(root,"The Fiery Gaze.json"),"utf8")));
+   assert.equal(native.notes.length,84);
+   assert.equal(inventoryObsidianVault(native.notes).unresolvedLinks.length,0);
+   datasets.push({name:"Fiery Gaze JSON",source:"legendkeeper",notes:native.notes});
+   const zip=readFileSync(resolve(root,"The Fiery Gaze.zip"));
+   const archive=await extractObsidianZip(zip.buffer.slice(zip.byteOffset,zip.byteOffset+zip.byteLength));
+   assert.ok(archive.notes.length>50);
+   const rootPrefix=archive.notes.every(n=>n.path.includes("/")&&n.path.split("/")[0]===archive.notes[0].path.split("/")[0])?archive.notes[0].path.split("/")[0]+"/":"";
+   const cleaned=archive.notes.map(n=>({...n,path:n.path.slice(rootPrefix.length)}));
+   const zipInventory=inventoryObsidianVault(cleaned);
+   // This export omits eight target pages (15 references), including undefined.md.
+   assert.equal(zipInventory.unresolvedLinks.length,15);
+   const linkPages=zipInventory.notes.map((n,i)=>({id:String(i),title:n.title,sourcePath:n.path,parentId:null}));
+   const rewritten=zipInventory.notes.reduce((sum,n,i)=>sum+resolveJournalWikilinks(n.markdown,linkPages[i],linkPages).split("/journal-page/").length-1,0);
+   assert.equal(rewritten,22);
+   datasets.push({name:"Fiery Gaze ZIP",source:"obsidian",notes:cleaned});
+  }
+  for(const dataset of datasets){
+   const imported=await request("/import-preview","POST",{entries:dataset.notes,source:dataset.source,confirm:true});
+   assert.equal(imported.status,200,dataset.name+": "+await imported.clone().text());
+   const result=await imported.json();
+   assert.equal(result.imported,true);
+   const all=await entries(gm);
+   const importedPages=all.filter(e=>e.source===dataset.source&&dataset.notes.some(n=>n.path===e.sourcePath));
+   assert.equal(importedPages.length,dataset.notes.length,dataset.name);
+   assert.ok(importedPages.every(e=>e.visibility==="gm"));
+   const playerIds=new Set((await entries()).map(e=>e.id));
+   assert.ok(importedPages.every(e=>!playerIds.has(e.id)));
+   const target=importedPages[0],edit="GM edit preserved "+dataset.name;
+   assert.equal((await request("","PATCH",{id:target.id,content:edit})).status,200);
+   const again=await request("/import-preview","POST",{entries:dataset.notes,source:dataset.source,confirm:true});
+   assert.equal(again.status,200);
+   const after=await entries(gm);
+   assert.equal(after.find(e=>e.id===target.id).content,edit);
+   assert.equal(after.filter(e=>e.source===dataset.source&&dataset.notes.some(n=>n.path===e.sourcePath)).length,dataset.notes.length);
+   console.log(dataset.name+": "+dataset.notes.length+" notes imported, GM-only, retry preserved GM edits");
+  }
+ }finally{await worker.stop();}
 });

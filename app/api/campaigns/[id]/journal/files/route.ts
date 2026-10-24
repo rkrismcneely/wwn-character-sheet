@@ -1,3 +1,4 @@
+import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getSessionActor } from "@/lib/auth-session";
 import { getCampaignD1, loadCampaignAccess } from "@/lib/campaigns/service";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
@@ -6,6 +7,7 @@ import { env } from "cloudflare:workers";
 import { readBoundedJournalForm, JournalUploadTooLargeError } from "@/lib/campaigns/journal-upload";
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
+ try{
  const actor=await getSessionActor(request);
  if(!actor)return Response.json({error:"Sign in required."},{status:401});
  const {id}=await context.params;
@@ -33,4 +35,5 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
    .bind(fileId,access.campaign.id,entryId,file.name,file.type,file.size,key,new Date().toISOString()).run();
  }catch(error){await env.BUCKET.delete(key);throw error;}
  return Response.json({id:fileId,filename:file.name},{status:201});
+ }catch(error){return campaignErrorResponse(error,"Journal file operation failed.");}
 }

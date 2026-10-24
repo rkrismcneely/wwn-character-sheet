@@ -21,8 +21,21 @@ export function convertLegendKeeperNative(value:unknown){
   paths.set(id,path);used.add(path.toLowerCase());parents.delete(id);return path;
  };
  resources.forEach(r=>pathFor(string(r.id)));
+ const notePaths=new Map<RecordValue,string>(),resourceTargets=new Map<string,string>(),usedNotes=new Set<string>();
+ for(const r of resources){
+  const base=paths.get(string(r.id))!;
+  const docs=array(r.documents).map(record).filter(d=>d.type==="page");
+  if(!docs.length){resourceTargets.set(string(r.id),base);continue;}
+  for(const [index,d] of docs.entries()){
+   const suffix=docs.length===1?"":" - "+filename(string(d.name)||String(index+1));
+   let path=base+suffix,n=2;
+   while(usedNotes.has(path.toLowerCase()))path=base+suffix+" ("+(n++)+")";
+   usedNotes.add(path.toLowerCase());notePaths.set(d,path);
+   if(index===0)resourceTargets.set(string(r.id),path);
+  }
+ }
  const mention=(id:string,label:string)=>{
-  const target=paths.get(id);
+  const target=resourceTargets.get(id);
   return target?"[["+target+"|"+escape(label||string(byId.get(id)?.name))+"]]":escape(label);
  };
  const inline=(node:unknown):string=>{
@@ -81,13 +94,12 @@ export function convertLegendKeeperNative(value:unknown){
   maps+=other.filter(d=>d.type==="map").length;unhandled+=other.filter(d=>d.type!=="map").length;
   if(other.length)warnings.push(base+": map/board content requires separate VTT import.");
   if(!pageDocs.length){notes.push({path:base+".md",content:"_LegendKeeper resource (no wiki page content)._"});continue;}
-  for(const [index,d] of pageDocs.entries()){
+  for(const d of pageDocs){
    pages++;
-   const suffix=pageDocs.length===1?"":" - "+filename(string(d.name)||String(index+1));
    let content=blocks(record(d.content).content).trim();
    if(r.isHidden===true||d.isHidden===true||r.isLocked===true)content="<!-- Restricted LegendKeeper resource; review before sharing. -->\n\n"+content;
    if(content.length>100000){warnings.push(base+": page skipped (over 100,000 characters)");unhandled++;continue;}
-   notes.push({path:base+suffix+".md",content});
+   notes.push({path:notePaths.get(d)!+".md",content});
   }
  }
  if(notes.length>1000)throw new Error("More than 1000 converted notes.");

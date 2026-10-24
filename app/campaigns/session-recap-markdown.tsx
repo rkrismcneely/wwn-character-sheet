@@ -1,3 +1,4 @@
+import { markdownTableCells } from "@/lib/markdown-table";
 import { Fragment, type ReactNode } from "react";
 
 /** A deliberately safe, dependency-free Markdown display for campaign recaps.
@@ -38,7 +39,7 @@ function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>v
     } else if (token.startsWith("**") || token.startsWith("__")) {
       output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate)}</strong>);
     } else if (token.startsWith("~~")) {
-      output.push(<del key={key}>{inline(token.slice(2, -2), key + ":")}</del>);
+      output.push(<del key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate)}</del>);
     } else {
       output.push(<em key={key}>{inline(token.slice(1, -1), key + ":",onJournalNavigate)}</em>);
     }
@@ -99,7 +100,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate }: { content: s
     }
     // Standard pipe table with a Markdown separator after the header.
     if (i + 1 < lines.length && line.includes("|") && /^\s*\|?[\s:|-]+\|?\s*$/u.test(lines[i + 1]) && lines[i + 1].includes("-")) {
-      const parse = (raw: string) => raw.replace(/^\s*\|/u, "").replace(/\|\s*$/u, "").split("|").map(cell => cell.trim());
+      const parse = markdownTableCells;
       const columns = parse(line);
       const rows: string[][] = [];
       i += 2;

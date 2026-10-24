@@ -1,50 +1,47 @@
-# Campaign Journal release gate (GitHub Actions minutes exhausted)
+# Campaign Journal release checklist — PR #429
 
-Journal development lives in PR #429 on `auto/journal-phase-1`. Keep it unmerged until the gates below pass. Production deployment is owned by Cloudflare Workers Builds on `main`; GitHub-hosted Actions are **not** available and failed/queued Actions jobs must not be treated as an application test result.
+Development branch: `auto/journal-phase-1`. Production remains on `main`. Do not merge, publish production, or apply production migrations without explicit approval.
 
-## Confirmed blockers as of October 24, 2026
+## Verified in Codespaces (24 October 2026)
 
-- **Cloudflare Preview CLI compatibility:** `package.json` pins `wrangler@4.92.0`, but current Worker Previews require `wrangler >=4.135.0`. Upgrade Wrangler together with `package-lock.json` using an npm-capable environment; don't alter only the manifest and leave a broken `npm ci`. See https://developers.cloudflare.com/workers/previews/get-started/
-- **Cloudflare dashboard unknown:** Confirm the existing Worker has preview builds enabled and (if needed) the one-way transition to Worker Previews has been made. Validate non-production branch settings, secrets, D1/R2 resources and Durable Objects before building.
-- **No trustworthy CI execution:** Five GitHub-hosted jobs failed without meaningful test execution after Actions minutes were exhausted. They do not establish lint, TypeScript or test failures/successes.
-- **Native LegendKeeper:** converter and UI are committed, but no full committed-source end-to-end test has executed on an authorized checkout. Confirm table rendering, path-specific wiki links, strict GM secret access and real JSON reimport behavior.
-- **Folder moves:** cycle-safe backend, drag/drop UI and selector are committed; validate cross-campaign isolation, real D1 persistence, touch operation and concurrent editing.
-- **Production database:** pending D1 migrations and actual binding availability must be checked before merging.
-- **Production remains unchanged:** do not merge, run production migrations or publish without passing gates.
+- Pulled the generated-Wrangler `legacy_env` removal fix; Wrangler is pinned to 4.152.0 with the lockfile.
+- `npm run validate:journal`: TypeScript, ESLint (existing warnings only), 748 source tests, production build/artifact verification, and four rendered/local Worker tests passed. No tests skipped.
+- The authenticated Journal runtime test uses real local D1 migrations and R2: GM/player authorization, hidden parents, selected readers, nested secret redaction, private and shared attachment reads, conditional deletion, missing-file write rejection, and competing folder moves.
+- Added SQLite and conversion regressions for atomic cleanup/moves, recovery on storage failure, bounded D1 parameters, escaped table pipes, multi-document resource mentions, and relative Markdown links.
+- Real LegendKeeper sample exports are exercised via `TWE_JOURNAL_SAMPLE_DIR` in the runtime test. The actual native JSON imported 84 notes; the ZIP imported 53 notes. Both passed authenticated import/reimport tests. The JSON has no unresolved wiki links. The ZIP has 22 resolvable links and 15 references to eight absent target pages (including undefined.md); those are reported as unresolved rather than redirected to incorrect content. Samples stay outside the repository. This mode also checks GM-only defaults, repeat-import idempotency and preservation of GM edits.
 
-## Free/off-Actions validation
+The npm 10.9.2 lockfile compatibility repair adds the nested Workers Types 4 peer required by the Vite plugins older Wrangler; existing dependency versions are unchanged. npm 10 clean-install compatibility is verified separately from the npm 11 Codespaces environment.
 
-Use an authorized local checkout or an already available free external build machine; **do not** dispatch/retry paid GitHub Actions jobs. Requires Node >= 22.13, npm and the build script's GNU `timeout` dependency.
+## Cloudflare isolation
 
-```sh
-npm ci --prefer-offline --no-audit --no-fund
-npm run typecheck
-npm run lint
-node --experimental-strip-types --test tests/journal*.test.mjs tests/legendkeeper-native.test.mjs
-npm run build
-node --experimental-strip-types --test tests/rendered-html.test.mjs
-```
+Preview builds track `auto/journal-phase-1`. Build command: `npm run typecheck && npm run lint && npm test`. Preview command: `npx wrangler preview --config dist/server/wrangler.json`.
 
-Do not claim success unless each command completes successfully. Record command output, environment and commit SHA on PR #429. Confirm journal icons, search, editor reset, SQLite persistence and permission tests run. If any check fails, fix and rerun before release.
+| Binding | Production | PR preview |
+| --- | --- | --- |
+| DB | wwn-character-sheet-db / 8e2bf197-e20f-4ea7-a86f-cab4e1a74699 | twe-journal-pr429-preview / 2b6fce4e-37ed-446e-a809-d9d90cb9e0e9 |
+| BUCKET | site-creator-r2 | twe-journal-pr429-preview |
+| CAMPAIGN_LIVE_SESSION | Production namespace | auto-journal-phase-1 namespace |
 
-## Production readiness (read-only verification first)
+The preview helper validates generated bindings before applying migrations to the isolated preview D1 only. Production build/deploy commands remain `npm run build` and `npx wrangler deploy --config dist/server/wrangler.json`. No production secrets were copied into the preview.
 
-- Confirm deployment and journal branch are up to date with `main`.
-- Inspect production D1 pending migrations. Confirm `0003_campaign_journal` and `0004_campaign_journal_files` have **not** been applied already before using the repository's guarded migration procedure.
-- Verify the production Worker has `DB` D1 and private `BUCKET` R2 bindings. Matching declarations in `wrangler.jsonc` are not proof of live binding health.
-- Before deployment, deliberately apply reviewed migrations using the repository's guarded procedure and record results. Do not assume a failed or skipped migration succeeded.
-- Confirm Cloudflare Workers Builds is connected to `main`, uses the verified build command, and reports a successful build. Do not enable GitHub-hosted deployment as a fallback.
+Preview URL: https://auto-journal-phase-1-wwn-character-sheet.rkrismcneely.workers.dev
 
-## Journal security and functional acceptance
+## Production database and publication gate
 
-- Preview and import Obsidian ZIP/folder Markdown and LegendKeeper Markdown exports; reject malformed archives and unsupported files.
-- Import mixed images/PDF links; verify existing page reimports skip changes and failed uploads retry without overwriting GM edits.
-- Concurrent attachment uploads and GM edits must give a conflict, preserving content, title, icon and visibility, including edits without a Markdown-body change.
-- Verify GM-only and selected-player pages never leak through lists, search, wiki links, or file downloads.
-- Cross-page referenced files are readable by authorized players, while comments, code blocks, and GM-only content never grant access.
-- Cancelled imports and orphan cleanup must never delete referenced files.
-- Test GM editing and a distinct player account's read-only access.
+Read-only dashboard inspection found 33 applied migrations through `0032_campaign_session_recaps.sql`, and no Journal tables. Exactly these two additive migrations are pending:
 
-## Ship
+- `drizzle/0003_campaign_journal.sql`: Journal entries, selected readers, constraints and indexes.
+- `drizzle/0004_campaign_journal_files.sql`: attachment metadata and index.
 
-Record validation, D1 migration and Cloudflare build evidence on PR #429. Merge only after the prerequisites pass; Cloudflare should deploy `main`. Check the production release marker and smoke-test GM and player sessions, attachments and access rules. Do not use exhausted GitHub Actions as a release gate.
+Both create new tables/indexes and do not alter existing campaign or character rows. The filename prefixes overlap historical migration numbers; D1 tracks the complete filename, and all migrations apply successfully in local runtime tests. Production D1 Time Travel has a seven-day recovery window. Capture a fresh bookmark immediately before any approved migration.
+
+Production publication order, **after explicit approval**:
+
+1. Reconfirm exact PR head validation, main/base status, and the two pending migration filenames.
+2. Capture the current D1 recovery bookmark; use the guarded production migration script with the exact production database ID.
+3. Verify Journal tables, indexes and foreign keys, then merge the reviewed PR. Cloudflare builds production from `main`.
+4. Smoke-test existing character/campaign features and Journal GM/player permissions. A Worker rollback alone does not remove additive schema; preserve Journal data.
+
+The remote preview has no OAuth/authentication secrets configured. Signed-in preview UI smoke testing requires separately authorized preview credentials/callback configuration; local authenticated HTTP coverage does not establish touch/drag-and-drop visual behavior. Do not reuse production credentials or seed real user sessions to bypass this gate.
+
+GitHub Actions quota failures are not application test failures. Do not dispatch/retry hosted Actions.

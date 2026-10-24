@@ -1,6 +1,7 @@
+import { journalLinkPaths } from "./journal-paths.ts";
 import { outsideMarkdownCode } from "./journal-asset-links.ts";
 /** Convert Obsidian wiki links to local journal page IDs without exposing private pages. */
-export type LinkedPage={id:string;title:string;sourcePath?:string|null;parentId:string|null};
+export type LinkedPage={id:string;title:string;sourcePath?:string|null;parentId:string|null;kind?:string};
 function norm(value:string){return value.toLocaleLowerCase().replace(/\\/gu,"/").replace(/\.md$/iu,"");}
 export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages:readonly LinkedPage[]):string{
  const byId=new Map(pages.map(page=>[page.id,page]));
@@ -11,12 +12,12 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
  };
  return outsideMarkdownCode(markdown,text=>text.replace(/!?\[\[([^\]\n]+)\]\]/gu,(whole,inside:string)=>{
   if(whole.startsWith("!"))return whole;
-  const [reference,label]=inside.split("|",2);
+  const [reference,label]=inside.replace(/\\\|/gu,"|").split("|",2);
   const [target,heading]=reference.split("#",2);
   if(!target)return whole;
   const candidate=norm(target);
   const sameFolder=folder(current);
-  const matches=pages.filter(page=>page.id!==current.id&&(
+  const matches=pages.filter(page=>page.id!==current.id&&page.kind!=="folder"&&(
    norm(page.sourcePath||"")===candidate||
    norm(page.sourcePath||"")===(sameFolder?sameFolder+"/"+candidate:candidate)||
    norm(page.title)===candidate
@@ -27,5 +28,15 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
   const text=label||chosen.title;
   const fragment=heading?"#"+encodeURIComponent(heading):"";
   return "["+text.replaceAll("[","").replaceAll("]","")+"]("+"/journal-page/"+encodeURIComponent(chosen.id)+fragment+")";
+ }).replace(/(?<!!)\[([^\]\n]+)\]\(([^)\n]+)\)/gu,(whole,label:string,href:string)=>{
+  const [target,heading]=href.split("#",2);
+  if(!/\.md$/iu.test(target))return whole;
+  const candidates=journalLinkPaths(current.sourcePath||((folder(current)?folder(current)+"/":"")+current.title+".md"),target);
+  for(const path of candidates){
+   const matches=pages.filter(page=>page.kind!=="folder"&&norm(page.sourcePath||"")===norm(path));
+   if(matches.length>1)return whole;
+   if(matches.length===1)return "["+label+"](/journal-page/"+encodeURIComponent(matches[0].id)+(heading?"#"+encodeURIComponent(heading):"")+")";
+  }
+  return whole;
  }));
 }

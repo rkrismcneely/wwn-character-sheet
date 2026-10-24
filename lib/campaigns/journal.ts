@@ -1,4 +1,5 @@
 import { journalPageIcon, validateJournalPageIcon } from "./journal-icons.ts";
+import { journalAttachmentWriteGuard } from "./journal-write-guard.ts";
 import { safeVaultPath } from "./journal-import.ts";
 import { canManageCampaignContent } from "./authorization.ts";
 import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
@@ -12,7 +13,14 @@ export type JournalEntry = {
 type Row = JournalEntry;
 const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.icon, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath, j.source AS source";
 export function redactJournalSecrets(markdown:string):string {
- return markdown.replace(/<!--\s*gm-only:start\s*-->[\s\S]*?<!--\s*gm-only:end\s*-->/giu,"").replace(/<!--\s*gm-only:start\s*-->[\s\S]*$/giu,"");
+ let depth=0,cursor=0,output="";
+ for(const marker of markdown.matchAll(/<!--\s*gm-only:(start|end)\s*-->/giu)){
+  if(depth===0)output+=markdown.slice(cursor,marker.index);
+  if(marker[1].toLowerCase()==="start")depth++;
+  else if(depth>0)depth--;
+  cursor=marker.index!+marker[0].length;
+ }
+ return output+(depth===0?markdown.slice(cursor):"");
 }
 export function visibleJournalEntries<T extends {id:string;parentId:string|null;kind:string}>(rows:T[]):T[] {
  const byId=new Map(rows.map(row=>[row.id,row]));
@@ -30,6 +38,9 @@ export function visibleJournalEntries<T extends {id:string;parentId:string|null;
  });
 }
 /** Atomic content-only update used by attachment imports to detect concurrent GM edits. */
+export const atomicJournalMoveSQL =
+ "WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind='folder' UNION SELECT p.id,p.parent_id FROM campaign_journal_entries p JOIN ancestors a ON p.id=a.parent_id WHERE p.campaign_id=?) UPDATE campaign_journal_entries SET parent_id=?,updated_at=? WHERE campaign_id=? AND id=? AND NOT EXISTS (SELECT 1 FROM ancestors WHERE id=?) AND (? IS NULL OR EXISTS (SELECT 1 FROM ancestors WHERE id=?))";
+
 export const conditionalJournalContentUpdateSQL =
  "UPDATE campaign_journal_entries SET content = ?, updated_at = ? WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?";
 
@@ -98,10 +109,12 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const icon = kind === "folder" ? "file-text" : input.icon === undefined ? journalPageIcon(null) : cleanPageIcon(input.icon);
   const entryId = crypto.randomUUID();
   const now = new Date().toISOString();
-  await db.prepare(`INSERT INTO campaign_journal_entries
+  const guard=journalAttachmentWriteGuard(content,campaignId,id);
+  const result=await db.prepare(`INSERT INTO campaign_journal_entries
     (id, campaign_id, parent_id, kind, title, content, icon, visibility, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(entryId, id, parentId, kind, title, content, icon, visibility, now, now).run();
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE 1=1${guard.sql}`)
+    .bind(entryId, id, parentId, kind, title, content, icon, visibility, now, now,...guard.bindings).run();
+  if(!result.meta.changes)throw new CampaignServiceError("An attachment is no longer available. Refresh before saving.",409);
   return { id: entryId, parentId, kind, title, content, icon, visibility, createdAt: now, updatedAt: now };
 }
 export async function updateJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
@@ -117,6 +130,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   const visibility = input.visibility === undefined ? old.visibility : cleanVisibility(input.visibility);
   const icon = old.kind === "folder" ? "file-text" : input.icon === undefined ? old.icon : cleanPageIcon(input.icon);
   const updatedAt = new Date().toISOString();
+  const guard=journalAttachmentWriteGuard(content,campaignId,id);
   if(input.expectedContent!==undefined){
     if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)
       throw new CampaignServiceError("Invalid expected journal content.",422);
@@ -126,12 +140,13 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
     // Attachment imports only change content; never restore stale title or visibility.
     if(input.title!==undefined||input.visibility!==undefined||input.icon!==undefined)
       throw new CampaignServiceError("Conditional journal updates may only change content.",422);
-    const result=await db.prepare(conditionalJournalContentUpdateSQL)
-      .bind(content,updatedAt,id,old.id,input.expectedContent,input.expectedUpdatedAt).run();
+    const result=await db.prepare(conditionalJournalContentUpdateSQL+guard.sql)
+      .bind(content,updatedAt,id,old.id,input.expectedContent,input.expectedUpdatedAt,...guard.bindings).run();
     if(!result.meta.changes)throw new CampaignServiceError("Journal page changed since it was loaded. Refresh before retrying.",409);
   }else{
-    await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, icon = ?, visibility = ?, updated_at = ?
-      WHERE campaign_id = ? AND id = ?`).bind(title,content,icon,visibility,updatedAt,id,old.id).run();
+    const result=await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, icon = ?, visibility = ?, updated_at = ?
+      WHERE campaign_id = ? AND id = ?${guard.sql}`).bind(title,content,icon,visibility,updatedAt,id,old.id,...guard.bindings).run();
+    if(!result.meta.changes)throw new CampaignServiceError("An attachment is no longer available. Refresh before saving.",409);
   }
   return { ...old, title, content, icon, visibility, updatedAt };
 }
@@ -154,8 +169,9 @@ export async function moveJournalEntry(db:D1Database,actor:CampaignActor|null,ca
   current=row.parentId;
  }
  if(entry.parentId===parent)return {id:entry.id,parentId:parent};
- await db.prepare("UPDATE campaign_journal_entries SET parent_id=?,updated_at=? WHERE campaign_id=? AND id=?")
- .bind(parent,new Date().toISOString(),campaign,entry.id).run();
+ const result=await db.prepare(atomicJournalMoveSQL)
+ .bind(campaign,parent,campaign,parent,new Date().toISOString(),campaign,entry.id,entry.id,parent,parent).run();
+ if(!result.meta.changes)throw new CampaignServiceError("Folder hierarchy changed. Refresh before moving.",409);
  return {id:entry.id,parentId:parent};
 }
 
@@ -217,10 +233,14 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  let skipped=0;
  for(const note of notes){
   if(paths.has(note.path.toLowerCase())){skipped++;continue;}
-  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'page',?,?,'gm',?,?,?,?)")
-   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder.toLowerCase())??null,note.title,note.markdown,source,note.path,now,now));
+  const guard=journalAttachmentWriteGuard(note.markdown,campaignId,campaign);
+  statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) SELECT ?,?,?,'page',?,?,'gm',?,?,?,? WHERE 1=1"+guard.sql)
+   .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder.toLowerCase())??null,note.title,note.markdown,source,note.path,now,now,...guard.bindings));
  }
- for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
+ for(let i=0;i<statements.length;i+=50){
+  const results=await db.batch(statements.slice(i,i+50));
+  if(results.some(result=>!result.meta.changes))throw new CampaignServiceError("An attachment is no longer available. Refresh before retrying import.",409);
+ }
  return {created:statements.length-foldersCreated,foldersCreated,skipped};
 }
 

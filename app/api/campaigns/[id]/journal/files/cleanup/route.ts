@@ -3,7 +3,7 @@ import { getCampaignD1, loadCampaignAccess } from "@/lib/campaigns/service";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { env } from "cloudflare:workers";
-import { staleJournalFileCandidatesSQL, staleUnreferencedJournalFileSQL, deleteStaleUnreferencedJournalFileSQL, journalCleanupCutoff } from "@/lib/campaigns/journal-file-cleanup";
+import { staleJournalFileCandidatesSQL, removeUnusedJournalFile, journalCleanupCutoff } from "@/lib/campaigns/journal-file-cleanup";
 
 /** Opportunistic cleanup for uploads orphaned by closed tabs or interrupted imports. */
 export async function POST(request:Request,context:{params:Promise<{id:string}>}):Promise<Response>{
@@ -22,18 +22,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
   ).bind(access.campaign.id,cutoff).all<{id:string}>();
   let removed=0,failed=0;
   for(const candidate of candidates.results){
-   // Only unreferenced files qualify. Keep the DB record when object deletion fails
-   // so a subsequent import-panel visit can safely retry cleanup.
-   const file=await db.prepare(
-    staleUnreferencedJournalFileSQL
-   ).bind(access.campaign.id,candidate.id,cutoff).first<{storageKey:string}>();
-   if(!file)continue;
    try{
-    await env.BUCKET.delete(file.storageKey);
-    await db.prepare(
-     deleteStaleUnreferencedJournalFileSQL
-    ).bind(access.campaign.id,candidate.id,cutoff,access.campaign.id).run();
-    removed++;
+    if(await removeUnusedJournalFile(db,env.BUCKET,access.campaign.id,candidate.id,cutoff))removed++;
    }catch{failed++;}
   }
   return Response.json({removed,failed});

@@ -26,6 +26,7 @@ const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set()
 const [sidebarOpen,setSidebarOpen]=useState(true);
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
 const [readerEditing,setReaderEditing]=useState(false);
+const [readerEntryId,setReaderEntryId]=useState("");
 const [importOpen,setImportOpen]=useState(false);
 const [uploading,setUploading]=useState(false);
 const [uploadNotice,setUploadNotice]=useState("");
@@ -92,10 +93,10 @@ async function moveEntry(sourceId:string,targetId:string|null){
 async function openReaders(id:string){
  const r=await fetch(endpoint+"?readers="+encodeURIComponent(id));const j=await r.json() as {error?:string;readers:{userId:string;name:string;selected:number}[]};
  if(!r.ok){setError(j.error||"Could not load players");return;}
- setReaders(j.readers);setReaderEditing(true);
+ setReaders(j.readers);setReaderEntryId(id);setReaderEditing(true);
 }
 async function saveReaders(){
- const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:selected,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
+ const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:readerEntryId,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
  const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
 }
 async function uploadJournalFile(file:File){
@@ -125,17 +126,17 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  <header className="twe-workspace-header">
   <div className="twe-workspace-heading"><span className="twe-workspace-eyebrow">Campaign knowledge</span><h2>Campaign Journal</h2><p>Notes, places, characters and stories from your world.</p></div>
   <div className="twe-workspace-header-actions">
-   {canEdit&&!preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>+ New page</button>}
-   {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>New folder</button>}
+   {canEdit&&!preview&&<button type="button" disabled={uploading} className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>+ New page</button>}
+   {canEdit&&!preview&&<button type="button" disabled={uploading} className="twe-button" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>New folder</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" aria-expanded={importOpen} onClick={()=>setImportOpen(open=>!open)}>{importOpen?"Close import":"Import"}</button>}
-   {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>setPreview(true)}>View as player</button>}
+   {canEdit&&!preview&&<button type="button" disabled={uploading} className="twe-button" onClick={()=>setPreview(true)}>View as player</button>}
    {preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>setPreview(false)}>Return to GM view</button>}
   </div>
  </header>
  {error&&<p className="twe-workspace-alert" role="alert">{error}</p>}
  {uploadNotice&&<p className="twe-workspace-notice" role="status">{uploadNotice}</p>}
  {importOpen&&canEdit&&<div className="twe-workspace-import"><JournalImport endpoint={endpoint} onImported={refresh}/></div>}
- {readerEditing&&canEdit&&<section className="twe-workspace-readers" aria-label="Selected journal readers"><h3>Share with players</h3><div className="twe-workspace-reader-list">{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}</div><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={()=>void saveReaders()}>Save players</button><button type="button" className="twe-button" onClick={()=>setReaderEditing(false)}>Cancel</button></div></section>}
+ {readerEditing&&canEdit&&<section className="twe-workspace-readers" aria-label="Selected journal readers"><h3>Share {entryById.get(readerEntryId)?.title} with players</h3><div className="twe-workspace-reader-list">{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}</div><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={()=>void saveReaders()}>Save players</button><button type="button" className="twe-button" onClick={()=>setReaderEditing(false)}>Cancel</button></div></section>}
  <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")}>
   <aside className="twe-workspace-nav" aria-label="Journal navigation">
    <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
@@ -148,7 +149,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
       const folder=entry.kind==="folder";
       return <div key={entry.id} className={"twe-workspace-tree-row"+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);}} onDragOver={e=>{if(folder&&dragged&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{if(folder&&dragged){e.preventDefault();e.stopPropagation();void moveEntry(dragged,entry.id);}}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
-       <button type="button" className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Move "+entry.title} title={"Move "+entry.title} onClick={()=>setMoveId(entry.id)}>⋮</button>}
+       <button type="button" disabled={uploading} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Move "+entry.title} title={"Move "+entry.title} onClick={()=>setMoveId(entry.id)}>⋮</button>}
       </div>;
     })}
     {moveId&&canEdit&&!preview&&<div className="twe-workspace-move-panel"><label>Move to folder<select aria-label="Destination folder" defaultValue="" onChange={e=>{if(e.target.value)void moveEntry(moveId,e.target.value==="root"?null:e.target.value);}}><option value="">Choose destination…</option><option value="root">Top level</option>{sortedEntries.filter(item=>item.kind==="folder"&&validTarget(moveId,item.id)).map(item=><option key={item.id} value={item.id}>{ancestry(item).map(p=>p.title).join(" / ")}{ancestry(item).length?" / ":""}{item.title}</option>)}</select></label><button type="button" onClick={()=>setMoveId("")}>Cancel</button></div>}
@@ -159,7 +160,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
   <main className="twe-workspace-document">
    <div className="twe-workspace-document-toolbar">
     <div className="twe-workspace-crumbs">{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>
-    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setIconSearch("");setEditing(true);}}>Edit page</button>}</div>}
+    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" disabled={uploading} className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setIconSearch("");setEditing(true);}}>Edit page</button>}</div>}
    </div>
    {editing&&canEdit?<form className="twe-workspace-editor" onSubmit={save}>
     <div className="twe-workspace-editor-top"><span className="twe-workspace-eyebrow">{creatingFolder?"New folder":selected?"Edit page":"New page"}</span><span className="twe-workspace-editor-hint">Markdown</span></div>
@@ -171,7 +172,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":"Journal entry"}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge · Markdown"}</div></div>
     {canEdit&&current.kind==="page"&&<div className="twe-workspace-page-tools"><label className="twe-workspace-attach">Attach image or PDF <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" disabled={uploading} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadJournalFile(file);event.target.value="";}}/></label>{current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}</div>}
     {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>+ New page here</button></div>}
-    {current.kind==="page"&&<div className="twe-workspace-prose"><SessionRecapMarkdown content={resolveJournalWikilinks(current.content,current,entries)} onJournalNavigate={id=>{if(entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/></div>}
+    {current.kind==="page"&&<div className="twe-workspace-prose"><SessionRecapMarkdown content={resolveJournalWikilinks(current.content,current,entries)} onJournalNavigate={id=>{if(!uploading&&entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/></div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>

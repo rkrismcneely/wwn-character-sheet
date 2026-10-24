@@ -1,3 +1,4 @@
+import { journalLinkPaths } from "./journal-paths.ts";
 import { outsideMarkdownCode } from "./journal-asset-links.ts";
 /**
  * Obsidian vault inventory and link resolver for the campaign journal.
@@ -63,7 +64,7 @@ export function inventoryObsidianVault(entries: readonly VaultEntry[]): JournalI
     const links: JournalImportNote["links"] = [];
     outsideMarkdownCode(entry.content, text => {
     for (const match of text.matchAll(/!?\[\[([^\]\n]+)\]\]/gu)) {
-      const [targetAndHeading, label] = match[1].split("|", 2);
+      const [targetAndHeading, label] = match[1].replace(/\\\|/gu,"|").split("|", 2);
       const [target, heading] = targetAndHeading.split("#", 2);
       if (!target) continue;
       // Attachment links are handled separately by the authenticated file importer.
@@ -77,6 +78,13 @@ export function inventoryObsidianVault(entries: readonly VaultEntry[]): JournalI
           ? byTitle.get(normalizedTarget.toLowerCase())![0] : undefined);
       if (!resolvedPath) unresolvedLinks.push({ source: entry.path, target });
       links.push({ target, ...(heading ? { heading } : {}), ...(label ? { label } : {}), ...(resolvedPath ? { resolvedPath } : {}) });
+    }
+    for(const match of text.matchAll(/(?<!!)\[([^\]\n]+)\]\(([^)\n]+)\)/gu)){
+      const [target,heading]=match[2].split("#",2);
+      if(!/\.md$/iu.test(target))continue;
+      const resolvedPath=journalLinkPaths(entry.path,target).map(path=>byPath.get(path.toLowerCase())).find(Boolean);
+      if(!resolvedPath)unresolvedLinks.push({source:entry.path,target});
+      links.push({target,label:match[1],...(heading?{heading}:{}),...(resolvedPath?{resolvedPath}:{})});
     }
     return text;
     });

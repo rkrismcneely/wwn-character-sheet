@@ -12,8 +12,9 @@ export async function GET(request: Request, context: Context): Promise<Response>
     const { id } = await context.params;
     const preview = new URL(request.url).searchParams.get("preview") === "player";
     const query = new URL(request.url).searchParams;
-    if (query.has("readers")) return Response.json(await journalReaderOptions(await getCampaignD1(), actor, id, query.get("readers") ?? ""));
-    return Response.json(await listJournal(await getCampaignD1(), actor, id, preview));
+    const headers={"Cache-Control":"private, no-store"};
+    if (query.has("readers")) return Response.json(await journalReaderOptions(await getCampaignD1(), actor, id, query.get("readers") ?? ""),{headers});
+    return Response.json(await listJournal(await getCampaignD1(), actor, id, preview),{headers});
   } catch (error) { return campaignErrorResponse(error, "The journal could not be loaded."); }
 }
 export async function POST(request: Request, context: Context): Promise<Response> {

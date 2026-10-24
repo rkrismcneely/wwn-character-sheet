@@ -199,7 +199,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}
    <button disabled={busy} onClick={()=>void send(true)}>Confirm Import</button>
-   <button disabled={busy} onClick={()=>{void (async()=>{if(!await cleanupUnusedUploads())return;setPreview(null);setEntries(null);setAssets([]);})();}}>Cancel</button>
+   <button disabled={busy} onClick={()=>{if(sending.current||selecting.current)return;selecting.current=true;void (async()=>{try{if(!await cleanupUnusedUploads())return;setPreview(null);setEntries(null);setAssets([]);}catch(e){setError(e instanceof Error?e.message:"Could not cancel import.");}finally{selecting.current=false;}})();}}>Cancel</button>
   </div>}
   {progress&&<p role="status">{progress}</p>}
   {error&&<p role="alert">{error}</p>}{result&&<p role="status">{result}</p>}

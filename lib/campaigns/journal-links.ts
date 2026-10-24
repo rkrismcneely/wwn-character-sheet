@@ -1,3 +1,4 @@
+import { outsideMarkdownCode } from "./journal-asset-links.ts";
 /** Convert Obsidian wiki links to local journal page IDs without exposing private pages. */
 export type LinkedPage={id:string;title:string;sourcePath?:string|null;parentId:string|null};
 function norm(value:string){return value.toLocaleLowerCase().replace(/\\/gu,"/").replace(/\.md$/iu,"");}
@@ -8,7 +9,7 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
   while(parent&&!seen.has(parent)){seen.add(parent);const node=byId.get(parent);if(!node)break;parts.unshift(node.title);parent=node.parentId;}
   return parts.join("/");
  };
- return markdown.replace(/!?\[\[([^\]\n]+)\]\]/gu,(whole,inside:string)=>{
+ return outsideMarkdownCode(markdown,text=>text.replace(/!?\[\[([^\]\n]+)\]\]/gu,(whole,inside:string)=>{
   if(whole.startsWith("!"))return whole;
   const [reference,label]=inside.split("|",2);
   const [target,heading]=reference.split("#",2);
@@ -26,5 +27,5 @@ export function resolveJournalWikilinks(markdown:string,current:LinkedPage,pages
   const text=label||chosen.title;
   const fragment=heading?"#"+encodeURIComponent(heading):"";
   return "["+text.replaceAll("[","").replaceAll("]","")+"]("+"/journal-page/"+encodeURIComponent(chosen.id)+fragment+")";
- });
+ }));
 }

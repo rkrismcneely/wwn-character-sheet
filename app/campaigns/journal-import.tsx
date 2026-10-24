@@ -117,7 +117,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   finally{sending.current=false;setBusy(false);setProgress("");}
  }
  async function chooseNative(file:File|undefined){
-  if(!file||busy||selecting.current)return;
+  if(!file||busy||sending.current||selecting.current)return;
   selecting.current=true;
   setNativeInspection("");setNativeSchema("");setError("");
   try{
@@ -151,7 +151,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   finally{selecting.current=false;}
  }
  async function chooseFiles(files:FileList|null){
-  if(!files||busy||selecting.current)return;
+  if(!files||busy||sending.current||selecting.current)return;
   selecting.current=true;
   try{
    if(!await cleanupUnusedUploads())return;
@@ -190,11 +190,11 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   <h3>Import campaign notes</h3>
   <label>Exported from <select disabled={busy||!!entries} value={source} onChange={e=>{setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");setNativeSchema("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
   <p>Select an exported Markdown ZIP or folder. For import, export LegendKeeper as Markdown; native .lk/JSON files can be inspected but not imported. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
-  {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
+  {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy||selecting.current} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
   {nativeInspection&&<p role="status">{nativeInspection}</p>}
   {nativeSchema&&<details><summary>Backup structure (field names and data types only)</summary><pre>{nativeSchema}</pre><p>No backup content is uploaded during inspection.</p></details>}
-  <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
-  <label>Markdown folder<input type="file" multiple disabled={busy} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
+  <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy||selecting.current} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
+  <label>Markdown folder<input type="file" multiple disabled={busy||selecting.current} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
   {entries&&<><p>{entries.length} Markdown notes selected{assets.length?", "+assets.length+" attachment files":""}.</p><button disabled={busy} onClick={()=>void send(false)}>Preview Import</button></>}
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}

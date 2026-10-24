@@ -50,7 +50,7 @@ const ancestry=(entry:Entry):Entry[]=>{
  while(parent&&!seen.has(parent)){seen.add(parent);const item=entryById.get(parent);if(!item)break;parents.unshift(item);parent=item.parentId;}
  return parents;
 };
-const matchesSearch=(entry:Entry)=>entry.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
+const matchesSearch=(entry:Entry)=>{const term=search.trim().toLocaleLowerCase();return entry.title.toLocaleLowerCase().includes(term)||(entry.kind==="page"&&entry.content.toLocaleLowerCase().includes(term));};
 const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolders.has(folder.id));
 const childrenByParent=new Map<string,Entry[]>();
 for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}

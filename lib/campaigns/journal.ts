@@ -136,6 +136,29 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   return { ...old, title, content, icon, visibility, updatedAt };
 }
 
+/** Reparent a Journal item, preserving its content and preventing cycles. */
+export async function moveJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;parentId?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid journal entry.",422);
+ const entry=await db.prepare("SELECT id,parent_id AS parentId,kind FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.id).first<{id:string;parentId:string|null;kind:string}>();
+ if(!entry)throw new CampaignServiceError("Journal entry not found.",404);
+ const parent=await getParent(db,campaign,input.parentId);
+ if(parent===entry.id)throw new CampaignServiceError("A folder cannot contain itself.",422);
+ let current=parent;
+ const seen=new Set<string>([entry.id]);
+ for(let i=0;current;i++){
+  if(i>1000||seen.has(current))throw new CampaignServiceError("Circular folder move is not allowed.",422);
+  seen.add(current);
+  const row=await db.prepare("SELECT parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind='folder'").bind(campaign,current).first<{parentId:string|null}>();
+  if(!row)throw new CampaignServiceError("Destination folder not found.",422);
+  current=row.parentId;
+ }
+ if(entry.parentId===parent)return {id:entry.id,parentId:parent};
+ await db.prepare("UPDATE campaign_journal_entries SET parent_id=?,updated_at=? WHERE campaign_id=? AND id=?")
+ .bind(parent,new Date().toISOString(),campaign,entry.id).run();
+ return {id:entry.id,parentId:parent};
+}
+
 export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string,userIds:string[]){
  const campaign=await requireGM(db,actor,campaignId);
  if(!uuidPattern.test(entryId)||!Array.isArray(userIds)||userIds.length>100||userIds.some(id=>typeof id!=="string"||id.length<1||id.length>128))

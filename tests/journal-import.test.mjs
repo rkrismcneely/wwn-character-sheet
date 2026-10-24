@@ -49,3 +49,8 @@ test("Markdown code examples are not unresolved Journal page links",()=>{
  const preview=inventoryObsidianVault([{path:"Notes.md",content:text}]);
  assert.deepEqual(preview.unresolvedLinks,[{source:"Notes.md",target:"Missing Actual Page"}]);
 });
+
+test("uppercase Markdown extensions remain importable",()=>{
+ const preview=inventoryObsidianVault([{path:"Notes/Session.MD",content:"Session recap"}]);
+ assert.deepEqual(preview.notes.map(note=>({path:note.path,title:note.title})),[{path:"Notes/Session.MD",title:"Session"}]);
+});

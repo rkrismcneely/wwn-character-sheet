@@ -48,7 +48,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   setBusy(true);setError("");setProgress(confirm?"Importing pages...":"Preparing preview...");
   try{
    const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm,source})});
-   const body=await response.json() as {error?:string;preview:Preview;result:{created:number;foldersCreated:number;skipped:number;createdPaths:string[]}};
+   const body=await response.json() as {error?:string;preview:Preview;result:{created:number;foldersCreated:number;skipped:number}};
    if(!response.ok)throw new Error(body.error||"Import failed");
    setPreview(body.preview);
    if(confirm){

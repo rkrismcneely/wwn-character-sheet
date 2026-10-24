@@ -61,8 +61,12 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       if(!page){unlinked++;continue;}
       // Existing imports may have been edited by a GM. Never rewrite them.
       // A retry may finish untouched imports or uploads from this session.
-      const pending=[...completedUploads.current.keys()].some(key=>key.startsWith(page.id+"\u0000"));
-      if(!mayLinkImportedAssets(note.path,note.content,page.content,createdPaths,pending))continue;
+      const previousUrls=new Map<string,string>();
+      for(const [key,url] of completedUploads.current){
+       if(key.startsWith(page.id+"\u0000"))previousUrls.set(key.slice(page.id.length+1),url);
+      }
+      const expected=replaceJournalAssetLinks(note.content,note.path,assets,previousUrls);
+      if(!mayLinkImportedAssets(note.path,note.content,page.content,createdPaths,previousUrls.size>0,expected))continue;
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
       const urls=new Map<string,string>();

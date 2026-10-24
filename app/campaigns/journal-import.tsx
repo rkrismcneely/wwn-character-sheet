@@ -126,9 +126,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  async function chooseZip(file:File|undefined){
   if(!file||busy||selecting.current)return;
   selecting.current=true;
-  if(!await cleanupUnusedUploads()){selecting.current=false;return;}
-  setError("");setPreview(null);setResult("");
   try{
+   if(!await cleanupUnusedUploads())return;
+   setError("");setPreview(null);setResult("");
    const extracted=await extractObsidianZip(await file.arrayBuffer());
    const notes=extracted.notes;
    if(!notes.length)throw new Error("No Markdown notes found in ZIP.");
@@ -143,9 +143,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  async function chooseFiles(files:FileList|null){
   if(!files||busy||selecting.current)return;
   selecting.current=true;
-  if(!await cleanupUnusedUploads()){selecting.current=false;return;}
-  setError("");setPreview(null);setResult("");
   try{
+   if(!await cleanupUnusedUploads())return;
+   setError("");setPreview(null);setResult("");
   const notes:VaultEntry[]=[];
   const folderAssets:VaultAsset[]=[];
   let assetBytes=0;

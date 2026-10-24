@@ -41,3 +41,13 @@ export function hasJournalAttachmentReference(markdown:string,publicCampaignId:s
  });
  return found;
 }
+
+/** Apply one visibility rule to private attachments, including cross-page links. */
+export function canReadJournalAttachment(
+ entries:readonly {id:string;kind:string;content:string}[],
+ canEdit:boolean,owningEntryId:string,publicCampaignId:string,fileId:string
+):boolean{
+ if(canEdit)return entries.some(entry=>entry.kind==="page"&&entry.id===owningEntryId);
+ return entries.some(entry=>entry.kind==="page"&&
+  hasJournalAttachmentReference(entry.content,publicCampaignId,fileId));
+}

@@ -176,15 +176,13 @@ export async function importJournalNotes(db:D1Database,actor:CampaignActor|null,
  }
  const foldersCreated=statements.length;
  let skipped=0;
- const createdPaths:string[]=[];
  for(const note of notes){
   if(paths.has(note.path.toLowerCase())){skipped++;continue;}
-  createdPaths.push(note.path);
   statements.push(db.prepare("INSERT INTO campaign_journal_entries (id,campaign_id,parent_id,kind,title,content,visibility,source,source_path,created_at,updated_at) VALUES (?,?,?,'page',?,?,'gm',?,?,?,?)")
    .bind(crypto.randomUUID(),campaign,folderIds.get(note.folder.toLowerCase())??null,note.title,note.markdown,source,note.path,now,now));
  }
  for(let i=0;i<statements.length;i+=50)await db.batch(statements.slice(i,i+50));
- return {created:statements.length-foldersCreated,foldersCreated,skipped,createdPaths};
+ return {created:statements.length-foldersCreated,foldersCreated,skipped};
 }
 
 /** Resolve a page through the same server-side visibility rules used by journal listings. */

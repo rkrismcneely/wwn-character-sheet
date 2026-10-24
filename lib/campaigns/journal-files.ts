@@ -19,7 +19,7 @@ export function verifyJournalFileSignature(mime:string,bytes:Uint8Array):boolean
  if(mime==="image/gif")return starts([71,73,70,56,55,97])||starts([71,73,70,56,57,97]);
  if(mime==="image/webp")return starts([82,73,70,70])&&bytes[8]===87&&bytes[9]===69&&bytes[10]===66&&bytes[11]===80;
  if(mime==="application/pdf")return starts([37,80,68,70,45]);
- return found;
+ return false;
 }
 
 export function journalStorageKey(campaignInternalId:string,fileId:string):string{

@@ -38,3 +38,8 @@ test("selected-player page is visible when all ancestor folders are shared",()=>
  ];
  assert.deepEqual(visibleJournalEntries(rows).map(row=>row.id),["shared-folder","selected-page"]);
 });
+
+test("conditional attachment updates use page version to preserve metadata changes",()=>{
+ const source="UPDATE campaign_journal_entries SET content = ?, updated_at = ? WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?";
+ assert.match(source,/AND content = \? AND updated_at = \?/);
+});

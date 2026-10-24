@@ -4,6 +4,6 @@ export function mayLinkImportedAssets(
  createdPaths:ReadonlySet<string>,_hasPendingUploads:boolean,
  expectedPartiallyLinkedContent?:string
 ):boolean{
- return createdPaths.has(path)||currentContent===originalContent||
+ return currentContent===originalContent||
   (expectedPartiallyLinkedContent!==undefined&&currentContent===expectedPartiallyLinkedContent);
 }

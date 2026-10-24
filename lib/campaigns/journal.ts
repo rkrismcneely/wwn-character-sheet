@@ -28,6 +28,10 @@ export function visibleJournalEntries<T extends {id:string;parentId:string|null;
   return true;
  });
 }
+/** Atomic content-only update used by attachment imports to detect concurrent GM edits. */
+export const conditionalJournalContentUpdateSQL =
+ "UPDATE campaign_journal_entries SET content = ?, updated_at = ? WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?";
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 async function context(db: D1Database, actor: CampaignActor | null, campaignId: string) {
   if (!actor) throw new CampaignServiceError("Sign in is required.", 401);
@@ -115,8 +119,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
     // Attachment imports only change content; never restore stale title or visibility.
     if(input.title!==undefined||input.visibility!==undefined)
       throw new CampaignServiceError("Conditional journal updates may only change content.",422);
-    const result=await db.prepare(`UPDATE campaign_journal_entries SET content = ?, updated_at = ?
-      WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?`)
+    const result=await db.prepare(conditionalJournalContentUpdateSQL)
       .bind(content,updatedAt,id,old.id,input.expectedContent,input.expectedUpdatedAt).run();
     if(!result.meta.changes)throw new CampaignServiceError("Journal page changed since it was loaded. Refresh before retrying.",409);
   }else{

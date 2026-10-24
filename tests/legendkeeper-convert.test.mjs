@@ -13,7 +13,7 @@ test("native LegendKeeper v1 produces importable pages, table Markdown, links an
  assert.equal(result.statistics.pages,2);
  assert.equal(result.statistics.maps,1);
  assert.ok(result.notes.some(n=>n.content.includes("| --- |")));
- assert.ok(result.notes.some(n=>n.content.includes("[[Guide|The Guide]]")));
+ assert.ok(result.notes.some(n=>n.content.includes("[[City/Guide|The Guide]]")));
  assert.ok(result.notes.some(n=>n.content.includes("<!-- gm-only:start -->")));
  assert.ok(result.notes.some(n=>n.content.includes("Restricted LegendKeeper resource")));
  assert.ok(result.warnings.some(n=>n.includes("map/board")));

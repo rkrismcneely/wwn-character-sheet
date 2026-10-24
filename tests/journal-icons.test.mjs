@@ -4,8 +4,8 @@ import { JOURNAL_PAGE_ICONS, DEFAULT_JOURNAL_PAGE_ICON, journalPageIcon, validat
 
 test("article icon catalog includes the exact twelve agreed page categories",()=>{
  assert.deepEqual(JOURNAL_PAGE_ICONS.map(item=>item.id),[
-  "file-text","castle","user-round","skull","sparkles","sword",
-  "map-pin","landmark","scroll-text","book-open","map","calendar-days"
+  "castle","user-round","skull","sparkles","sword",
+  "map-pin","landmark","scroll-text","book-open","map","calendar-days","file-text"
  ]);
  assert.equal(new Set(JOURNAL_PAGE_ICONS.map(item=>item.id)).size,12);
 });

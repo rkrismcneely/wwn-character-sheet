@@ -43,7 +43,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   setBusy(true);setError("");setProgress(confirm?"Importing pages...":"Preparing preview...");
   try{
    const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm,source})});
-   const body=await response.json() as {error?:string;preview:Preview;result:{created:number;foldersCreated:number;skipped:number}};
+   const body=await response.json() as {error?:string;preview:Preview;result:{created:number;foldersCreated:number;skipped:number;createdPaths:string[]}};
    if(!response.ok)throw new Error(body.error||"Import failed");
    setPreview(body.preview);
    if(confirm){
@@ -52,10 +52,15 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
      const listing=await fetch(endpoint);
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
      const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string}[]};
+     const createdPaths=new Set(body.result.createdPaths);
      for(const [index,note] of entries.entries()){
       setProgress("Linking attachments: page "+(index+1)+" of "+entries.length);
       const page=journal.entries.find(e=>e.kind==="page"&&e.source===source&&e.sourcePath===note.path);
       if(!page){unlinked++;continue;}
+      // Existing imports may have been edited by a GM. Never rewrite them.
+      // A retry may finish untouched imports or uploads from this session.
+      const pending=[...completedUploads.current.keys()].some(key=>key.startsWith(page.id+"\\u0000"));
+      if(!createdPaths.has(note.path)&&page.content!==note.content&&!pending)continue;
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
       const urls=new Map<string,string>();

@@ -3,6 +3,7 @@ import { extractObsidianZip, type VaultAsset } from "@/lib/campaigns/journal-zip
 import { referencedJournalAssets, replaceJournalAssetLinks } from "@/lib/campaigns/journal-asset-links";
 import { useEffect, useRef, useState } from "react";
 import { JOURNAL_FILE_TYPES, MAX_JOURNAL_FILE_BYTES, verifyJournalFileSignature } from "@/lib/campaigns/journal-files";
+import { mayLinkImportedAssets } from "@/lib/campaigns/journal-import-retry";
 import { readLegendKeeperBackup, inspectLegendKeeperBackup, describeLegendKeeperSchema } from "@/lib/campaigns/legendkeeper-native";
 
 type VaultEntry={path:string;content:string};
@@ -60,7 +61,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       // Existing imports may have been edited by a GM. Never rewrite them.
       // A retry may finish untouched imports or uploads from this session.
       const pending=[...completedUploads.current.keys()].some(key=>key.startsWith(page.id+"\u0000"));
-      if(!createdPaths.has(note.path)&&page.content!==note.content&&!pending)continue;
+      if(!mayLinkImportedAssets(note.path,note.content,page.content,createdPaths,pending))continue;
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
       const urls=new Map<string,string>();

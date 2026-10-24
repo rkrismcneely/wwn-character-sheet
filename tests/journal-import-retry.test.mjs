@@ -8,3 +8,5 @@ test("pending uploads never bypass GM edits",()=>assert.equal(mayLinkImportedAss
 
 test("partial import exact match",()=>assert.equal(mayLinkImportedAssets("a.md","original","converted",new Set(),true,"converted"),true));
 test("partial import edited mismatch",()=>assert.equal(mayLinkImportedAssets("a.md","original","changed",new Set(),true,"converted"),false));
+
+test("newly imported page edited before linking is protected",()=>assert.equal(mayLinkImportedAssets("a.md","original","GM edit",new Set(["a.md"]),false),false));

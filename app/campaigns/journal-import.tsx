@@ -15,6 +15,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [assets,setAssets]=useState<VaultAsset[]>([]);
  const completedUploads=useRef(new Map<string,string>());
  const selecting=useRef(false);
+ const sending=useRef(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
@@ -42,7 +43,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   return failed===0;
  }
  async function send(confirm:boolean){
-  if(!entries||busy||selecting.current)return;
+  if(!entries||busy||selecting.current||sending.current)return;
+  sending.current=true;
   setBusy(true);setError("");setProgress(confirm?"Importing pages...":"Preparing preview...");
   try{
    const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm,source})});
@@ -56,9 +58,10 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
      const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string}[]};
      const createdPaths=new Set(body.result.createdPaths);
+     const pagesByPath=new Map(journal.entries.filter(e=>e.kind==="page"&&e.source===source&&e.sourcePath).map(e=>[e.sourcePath!.toLowerCase(),e]));
      for(const [index,note] of entries.entries()){
       setProgress("Linking attachments: page "+(index+1)+" of "+entries.length);
-      const page=journal.entries.find(e=>e.kind==="page"&&e.source===source&&e.sourcePath===note.path);
+      const page=pagesByPath.get(note.path.toLowerCase());
       if(!page){unlinked++;continue;}
       // Existing imports may have been edited by a GM. Never rewrite them.
       // A retry may finish untouched imports or uploads from this session.
@@ -105,7 +108,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
     setEntries(null);setAssets([]);setPreview(null);await onImported();
    }
   }catch(e){setError(e instanceof Error?e.message:"Import failed");}
-  finally{setBusy(false);setProgress("");}
+  finally{sending.current=false;setBusy(false);setProgress("");}
  }
  async function chooseNative(file:File|undefined){
   if(!file||busy||selecting.current)return;

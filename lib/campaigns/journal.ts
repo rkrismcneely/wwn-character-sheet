@@ -49,6 +49,10 @@ function cleanContent(value: unknown) {
     throw new CampaignServiceError("Journal content must be Markdown up to 100,000 characters.", 422);
   return value;
 }
+function cleanPageIcon(value:unknown):string{
+ try{return validateJournalPageIcon(value);}
+ catch{throw new CampaignServiceError("Invalid journal page icon.",422);}
+}
 function cleanVisibility(value: unknown): JournalEntry["visibility"] {
   if (value !== "gm" && value !== "players" && value !== "selected")
     throw new CampaignServiceError("Invalid visibility.", 422);
@@ -91,7 +95,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = cleanTitle(input.title);
   const content = kind === "folder" ? "" : cleanContent(input.content ?? "");
   const visibility = cleanVisibility(input.visibility ?? "gm");
-  const icon = kind === "folder" ? "file-text" : input.icon === undefined ? journalPageIcon(null) : validateJournalPageIcon(input.icon);
+  const icon = kind === "folder" ? "file-text" : input.icon === undefined ? journalPageIcon(null) : cleanPageIcon(input.icon);
   const entryId = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.prepare(`INSERT INTO campaign_journal_entries
@@ -111,7 +115,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = input.title === undefined ? old.title : cleanTitle(input.title);
   const content = old.kind === "folder" ? "" : input.content === undefined ? old.content : cleanContent(input.content);
   const visibility = input.visibility === undefined ? old.visibility : cleanVisibility(input.visibility);
-  const icon = old.kind === "folder" ? "file-text" : input.icon === undefined ? old.icon : validateJournalPageIcon(input.icon);
+  const icon = old.kind === "folder" ? "file-text" : input.icon === undefined ? old.icon : cleanPageIcon(input.icon);
   const updatedAt = new Date().toISOString();
   if(input.expectedContent!==undefined){
     if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)

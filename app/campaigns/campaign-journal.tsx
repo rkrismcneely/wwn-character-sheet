@@ -18,6 +18,9 @@ const [editing,setEditing]=useState(false);
 const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
+const [dragged,setDragged]=useState<string|null>(null);
+const [dropTarget,setDropTarget]=useState<string|null>(null);
+const [moveId,setMoveId]=useState("");
 const [iconSearch,setIconSearch]=useState("");
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
@@ -65,6 +68,27 @@ addChildren("");for(const entry of entries.slice().sort(compareEntries)){if(!vis
 const matchingEntries=sortedEntries.filter(entry=>matchesSearch(entry)&&(search.trim()||visibleInTree(entry)));
 function toggleFolder(id:string){setCollapsedFolders(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next;});}
 
+const validTarget=(sourceId:string,targetId:string|null)=>{
+ const source=entryById.get(sourceId);
+ if(!source||sourceId===targetId)return false;
+ let cursor=targetId;const seen=new Set<string>([sourceId]);
+ while(cursor){if(seen.has(cursor))return false;seen.add(cursor);cursor=entryById.get(cursor)?.parentId??null;}
+ return targetId===null||entryById.get(targetId)?.kind==="folder";
+};
+async function moveEntry(sourceId:string,targetId:string|null){
+ if(!canEdit||preview||!validTarget(sourceId,targetId))return;
+ const source=entryById.get(sourceId);
+ if(source?.parentId===targetId)return;
+ try{
+  const r=await fetch(endpoint,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:sourceId,parentId:targetId})});
+  const j=await r.json() as {error?:string};
+  if(!r.ok)throw new Error(j.error||"Move failed.");
+  setEntries(old=>old.map(entry=>entry.id===sourceId?{...entry,parentId:targetId}:entry));
+  if(targetId)setCollapsedFolders(old=>{const next=new Set(old);next.delete(targetId);return next;});
+  setError("");
+ }catch(e){setError(e instanceof Error?e.message:"Move failed.");await refresh();}
+ finally{setDragged(null);setDropTarget(null);setMoveId("");}
+}
 async function openReaders(id:string){
  const r=await fetch(endpoint+"?readers="+encodeURIComponent(id));const j=await r.json() as {error?:string;readers:{userId:string;name:string;selected:number}[]};
  if(!r.ok){setError(j.error||"Could not load players");return;}
@@ -117,15 +141,17 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
    <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
    <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input aria-label="Search journal" placeholder="Find a page…" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>
    <div className="twe-workspace-nav-caption">{search.trim()?matchingEntries.length+" matches":entries.length+" items"}</div>
+   {canEdit&&!preview&&<button type="button" className={"twe-workspace-root-drop"+(dropTarget==="root"?" is-drop-target":"")} onDragOver={e=>{if(dragged&&validTarget(dragged,null)){e.preventDefault();setDropTarget("root");}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{e.preventDefault();if(dragged)void moveEntry(dragged,null);}} onClick={()=>{if(moveId)void moveEntry(moveId,null);}}>↖ Top level {moveId?"(move selected item)":""}</button>}
    <nav className="twe-workspace-tree" aria-label="Pages and folders">
     {matchingEntries.map(entry=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(selected===entry.id?" is-active":"")} style={{paddingLeft:8+depth*14}}>
+      return <div key={entry.id} className={"twe-workspace-tree-row"+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);}} onDragOver={e=>{if(folder&&dragged&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{if(folder&&dragged){e.preventDefault();e.stopPropagation();void moveEntry(dragged,entry.id);}}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
-       <button type="button" className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>
+       <button type="button" className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Move "+entry.title} title={"Move "+entry.title} onClick={()=>setMoveId(entry.id)}>⋮</button>}
       </div>;
     })}
+    {moveId&&canEdit&&!preview&&<div className="twe-workspace-move-panel"><label>Move to folder<select aria-label="Destination folder" defaultValue="" onChange={e=>{if(e.target.value)void moveEntry(moveId,e.target.value==="root"?null:e.target.value);}}><option value="">Choose destination…</option><option value="root">Top level</option>{sortedEntries.filter(item=>item.kind==="folder"&&validTarget(moveId,item.id)).map(item=><option key={item.id} value={item.id}>{ancestry(item).map(p=>p.title).join(" / ")}{ancestry(item).length?" / ":""}{item.title}</option>)}</select></label><button type="button" onClick={()=>setMoveId("")}>Cancel</button></div>}
     {!matchingEntries.length&&<p className="twe-workspace-nav-empty">{search?"No matching pages":"This journal is empty"}</p>}
    </nav>
    <div className="twe-workspace-nav-footer">CAMPAIGN LIBRARY</div>

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { redactJournalSecrets, visibleJournalEntries } from "../lib/campaigns/journal.ts";
+import { redactJournalSecrets, visibleJournalEntries, conditionalJournalContentUpdateSQL } from "../lib/campaigns/journal.ts";
+import { DatabaseSync } from "node:sqlite";
 
 test("hidden parent suppresses its otherwise visible descendants",()=>{
  const entries=[{id:"visible",parentId:null,kind:"folder"},{id:"page",parentId:"hidden",kind:"page"},{id:"child",parentId:"visible",kind:"page"}];
@@ -39,7 +40,25 @@ test("selected-player page is visible when all ancestor folders are shared",()=>
  assert.deepEqual(visibleJournalEntries(rows).map(row=>row.id),["shared-folder","selected-page"]);
 });
 
-test("conditional attachment updates use page version to preserve metadata changes",()=>{
- const source="UPDATE campaign_journal_entries SET content = ?, updated_at = ? WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?";
- assert.match(source,/AND content = \? AND updated_at = \?/);
+
+test("attachment update changes content without resetting modified metadata",()=>{
+ const db=new DatabaseSync(":memory:");
+ db.exec("CREATE TABLE campaign_journal_entries (id TEXT, campaign_id TEXT, kind TEXT, title TEXT, content TEXT, visibility TEXT, updated_at TEXT)");
+ const first="2026-10-24T12:00:00.000Z",second="2026-10-24T12:00:01.000Z";
+ db.prepare("INSERT INTO campaign_journal_entries VALUES (?,?,?,?,?,?,?)").run("page","campaign","page","Original","unchanged","gm",first);
+ // The GM changes sharing settings and title while the import is uploading.
+ db.prepare("UPDATE campaign_journal_entries SET title=?,visibility=?,updated_at=? WHERE id=?").run("Edited by GM","players",second,"page");
+ const stale=db.prepare(conditionalJournalContentUpdateSQL).run("linked",second,"campaign","page","unchanged",first);
+ assert.equal(stale.changes,0);
+ const current=db.prepare("SELECT * FROM campaign_journal_entries WHERE id='page'").get();
+ assert.equal(current.title,"Edited by GM");
+ assert.equal(current.visibility,"players");
+ assert.equal(current.content,"unchanged");
+ const ok=db.prepare(conditionalJournalContentUpdateSQL).run("linked","2026-10-24T12:00:02.000Z","campaign","page","unchanged",second);
+ assert.equal(ok.changes,1);
+ const saved=db.prepare("SELECT * FROM campaign_journal_entries WHERE id='page'").get();
+ assert.equal(saved.title,"Edited by GM");
+ assert.equal(saved.visibility,"players");
+ assert.equal(saved.content,"linked");
+ db.close();
 });

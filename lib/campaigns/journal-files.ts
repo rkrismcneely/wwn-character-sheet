@@ -34,10 +34,11 @@ function stripInlineCode(line:string):string{
 
 /** Only explicit Markdown references outside code grant file access. */
 export function hasJournalAttachmentReference(markdown:string,publicCampaignId:string,fileId:string):boolean{
+ const sanitized=markdown.replace(/<!--[\s\S]*?-->/gu,"").replace(/<!--[\s\S]*$/gu,"");
  const url="/api/campaigns/"+publicCampaignId+"/journal/files/"+fileId;
  const pattern=/!?\[[^\]\n]*\]\((\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36})\)/giu;
  let fence:string|null=null;
- for(const line of markdown.split("\n")){
+ for(const line of sanitized.split("\n")){
   const marker=/^\s*(`{3,}|~{3,})/.exec(line);
   if(marker){
    if(!fence)fence=marker[1];

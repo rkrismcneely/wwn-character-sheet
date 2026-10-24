@@ -137,8 +137,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   if(!file||busy||selecting.current)return;
   selecting.current=true;
   try{
+   setError("");
    if(!await cleanupUnusedUploads())return;
-   setError("");setPreview(null);setResult("");
+   setPreview(null);setResult("");
    const extracted=await extractObsidianZip(await file.arrayBuffer());
    const notes=extracted.notes;
    if(!notes.length)throw new Error("No Markdown notes found in ZIP.");

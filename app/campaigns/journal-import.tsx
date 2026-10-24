@@ -15,6 +15,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [assets,setAssets]=useState<VaultAsset[]>([]);
  const completedUploads=useRef(new Map<string,string>());
  const selecting=useRef(false);
+ const [isSelecting,setIsSelecting]=useState(false);
  const sending=useRef(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
@@ -117,7 +118,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  }
  async function chooseNative(file:File|undefined){
   if(!file||busy||sending.current||selecting.current)return;
-  selecting.current=true;
+  selecting.current=true;setIsSelecting(true);
   setNativeInspection("");setNativeSchema("");setError("");
   try{
    const format=file.name.toLowerCase().endsWith(".lk")?"lk":file.name.toLowerCase().endsWith(".json")?"json":null;
@@ -130,11 +131,11 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
     : "Unrecognized native backup structure.";
    setNativeInspection(summary+" Inspection only: no pages or assets were imported.");
   }catch(error){setError(error instanceof Error?error.message:"Could not inspect native backup.");}
-  finally{selecting.current=false;}
+  finally{selecting.current=false;setIsSelecting(false);}
  }
  async function chooseZip(file:File|undefined){
   if(!file||busy||sending.current||selecting.current)return;
-  selecting.current=true;
+  selecting.current=true;setIsSelecting(true);
   try{
    setError("");
    if(!await cleanupUnusedUploads())return;
@@ -148,11 +149,11 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
    setEntries(cleaned);
    setAssets(extracted.assets.map(asset=>({...asset,path:asset.path.startsWith(root)?asset.path.slice(root.length):asset.path})));
   }catch(e){setError(e instanceof Error?e.message:"Could not open ZIP.");}
-  finally{selecting.current=false;}
+  finally{selecting.current=false;setIsSelecting(false);}
  }
  async function chooseFiles(files:FileList|null){
   if(!files||busy||sending.current||selecting.current)return;
-  selecting.current=true;
+  selecting.current=true;setIsSelecting(true);
   try{
    if(!await cleanupUnusedUploads())return;
    setError("");setPreview(null);setResult("");
@@ -184,22 +185,22 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   setEntries(cleaned);
   setAssets(folderAssets.map(asset=>({...asset,path:asset.path.startsWith(root)?asset.path.slice(root.length):asset.path})));
   }catch(e){setError(e instanceof Error?e.message:"Could not read folder.");}
-  finally{selecting.current=false;}
+  finally{selecting.current=false;setIsSelecting(false);}
  }
  return <section className="journal-import">
   <h3>Import campaign notes</h3>
-  <label>Exported from <select disabled={busy||!!entries||selecting.current} value={source} onChange={e=>{if(selecting.current||sending.current)return;setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");setNativeSchema("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
+  <label>Exported from <select disabled={busy||!!entries||isSelecting} value={source} onChange={e=>{if(selecting.current||sending.current)return;setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");setNativeSchema("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
   <p>Select an exported Markdown ZIP or folder. For import, export LegendKeeper as Markdown; native .lk/JSON files can be inspected but not imported. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
-  {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy||selecting.current} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
+  {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy||isSelecting} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
   {nativeInspection&&<p role="status">{nativeInspection}</p>}
   {nativeSchema&&<details><summary>Backup structure (field names and data types only)</summary><pre>{nativeSchema}</pre><p>No backup content is uploaded during inspection.</p></details>}
-  <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy||selecting.current} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
-  <label>Markdown folder<input type="file" multiple disabled={busy||selecting.current} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
+  <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy||isSelecting} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>
+  <label>Markdown folder<input type="file" multiple disabled={busy||isSelecting} ref={element=>{if(element)element.setAttribute("webkitdirectory","");}} onChange={e=>void chooseFiles(e.target.files)}/></label>
   {entries&&<><p>{entries.length} Markdown notes selected{assets.length?", "+assets.length+" attachment files":""}.</p><button disabled={busy} onClick={()=>void send(false)}>Preview Import</button></>}
   {preview&&<div><p>{preview.notes.length} pages, {preview.folders.length} folders, {preview.unresolvedLinks.length} unresolved links.</p>
    {preview.unresolvedLinks.length>0&&<details><summary>Unresolved links</summary><ul>{preview.unresolvedLinks.slice(0,30).map((link,i)=><li key={i}>{link.source}: {link.target}</li>)}</ul></details>}
    <button disabled={busy} onClick={()=>void send(true)}>Confirm Import</button>
-   <button disabled={busy} onClick={()=>{if(sending.current||selecting.current)return;selecting.current=true;void (async()=>{try{if(!await cleanupUnusedUploads())return;setPreview(null);setEntries(null);setAssets([]);}catch(e){setError(e instanceof Error?e.message:"Could not cancel import.");}finally{selecting.current=false;}})();}}>Cancel</button>
+   <button disabled={busy} onClick={()=>{if(sending.current||selecting.current)return;selecting.current=true;setIsSelecting(true);void (async()=>{try{if(!await cleanupUnusedUploads())return;setPreview(null);setEntries(null);setAssets([]);}catch(e){setError(e instanceof Error?e.message:"Could not cancel import.");}finally{selecting.current=false;setIsSelecting(false);}})();}}>Cancel</button>
   </div>}
   {progress&&<p role="status">{progress}</p>}
   {error&&<p role="alert">{error}</p>}{result&&<p role="status">{result}</p>}

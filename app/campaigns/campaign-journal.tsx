@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import "./twe-workspace.css";
 import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
 import { JournalImport } from "./journal-import";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
@@ -17,7 +18,6 @@ const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
-const [viewMode,setViewMode]=useState<"read"|"edit">("read");
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
 const [readerEditing,setReaderEditing]=useState(false);
 const [importOpen,setImportOpen]=useState(false);
@@ -52,7 +52,13 @@ const ancestry=(entry:Entry):Entry[]=>{
 };
 const matchesSearch=(entry:Entry)=>entry.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
 const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolders.has(folder.id));
-const sortedEntries=entries.slice().sort((a,b)=>a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1);
+const childrenByParent=new Map<string,Entry[]>();
+for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}
+const compareEntries=(a:Entry,b:Entry)=>a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
+for(const siblings of childrenByParent.values())siblings.sort(compareEntries);
+const sortedEntries:Entry[]=[];const visited=new Set<string>();
+function addChildren(parent:string,depth=0){if(depth>20)return;for(const entry of childrenByParent.get(parent)??[]){if(visited.has(entry.id))continue;visited.add(entry.id);sortedEntries.push(entry);addChildren(entry.id,depth+1);}}
+addChildren("");for(const entry of entries.slice().sort(compareEntries)){if(!visited.has(entry.id)){visited.add(entry.id);sortedEntries.push(entry);}}
 const matchingEntries=sortedEntries.filter(entry=>matchesSearch(entry)&&(search.trim()||visibleInTree(entry)));
 function toggleFolder(id:string){setCollapsedFolders(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next;});}
 
@@ -92,7 +98,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  <header className="twe-workspace-header">
   <div className="twe-workspace-heading"><span className="twe-workspace-eyebrow">Campaign knowledge</span><h2>Campaign Journal</h2><p>Notes, places, characters and stories from your world.</p></div>
   <div className="twe-workspace-header-actions">
-   {canEdit&&!preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);setViewMode("edit");}}>+ New page</button>}
+   {canEdit&&!preview&&<button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>+ New page</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>{setSelected("");setParentId(null);setCreatingFolder(true);setDraft({title:"",content:"",visibility:"gm"});setEditing(true);}}>New folder</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" aria-expanded={importOpen} onClick={()=>setImportOpen(open=>!open)}>{importOpen?"Close import":"Import"}</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" onClick={()=>setPreview(true)}>View as player</button>}
@@ -114,7 +120,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
       const folder=entry.kind==="folder";
       return <div key={entry.id} className={"twe-workspace-tree-row"+(selected===entry.id?" is-active":"")} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
-       <button type="button" className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{setSelected(entry.id);setEditing(false);setViewMode("read");}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":"▤"}</span><span>{entry.title}</span></button>
+       <button type="button" className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":"▤"}</span><span>{entry.title}</span></button>
       </div>;
     })}
     {!matchingEntries.length&&<p className="twe-workspace-nav-empty">{search?"No matching pages":"This journal is empty"}</p>}
@@ -124,13 +130,13 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
   <main className="twe-workspace-document">
    <div className="twe-workspace-document-toolbar">
     <div className="twe-workspace-crumbs">{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>
-    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);setViewMode("edit");}}>Edit page</button>}</div>}
+    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(false);setDraft({title:current.title,content:current.content,visibility:current.visibility});setEditing(true);}}>Edit page</button>}</div>}
    </div>
    {editing&&canEdit?<form className="twe-workspace-editor" onSubmit={save}>
     <div className="twe-workspace-editor-top"><span className="twe-workspace-eyebrow">{creatingFolder?"New folder":selected?"Edit page":"New page"}</span><span className="twe-workspace-editor-hint">Markdown</span></div>
     <label className="twe-workspace-field">Title<input autoFocus required maxLength={160} placeholder={creatingFolder?"Folder name":"Untitled page"} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
     {!creatingFolder&&<label className="twe-workspace-field">Page content<textarea rows={16} placeholder="Begin writing your story…" value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}
-    <div className="twe-workspace-editor-bottom"><label className="twe-workspace-field">Who can read this?<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label><div className="twe-workspace-action-row"><button className="twe-button twe-button-primary" type="submit">Save {creatingFolder?"folder":"page"}</button><button className="twe-button" type="button" onClick={()=>{setEditing(false);setViewMode("read");}}>Cancel</button></div></div>
+    <div className="twe-workspace-editor-bottom"><label className="twe-workspace-field">Who can read this?<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label><div className="twe-workspace-action-row"><button className="twe-button twe-button-primary" type="submit">Save {creatingFolder?"folder":"page"}</button><button className="twe-button" type="button" onClick={()=>{setEditing(false);}}>Cancel</button></div></div>
    </form>:current?<article className="twe-workspace-page">
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":"Journal entry"}</span><h3>{current.title}</h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge · Markdown"}</div></div>
     {canEdit&&current.kind==="page"&&<div className="twe-workspace-page-tools"><label className="twe-workspace-attach">Attach image or PDF <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" disabled={uploading} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadJournalFile(file);event.target.value="";}}/></label>{current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}</div>}

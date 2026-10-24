@@ -23,7 +23,7 @@ export function convertLegendKeeperNative(value:unknown){
  resources.forEach(r=>pathFor(string(r.id)));
  const mention=(id:string,label:string)=>{
   const target=paths.get(id);
-  return target?"[["+target.split("/").at(-1)+"|"+escape(label||string(byId.get(id)?.name))+"]]":escape(label);
+  return target?"[["+target+"|"+escape(label||string(byId.get(id)?.name))+"]]":escape(label);
  };
  const inline=(node:unknown):string=>{
   const n=record(node),t=string(n.type),a=record(n.attrs);

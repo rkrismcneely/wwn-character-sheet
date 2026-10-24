@@ -119,3 +119,18 @@
 .twe-workspace .journal-import details{padding:10px 12px;border:1px solid #d9c6a5;border-radius:6px;background:#fff9ed}
 .twe-workspace .journal-import summary{cursor:pointer;font:700 12px var(--font-ui,Arial,sans-serif)}
 .twe-workspace .journal-import pre{max-width:100%;overflow:auto}
+
+/* Article-type icon picker: reusable icon-button grid, accessible labels and pressed states. */
+.twe-workspace-article-heading{display:flex;align-items:center;gap:14px}
+.twe-workspace-article-heading>svg{flex:0 0 auto;color:#976b34}
+.twe-workspace-tree-glyph{display:grid;place-items:center}
+.twe-workspace-tree-glyph svg{display:block}
+.twe-workspace-icon-field{min-width:0;margin:0;padding:0;border:0}
+.twe-workspace-icon-field legend{margin-bottom:9px;color:#6a573c;font:700 11px var(--font-ui,Arial,sans-serif)}
+.twe-workspace-icon-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px}
+.twe-workspace .twe-workspace-icon-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:81px;padding:10px 6px;border:1px solid #d7c4a4;border-radius:8px;background:#fffaf0;color:#6d5638;cursor:pointer;transition:background .12s,border-color .12s}
+.twe-workspace .twe-workspace-icon-choice svg{flex:0 0 auto}
+.twe-workspace .twe-workspace-icon-choice span{font:600 10px/1.25 var(--font-ui,Arial,sans-serif);text-align:center}
+.twe-workspace .twe-workspace-icon-choice:hover{border-color:#b38a4b;background:#fff3d8}
+.twe-workspace .twe-workspace-icon-choice.is-selected{border-color:#99703a;background:#f0dfbd;color:#64411d;box-shadow:inset 0 0 0 1px #99703a}
+@media(max-width:620px){.twe-workspace-icon-picker{grid-template-columns:repeat(3,minmax(0,1fr))}}

@@ -95,7 +95,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   return { id: entryId, parentId, kind, title, content, visibility, createdAt: now, updatedAt: now };
 }
 export async function updateJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
-  input: { id?: unknown; title?: unknown; content?: unknown; visibility?: unknown; expectedContent?: unknown }) {
+  input: { id?: unknown; title?: unknown; content?: unknown; visibility?: unknown; expectedContent?: unknown; expectedUpdatedAt?: unknown }) {
   const id = await requireGM(db, actor, campaignId);
   if (typeof input.id !== "string" || !uuidPattern.test(input.id))
     throw new CampaignServiceError("Invalid journal entry.", 422);
@@ -109,12 +109,15 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   if(input.expectedContent!==undefined){
     if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)
       throw new CampaignServiceError("Invalid expected journal content.",422);
+    if(typeof input.expectedUpdatedAt!=="string"||input.expectedUpdatedAt.length>40||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/u.test(input.expectedUpdatedAt))
+      throw new CampaignServiceError("Invalid expected journal version.",422);
     // Attachment imports only change content; never restore stale title or visibility.
     if(input.title!==undefined||input.visibility!==undefined)
       throw new CampaignServiceError("Conditional journal updates may only change content.",422);
     const result=await db.prepare(`UPDATE campaign_journal_entries SET content = ?, updated_at = ?
-      WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ?`)
-      .bind(content,updatedAt,id,old.id,input.expectedContent).run();
+      WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?`)
+      .bind(content,updatedAt,id,old.id,input.expectedContent,input.expectedUpdatedAt).run();
     if(!result.meta.changes)throw new CampaignServiceError("Journal page changed since it was loaded. Refresh before retrying.",409);
   }else{
     await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?

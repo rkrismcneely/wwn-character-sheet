@@ -63,3 +63,12 @@ test("inline code examples never authorize player attachment access",()=>{
  assert.equal(hasJournalAttachmentReference("Example: ``"+ref+"``",campaign,id),false);
  assert.equal(hasJournalAttachmentReference("Example: `"+ref+"` then "+ref,campaign,id),true);
 });
+
+test("HTML comments cannot authorize attachment downloads",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const link="![Hidden](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ assert.equal(hasJournalAttachmentReference("<!-- "+link+" -->",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("<!-- start\n"+link+"\nend -->",campaign,id),false);
+ assert.equal(hasJournalAttachmentReference("Visible\n<!-- "+link+" -->\n"+link,campaign,id),true);
+});

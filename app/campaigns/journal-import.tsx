@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { JOURNAL_FILE_TYPES, MAX_JOURNAL_FILE_BYTES, verifyJournalFileSignature } from "@/lib/campaigns/journal-files";
 import { mayLinkImportedAssets } from "@/lib/campaigns/journal-import-retry";
 import { readLegendKeeperBackup, inspectLegendKeeperBackup, describeLegendKeeperSchema } from "@/lib/campaigns/legendkeeper-native";
+import { convertLegendKeeperNative } from "@/lib/campaigns/legendkeeper-convert";
 
 type VaultEntry={path:string;content:string};
 type Preview={notes:{path:string;title:string}[];folders:string[];unresolvedLinks:{source:string;target:string}[]};
@@ -129,7 +130,17 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
    const summary=inspected.recognized
     ? inspected.resourceCount+" resources, "+inspected.pageCount+" pages, "+inspected.mapCount+" maps, "+inspected.boardCount+" boards, "+inspected.unknownCount+" unclassified records."
     : "Unrecognized native backup structure.";
+   if(format==="json"&&inspected.recognized){
+    const converted=convertLegendKeeperNative(backup);
+    const payload=new Blob([JSON.stringify({entries:converted.notes,confirm:true})]).size;
+    if(payload>900000)throw new Error("Native export exceeds Journal import request limit; split into smaller exports.");
+    setEntries(converted.notes.map(note=>({path:note.path,content:note.content})));
+    setAssets([]);setSource("legendkeeper");setPreview(null);
+    setNativeInspection(summary+" "+converted.notes.length+" notes converted for preview. "+converted.statistics.maps+" maps require separate import.");
+    setNativeSchema(converted.warnings.length?converted.warnings.join("\n"):"No conversion warnings.");
+   }else{
    setNativeInspection(summary+" Inspection only: no pages or assets were imported.");
+   }
   }catch(error){setError(error instanceof Error?error.message:"Could not inspect native backup.");}
   finally{selecting.current=false;setIsSelecting(false);}
  }
@@ -190,8 +201,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  return <section className="journal-import">
   <h3>Import campaign notes</h3>
   <label>Exported from <select disabled={busy||!!entries||isSelecting} value={source} onChange={e=>{if(selecting.current||sending.current)return;setSource(e.target.value as "obsidian"|"legendkeeper");setPreview(null);setNativeInspection("");setNativeSchema("");}}><option value="obsidian">Obsidian</option><option value="legendkeeper">LegendKeeper (Markdown export)</option></select></label>
-  <p>Select an exported Markdown ZIP or folder. For import, export LegendKeeper as Markdown; native .lk/JSON files can be inspected but not imported. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
-  {source==="legendkeeper"&&<label>Inspect native LegendKeeper backup (.lk or .json) <input type="file" accept=".lk,.json,application/json" disabled={busy||isSelecting} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
+  <p>Select an exported Markdown ZIP or folder. For import, export LegendKeeper as Markdown; native JSON can be converted into Journal pages; .lk can be inspected. Notes and referenced images/PDFs import as GM-only; existing pages stay unchanged.</p>
+  {source==="legendkeeper"&&<label>Convert native LegendKeeper JSON / inspect .lk <input type="file" accept=".lk,.json,application/json" disabled={busy||isSelecting} onChange={e=>void chooseNative(e.target.files?.[0])}/></label>}
   {nativeInspection&&<p role="status">{nativeInspection}</p>}
   {nativeSchema&&<details><summary>Backup structure (field names and data types only)</summary><pre>{nativeSchema}</pre><p>No backup content is uploaded during inspection.</p></details>}
   <label>Markdown ZIP<input type="file" accept=".zip,application/zip" disabled={busy||isSelecting} onChange={e=>void chooseZip(e.target.files?.[0])}/></label>

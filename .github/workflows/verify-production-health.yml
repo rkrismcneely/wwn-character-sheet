@@ -3,12 +3,6 @@ name: Verify production availability
 # Cloudflare Git Integration owns normal production deployment. This checks
 # reachability after main changes; it does not falsely claim SHA parity.
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/**'
   workflow_dispatch:
 
 permissions:

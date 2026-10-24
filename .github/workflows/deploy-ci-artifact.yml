@@ -4,11 +4,6 @@ name: Deploy verified CI artifact
 # repository Actions variable TWE_GITHUB_DEPLOYS_PRODUCTION=true.
 # GitHub owns normal production deployment only when the ownership variable is true.
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
   workflow_dispatch:
     inputs:
       pr_number:

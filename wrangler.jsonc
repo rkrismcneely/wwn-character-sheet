@@ -3,7 +3,9 @@
   "name": "wwn-character-sheet",
   "main": "worker/index.ts",
   "compatibility_date": "2026-05-22",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "vars": {
     "BETTER_AUTH_URL": "https://taleswithoutend.com"
   },
@@ -37,10 +39,48 @@
   ],
   "durable_objects": {
     "bindings": [
-      { "name": "CAMPAIGN_LIVE_SESSION", "class_name": "CampaignLiveSession" }
+      {
+        "name": "CAMPAIGN_LIVE_SESSION",
+        "class_name": "CampaignLiveSession"
+      }
     ]
   },
   "migrations": [
-    { "tag": "v1-campaign-live-sessions", "new_sqlite_classes": ["CampaignLiveSession"] }
-  ]
+    {
+      "tag": "v1-campaign-live-sessions",
+      "new_sqlite_classes": [
+        "CampaignLiveSession"
+      ]
+    }
+  ],
+  "previews": {
+    "vars": {
+      "ENVIRONMENT": "preview"
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "twe-journal-pr429-preview",
+        "database_id": "2b6fce4e-37ed-446e-a809-d9d90cb9e0e9",
+        "migrations_dir": "./drizzle"
+      }
+    ],
+    "r2_buckets": [
+      {
+        "binding": "BUCKET",
+        "bucket_name": "twe-journal-pr429-preview"
+      }
+    ],
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "CAMPAIGN_LIVE_SESSION",
+          "class_name": "CampaignLiveSession"
+        }
+      ]
+    },
+    "images": {
+      "binding": "IMAGES"
+    }
+  }
 }

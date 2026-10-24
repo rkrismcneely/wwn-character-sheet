@@ -81,3 +81,8 @@ test("fence markers with info strings inside a code block do not expose files",(
  assert.equal(hasJournalAttachmentReference(markdown,campaign,id),false);
  assert.equal(hasJournalAttachmentReference(markdown+"\n"+link,campaign,id),true);
 });
+
+test("unknown file signatures always fail closed",()=>{
+ assert.equal(verifyJournalFileSignature("text/html",new TextEncoder().encode("<h1>hi</h1>")),false);
+ assert.equal(verifyJournalFileSignature("application/octet-stream",new Uint8Array([37,80,68,70,45])),false);
+});

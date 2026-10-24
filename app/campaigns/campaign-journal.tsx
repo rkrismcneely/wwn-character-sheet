@@ -19,6 +19,7 @@ const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
 const [iconSearch,setIconSearch]=useState("");
+useEffect(()=>{if(editing)setIconSearch("");},[editing]);
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);

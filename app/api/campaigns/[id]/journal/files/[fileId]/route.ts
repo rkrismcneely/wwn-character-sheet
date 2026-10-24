@@ -3,7 +3,7 @@ import { getCampaignD1 } from "@/lib/campaigns/service";
 import { loadCampaignAccess } from "@/lib/campaigns/service";
 import { env } from "cloudflare:workers";
 import { listJournal } from "@/lib/campaigns/journal";
-import { hasJournalAttachmentReference } from "@/lib/campaigns/journal-files";
+import { canReadJournalAttachment } from "@/lib/campaigns/journal-files";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
 import { deleteUnreferencedJournalFileSQL } from "@/lib/campaigns/journal-file-cleanup";
 
@@ -18,12 +18,7 @@ export async function GET(request:Request,context:{params:Promise<{id:string;fil
  // Non-GMs may retrieve only files linked in the redacted, visible page.
  // This prevents guessing an attachment ID from exposing assets in GM-only sections.
  const visible=await listJournal(db,actor,id);
- // GMs can inspect an attachment on its owning page. Players may access it
- // only when a page they can actually read links to it, including shared files
- // originally uploaded to a different Journal page.
- const allowed=visible.canEdit
-  ? visible.entries.some(entry=>entry.id===file.entryId&&entry.kind==="page")
-  : visible.entries.some(entry=>entry.kind==="page"&&hasJournalAttachmentReference(entry.content,id,fileId));
+ const allowed=canReadJournalAttachment(visible.entries,visible.canEdit,file.entryId,id,fileId);
  if(!allowed)return Response.json({error:"Not found."},{status:404});
  const object=await env.BUCKET.get(file.storageKey);
  if(!object)return Response.json({error:"Not found."},{status:404});

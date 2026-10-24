@@ -132,7 +132,7 @@ export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,c
  const unique=[...new Set(userIds)];
  for(const userId of unique){
    const member=await db.prepare("SELECT user_id FROM campaign_members WHERE campaign_id=? AND user_id=? AND role='player'").bind(campaign,userId).first();
-   if(!member)throw new CampaignServiceError("Reader is not a campaign member.",422);
+   if(!member)throw new CampaignServiceError("Reader must be a campaign player.",422);
  }
  await db.batch([db.prepare("DELETE FROM campaign_journal_readers WHERE entry_id=?").bind(entryId),
  ...unique.map(userId=>db.prepare("INSERT INTO campaign_journal_readers (entry_id,user_id) VALUES (?,?)").bind(entryId,userId))]);

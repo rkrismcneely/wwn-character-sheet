@@ -59,7 +59,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       if(!page){unlinked++;continue;}
       // Existing imports may have been edited by a GM. Never rewrite them.
       // A retry may finish untouched imports or uploads from this session.
-      const pending=[...completedUploads.current.keys()].some(key=>key.startsWith(page.id+"\\u0000"));
+      const pending=[...completedUploads.current.keys()].some(key=>key.startsWith(page.id+"\u0000"));
       if(!createdPaths.has(note.path)&&page.content!==note.content&&!pending)continue;
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;

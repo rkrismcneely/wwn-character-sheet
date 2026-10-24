@@ -14,6 +14,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
  const [preview,setPreview]=useState<Preview|null>(null);
  const [assets,setAssets]=useState<VaultAsset[]>([]);
  const completedUploads=useRef(new Map<string,string>());
+ const selecting=useRef(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState("");
@@ -40,7 +41,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   return failed===0;
  }
  async function send(confirm:boolean){
-  if(!entries)return;
+  if(!entries||busy||selecting.current)return;
   setBusy(true);setError("");setProgress(confirm?"Importing pages...":"Preparing preview...");
   try{
    const response=await fetch(endpoint+"/import-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries,confirm,source})});
@@ -102,7 +103,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   finally{setBusy(false);setProgress("");}
  }
  async function chooseNative(file:File|undefined){
-  if(!file||busy)return;
+  if(!file||busy||selecting.current)return;
+  selecting.current=true;
   setNativeInspection("");setNativeSchema("");setError("");
   try{
    const format=file.name.toLowerCase().endsWith(".lk")?"lk":file.name.toLowerCase().endsWith(".json")?"json":null;
@@ -115,10 +117,12 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
     : "Unrecognized native backup structure.";
    setNativeInspection(summary+" Inspection only: no pages or assets were imported.");
   }catch(error){setError(error instanceof Error?error.message:"Could not inspect native backup.");}
+  finally{selecting.current=false;}
  }
  async function chooseZip(file:File|undefined){
-  if(!file||busy)return;
-  if(!await cleanupUnusedUploads())return;
+  if(!file||busy||selecting.current)return;
+  selecting.current=true;
+  if(!await cleanupUnusedUploads()){selecting.current=false;return;}
   setError("");setPreview(null);setResult("");
   try{
    const extracted=await extractObsidianZip(await file.arrayBuffer());
@@ -130,11 +134,14 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
    setEntries(cleaned);
    setAssets(extracted.assets.map(asset=>({...asset,path:asset.path.startsWith(root)?asset.path.slice(root.length):asset.path})));
   }catch(e){setError(e instanceof Error?e.message:"Could not open ZIP.");}
+  finally{selecting.current=false;}
  }
  async function chooseFiles(files:FileList|null){
-  if(!files||busy)return;
-  if(!await cleanupUnusedUploads())return;
+  if(!files||busy||selecting.current)return;
+  selecting.current=true;
+  if(!await cleanupUnusedUploads()){selecting.current=false;return;}
   setError("");setPreview(null);setResult("");
+  try{
   const notes:VaultEntry[]=[];
   const folderAssets:VaultAsset[]=[];
   let assetBytes=0;
@@ -162,6 +169,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   if(size>900000){setError("This folder exceeds the current 900 KB import limit. Split it into smaller folders.");return;}
   setEntries(cleaned);
   setAssets(folderAssets.map(asset=>({...asset,path:asset.path.startsWith(root)?asset.path.slice(root.length):asset.path})));
+  }catch(e){setError(e instanceof Error?e.message:"Could not read folder.");}
+  finally{selecting.current=false;}
  }
  return <section className="journal-import">
   <h3>Import campaign notes</h3>

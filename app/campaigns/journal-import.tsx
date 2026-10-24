@@ -57,7 +57,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
      const listing=await fetch(endpoint);
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
      const journal=await listing.json() as {entries:{id:string;kind:string;sourcePath?:string|null;source?:string|null;content:string}[]};
-     const createdPaths=new Set(body.result.createdPaths);
+     const createdPaths=new Set(body.result.createdPaths.map(path=>path.toLowerCase()));
      const pagesByPath=new Map(journal.entries.filter(e=>e.kind==="page"&&e.source===source&&e.sourcePath).map(e=>[e.sourcePath!.toLowerCase(),e]));
      for(const [index,note] of entries.entries()){
       setProgress("Linking attachments: page "+(index+1)+" of "+entries.length);
@@ -70,7 +70,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
        if(key.startsWith(page.id+"\u0000"))previousUrls.set(key.slice(page.id.length+1),url);
       }
       const expected=replaceJournalAssetLinks(note.content,note.path,assets,previousUrls);
-      if(!mayLinkImportedAssets(note.path,note.content,page.content,createdPaths,previousUrls.size>0,expected))continue;
+      if(!mayLinkImportedAssets(note.path.toLowerCase(),note.content,page.content,createdPaths,previousUrls.size>0,expected))continue;
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
       const urls=new Map<string,string>();

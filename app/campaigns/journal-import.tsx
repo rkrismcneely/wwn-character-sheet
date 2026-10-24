@@ -29,8 +29,9 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
   const urls=[...new Set(completedUploads.current.values())];
   const outcomes=await Promise.allSettled(urls.map(async url=>{
    const response=await fetch(url,{method:"DELETE"});
-   // 409 means the page saved the reference and the upload must be kept.
-   if(!response.ok&&response.status!==404&&response.status!==409)
+   // 409 means the page saved the reference. Preserve the cache for safe retries.
+   if(response.status===409)return;
+   if(!response.ok&&response.status!==404)
     throw new Error("Could not clean an unused attachment.");
    for(const [key,value] of completedUploads.current){
     if(value===url)completedUploads.current.delete(key);

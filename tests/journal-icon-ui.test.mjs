@@ -20,7 +20,7 @@ test("journal editor exposes search, selection, and article icon display",()=>{
  assert.match(source,/setDraft\(\{\.\.\.draft,icon:option\.id\}\)/u);
  assert.match(source,/JournalPageIconView icon=\{entry\.icon\}/u);
  assert.match(source,/JournalPageIconView icon=\{current\.icon\}/u);
- assert.ok(source.includes('if(editing)setIconSearch("");'));
+ assert.ok(source.includes('setIconSearch("");setEditing(true);'));
 });
 test("journal icon picker has bounded scrolling and narrow-screen layout",()=>{
  const css=read("app/campaigns/twe-workspace.css");

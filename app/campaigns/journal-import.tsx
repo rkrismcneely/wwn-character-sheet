@@ -52,7 +52,7 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
    if(!response.ok)throw new Error(body.error||"Import failed");
    setPreview(body.preview);
    if(confirm){
-    let uploaded=0,unlinked=0;
+    let uploaded=0,unlinked=0,protectedPages=0;
     if(assets.length){
      const listing=await fetch(endpoint);
      if(!listing.ok)throw new Error("Pages imported, but attachment linking could not start.");
@@ -70,7 +70,10 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
        if(key.startsWith(page.id+"\u0000"))previousUrls.set(key.slice(page.id.length+1),url);
       }
       const expected=replaceJournalAssetLinks(note.content,note.path,assets,previousUrls);
-      if(!mayLinkImportedAssets(note.path.toLowerCase(),note.content,page.content,createdPaths,previousUrls.size>0,expected))continue;
+      if(!mayLinkImportedAssets(note.path.toLowerCase(),note.content,page.content,createdPaths,previousUrls.size>0,expected)){
+       if(referencedJournalAssets(note.content,note.path,assets).length)protectedPages++;
+       continue;
+      }
       const links=referencedJournalAssets(page.content,note.path,assets);
       if(!links.length)continue;
       const urls=new Map<string,string>();
@@ -100,8 +103,8 @@ export function JournalImport({endpoint,onImported}:{endpoint:string;onImported:
       }
      }
     }
-    if(unlinked){
-     setError(unlinked+" attachments could not be uploaded. The imported pages are saved; confirm again to retry missing attachments.");
+    if(unlinked||protectedPages){
+     setError([unlinked?unlinked+" attachments could not be linked.":null,protectedPages?protectedPages+" edited pages were left unchanged.":null].filter(Boolean).join(" ")+" Imported pages are saved; retry remaining attachments if needed.");
      setResult(uploaded+" attachments linked successfully.");
      await onImported();
      return;

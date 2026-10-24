@@ -95,7 +95,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   return { id: entryId, parentId, kind, title, content, visibility, createdAt: now, updatedAt: now };
 }
 export async function updateJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
-  input: { id?: unknown; title?: unknown; content?: unknown; visibility?: unknown }) {
+  input: { id?: unknown; title?: unknown; content?: unknown; visibility?: unknown; expectedContent?: unknown }) {
   const id = await requireGM(db, actor, campaignId);
   if (typeof input.id !== "string" || !uuidPattern.test(input.id))
     throw new CampaignServiceError("Invalid journal entry.", 422);
@@ -106,8 +106,17 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   const content = old.kind === "folder" ? "" : input.content === undefined ? old.content : cleanContent(input.content);
   const visibility = input.visibility === undefined ? old.visibility : cleanVisibility(input.visibility);
   const updatedAt = new Date().toISOString();
-  await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?
-    WHERE campaign_id = ? AND id = ?`).bind(title, content, visibility, updatedAt, id, old.id).run();
+  if(input.expectedContent!==undefined){
+    if(typeof input.expectedContent!=="string"||input.expectedContent.length>100000)
+      throw new CampaignServiceError("Invalid expected journal content.",422);
+    const result=await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?
+      WHERE campaign_id = ? AND id = ? AND content = ?`)
+      .bind(title,content,visibility,updatedAt,id,old.id,input.expectedContent).run();
+    if(!result.meta.changes)throw new CampaignServiceError("Journal page changed since it was loaded. Refresh before retrying.",409);
+  }else{
+    await db.prepare(`UPDATE campaign_journal_entries SET title = ?, content = ?, visibility = ?, updated_at = ?
+      WHERE campaign_id = ? AND id = ?`).bind(title,content,visibility,updatedAt,id,old.id).run();
+  }
   return { ...old, title, content, visibility, updatedAt };
 }
 

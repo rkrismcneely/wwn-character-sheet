@@ -20,6 +20,8 @@ test("Journal D1 migrations create consistent entry, sharing, and file relations
  db.prepare("INSERT INTO campaign_journal_files(id,campaign_id,entry_id,filename,mime_type,byte_size,storage_key,created_at) VALUES (?,?,?,?,?,?,?,?)")
   .run("file","campaign","page","map.png","image/png",100,"journal/file","2026-10-24T12:00:00.000Z");
  assert.equal(db.prepare("SELECT icon FROM campaign_journal_entries WHERE id=?").get("page").icon,"file-text");
+ db.prepare("UPDATE campaign_journal_entries SET icon=? WHERE id=?").run("skull","page");
+ assert.equal(db.prepare("SELECT icon FROM campaign_journal_entries WHERE id=?").get("page").icon,"skull");
  assert.equal(db.prepare("SELECT count(*) AS n FROM campaign_journal_readers").get().n,1);
  assert.equal(db.prepare("SELECT count(*) AS n FROM campaign_journal_files").get().n,1);
  assert.throws(()=>db.prepare("INSERT INTO campaign_journal_files(id,campaign_id,entry_id,filename,mime_type,byte_size,storage_key,created_at) VALUES (?,?,?,?,?,?,?,?)")

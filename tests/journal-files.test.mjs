@@ -72,3 +72,12 @@ test("HTML comments cannot authorize attachment downloads",()=>{
  assert.equal(hasJournalAttachmentReference("<!-- start\n"+link+"\nend -->",campaign,id),false);
  assert.equal(hasJournalAttachmentReference("Visible\n<!-- "+link+" -->\n"+link,campaign,id),true);
 });
+
+test("fence markers with info strings inside a code block do not expose files",()=>{
+ const campaign="cmp_abcdefghijklmnopqrstuv";
+ const id="22222222-2222-4222-8222-222222222222";
+ const link="![Secret](/api/campaigns/"+campaign+"/journal/files/"+id+")";
+ const markdown=["```markdown","```js",link,"```"].join("\n");
+ assert.equal(hasJournalAttachmentReference(markdown,campaign,id),false);
+ assert.equal(hasJournalAttachmentReference(markdown+"\n"+link,campaign,id),true);
+});

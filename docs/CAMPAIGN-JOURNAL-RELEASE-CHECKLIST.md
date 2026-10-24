@@ -8,11 +8,11 @@ Journal development lives in PR #429 on `auto/journal-phase-1`. Do not merge or 
 - Keep the GitHub Actions spending limit unchanged. Run checks locally or after free minutes reset.
 
 ## Required checks
-- Run `npm run typecheck`, `npm run lint`, and targeted Journal tests via `node --experimental-strip-types --test tests/journal*.test.mjs tests/legendkeeper-native.test.mjs` in a checkout with Node >= 22.13.
+- Run `npm run typecheck`, `npm run lint`, and targeted Journal tests (including the migration smoke test) via `node --experimental-strip-types --test tests/journal*.test.mjs tests/legendkeeper-native.test.mjs` in a checkout with Node >= 22.13.
 - Run the verified production build and inspect errors before merge.
 - Confirm import previews, Obsidian ZIP/folder Markdown, LegendKeeper Markdown export, mixed image/PDF links, and malformed archives.
 - Confirm reimport skips existing pages and that failed uploads can be retried without overwriting GM edits.
-- Confirm simultaneous editing while attachments upload yields a conflict, preserving page content, title, and visibility.
+- Confirm simultaneous editing while attachments upload yields a conflict, preserving page content, title, and visibility, including changes made without changing the Markdown body.
 - Confirm GM-only and selected-reader pages are unavailable to other players through lists, search, wiki links, and file downloads.
 - Confirm files referenced from an allowed page can be downloaded by permitted players even when uploaded on another page; hidden links inside Markdown comments, code, or GM-only blocks must not grant access.
 - Confirm cancelled imports and stale orphan cleanup do not delete referenced attachments.

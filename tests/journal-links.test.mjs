@@ -30,3 +30,15 @@ test("prefers exact folder path over duplicate page titles",()=>{
 test("keeps embedded Obsidian media references unchanged",()=>{
  assert.equal(resolveJournalWikilinks("![[People]]",pages[0],pages.slice(0,2)),"![[People]]");
 });
+
+test("does not resolve wikilinks in inline or fenced code examples",()=>{
+ const source=[
+  "```md","[[People]]","```",
+  "Example: `[[People]]`",
+  "Actual: [[People]]"
+ ].join("\n");
+ const result=resolveJournalWikilinks(source,pages[0],pages.slice(0,2));
+ assert.equal(result.split("\n")[1],"[[People]]");
+ assert.match(result,/Example: `\[\[People\]\]`/);
+ assert.match(result,/Actual: \[People\]\(\/journal-page\/22222222/);
+});

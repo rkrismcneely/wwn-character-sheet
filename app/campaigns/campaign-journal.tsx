@@ -29,6 +29,15 @@ const [dragged,setDragged]=useState<string|null>(null);
 const [dropTarget,setDropTarget]=useState<string|null>(null);
 const [reorderTarget,setReorderTarget]=useState<string|null>(null);
 const [moveId,setMoveId]=useState("");
+const [menuId,setMenuId]=useState("");
+useEffect(()=>{
+ if(!menuId)return;
+ const close=(event:PointerEvent)=>{if(event.target instanceof Element&&!event.target.closest(".twe-workspace-entry-menu,.twe-workspace-move-button"))setMenuId("");};
+ const escape=(event:KeyboardEvent)=>{if(event.key==="Escape")setMenuId("");};
+ document.addEventListener("pointerdown",close);
+ document.addEventListener("keydown",escape);
+ return()=>{document.removeEventListener("pointerdown",close);document.removeEventListener("keydown",escape);};
+},[menuId]);
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
 const [sidebarWidth,setSidebarWidth]=useState(270);
@@ -159,6 +168,41 @@ async function moveEntry(sourceId:string,targetId:string|null){
  }catch(e){setError(e instanceof Error?e.message:"Move failed.");await refresh();}
  finally{setDragged(null);setDropTarget(null);setMoveId("");}
 }
+async function editEntryQuick(entry:Entry,fields:{title?:string;visibility?:string}){
+ if(!canEdit||preview||saving||uploading)return;
+ try{
+  const r=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:entry.id,...fields})});
+  const data=await r.json() as {error?:string;entry?:Entry};
+  if(!r.ok||!data.entry)throw new Error(data.error||"Could not update entry.");
+  setEntries(old=>old.map(item=>item.id===entry.id?{...item,...data.entry}:item));
+  if(selected===entry.id&&editing)setDraft(old=>({...old,...fields}));
+  setError("");
+ }catch(e){setError(e instanceof Error?e.message:"Could not update entry.");}
+ finally{setMenuId("");}
+}
+async function duplicateEntry(entry:Entry){
+ if(!canEdit||preview||saving||uploading)return;
+ try{
+  const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"duplicate",id:entry.id})});
+  const data=await r.json() as {error?:string;copy?:{id:string;count:number}};
+  if(!r.ok||!data.copy)throw new Error(data.error||"Could not duplicate entry.");
+  await refresh();setSelected(data.copy.id);setEditing(false);setError("");
+ }catch(e){setError(e instanceof Error?e.message:"Could not duplicate entry.");}
+ finally{setMenuId("");}
+}
+async function deleteEntry(entry:Entry){
+ if(!canEdit||preview||saving||uploading)return;
+ const descendants=entries.filter(item=>ancestry(item).some(parent=>parent.id===entry.id)).length;
+ if(!window.confirm(descendants?"Delete \""+entry.title+"\" and its "+descendants+" nested items? This cannot be undone.":"Delete \""+entry.title+"\"? This cannot be undone."))return;
+ try{
+  const r=await fetch(endpoint,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"delete",id:entry.id})});
+  const data=await r.json() as {error?:string};
+  if(!r.ok)throw new Error(data.error||"Could not delete entry.");
+  if(selected===entry.id||ancestry(current??entry).some(p=>p.id===entry.id)){setSelected("");setEditing(false);}
+  await refresh();setError("");
+ }catch(e){setError(e instanceof Error?e.message:"Could not delete entry.");}
+ finally{setMenuId("");}
+}
 async function openReaders(id:string){
  const r=await fetch(endpoint+"?readers="+encodeURIComponent(id));const j=await r.json() as {error?:string;readers:{userId:string;name:string;selected:number}[]};
  if(!r.ok){setError(j.error||"Could not load players");return;}
@@ -225,7 +269,16 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  else if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
  }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(entryById.get(dragged)?.parentId===entry.parentId)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
-       <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{if(!discardDraft())return;setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Move "+entry.title} title={"Move "+entry.title} onClick={()=>setMoveId(entry.id)}>⋮</button>}
+       <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{if(!discardDraft())return;setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span>{entry.visibility==="gm"&&<span className="twe-workspace-entry-lock" role="img" aria-label="GM only" title="GM only">🔒</span>}</button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Actions for "+entry.title} aria-expanded={menuId===entry.id} title={"Actions for "+entry.title} onClick={()=>setMenuId(old=>old===entry.id?"":entry.id)}>⋮</button>}
+       {menuId===entry.id&&canEdit&&!preview&&<div className="twe-workspace-entry-menu" role="group" aria-label={"Actions for "+entry.title}>
+        <button type="button" onClick={()=>{setMoveId(entry.id);setMenuId("");}}>Move to folder…</button>
+        <button type="button" onClick={()=>{const title=window.prompt("Rename entry",entry.title);if(title!==null&&title.trim()&&title!==entry.title)void editEntryQuick(entry,{title:title.trim()});else setMenuId("");}}>Rename</button>
+        <button type="button" onClick={()=>void duplicateEntry(entry)}>Duplicate</button>
+        <button type="button" aria-pressed={entry.visibility==="gm"} onClick={()=>void editEntryQuick(entry,{visibility:"gm"})}>{entry.visibility==="gm"?"✓ ":""}GM only</button>
+        <button type="button" aria-pressed={entry.visibility==="players"} onClick={()=>void editEntryQuick(entry,{visibility:"players"})}>{entry.visibility==="players"?"✓ ":""}All players</button>
+        {entry.visibility==="selected"&&<button type="button" onClick={()=>{setMenuId("");void openReaders(entry.id);}}>Manage selected players…</button>}
+        <button type="button" className="is-danger" onClick={()=>void deleteEntry(entry)}>Delete…</button>
+       </div>}
       </div>;
     })}
     {moveId&&canEdit&&!preview&&<div className="twe-workspace-move-panel"><label>Move to folder<select aria-label="Destination folder" defaultValue="" onChange={e=>{if(e.target.value)void moveEntry(moveId,e.target.value==="root"?null:e.target.value);}}><option value="">Choose destination…</option><option value="root">Top level</option>{sortedEntries.filter(item=>item.kind==="folder"&&validTarget(moveId,item.id)).map(item=><option key={item.id} value={item.id}>{ancestry(item).map(p=>p.title).join(" / ")}{ancestry(item).length?" / ":""}{item.title}</option>)}</select></label><button type="button" onClick={()=>setMoveId("")}>Cancel</button></div>}

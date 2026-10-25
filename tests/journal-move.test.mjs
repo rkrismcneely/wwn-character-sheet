@@ -16,6 +16,7 @@ test("Journal sidebar supports drag-to-folder, root drops, and keyboard-usable m
  assert.match(s,/onDragOver=/u);
  assert.match(s,/onDrop=/u);
  assert.match(s,/aria-label="Destination folder"/u);
- assert.match(s,/aria-label=\{"Move "\+entry\.title\}/u);
+ assert.match(s,/aria-label=\{"Actions for "\+entry\.title\}/u);
+ assert.match(s,/Move to folder/u);
  assert.match(s,/validTarget\(moveId,item\.id\)/u);
 });

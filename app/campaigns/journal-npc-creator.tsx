@@ -24,7 +24,6 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
    const safe=(value:string)=>value.replace(/[\r\n|]/gu," ").trim();
    const block=[
     "### "+npc.name.replace(/[\r\n]/gu," "),
-    "<!-- twe-npc:"+npc.id+" -->",
     "**NPC stat block · Saved in campaign NPC library**",
     "",
     "| HP | AC | Physical save | Evasion save | Mental save |",
@@ -44,7 +43,7 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
   <p>Creates an NPC in the campaign library and inserts its stat block into this page. Save the Journal page to keep the inline block.</p>
   <div className="journal-npc-fields">
    <label>Name<input autoFocus required maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label>
-   {([["Max HP",hp,setHp,1],["Armor Class",ac,setAc,0],["Physical Save",physical,setPhysical,0],["Evasion Save",evasion,setEvasion,0],["Mental Save",mental,setMental,0]] as const).map(([label,value,set,min])=><label key={label}>{label}<input type="number" required min={min} max={1000} value={value} onChange={e=>set(Number(e.target.value))}/></label>)}
+   {([["Max HP",hp,setHp,1],["Armor Class",ac,setAc,0],["Physical Save",physical,setPhysical,0],["Evasion Save",evasion,setEvasion,0],["Mental Save",mental,setMental,0]] as const).map(([label,value,set,min])=><label key={label}>{label}<input type="number" required min={min} max={label==="Max HP"?100000:1000} value={value} onChange={e=>set(Number(e.target.value))}/></label>)}
    <label>Hit Dice (optional)<input type="number" min={1} max={1000} value={hd} onChange={e=>setHd(e.target.value)}/></label>
    <label>Attacks/Main Action (optional)<input type="number" min={1} max={100} value={perAction} onChange={e=>setPerAction(e.target.value)}/></label>
   </div>

@@ -68,3 +68,9 @@
 .journal-editor-insert-menu>summary:focus-visible{outline:2px solid var(--twe-w-focus);outline-offset:-3px}
 .journal-editor-insert-menu .journal-editor-insert{border-bottom:0}
 .journal-template-choice label{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* Paired boundaries make the protected span obvious while editing.
+   Both markers serialize as the existing server-redacted gm-only delimiters. */
+.journal-visual-secret{padding-bottom:30px}
+.journal-visual-secret::before{content:"GM ONLY · START"}
+.journal-visual-secret::after{content:"GM ONLY · END";position:absolute;bottom:6px;left:12px;font:700 10px var(--font-ui,Arial,sans-serif);letter-spacing:.08em;color:#7e4934;pointer-events:none}

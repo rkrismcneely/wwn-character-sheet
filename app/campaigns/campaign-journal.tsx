@@ -175,10 +175,10 @@ async function editEntryQuick(entry:Entry,fields:{title?:string;visibility?:stri
 async function duplicateEntry(entry:Entry){
  if(!canEdit||preview||saving||uploading)return;
  try{
-  const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:entry.kind,title:entry.title+" (copy)",parentId:entry.parentId,content:entry.kind==="page"?entry.content:"",visibility:entry.visibility,icon:entry.icon})});
-  const data=await r.json() as {error?:string;entry?:Entry};
-  if(!r.ok||!data.entry)throw new Error(data.error||"Could not duplicate entry.");
-  await refresh();setSelected(data.entry.id);setEditing(false);setError("");
+  const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"duplicate",id:entry.id})});
+  const data=await r.json() as {error?:string;copy?:{id:string;count:number}};
+  if(!r.ok||!data.copy)throw new Error(data.error||"Could not duplicate entry.");
+  await refresh();setSelected(data.copy.id);setEditing(false);setError("");
  }catch(e){setError(e instanceof Error?e.message:"Could not duplicate entry.");}
  finally{setMenuId("");}
 }
@@ -265,7 +265,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
        {menuId===entry.id&&canEdit&&!preview&&<div className="twe-workspace-entry-menu" role="group" aria-label={"Actions for "+entry.title}>
         <button type="button" onClick={()=>{setMoveId(entry.id);setMenuId("");}}>Move to folder…</button>
         <button type="button" onClick={()=>{const title=window.prompt("Rename entry",entry.title);if(title!==null&&title.trim()&&title!==entry.title)void editEntryQuick(entry,{title:title.trim()});else setMenuId("");}}>Rename</button>
-        <button type="button" onClick={()=>{if(entry.kind==="folder"&&entries.some(e=>e.parentId===entry.id)){setError("Only empty folders can be duplicated for now.");setMenuId("");return;}void duplicateEntry(entry);}}>Duplicate</button>
+        <button type="button" onClick={()=>void duplicateEntry(entry)}>Duplicate</button>
         <button type="button" aria-pressed={entry.visibility==="gm"} onClick={()=>void editEntryQuick(entry,{visibility:"gm"})}>{entry.visibility==="gm"?"✓ ":""}GM only</button>
         <button type="button" aria-pressed={entry.visibility==="players"} onClick={()=>void editEntryQuick(entry,{visibility:"players"})}>{entry.visibility==="players"?"✓ ":""}All players</button>
         {entry.visibility==="selected"&&<button type="button" onClick={()=>{setMenuId("");void openReaders(entry.id);}}>Manage selected players…</button>}

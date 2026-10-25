@@ -6,8 +6,8 @@ import { JournalLinkedNpc } from "./journal-linked-npc";
 export function JournalDocument({content,onJournalNavigate,previewImageUrls,campaignId}:{content:string;onJournalNavigate:(id:string)=>void;previewImageUrls?:ReadonlySet<string>;campaignId?:string}) {
  const display=journalDocumentContent(content);
  const layout=parseJournalLayout(display);
- const renderText=(source:string):ReactNode=>source.split(/(\{\{twe-npc:[0-9a-f-]{36}\}\})/giu).map((part,index)=>{
-  const reference=/^\{\{twe-npc:([0-9a-f-]{36})\}\}$/iu.exec(part);
+ const renderText=(source:string):ReactNode=>source.split(/(\{\{twe-npc:(?:cnpc_[0-9a-f]{32}|[0-9a-f-]{36})\}\})/giu).map((part,index)=>{
+  const reference=/^\{\{twe-npc:((?:cnpc_[0-9a-f]{32}|[0-9a-f-]{36}))\}\}$/iu.exec(part);
   return reference&&campaignId?<JournalLinkedNpc key={index} campaignId={campaignId} npcId={reference[1]}/>:<SessionRecapMarkdown key={index} content={part} onJournalNavigate={onJournalNavigate} journal previewImageUrls={previewImageUrls}/>;
  });
  const render=(nodes:JournalLayoutNode[]):ReactNode=>nodes.map((node,index)=>node.kind==="text"

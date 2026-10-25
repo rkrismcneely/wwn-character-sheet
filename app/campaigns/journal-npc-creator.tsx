@@ -9,6 +9,7 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
  const [hd,setHd]=useState(""),[perAction,setPerAction]=useState("");
  const [attacks,setAttacks]=useState<Attack[]>([]),[notes,setNotes]=useState(""),[friendly,setFriendly]=useState(false);
  const [saving,setSaving]=useState(false),[error,setError]=useState("");
+ const [spells,setSpells]=useState<{name:string;summary:string}[]>([]),[arts,setArts]=useState<{name:string;summary:string}[]>([]);
  const updateAttack=(i:number,patch:Partial<Attack>)=>setAttacks(old=>old.map((attack,n)=>n===i?{...attack,...patch}:attack));
  async function save(){
   if(saving)return;
@@ -17,7 +18,7 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
    const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
     name,hpMax:hp,armorClass:ac,physicalSave:physical,evasionSave:evasion,mentalSave:mental,
     hitDice:hd?Number(hd):null,attacksPerMainAction:perAction?Number(perAction):null,
-    attacks,notes,friendly,spells:[],arts:[],inventory:[]
+    attacks,notes,friendly,spells,arts,inventory:[]
    })});
    const data=await response.json() as {error?:string;npc?:CreatedNpc};
    if(!response.ok||!data.npc)throw new Error(data.error||"Could not save NPC.");
@@ -40,6 +41,8 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
    setHd(String(creature.sourceStats.hitDice));setPerAction(String(creature.sourceStats.attacksPerMainAction));
    setAttacks((draft.attacks as Attack[]).map(attack=>({...attack,shock:attack.shock??""})));
    setNotes(String(draft.notes??""));setFriendly(false);
+   setSpells(((draft.spells??[]) as {name:string;summary:string}[]).map(item=>({...item})));
+   setArts(((draft.arts??[]) as {name:string;summary:string}[]).map(item=>({...item})));
   }}><option value="">Custom / choose archetype…</option>{builtInBestiaryCreatures.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(creature=><option key={creature.id} value={creature.id}>{creature.name}</option>)}</select></label>
   <div className="journal-npc-fields">
    <label>Name<input autoFocus required maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label>
@@ -58,6 +61,10 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
     <button type="button" onClick={()=>setAttacks(old=>old.filter((_,n)=>n!==i))}>Remove</button>
    </div>)}
   </div>
+  {([["Spells",spells,setSpells],["Arts",arts,setArts]] as const).map(([label,entries,change])=><fieldset key={label} className="journal-npc-magic"><legend>{label}</legend>
+    {entries.map((item,i)=><div className="journal-npc-magic-item" key={i}><input aria-label={label+" "+(i+1)+" name"} value={item.name} maxLength={100} onChange={e=>change(old=>old.map((entry,j)=>j===i?{...entry,name:e.target.value}:entry))}/><input aria-label={label+" "+(i+1)+" summary"} value={item.summary} maxLength={500} onChange={e=>change(old=>old.map((entry,j)=>j===i?{...entry,summary:e.target.value}:entry))}/><button type="button" onClick={()=>change(old=>old.filter((_,j)=>j!==i))}>Remove</button></div>)}
+    <button type="button" disabled={entries.length>=24} onClick={()=>change(old=>[...old,{name:"",summary:""}])}>+ Add {label==="Spells"?"spell":"art"}</button>
+   </fieldset>)}
   <label>Notes<textarea maxLength={2000} value={notes} onChange={e=>setNotes(e.target.value)} rows={3}/></label>
   {error&&<p role="alert" className="twe-workspace-alert">{error}</p>}
   <div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" disabled={saving||!name.trim()||attacks.some(a=>!a.name.trim()||!a.damage.trim())} onClick={()=>void save()}>{saving?"Saving NPC…":"Save NPC and insert stat block"}</button><button type="button" className="twe-button" onClick={onCancel} disabled={saving}>Cancel</button></div>

@@ -196,3 +196,32 @@
 .twe-workspace-entry-menu button.is-danger{color:#9c3f2e;border-top:1px solid #e5d4b9}
 .twe-workspace-entry-lock{font-size:11px;flex:none;margin-left:auto}
 .twe-workspace .twe-workspace-tree-name>span:nth-last-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Journal editor destructive action stays at the end, away from Save/Cancel. */
+.twe-workspace .twe-workspace-delete-entry{margin-left:auto;border-color:#bc8b80;color:#8e3c2c;background:transparent;white-space:nowrap}
+.twe-workspace .twe-workspace-delete-entry:hover{background:#f7e5e0;border-color:#9b4535}
+.twe-workspace-editor-bottom{align-items:center}
+@media(max-width:600px){.twe-workspace .twe-workspace-delete-entry{margin-left:0;width:100%}}
+
+/* Reading-mode hierarchy for Obsidian and LegendKeeper imports.
+   Scope this to Journal display so source Markdown, editor, and other views do not change. */
+.campaign-journal .twe-workspace-prose{line-height:1.58}
+.campaign-journal .journal-document .session-recap-markdown>h2{font-size:clamp(1.45rem,2.2vw,1.85rem);line-height:1.18;margin:26px 0 13px;padding-bottom:8px;border-bottom:1px solid #d9c6a4}
+.campaign-journal .journal-document .session-recap-markdown>h3{font-size:1.33rem;line-height:1.27;margin:24px 0 12px}
+.campaign-journal .journal-document .session-recap-markdown>h4{font-size:1.04rem;margin:17px 0 8px;text-transform:none;letter-spacing:.015em;color:#6a492a}
+.campaign-journal .journal-document .session-recap-markdown>p{margin:0 0 13px}
+.campaign-journal .journal-document .session-recap-markdown>ul,.campaign-journal .journal-document .session-recap-markdown>ol{margin:10px 0 17px;padding-left:23px}
+.campaign-journal .journal-document .session-recap-markdown li+li{margin-top:4px}
+.campaign-journal .journal-document .session-recap-markdown blockquote{padding:11px 16px;border-left:3px solid #9f7a4a;background:#f7efdf;border-radius:0 7px 7px 0}
+.campaign-journal .journal-document .session-recap-table-wrap{margin:14px 0 20px;border:1px solid #dac7a7;border-radius:7px}
+.campaign-journal .journal-document .session-recap-table-wrap table{width:100%;border-collapse:collapse;font-size:.86em;line-height:1.45}
+.campaign-journal .journal-document .session-recap-table-wrap th{background:#ecddc3;text-align:left;font-weight:700;color:#49331e}
+.campaign-journal .journal-document .session-recap-table-wrap th,.campaign-journal .journal-document .session-recap-table-wrap td{padding:8px 10px;border-bottom:1px solid #e4d4bb}
+.campaign-journal .journal-document .session-recap-table-wrap tr:last-child td{border-bottom:0}
+.campaign-journal .journal-document .journal-image-link img{display:block;height:auto;max-height:480px;object-fit:contain;border-radius:8px;border:1px solid #dac9aa;box-shadow:0 4px 13px #46352519}
+.campaign-journal .journal-article-npc .journal-document .session-recap-table-wrap,.campaign-journal .journal-article-monster .journal-document .session-recap-table-wrap{border-color:#c7ab88}
+.campaign-journal .journal-article-npc .journal-document .session-recap-table-wrap th,.campaign-journal .journal-article-monster .journal-document .session-recap-table-wrap th{background:#e8d8ba}
+.campaign-journal .journal-article-location .twe-workspace-page-heading{border-bottom-color:#b49c73}
+.campaign-journal .journal-article-location .journal-document .session-recap-markdown>h2{color:#6d4c2d}
+.campaign-journal .journal-document-columns{gap:clamp(16px,3vw,30px)}
+@media(max-width:900px){.campaign-journal .journal-document-columns{gap:12px}.campaign-journal .journal-document .journal-image-link img{max-height:420px}}

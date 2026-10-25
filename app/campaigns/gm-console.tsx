@@ -13,6 +13,7 @@ import {
   bestiaryNpcAttackOptions,
   bestiaryNpcMagicOptions,
   builtInBestiaryCreatures,
+  builtInBestiaryCreatureDraft,
   filterBestiaryCreatures,
   selectBestiaryCreature,
   type BestiaryNpcMagicOption,
@@ -357,6 +358,20 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
     {error && <p className="campaign-error" role="status">{error}</p>}
     {formOpen && <form className="gm-npc-form" onSubmit={save}>
       <div className="gm-npc-form-heading"><h3>{editing ? `Edit ${editing.name}` : "New NPC"}</h3><button type="button" className="campaign-quiet" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</button></div>
+      <label className="gm-npc-archetype">Start from Bestiary archetype <select defaultValue="" aria-label="Bestiary archetype" onChange={event=>{
+       const creature=builtInBestiaryCreatures.find(item=>item.id===event.target.value);
+       if(!creature)return;
+       const archetype=builtInBestiaryCreatureDraft(creature.id);
+       if(!archetype)return;
+       setDraft(current=>({...current,...archetype,
+        name:String(archetype.name??creature.name),
+        hitDice:creature.sourceStats.hitDice,
+        attacksPerMainAction:creature.sourceStats.attacksPerMainAction,
+        attacks:(archetype.attacks as CampaignNpcAttack[]).map(attack=>({...attack})),
+        spells:(archetype.spells as CampaignNpcMagicReference[]).map(spell=>({...spell})),
+        arts:(archetype.arts as CampaignNpcMagicReference[]).map(art=>({...art})),
+       }));
+      }}><option value="">Custom / choose archetype…</option>{builtInBestiaryCreatures.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(creature=><option key={creature.id} value={creature.id}>{creature.name}</option>)}</select></label>
       <div className="gm-npc-fields"><label><span>Name</span><input required maxLength={80} value={draft.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} /></label><label><span>Max HP</span><span className="gm-npc-hp-roll"><input required type="number" min={1} max={100000} value={draft.hpMax} onChange={event => setDraft(current => ({ ...current, hpMax: Number(event.target.value) }))} /><button type="button" className="campaign-quiet" disabled={!draft.hitDice || draft.hitDice <= 0} onClick={() => setDraft(current => ({ ...current, hpMax: rollNpcHitPoints(current.hitDice ?? 1) }))}>Roll HP</button></span></label><label><span>AC</span><input required type="number" min={0} max={1000} value={draft.armorClass} onChange={event => setDraft(current => ({ ...current, armorClass: Number(event.target.value) }))} /></label><label><span>Physical Save</span><input required type="number" min={0} max={1000} value={draft.physicalSave} onChange={event => setDraft(current => ({ ...current, physicalSave: Number(event.target.value) }))} /></label><label><span>Evasion Save</span><input required type="number" min={0} max={1000} value={draft.evasionSave} onChange={event => setDraft(current => ({ ...current, evasionSave: Number(event.target.value) }))} /></label><label><span>Mental Save</span><input required type="number" min={0} max={1000} value={draft.mentalSave} onChange={event => setDraft(current => ({ ...current, mentalSave: Number(event.target.value) }))} /></label></div>
       <label className="gm-npc-friendly"><input type="checkbox" checked={draft.friendly} onChange={event => setDraft(current => ({ ...current, friendly: event.target.checked }))} /><span>Friendly / allied creature</span></label>
       <fieldset className="gm-npc-threat"><legend>Threat data <small>(optional)</small></legend><p>Set both values to make this custom NPC ready for a future encounter estimate. Multiple weapon options never imply multiple attacks.</p><div><label><span>Hit Dice</span><input aria-label="Hit Dice" type="number" min={1} max={1000} value={draft.hitDice ?? ""} onChange={event => setDraft(current => ({ ...current, hitDice: event.target.value === "" ? null : Number(event.target.value) }))} /></label><label><span>Attacks per Main Action</span><input aria-label="Attacks per Main Action" type="number" min={1} max={100} value={draft.attacksPerMainAction ?? ""} onChange={event => setDraft(current => ({ ...current, attacksPerMainAction: event.target.value === "" ? null : Number(event.target.value) }))} /></label></div></fieldset>

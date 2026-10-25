@@ -29,10 +29,10 @@ jobs:
           process.argv.push('--remote', '--confirm-database-id='+DATABASE_ID);
           operationMode();
           const cols=queryD1("SELECT name FROM pragma_table_info('campaign_journal_entries') WHERE name='sort_order'",true);
-          if(cols.length) { console.log('Migration column already present; no changes required.'); process.exit(0); }
+          if(cols.length) throw new Error('Journal ordering column already exists; migration requires reconciliation before proceeding.');
           const output=runWrangler(['d1','migrations','list',DATABASE_NAME,'--remote','--config','wrangler.jsonc']);
           console.log(output);
-          const matches=[...output.matchAll(/003[0-9][^\s|]*\.sql/g)].map(x=>x[0]);
+          const matches=[...output.matchAll(/[0-9]{4}_[A-Za-z0-9_.-]+\.sql/g)].map(x=>x[0]);
           if(matches.length!==1 || !matches[0].startsWith('0033_campaign_journal_order.sql')) {
             throw new Error('Pending migration list is not limited to migration 0033; refusing to apply.');
           }

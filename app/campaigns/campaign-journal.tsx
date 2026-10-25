@@ -31,6 +31,25 @@ const [reorderTarget,setReorderTarget]=useState<string|null>(null);
 const [moveId,setMoveId]=useState("");
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
+const [sidebarWidth,setSidebarWidth]=useState(270);
+const resizing=useRef(false);
+useEffect(()=>{
+ try {
+  const prefix="twe-journal:"+campaignId+":";
+  const saved=JSON.parse(localStorage.getItem(prefix+"collapsed")??"[]") as unknown;
+  if(Array.isArray(saved)&&saved.every(id=>typeof id==="string"))setCollapsedFolders(new Set(saved));
+  const width=Number(localStorage.getItem(prefix+"sidebar-width"));
+  if(Number.isFinite(width)&&width>=220&&width<=520)setSidebarWidth(width);
+ }catch{/* Browser storage can be unavailable. */}
+},[campaignId]);
+useEffect(()=>{try{localStorage.setItem("twe-journal:"+campaignId+":collapsed",JSON.stringify([...collapsedFolders]));}catch{}},[campaignId,collapsedFolders]);
+useEffect(()=>{try{localStorage.setItem("twe-journal:"+campaignId+":sidebar-width",String(sidebarWidth));}catch{}},[campaignId,sidebarWidth]);
+useEffect(()=>{
+ const onMove=(event:PointerEvent)=>{if(resizing.current)setSidebarWidth(Math.min(520,Math.max(220,event.clientX-(document.querySelector(".twe-workspace-shell")?.getBoundingClientRect().left??0))));};
+ const onStop=()=>{resizing.current=false;document.body.style.cursor="";document.body.style.userSelect="";};
+ window.addEventListener("pointermove",onMove);window.addEventListener("pointerup",onStop);
+ return()=>{onStop();window.removeEventListener("pointermove",onMove);window.removeEventListener("pointerup",onStop);};
+},[]);
 const [readers,setReaders]=useState<{userId:string;name:string;selected:number}[]>([]);
 const [readerEditing,setReaderEditing]=useState(false);
 const [readerEntryId,setReaderEntryId]=useState("");
@@ -185,7 +204,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  {uploadNotice&&<p className="twe-workspace-notice" role="status">{uploadNotice}</p>}
  {importOpen&&canEdit&&<div className="twe-workspace-import"><JournalImport endpoint={endpoint} onImported={refresh}/></div>}
  {readerEditing&&canEdit&&<section className="twe-workspace-readers" aria-label="Selected journal readers"><h3>Share {entryById.get(readerEntryId)?.title} with players</h3><div className="twe-workspace-reader-list">{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}</div><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={()=>void saveReaders()}>Save players</button><button type="button" className="twe-button" onClick={()=>setReaderEditing(false)}>Cancel</button></div></section>}
- <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")}>
+ <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")} style={{"--journal-sidebar-width":sidebarWidth+"px"} as React.CSSProperties}>
   <aside className="twe-workspace-nav" aria-label="Journal navigation">
    <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-folders-all" onClick={toggleAllFolders} aria-label={entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all folders":"Collapse all folders"}>{entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all":"Collapse all"}</button><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
    <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input aria-label="Search journal" placeholder="Find a page…" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>

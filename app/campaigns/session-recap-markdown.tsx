@@ -119,7 +119,14 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       const rows: string[][] = [];
       i += 2;
       while (i < lines.length && lines[i].trim() && lines[i].includes("|")) rows.push(parse(lines[i++]));
-      blocks.push(<div key={key} className="session-recap-table-wrap"><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate,journal,previewImageUrls)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate,journal,previewImageUrls)}</td>)}</tr>)}</tbody></table></div>);
+      const normalizedHeaders=columns.map(value=>value.trim().toLocaleLowerCase());
+      const isProperties=journal&&normalizedHeaders.length===2&&normalizedHeaders[0]==="property"&&normalizedHeaders[1]==="value";
+      const isStatTable=journal&&(
+        normalizedHeaders.some(value=>["str","dex","con","int","wis","cha","strength","dexterity","constitution","intelligence","wisdom","charisma"].includes(value))||
+        normalizedHeaders.some(value=>["armor class","hit points","hit dice","attack bonus","saving throw","ac","hp","hd"].includes(value))
+      );
+      const tableStyle=isProperties?" journal-table-properties":isStatTable?" journal-table-stats":"";
+      blocks.push(<div key={key} className={"session-recap-table-wrap"+tableStyle}><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate,journal,previewImageUrls)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate,journal,previewImageUrls)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
     const para: string[] = [];

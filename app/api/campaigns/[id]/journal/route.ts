@@ -1,7 +1,7 @@
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignD1 } from "@/lib/campaigns/service";
-import { createJournalEntry, journalReaderOptions, listJournal, moveJournalEntry, reorderJournalEntry, setJournalReaders, updateJournalEntry } from "@/lib/campaigns/journal";
+import { createJournalEntry, deleteJournalEntry, journalReaderOptions, listJournal, moveJournalEntry, reorderJournalEntry, setJournalReaders, updateJournalEntry } from "@/lib/campaigns/journal";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
 type Context = { params: Promise<{ id: string }> };
@@ -63,7 +63,8 @@ export async function DELETE(request:Request,context:Context):Promise<Response>{
   const actor=await getSessionActor(request);
   if(!actor)return Response.json({error:"Sign in is required."},{status:401});
   const {id}=await context.params;
-  const body=await readBoundedJson(request,4096) as {id?:unknown;parentId?:unknown}|null;
+  const body=await readBoundedJson(request,4096) as {id?:unknown;parentId?:unknown;action?:unknown}|null;
+  if(body?.action==="delete")return Response.json(await deleteJournalEntry(await getCampaignD1(),actor,id,body));
   return Response.json({entry:await moveJournalEntry(await getCampaignD1(),actor,id,body??{})});
  }catch(error){
   if(error instanceof RequestBodyError)return Response.json({error:error.message},{status:error.status});

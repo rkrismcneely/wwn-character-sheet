@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import {builtInBestiaryCreatures,builtInBestiaryCreatureDraft} from "@/lib/campaigns/bestiary";
 type Attack={name:string;attackBonus:number;damage:string;shock:string;description:string};
 type CreatedNpc={id:string;name:string;hpMax:number;armorClass:number;physicalSave:number;evasionSave:number;mentalSave:number;hitDice:number|null;attacksPerMainAction:number|null;attacks:Attack[];notes:string;friendly:boolean};
 export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:string;onInserted:(markdown:string)=>void;onCancel:()=>void}){
@@ -21,19 +22,7 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
    const data=await response.json() as {error?:string;npc?:CreatedNpc};
    if(!response.ok||!data.npc)throw new Error(data.error||"Could not save NPC.");
    const npc=data.npc;
-   const safe=(value:string)=>value.replace(/[\r\n|]/gu," ").trim();
-   const block=[
-    "### "+npc.name.replace(/[\r\n]/gu," "),
-    "**NPC stat block · Saved in campaign NPC library**",
-    "",
-    "| HP | AC | Physical save | Evasion save | Mental save |",
-    "| --- | --- | --- | --- | --- |",
-    "| "+[npc.hpMax,npc.armorClass,npc.physicalSave,npc.evasionSave,npc.mentalSave].join(" | ")+" |",
-    npc.hitDice!=null?"**Hit Dice:** "+npc.hitDice+(npc.attacksPerMainAction!=null?" · **Attacks/Main Action:** "+npc.attacksPerMainAction:""):"",
-    npc.friendly?"**Disposition:** Friendly / allied":"",
-    ...npc.attacks.map(a=>"- **"+safe(a.name)+"** "+(a.attackBonus>=0?"+":"")+a.attackBonus+" · "+safe(a.damage)+(a.shock?" · Shock "+safe(a.shock):"")+(a.description?" · "+safe(a.description):"")),
-    npc.notes?npc.notes:"",
-   ].filter(Boolean).join("\n");
+   const block="{{twe-npc:"+npc.id+"}}";
    onInserted(block);
   }catch(cause){setError(cause instanceof Error?cause.message:"Could not save NPC.");}
   finally{setSaving(false);}
@@ -41,6 +30,17 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
  return <section className="journal-npc-creator" role="dialog" aria-modal="false" aria-label="Add NPC stat block">
   <div className="journal-npc-creator-heading"><h3>Create encounter-ready NPC</h3><button type="button" onClick={onCancel} disabled={saving}>Close</button></div>
   <p>Creates an NPC in the campaign library and inserts its stat block into this page. Save the Journal page to keep the inline block.</p>
+  <label>Start from Bestiary archetype<select aria-label="Bestiary archetype" defaultValue="" onChange={event=>{
+   const creature=builtInBestiaryCreatures.find(item=>item.id===event.target.value);
+   if(!creature)return;
+   const draft=builtInBestiaryCreatureDraft(creature.id);
+   if(!draft)return;
+   setName(String(draft.name??creature.name));setHp(Number(draft.hpMax??creature.hpMax));setAc(Number(draft.armorClass??creature.armorClass));
+   setPhysical(Number(draft.physicalSave??creature.physicalSave));setEvasion(Number(draft.evasionSave??creature.evasionSave));setMental(Number(draft.mentalSave??creature.mentalSave));
+   setHd(String(creature.sourceStats.hitDice));setPerAction(String(creature.sourceStats.attacksPerMainAction));
+   setAttacks((draft.attacks as Attack[]).map(attack=>({...attack,shock:attack.shock??""})));
+   setNotes(String(draft.notes??""));setFriendly(false);
+  }}><option value="">Custom / choose archetype…</option>{builtInBestiaryCreatures.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(creature=><option key={creature.id} value={creature.id}>{creature.name}</option>)}</select></label>
   <div className="journal-npc-fields">
    <label>Name<input autoFocus required maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label>
    {([["Max HP",hp,setHp,1],["Armor Class",ac,setAc,0],["Physical Save",physical,setPhysical,0],["Evasion Save",evasion,setEvasion,0],["Mental Save",mental,setMental,0]] as const).map(([label,value,set,min])=><label key={label}>{label}<input type="number" required min={min} max={label==="Max HP"?100000:1000} value={value} onChange={e=>set(Number(e.target.value))}/></label>)}

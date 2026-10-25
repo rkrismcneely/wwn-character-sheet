@@ -22,5 +22,7 @@ export function npcMagicCatalog(kind:"spells"|"arts"):readonly BestiaryNpcMagicO
    for(const art of data.arts)add(art.name,art.text,tradition);
   }
  }
- return choices.sort((a,b)=>a.name.localeCompare(b.name)||(a.level??0)-(b.level??0));
+ return choices.sort((a,b)=>kind==="spells"
+  ? (a.level??Number.MAX_SAFE_INTEGER)-(b.level??Number.MAX_SAFE_INTEGER)||a.name.localeCompare(b.name)
+  : a.name.localeCompare(b.name));
 }

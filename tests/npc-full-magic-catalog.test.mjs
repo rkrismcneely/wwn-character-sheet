@@ -15,3 +15,10 @@ test("Both NPC creators use the game-wide spell and art catalog",()=>{
   assert.match(source,/npcMagicCatalog\("arts"\)/u);
  }
 });
+
+test("Journal NPC creator permits direct selection without first adding a blank row",()=>{
+ const source=read("app/campaigns/journal-npc-creator.tsx");
+ assert.match(source,/Add "\+\(label==="Spells"\?"spell":"art"\)\+" from game catalog"/u);
+ assert.match(source,/if\(selected\)change\(old=>\[\.\.\.old,/u);
+ assert.match(source,/\+ Custom /u);
+});

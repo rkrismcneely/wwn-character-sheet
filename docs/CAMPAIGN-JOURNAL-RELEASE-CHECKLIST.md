@@ -45,3 +45,10 @@ Production publication order, **after explicit approval**:
 The remote preview has no OAuth/authentication secrets configured. Signed-in preview UI smoke testing requires separately authorized preview credentials/callback configuration; local authenticated HTTP coverage does not establish touch/drag-and-drop visual behavior. Do not reuse production credentials or seed real user sessions to bypass this gate.
 
 GitHub Actions quota failures are not application test failures. Do not dispatch/retry hosted Actions.
+
+## October 25 follow-up release
+
+- The Journal editor's reversible new-page templates and compact Insert menu are committed on `main`.
+- The sibling-ordering UI is also on `main`, but requires the additive `drizzle/0033_campaign_journal_order.sql` migration before persistent reordering can work. Journal reads include a compatibility fallback until migration is applied.
+- Rebuild from the latest `main` through the configured Cloudflare Git integration. Verify the live build SHA and the editor controls after deployment.
+- Do not consider persistent manual ordering production-verified until the D1 migration and a reorder/readback test have succeeded.

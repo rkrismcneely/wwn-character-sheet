@@ -1,3 +1,4 @@
+import { outsideMarkdownCode } from "./journal-asset-links.ts";
 export type JournalLayoutNode = { kind: "text"; content: string } | { kind: "section" | "column"; width?: number; children: JournalLayoutNode[] };
 
 /** Recognize only the fixed layout markers emitted by LegendKeeper exports. */
@@ -37,4 +38,9 @@ export function safeJournalImage(source: string): boolean {
   const url=new URL(source);
   return url.protocol==="https:" && url.hostname==="assets.legendkeeper.com" && !url.username && !url.password && !url.port && /\.(?:png|jpe?g|webp|gif)$/iu.test(url.pathname);
  } catch {return false;}
+}
+
+/** Hide converter metadata in reading mode, while preserving code and stored text. */
+export function journalDocumentContent(content: string): string {
+ return outsideMarkdownCode(content, text => text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, ""));
 }

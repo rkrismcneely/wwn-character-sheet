@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import type { ConsoleTab } from "./gm-console";
 
 // Load the large GM workspace only when a GM opens one of its tabs.
+const CampaignJournal = dynamic(() => import("./campaign-journal").then(module => module.CampaignJournal), { ssr: false });
 const GmConsole = dynamic(() => import("./gm-console").then(module => module.GmConsole), { ssr: false });
 import { campaignInviteLink } from "@/lib/campaigns/invite-link";
 import {
@@ -29,10 +30,11 @@ type Confirmation =
   | { kind: "unlink"; character: CampaignCharacter }
   | { kind: "resource"; resource: CampaignResource };
 
-export function CampaignDetail({ campaignId }: { campaignId: string }) {
+export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campaignId: string; initialTab?: "campaign" | "journal" }) {
   const router = useRouter();
-  const [campaignTab, setCampaignTab] = useState<"campaign" | ConsoleTab>("campaign");
+  const [campaignTab, setCampaignTab] = useState<"campaign" | "journal" | ConsoleTab>(initialTab);
   const [gmOpened, setGmOpened] = useState(false);
+  const [journalOpened, setJournalOpened] = useState(initialTab === "journal");
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
   const [members, setMembers] = useState<CampaignMember[]>([]);
   const [characters, setCharacters] = useState<CampaignCharacter[]>([]);
@@ -459,15 +461,13 @@ export function CampaignDetail({ campaignId }: { campaignId: string }) {
       )}
       {!busy && campaign && (
         <>
-          {campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
-            <nav className="gm-console-tabs" aria-label="Campaign pages">
-              {(["campaign", "encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => { setCampaignTab(item); if (item !== "campaign") setGmOpened(true); }}>{item === "campaign" ? "Campaign" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
-            </nav>
-          )}
-          <nav className="gm-console-tabs" aria-label="Journal navigation"><Link href={`/campaigns/${encodeURIComponent(campaignId)}/journal`}>Campaign Journal</Link></nav>
+          <nav className="gm-console-tabs" aria-label="Campaign pages">
+            {(["campaign", ...(campaign.permissions.canUseGmConsole && !campaign.archivedAt ? ["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const : []), "journal"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => { setCampaignTab(item); if (item === "journal") setJournalOpened(true); else if (item !== "campaign") setGmOpened(true); }}>{item === "campaign" ? "Campaign" : item === "journal" ? "Campaign Journal" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
+          </nav>
+          {journalOpened && <div hidden={campaignTab !== "journal"}><CampaignJournal campaignId={campaignId} /></div>}
           {gmOpened && campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
-            <div hidden={campaignTab === "campaign"}>
-              <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded visible={campaignTab !== "campaign"} activeTab={campaignTab === "campaign" ? "encounter" : campaignTab} />
+            <div hidden={campaignTab === "campaign" || campaignTab === "journal"}>
+              <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded visible={campaignTab !== "campaign" && campaignTab !== "journal"} activeTab={campaignTab === "campaign" || campaignTab === "journal" ? "encounter" : campaignTab} />
             </div>
           )}
           <div hidden={campaignTab !== "campaign"}>

@@ -34,13 +34,17 @@ const [sidebarOpen,setSidebarOpen]=useState(true);
 const [sidebarWidth,setSidebarWidth]=useState(270);
 const resizing=useRef(false);
 useEffect(()=>{
- try {
-  const prefix="twe-journal:"+campaignId+":";
-  const saved=JSON.parse(localStorage.getItem(prefix+"collapsed")??"[]") as unknown;
-  if(Array.isArray(saved)&&saved.every(id=>typeof id==="string"))setCollapsedFolders(new Set(saved));
-  const width=Number(localStorage.getItem(prefix+"sidebar-width"));
-  if(Number.isFinite(width)&&width>=220&&width<=520)setSidebarWidth(width);
- }catch{/* Browser storage can be unavailable. */}
+ // Restore asynchronously so hydration remains stable and lint-safe.
+ const frame=requestAnimationFrame(()=>{
+  try {
+   const prefix="twe-journal:"+campaignId+":";
+   const saved=JSON.parse(localStorage.getItem(prefix+"collapsed")??"[]") as unknown;
+   if(Array.isArray(saved)&&saved.every(id=>typeof id==="string"))setCollapsedFolders(new Set(saved));
+   const width=Number(localStorage.getItem(prefix+"sidebar-width"));
+   if(Number.isFinite(width)&&width>=220&&width<=520)setSidebarWidth(width);
+  }catch{}
+ });
+ return()=>cancelAnimationFrame(frame);
 },[campaignId]);
 useEffect(()=>{try{localStorage.setItem("twe-journal:"+campaignId+":collapsed",JSON.stringify([...collapsedFolders]));}catch{}},[campaignId,collapsedFolders]);
 useEffect(()=>{try{localStorage.setItem("twe-journal:"+campaignId+":sidebar-width",String(sidebarWidth));}catch{}},[campaignId,sidebarWidth]);
@@ -229,6 +233,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
    </nav>
    <div className="twe-workspace-nav-footer">CAMPAIGN LIBRARY</div>
   </aside>
+  {sidebarOpen&&<div className="twe-workspace-resize-handle" role="separator" aria-label="Resize Journal sidebar" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={520} aria-valuenow={sidebarWidth} tabIndex={0} onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();resizing.current=true;document.body.style.cursor="col-resize";document.body.style.userSelect="none";}} onKeyDown={event=>{if(event.key==="ArrowRight"||event.key==="ArrowLeft"){event.preventDefault();setSidebarWidth(width=>Math.min(520,Math.max(220,width+(event.key==="ArrowRight"?20:-20))));}}}/>}
   <main className="twe-workspace-document">
    <div className="twe-workspace-document-toolbar">
     <div className="twe-workspace-crumbs">{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>

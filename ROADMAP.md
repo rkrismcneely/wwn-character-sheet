@@ -53,6 +53,20 @@ Treat the remaining expansion bullets as product choices rather than mandatory s
 
 ---
 
+## Future feature: Session Recordings + AI Recaps
+
+After the current Campaign Journal / Session Recap release is stable, add an optional GM-controlled workflow for importing Discord game-session recordings from **Craig**, transcribing the session and generating an editable recap. This is **future scope, not a blocker** for the journal release.
+
+- **Import:** Prefer pasting a Craig recording/download link with automated server-side retrieval, subject to verifying Craig's supported URL formats, access controls, expiry and terms. Provide direct upload as a fallback, including recordings larger than 100 MB; use resilient multipart uploads to R2.
+- **Audio sources:** When available, use Craig's synchronized individual-speaker tracks for transcription and speaker attribution. Use a mixed recording for playback; support automatic chunking/compression as required by transcription providers.
+- **Playback copy:** Retain a compact speech-optimized mixed recording (evaluate Opus around 32–48 kbps, or Craig's ready-made AAC if suitable) in private R2 storage. Make retention of original multitrack files optional, with clear storage/expiry controls.
+- **Listening in recaps:** Embed an audio player in the saved Session Recap with play/pause, seek, skip, speed and volume controls. Support clickable timestamps on recap events, synchronized/searchable transcript segments and a download option for authorized users.
+- **Recap generation:** Produce a timestamped transcript, then draft a structured summary of events, NPCs, locations, quests and unresolved threads. Use relevant Campaign Journal names/context to improve recognition. Require GM review/edit before publication; keep transcript/audio access and public recap visibility independently configurable.
+- **Cost/privacy:** Investigate genuinely free/free-tier transcription and summarization routes, with quotas and long-session limitations made explicit. Avoid automatic paid fallback; preserve recordings for retry if quotas are exhausted. Secure recordings and transcripts as GM-only by default and address participant recording consent.
+- **Implementation spike first:** Verify Craig link ingestion works reliably, compare available export formats and audio size/quality, benchmark a real multi-hour sample, estimate R2/storage/processing costs and validate timestamp alignment before selecting providers and building the feature.
+
+---
+
 ## Visual polish backlog
 
 - Re-check the current live dark-theme background before doing more art work. If the armillary sphere still has the known geometry issue around the vertical prime-meridian band, correct that specific problem rather than restarting the whole background design.

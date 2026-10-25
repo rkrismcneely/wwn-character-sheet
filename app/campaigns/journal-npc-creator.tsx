@@ -1,6 +1,9 @@
 "use client";
 import { useState } from "react";
 import {builtInBestiaryCreatures,builtInBestiaryCreatureDraft} from "@/lib/campaigns/bestiary";
+import {npcMagicCatalog} from "@/lib/campaigns/npc-magic-catalog";
+const spellChoices=npcMagicCatalog("spells");
+const artChoices=npcMagicCatalog("arts");
 type Attack={name:string;attackBonus:number;damage:string;shock:string;description:string};
 type CreatedNpc={id:string;name:string;hpMax:number;armorClass:number;physicalSave:number;evasionSave:number;mentalSave:number;hitDice:number|null;attacksPerMainAction:number|null;attacks:Attack[];notes:string;friendly:boolean};
 export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:string;onInserted:(markdown:string)=>void;onCancel:()=>void}){
@@ -9,7 +12,7 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
  const [hd,setHd]=useState(""),[perAction,setPerAction]=useState("");
  const [attacks,setAttacks]=useState<Attack[]>([]),[notes,setNotes]=useState(""),[friendly,setFriendly]=useState(false);
  const [saving,setSaving]=useState(false),[error,setError]=useState("");
- const [spells,setSpells]=useState<{name:string;summary:string}[]>([]),[arts,setArts]=useState<{name:string;summary:string}[]>([]);
+ const [spells,setSpells]=useState<{name:string;summary:string;level?:number}[]>([]),[arts,setArts]=useState<{name:string;summary:string}[]>([]);
  const updateAttack=(i:number,patch:Partial<Attack>)=>setAttacks(old=>old.map((attack,n)=>n===i?{...attack,...patch}:attack));
  async function save(){
   if(saving)return;
@@ -41,7 +44,7 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
    setHd(String(creature.sourceStats.hitDice));setPerAction(String(creature.sourceStats.attacksPerMainAction));
    setAttacks((draft.attacks as Attack[]).map(attack=>({...attack,shock:attack.shock??""})));
    setNotes(String(draft.notes??""));setFriendly(false);
-   setSpells(((draft.spells??[]) as {name:string;summary:string}[]).map(item=>({...item})));
+   setSpells(((draft.spells??[]) as {name:string;summary:string;level?:number}[]).map(item=>({...item})));
    setArts(((draft.arts??[]) as {name:string;summary:string}[]).map(item=>({...item})));
   }}><option value="">Custom / choose archetype…</option>{builtInBestiaryCreatures.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(creature=><option key={creature.id} value={creature.id}>{creature.name}</option>)}</select></label>
   <div className="journal-npc-fields">
@@ -61,8 +64,8 @@ export function JournalNpcCreator({campaignId,onInserted,onCancel}:{campaignId:s
     <button type="button" onClick={()=>setAttacks(old=>old.filter((_,n)=>n!==i))}>Remove</button>
    </div>)}
   </div>
-  {([["Spells",spells,setSpells],["Arts",arts,setArts]] as const).map(([label,entries,change])=><fieldset key={label} className="journal-npc-magic"><legend>{label}</legend>
-    {entries.map((item,i)=><div className="journal-npc-magic-item" key={i}><input aria-label={label+" "+(i+1)+" name"} value={item.name} maxLength={100} onChange={e=>change(old=>old.map((entry,j)=>j===i?{...entry,name:e.target.value}:entry))}/><input aria-label={label+" "+(i+1)+" summary"} value={item.summary} maxLength={500} onChange={e=>change(old=>old.map((entry,j)=>j===i?{...entry,summary:e.target.value}:entry))}/><button type="button" onClick={()=>change(old=>old.filter((_,j)=>j!==i))}>Remove</button></div>)}
+  {([{label:"Spells",entries:spells,change:setSpells,choices:spellChoices},{label:"Arts",entries:arts,change:setArts,choices:artChoices}] as {label:string;entries:{name:string;summary:string;level?:number}[];change:typeof setSpells;choices:ReturnType<typeof npcMagicCatalog>}[]).map(({label,entries,change,choices})=><fieldset key={label} className="journal-npc-magic"><legend>{label}</legend>
+    {entries.map((item,i)=><div className="journal-npc-magic-item" key={i}><select aria-label={label+" "+(i+1)+" catalog choice"} value={choices.find(option=>option.name===item.name&&option.summary===item.summary&&option.level===item.level)?.key??"custom"} onChange={e=>{const chosen=choices.find(option=>option.key===e.target.value);if(chosen)change(old=>old.map((entry,j)=>j===i?{name:chosen.name,summary:chosen.summary,...(chosen.level===undefined?{}:{level:chosen.level})}:entry));}}><option value="custom">Custom entry…</option>{choices.map(option=><option key={option.key} value={option.key}>{option.name}{option.level!==undefined?" · Level "+option.level:""}</option>)}</select><input aria-label={label+" "+(i+1)+" name"} value={item.name} maxLength={100} onChange={e=>change(old=>old.map((entry,j)=>j===i?{...entry,name:e.target.value}:entry))}/><input aria-label={label+" "+(i+1)+" summary"} value={item.summary} maxLength={500} onChange={e=>change(old=>old.map((entry,j)=>j===i?{...entry,summary:e.target.value}:entry))}/><button type="button" onClick={()=>change(old=>old.filter((_,j)=>j!==i))}>Remove</button></div>)}
     <button type="button" disabled={entries.length>=24} onClick={()=>change(old=>[...old,{name:"",summary:""}])}>+ Add {label==="Spells"?"spell":"art"}</button>
    </fieldset>)}
   <label>Notes<textarea maxLength={2000} value={notes} onChange={e=>setNotes(e.target.value)} rows={3}/></label>

@@ -12,7 +12,7 @@ import { journalPropertiesMarkdown } from "@/lib/campaigns/journal-properties";
 import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
 import { JournalImport } from "./journal-import";
 import { JournalDocument } from "./journal-document";
-type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string;icon?:string;sourcePath?:string|null};
+type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string;icon?:string;sourcePath?:string|null;sortOrder?:number|null};
 const JournalVisualEditor=dynamic(()=>import("./journal-visual-editor").then(module=>module.JournalVisualEditor),{ssr:false,loading:()=> <p role="status">Opening editor…</p>});
 export function CampaignJournal({campaignId}:{campaignId:string}){
 const [entries,setEntries]=useState<Entry[]>([]);
@@ -27,6 +27,7 @@ const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
 const [dragged,setDragged]=useState<string|null>(null);
 const [dropTarget,setDropTarget]=useState<string|null>(null);
+const [reorderTarget,setReorderTarget]=useState<string|null>(null);
 const [moveId,setMoveId]=useState("");
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
@@ -91,12 +92,13 @@ const matchesSearch=(entry:Entry)=>{const term=search.trim().toLocaleLowerCase()
 const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolders.has(folder.id));
 const childrenByParent=new Map<string,Entry[]>();
 for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}
-const compareEntries=(a:Entry,b:Entry)=>a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
+const compareEntries=(a:Entry,b:Entry)=>a.sortOrder!=null&&b.sortOrder!=null?a.sortOrder-b.sortOrder:a.sortOrder!=null?-1:b.sortOrder!=null?1:a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
 for(const siblings of childrenByParent.values())siblings.sort(compareEntries);
 const sortedEntries:Entry[]=[];const visited=new Set<string>();
 function addChildren(parent:string,depth=0){if(depth>20)return;for(const entry of childrenByParent.get(parent)??[]){if(visited.has(entry.id))continue;visited.add(entry.id);sortedEntries.push(entry);addChildren(entry.id,depth+1);}}
 addChildren("");for(const entry of entries.slice().sort(compareEntries)){if(!visited.has(entry.id)){visited.add(entry.id);sortedEntries.push(entry);}}
 const matchingEntries=sortedEntries.filter(entry=>matchesSearch(entry)&&(search.trim()||visibleInTree(entry)));
+function toggleAllFolders(){const folders=entries.filter(entry=>entry.kind==="folder");setCollapsedFolders(old=>folders.every(folder=>old.has(folder.id))?new Set():new Set(folders.map(folder=>folder.id)));}
 function toggleFolder(id:string){setCollapsedFolders(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next;});}
 
 const validTarget=(sourceId:string,targetId:string|null)=>{
@@ -106,6 +108,20 @@ const validTarget=(sourceId:string,targetId:string|null)=>{
  while(cursor){if(seen.has(cursor))return false;seen.add(cursor);cursor=entryById.get(cursor)?.parentId??null;}
  return targetId===null||entryById.get(targetId)?.kind==="folder";
 };
+async function reorderEntry(sourceId:string,beforeId:string){
+ if(!canEdit||preview||sourceId===beforeId)return;
+ const source=entryById.get(sourceId),target=entryById.get(beforeId);
+ if(!source||!target||source.parentId!==target.parentId)return;
+ try{
+  const r=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:sourceId,beforeId})});
+  const data=await r.json() as {error?:string;order?:{ids:string[]}};
+  if(!r.ok||!data.order)throw new Error(data.error||"Could not reorder items.");
+  const positions=new Map(data.order.ids.map((id,index)=>[id,index]));
+  setEntries(old=>old.map(entry=>positions.has(entry.id)?{...entry,sortOrder:positions.get(entry.id)}:entry));
+  setError("");
+ }catch(e){setError(e instanceof Error?e.message:"Could not reorder items.");await refresh();}
+ finally{setDragged(null);setDropTarget(null);setReorderTarget(null);}
+}
 async function moveEntry(sourceId:string,targetId:string|null){
  if(!canEdit||preview||!validTarget(sourceId,targetId))return;
  const source=entryById.get(sourceId);
@@ -171,7 +187,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  {readerEditing&&canEdit&&<section className="twe-workspace-readers" aria-label="Selected journal readers"><h3>Share {entryById.get(readerEntryId)?.title} with players</h3><div className="twe-workspace-reader-list">{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}</div><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={()=>void saveReaders()}>Save players</button><button type="button" className="twe-button" onClick={()=>setReaderEditing(false)}>Cancel</button></div></section>}
  <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")}>
   <aside className="twe-workspace-nav" aria-label="Journal navigation">
-   <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
+   <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-folders-all" onClick={toggleAllFolders} aria-label={entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all folders":"Collapse all folders"}>{entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all":"Collapse all"}</button><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
    <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input aria-label="Search journal" placeholder="Find a page…" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>
    <div className="twe-workspace-nav-caption">{search.trim()?matchingEntries.length+" matches":entries.length+" items"}</div>
    {canEdit&&!preview&&<button type="button" className={"twe-workspace-root-drop"+(dropTarget==="root"?" is-drop-target":"")} onDragOver={e=>{if(dragged&&validTarget(dragged,null)){e.preventDefault();setDropTarget("root");}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{e.preventDefault();if(dragged)void moveEntry(dragged,null);}} onClick={()=>{if(moveId)void moveEntry(moveId,null);}}>↖ Top level {moveId?"(move selected item)":""}</button>}
@@ -179,7 +195,12 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     {matchingEntries.map(entry=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);}} onDragOver={e=>{if(folder&&dragged&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{if(folder&&dragged){e.preventDefault();e.stopPropagation();void moveEntry(dragged,entry.id);}}} style={{paddingLeft:8+depth*14}}>
+      return <div key={entry.id} className={"twe-workspace-tree-row"+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
+ if(!dragged||dragged===entry.id)return;
+ const source=entryById.get(dragged);
+ if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}
+ else if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
+ }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(reorderTarget===entry.id)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
        <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{if(!discardDraft())return;setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Move "+entry.title} title={"Move "+entry.title} onClick={()=>setMoveId(entry.id)}>⋮</button>}
       </div>;

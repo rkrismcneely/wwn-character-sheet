@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import type {CampaignNpcTemplate} from "@/lib/campaigns/npcs";
+import { NPC_CHANGED_EVENT, notifyCampaignNpcChanged } from "@/lib/campaigns/npc-change-events";
 export function JournalLinkedNpc({campaignId,npcId}:{campaignId:string;npcId:string}){
  const [npc,setNpc]=useState<CampaignNpcTemplate|null>(null);
  const [error,setError]=useState("");
@@ -20,8 +21,15 @@ export function JournalLinkedNpc({campaignId,npcId}:{campaignId:string;npcId:str
    }catch(e){if(!controller.signal.aborted){setError(e instanceof Error?e.message:"NPC unavailable");setCanEdit(false);}}
   };
   void load();const reload=()=>{void load();};
+  const onNpcChanged=(event:Event)=>{
+   const detail=(event as CustomEvent<{campaignId:string;npcId:string}>).detail;
+   if(detail?.campaignId===campaignId&&detail.npcId===npcId)reload();
+  };
+  const onVisibility=()=>{if(!document.hidden)reload();};
   window.addEventListener("focus",reload);
-  return()=>{controller.abort();window.removeEventListener("focus",reload);};
+  window.addEventListener(NPC_CHANGED_EVENT,onNpcChanged);
+  document.addEventListener("visibilitychange",onVisibility);
+  return()=>{controller.abort();window.removeEventListener("focus",reload);window.removeEventListener(NPC_CHANGED_EVENT,onNpcChanged);document.removeEventListener("visibilitychange",onVisibility);};
  },[campaignId,npcId]);
  async function saveEdits(){
   if(!draft||saving)return;
@@ -34,6 +42,7 @@ export function JournalLinkedNpc({campaignId,npcId}:{campaignId:string;npcId:str
    const data=await response.json() as {npc?:CampaignNpcTemplate;error?:string};
    if(!response.ok||!data.npc)throw new Error(data.error||"Could not save NPC");
    setNpc(data.npc);setEditing(false);setDraft(null);
+   notifyCampaignNpcChanged(campaignId,npcId);
   }catch(e){setError(e instanceof Error?e.message:"Could not save NPC");}
   finally{setSaving(false);}
  }

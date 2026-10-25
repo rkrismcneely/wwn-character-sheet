@@ -291,3 +291,28 @@ export async function deleteJournalEntry(db:D1Database,actor:CampaignActor|null,
  .bind(campaign,input.id,campaign,campaign).run();
  return {deleted:result.meta.changes??0};
 }
+
+/** Deep-copy a folder tree (or single page), keeping the original unchanged. */
+export async function duplicateJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid journal entry.",422);
+ const result=await db.prepare(`WITH RECURSIVE descendants(id,depth) AS (
+    SELECT id,0 FROM campaign_journal_entries WHERE campaign_id=? AND id=?
+    UNION ALL SELECT child.id,descendants.depth+1 FROM campaign_journal_entries child JOIN descendants ON child.parent_id=descendants.id
+    WHERE child.campaign_id=? AND descendants.depth<50
+  ) SELECT j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.icon, j.visibility, j.sort_order AS sortOrder
+  FROM descendants d JOIN campaign_journal_entries j ON j.campaign_id=? AND j.id=d.id
+  ORDER BY d.depth,j.sort_order,j.title COLLATE NOCASE`)
+  .bind(campaign,input.id,campaign,campaign).all<Pick<Row,"id"|"parentId"|"kind"|"title"|"content"|"icon"|"visibility"|"sortOrder">>();
+ const entries=result.results;
+ if(!entries.length)throw new CampaignServiceError("Journal entry not found.",404);
+ if(entries.length>500)throw new CampaignServiceError("Folder is too large to duplicate in one operation.",422);
+ const ids=new Map(entries.map(entry=>[entry.id,crypto.randomUUID()]));
+ const now=new Date().toISOString();
+ const statements=entries.map((entry,index)=>db.prepare(`INSERT INTO campaign_journal_entries
+ (id,campaign_id,parent_id,kind,title,content,icon,visibility,created_at,updated_at)
+ VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(ids.get(entry.id),campaign,index===0?entry.parentId:ids.get(entry.parentId??"")??null,
+ entry.kind,index===0?entry.title+" (copy)":entry.title,entry.content,entry.icon,entry.visibility,now,now));
+ await db.batch(statements);
+ return {id:ids.get(entries[0].id),count:entries.length};
+}

@@ -9,9 +9,9 @@ import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcMagicReference, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
 import { npcAttackFromWeapon, npcWeaponStarters } from "@/lib/campaigns/npc-weapons";
+import { npcMagicCatalog } from "@/lib/campaigns/npc-magic-catalog";
 import {
   bestiaryNpcAttackOptions,
-  bestiaryNpcMagicOptions,
   builtInBestiaryCreatures,
   builtInBestiaryCreatureDraft,
   filterBestiaryCreatures,
@@ -44,8 +44,8 @@ const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physical
 const blankAttack = (): CampaignNpcAttack => ({ name: "", attackBonus: 0, damage: "", shock: "", description: "" });
 const blankMagic = (): CampaignNpcMagicReference => ({ name: "", summary: "" });
 const OTHER_MAGIC_VALUE = "__other__";
-const spellOptions = bestiaryNpcMagicOptions("spells");
-const artOptions = bestiaryNpcMagicOptions("arts");
+const spellOptions = npcMagicCatalog("spells");
+const artOptions = npcMagicCatalog("arts");
 const monsterAttackOptions = bestiaryNpcAttackOptions();
 
 function magicOptionFor(reference: CampaignNpcMagicReference, options: readonly BestiaryNpcMagicOption[]): string {
@@ -77,7 +77,7 @@ function NpcMagicRow({ kind, index, value, options, onChange, onRemove }: { kind
 
 function NpcMagicAdd({ kind, options, disabled, onAdd }: { kind: "Spell" | "Art"; options: readonly BestiaryNpcMagicOption[]; disabled: boolean; onAdd: (value: CampaignNpcMagicReference) => void }) {
   return <div className="gm-npc-magic-add">
-    <label><span>Bestiary {kind}</span><select aria-label={`Add ${kind} from Bestiary`} defaultValue="" disabled={disabled} onChange={event => {
+    <label><span>game {kind}</span><select aria-label={`Add ${kind} from game catalog`} defaultValue="" disabled={disabled} onChange={event => {
       const option = options.find(candidate => candidate.key === event.currentTarget.value);
       if (option) onAdd({ name: option.name, ...(option.level === undefined ? {} : { level: option.level }), summary: option.summary });
       event.currentTarget.value = "";

@@ -207,6 +207,7 @@ export function JournalVisualEditor({ value, onChange, disabled = false, pages, 
         {button("Columns", () => setDialog("columns"))}
         {button("Divider", () => { editor?.chain().focus().setHorizontalRule().run(); })}
         {button("GM-only block", () => { editor?.chain().focus().wrapIn("journalSecret").run(); }, state?.secret, state?.secret)}
+        {button("GM dividers (start/end)", () => { if (!editor) return; if (state?.secret) { setError("Place the cursor outside the existing GM-only section."); return; } if (!editor.chain().focus().wrapIn("journalSecret").run()) setError("Select one or more complete paragraphs before adding GM dividers."); }, false, Boolean(state?.secret))}
         {(state?.table || state?.columns || state?.secret || state?.callout) && button("Continue below block", continueBelow)}
       </div></details>
       {state?.table && <div className="journal-editor-context" role="toolbar" aria-label="Table tools">{button("Add row", () => { editor?.chain().focus().addRowAfter().run(); })}{button("Add column", () => { editor?.chain().focus().addColumnAfter().run(); })}{button("Delete row", () => { editor?.chain().focus().deleteRow().run(); })}{button("Delete column", () => { editor?.chain().focus().deleteColumn().run(); })}{button("Remove table", () => { editor?.chain().focus().deleteTable().run(); })}</div>}

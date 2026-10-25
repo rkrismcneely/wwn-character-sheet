@@ -186,3 +186,13 @@
  .twe-workspace-shell:not(.twe-workspace-shell-collapsed){grid-template-columns:minmax(0,1fr)}
  .twe-workspace-resize-handle{display:none}
 }
+
+/* Compact, keyboard-focusable entry actions; flyout stays above neighbouring rows. */
+.twe-workspace-tree-row{position:relative}
+.twe-workspace-tree-row:has(.twe-workspace-entry-menu){z-index:20}
+.twe-workspace-entry-menu{position:absolute;top:calc(100% - 2px);right:2px;z-index:30;min-width:178px;max-width:240px;padding:5px;display:grid;gap:2px;background:#fff9eb;border:1px solid #c9ae83;border-radius:8px;box-shadow:0 8px 22px #3927153b}
+.twe-workspace-entry-menu button{width:100%;min-height:30px;border:0;border-radius:5px;padding:6px 9px;text-align:left;background:transparent;color:#433523;font:600 12px var(--font-ui,Arial,sans-serif);cursor:pointer}
+.twe-workspace-entry-menu button:hover,.twe-workspace-entry-menu button:focus-visible{background:#eddfc4;outline:1px solid #98733e}
+.twe-workspace-entry-menu button.is-danger{color:#9c3f2e;border-top:1px solid #e5d4b9}
+.twe-workspace-entry-lock{font-size:11px;flex:none;margin-left:auto}
+.twe-workspace .twe-workspace-tree-name>span:nth-last-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

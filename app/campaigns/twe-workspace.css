@@ -241,3 +241,18 @@
 .campaign-journal .journal-document .journal-table-stats th{font:700 11px/1.4 var(--font-ui,Arial,sans-serif);letter-spacing:.04em;text-transform:uppercase}
 .campaign-journal .journal-document .journal-table-stats td{font-variant-numeric:tabular-nums;font-size:14px}
 @media(max-width:650px){.campaign-journal .journal-document .journal-table-properties td:first-child{width:40%}.campaign-journal .journal-document .journal-table-stats th,.campaign-journal .journal-document .journal-table-stats td{min-width:44px;padding:7px 6px}}
+
+/* NPC creator embedded in Journal editing, separate from the full GM Console. */
+.campaign-journal .journal-add-npc{align-self:flex-start;margin:4px 0 12px}
+.campaign-journal .journal-npc-creator{border:1px solid #cbb087;border-radius:9px;padding:16px;background:#f8f0df;display:grid;gap:13px;margin-bottom:16px}
+.campaign-journal .journal-npc-creator-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.campaign-journal .journal-npc-creator-heading h3,.campaign-journal .journal-npc-creator-heading h4{margin:0}
+.campaign-journal .journal-npc-creator-heading button,.campaign-journal .journal-npc-attack button{border:1px solid #d3be9e;background:#fff7e8;border-radius:5px;padding:6px 10px;cursor:pointer}
+.campaign-journal .journal-npc-creator p{margin:0;font-size:13px;color:#6e5940}
+.campaign-journal .journal-npc-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}
+.campaign-journal .journal-npc-creator label{display:grid;gap:4px;font:600 12px var(--font-ui,Arial,sans-serif);color:#5a4530}
+.campaign-journal .journal-npc-creator input:not([type=checkbox]),.campaign-journal .journal-npc-creator textarea{min-width:0;width:100%;border:1px solid #d4c1a4;background:#fffdf7;color:#3e3022;border-radius:5px;padding:8px;font:14px var(--font-ui,Arial,sans-serif)}
+.campaign-journal .journal-npc-creator .journal-npc-friendly{display:flex;align-items:center;gap:9px}
+.campaign-journal .journal-npc-attacks{display:grid;gap:10px}
+.campaign-journal .journal-npc-attack{display:grid;grid-template-columns:1.3fr .65fr 1fr 1fr 1.5fr auto;gap:6px;align-items:end}
+@media(max-width:850px){.campaign-journal .journal-npc-attack{grid-template-columns:repeat(2,minmax(0,1fr))}}

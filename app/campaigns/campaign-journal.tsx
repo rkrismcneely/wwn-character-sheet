@@ -43,22 +43,42 @@ useEffect(()=>{
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
 const [sidebarWidth,setSidebarWidth]=useState(270);
+const [viewerId,setViewerId]=useState("");
+const [loadedPreferencesKey,setLoadedPreferencesKey]=useState("");
+const preferenceKey=viewerId?"twe-journal:"+viewerId+":"+campaignId+":":"";
 const resizing=useRef(false);
 useEffect(()=>{
- // Restore asynchronously so hydration remains stable and lint-safe.
+ if(!preferenceKey)return;
+ let folders:string[]=[];
+ let width=270;
+ let open=true;
+ try{
+  const stored=JSON.parse(localStorage.getItem(preferenceKey+"collapsed")??"[]") as unknown;
+  if(Array.isArray(stored))folders=stored.filter((id):id is string=>typeof id==="string");
+  const storedWidth=Number(localStorage.getItem(preferenceKey+"sidebar-width"));
+  if(Number.isFinite(storedWidth)&&storedWidth>=220&&storedWidth<=520)width=storedWidth;
+  open=localStorage.getItem(preferenceKey+"sidebar-open")!=="false";
+ }catch{}
  const frame=requestAnimationFrame(()=>{
-  try {
-   const prefix="twe-journal:"+campaignId+":";
-   const saved=JSON.parse(localStorage.getItem(prefix+"collapsed")??"[]") as unknown;
-   if(Array.isArray(saved)&&saved.every(id=>typeof id==="string"))setCollapsedFolders(new Set(saved));
-   const width=Number(localStorage.getItem(prefix+"sidebar-width"));
-   if(Number.isFinite(width)&&width>=220&&width<=520)setSidebarWidth(width);
-  }catch{}
+  setCollapsedFolders(new Set(folders));
+  setSidebarWidth(width);
+  setSidebarOpen(open);
+  setLoadedPreferencesKey(preferenceKey);
  });
  return()=>cancelAnimationFrame(frame);
-},[campaignId]);
-useEffect(()=>{try{localStorage.setItem("twe-journal:"+campaignId+":collapsed",JSON.stringify([...collapsedFolders]));}catch{}},[campaignId,collapsedFolders]);
-useEffect(()=>{try{localStorage.setItem("twe-journal:"+campaignId+":sidebar-width",String(sidebarWidth));}catch{}},[campaignId,sidebarWidth]);
+},[preferenceKey]);
+useEffect(()=>{
+ if(!preferenceKey||loadedPreferencesKey!==preferenceKey)return;
+ try{localStorage.setItem(preferenceKey+"collapsed",JSON.stringify([...collapsedFolders]));}catch{}
+},[preferenceKey,loadedPreferencesKey,collapsedFolders]);
+useEffect(()=>{
+ if(!preferenceKey||loadedPreferencesKey!==preferenceKey)return;
+ try{localStorage.setItem(preferenceKey+"sidebar-width",String(sidebarWidth));}catch{}
+},[preferenceKey,loadedPreferencesKey,sidebarWidth]);
+useEffect(()=>{
+ if(!preferenceKey||loadedPreferencesKey!==preferenceKey)return;
+ try{localStorage.setItem(preferenceKey+"sidebar-open",String(sidebarOpen));}catch{}
+},[preferenceKey,loadedPreferencesKey,sidebarOpen]);
 useEffect(()=>{
  const onMove=(event:PointerEvent)=>{if(resizing.current)setSidebarWidth(Math.min(520,Math.max(220,event.clientX-(document.querySelector(".twe-workspace-shell")?.getBoundingClientRect().left??0))));};
  const onStop=()=>{resizing.current=false;document.body.style.cursor="";document.body.style.userSelect="";};
@@ -80,19 +100,19 @@ const [uploadNotice,setUploadNotice]=useState("");
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
- const j=await r.json() as {error?:string;entries:Entry[];canEdit:boolean};
+ const j=await r.json() as {error?:string;entries:Entry[];canEdit:boolean;viewerId?:string};
  if(!r.ok){setError(j.error||"Journal unavailable");return;}
- setEntries(j.entries);setCanEdit(j.canEdit);setError("");
+ setEntries(j.entries);setCanEdit(j.canEdit);if(j.viewerId)setViewerId(j.viewerId);setError("");
 }
 useEffect(()=>{
  const controller=new AbortController();
  void (async()=>{
   try{
    const response=await fetch(endpoint+(preview?"?preview=player":""),{signal:controller.signal});
-   const body=await response.json() as {error?:string;entries:Entry[];canEdit:boolean};
+   const body=await response.json() as {error?:string;entries:Entry[];canEdit:boolean;viewerId?:string};
    if(controller.signal.aborted)return;
    if(!response.ok){setError(body.error||"Journal unavailable");return;}
-   setEntries(body.entries);setCanEdit(body.canEdit);setError("");
+   setEntries(body.entries);setCanEdit(body.canEdit);if(body.viewerId)setViewerId(body.viewerId);setError("");
   }catch{if(!controller.signal.aborted)setError("Journal unavailable");}
  })();
  return ()=>controller.abort();

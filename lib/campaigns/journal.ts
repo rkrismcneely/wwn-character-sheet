@@ -101,7 +101,7 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
         SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
       ))) ${orderClause}`)
     .bind(ctx.campaignId, gmView ? 1 : 0, preview ? 1 : 0, actor!.userId).all<Row>();
-  return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
+  return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview, viewerId: actor!.userId };
 }
 export async function createJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,
   input: { parentId?: unknown; kind?: unknown; title?: unknown; content?: unknown; visibility?: unknown; icon?: unknown }) {

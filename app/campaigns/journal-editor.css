@@ -1,0 +1,61 @@
+.journal-icon-control{display:flex;align-items:center;gap:12px;margin:4px 0 18px}
+.journal-icon-popover{position:relative}
+.journal-icon-popover>summary{display:flex;align-items:center;gap:10px;list-style:none;cursor:pointer;min-height:40px;padding:8px 12px;border:1px solid var(--twe-w-line);border-radius:7px;background:var(--twe-w-paper);font:600 13px var(--font-ui,Arial,sans-serif)}
+.journal-icon-popover>summary::-webkit-details-marker{display:none}
+.journal-icon-popover>summary[aria-disabled=true]{opacity:.6;cursor:default}
+.journal-icon-popover>summary:focus-visible,.journal-editor-toolbar button:focus-visible,.journal-editor-insert button:focus-visible{outline:2px solid var(--twe-w-focus);outline-offset:2px}
+.journal-icon-popup{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:min(440px,calc(100vw - 64px));max-height:65vh;padding:14px;border:1px solid var(--twe-w-line);border-radius:9px;background:var(--twe-w-paper);box-shadow:0 12px 30px #332a2030;overflow:auto}
+.twe-workspace .journal-icon-popup .twe-workspace-icon-picker{grid-template-columns:repeat(4,minmax(0,1fr));max-height:360px;margin-top:12px}
+.twe-workspace .journal-icon-popup .twe-workspace-icon-choice{min-height:72px;padding:7px 4px}
+.journal-composer{border:1px solid var(--twe-w-line);border-radius:9px;background:var(--twe-w-paper);margin:0 0 18px;min-width:0;overflow:hidden}
+.journal-editor-modes{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--twe-w-line);background:var(--twe-w-surface)}
+.journal-composer button,.journal-composer select,.journal-composer input{font-family:var(--font-ui,Arial,sans-serif)}
+.journal-editor-modes button,.journal-editor-toolbar button,.journal-editor-insert button,.journal-editor-context button{min-height:34px;padding:7px 10px;color:var(--twe-w-ink);border:1px solid transparent;border-radius:5px;background:transparent;font-size:12px;cursor:pointer}
+.journal-editor-modes button[aria-pressed=true],.journal-editor-toolbar button.is-active{background:#8c631f;color:#fff8eb;border-color:#8c631f}
+.journal-editor-toolbar button:hover:not(:disabled),.journal-editor-insert button:hover:not(:disabled),.journal-editor-context button:hover:not(:disabled){border-color:var(--twe-w-line);background:var(--twe-w-surface)}
+.journal-composer button:disabled{cursor:default;opacity:.45}
+.journal-editor-toolbar,.journal-editor-insert,.journal-editor-context{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--twe-w-line)}
+.journal-editor-insert{background:#faf3e4}
+.journal-editor-context{background:#f1e5cc}
+.journal-editor-toolbar select,.journal-template-choice select,.journal-editor-context select{border:1px solid var(--twe-w-line);border-radius:5px;padding:7px;background:var(--twe-w-paper);color:var(--twe-w-ink);max-width:100%}
+.journal-template-choice{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;font:600 13px var(--font-ui,Arial,sans-serif)}
+.journal-visual-surface{max-height:75vh;overflow:auto;min-width:0}
+.journal-visual-surface .tiptap{min-height:360px;padding:24px;outline:none;color:var(--twe-w-ink);font:16px/1.7 var(--font-body,Georgia,serif);overflow-wrap:anywhere;white-space:pre-wrap}
+.journal-visual-surface .tiptap>*:first-child{margin-top:0}
+.journal-visual-surface .tiptap p{margin:10px 0}
+.journal-visual-surface .tiptap h1,.journal-visual-surface .tiptap h2,.journal-visual-surface .tiptap h3{font-family:var(--font-display,Georgia,serif);line-height:1.25;margin:20px 0 10px}
+.journal-visual-surface .tiptap h1{font-size:1.7rem}.journal-visual-surface .tiptap h2{font-size:1.45rem}.journal-visual-surface .tiptap h3{font-size:1.15rem}
+.journal-visual-surface .tiptap ul,.journal-visual-surface .tiptap ol{padding-left:24px}
+.journal-visual-surface .tiptap a,.journal-editor-page-link{color:#8b5d26;text-decoration:underline;text-underline-offset:3px}
+.journal-visual-surface .tiptap blockquote{margin:16px 0;padding:6px 16px;border-left:3px solid var(--twe-w-gold);background:var(--twe-w-surface)}
+.journal-visual-surface .tiptap pre{font:13px/1.6 monospace;background:var(--twe-w-surface);padding:12px;overflow:auto;white-space:pre-wrap}
+.journal-visual-surface .tiptap img{max-width:100%;height:auto;max-height:500px;object-fit:contain;border-radius:6px;display:block;margin:12px 0}
+.journal-visual-surface .ProseMirror-selectednode{outline:2px solid var(--twe-w-focus);outline-offset:3px}
+.journal-visual-surface .tiptap table{border-collapse:collapse;table-layout:fixed;max-width:100%;width:100%;margin:14px 0}
+.journal-visual-surface .tiptap td,.journal-visual-surface .tiptap th{border:1px solid var(--twe-w-line);vertical-align:top;padding:6px 8px;min-width:40px;position:relative}
+.journal-visual-surface .tiptap th{background:var(--twe-w-surface);font-weight:bold}
+.journal-visual-surface .tiptap .selectedCell:after{content:"";position:absolute;inset:0;background:#a9793425;pointer-events:none}
+.journal-visual-columns{display:flex;gap:18px;align-items:flex-start;margin:14px 0}
+.journal-visual-column{flex:1 1 0;min-width:0;padding:10px;border:1px dashed var(--twe-w-line);border-radius:6px}
+.journal-visual-callout,.journal-visual-secret{position:relative;border:1px solid var(--twe-w-line);border-left:3px solid var(--twe-w-gold);border-radius:6px;background:var(--twe-w-surface);padding:10px 12px;margin:12px 0}
+.journal-visual-secret{border-color:#9b7264;background:#f8eae4;padding-top:27px}
+.journal-visual-secret:before{content:"GM only";position:absolute;top:5px;left:12px;font:700 10px var(--font-ui,Arial,sans-serif);text-transform:uppercase;letter-spacing:.08em;color:#7e4934;pointer-events:none}
+.journal-visual-callout[data-title]:not([data-title=""]):before{content:attr(data-title);font-weight:700}
+.journal-visual-surface .journal-preserved{border:1px dashed var(--twe-w-line);background:#f5eddf;padding:12px;margin:12px 0;font:13px/1.6 var(--font-ui,Arial,sans-serif)}
+.journal-preserved pre{max-height:160px;overflow:auto}
+.journal-preserved small{display:block;color:var(--twe-w-muted)}
+.journal-preserved-inline{background:var(--twe-w-surface);border-radius:3px;font-family:monospace}
+.journal-editor-context label{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 12px var(--font-ui,Arial,sans-serif)}
+.journal-editor-context input{padding:6px;border:1px solid var(--twe-w-line);border-radius:5px;background:var(--twe-w-paper)}
+.journal-editor-preview{padding:24px;max-height:75vh;overflow:auto}
+.journal-composer>.twe-workspace-field{padding:16px;margin:0}
+.journal-composer>.twe-workspace-field textarea{font:13px/1.7 monospace;min-height:400px}
+.journal-file-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.journal-editor-dialog-fields{display:grid;gap:14px;margin-top:18px}
+.journal-editor-dialog-fields label{display:grid;gap:6px;color:var(--twe-w-ink);font:600 13px var(--font-ui,Arial,sans-serif)}
+.journal-editor-dialog-fields input,.journal-editor-dialog-fields select{box-sizing:border-box;width:100%;padding:10px;border:1px solid var(--twe-w-line);border-radius:5px;background:var(--twe-w-paper);color:var(--twe-w-ink)}
+@media(max-width:900px){.journal-visual-columns{flex-direction:column}.journal-visual-column{box-sizing:border-box;width:100%;flex:auto}.journal-visual-surface .tiptap{padding:16px}.journal-editor-toolbar button,.journal-editor-insert button{padding:7px}}
+
+.journal-document-secret{border:1px solid #9b7264;border-left-width:3px;border-radius:6px;background:#fbf0e9;padding:14px;margin:16px 0}.journal-secret-label{display:block;font:700 11px var(--font-ui,Arial,sans-serif);text-transform:uppercase;letter-spacing:.08em;color:#7e4934;margin-bottom:8px}
+
+.journal-property-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:10px;padding:12px;border:1px solid var(--twe-w-line);border-radius:6px}.journal-property-value{grid-column:1/-1}.journal-property-value textarea{box-sizing:border-box;width:100%;font:14px/1.5 var(--font-ui,Arial,sans-serif);padding:9px;border:1px solid var(--twe-w-line);border-radius:5px;background:var(--twe-w-paper);color:var(--twe-w-ink)}

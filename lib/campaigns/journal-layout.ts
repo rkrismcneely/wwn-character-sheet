@@ -1,9 +1,9 @@
 import { outsideMarkdownCode } from "./journal-asset-links.ts";
-export type JournalLayoutNode = { kind: "text"; content: string } | { kind: "section" | "column"; width?: number; children: JournalLayoutNode[] };
+export type JournalLayoutNode = { kind: "text"; content: string } | { kind: "section" | "column" | "secret"; width?: number; children: JournalLayoutNode[] };
 
 /** Recognize only the fixed layout markers emitted by LegendKeeper exports. */
 export function parseJournalLayout(content: string): JournalLayoutNode[] | null {
- const root: JournalLayoutNode[] = [], stack: { kind: "section" | "column"; width?: number; children: JournalLayoutNode[] }[] = [];
+ const root: JournalLayoutNode[] = [], stack: { kind: "section" | "column" | "secret"; width?: number; children: JournalLayoutNode[] }[] = [];
  let fence = "", found = false;
  const children = () => stack.at(-1)?.children ?? root;
  const text = (line: string) => {
@@ -19,13 +19,21 @@ export function parseJournalLayout(content: string): JournalLayoutNode[] | null 
    text(line); continue;
   }
   if(fence) {text(line);continue;}
+  const secret = /^\s*<!--\s*gm-only:(start|end)\s*-->\s*$/iu.exec(line);
+  if(secret){
+   if(secret[1].toLowerCase()==="start"){
+    if(stack.length>=8)return null;
+    const node={kind:"secret" as const,children:[] as JournalLayoutNode[]};children().push(node);stack.push(node);found=true;
+   }else{if(stack.at(-1)?.kind!=="secret")return null;stack.pop();}
+   continue;
+  }
   const section = /^\s*<div data-layout-section="true">\s*$/u.test(line);
   const column = /^\s*<div data-layout-column="true"(?: data-column-width="(\d+(?:\.\d+)?)")?>\s*$/u.exec(line);
   if(section || column) {
    if(stack.length>=8 || (column && stack.at(-1)?.kind!=="section") || (section && stack.at(-1)?.kind==="section")) return null;
    const node = {kind:section?"section" as const:"column" as const, ...(column?{width:Math.max(10,Math.min(90,Number(column[1])||50))}:{}),children:[] as JournalLayoutNode[]};
    children().push(node);stack.push(node);found=true;
-  } else if(/^\s*<\/div>\s*$/u.test(line) && stack.length) stack.pop();
+  } else if(/^\s*<\/div>\s*$/u.test(line) && stack.length) {if(stack.at(-1)?.kind==="secret")return null;stack.pop();}
   else text(line);
  }
  if(stack.length || !found) return null;

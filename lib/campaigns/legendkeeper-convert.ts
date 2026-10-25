@@ -60,12 +60,15 @@ export function convertLegendKeeperNative(value:unknown){
    if(t==="paragraph")return children.map(inline).join("")+"\n\n";
    if(t==="heading")return "#".repeat(Math.max(1,Math.min(6,Number(attrs.level)||2)))+" "+children.map(inline).join("")+"\n\n";
    if(t==="rule")return "---\n\n";
-   if(t==="layoutSection"||t==="layoutColumn"||t==="listItem"||t==="taskItem"||t==="tableCell"||t==="tableHeader")return blocks(children,depth+1);
+   if(t==="layoutSection")return '<div data-layout-section="true">\n\n'+blocks(children,depth+1)+'</div>\n\n';
+   if(t==="layoutColumn")return '<div data-layout-column="true" data-column-width="'+Math.max(10,Math.min(90,Number(attrs.width)||50))+'">\n\n'+blocks(children,depth+1)+'</div>\n\n';
+   if(t==="listItem"||t==="taskItem"||t==="tableCell"||t==="tableHeader")return blocks(children,depth+1);
    if(t==="bulletList"||t==="orderedList"||t==="taskList")return children.map((c,i)=>{
     const text=blocks(record(c).content,depth+1).trim().replace(/\n/gu,"\n  ");
     return (t==="orderedList"?(i+1)+". ":t==="taskList"?"- [ ] ":"- ")+text+"\n";
    }).join("")+"\n";
-   if(t==="blockquote"||t==="panel")return blocks(children,depth+1).trim().split("\n").map(l=>"> "+l).join("\n")+"\n\n";
+   if(t==="panel")return "> [!NOTE]\n"+blocks(children,depth+1).trim().split("\n").map(l=>"> "+l).join("\n")+"\n\n";
+   if(t==="blockquote")return blocks(children,depth+1).trim().split("\n").map(l=>"> "+l).join("\n")+"\n\n";
    if(t==="table"){
     const rows=children.filter(c=>record(c).type==="tableRow").map(row=>array(record(row).content).map(cell=>blocks(record(cell).content,depth+1).trim().replace(/\s*\n\s*/gu," ").replace(/\|/gu,"\\|")));
     if(!rows.length)return "";

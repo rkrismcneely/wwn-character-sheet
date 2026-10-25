@@ -153,3 +153,18 @@
 .twe-workspace-move-panel label{display:grid;gap:6px}
 .twe-workspace-move-panel select{width:100%;min-width:0;padding:7px;border:1px solid #c5ae89;border-radius:5px;color:#44311d;background:#fffcf5}
 .twe-workspace-move-panel button{justify-self:end;padding:6px 10px;border:1px solid #c5ae89;border-radius:5px;background:#f7edd9;color:#44311d;cursor:pointer}
+
+/* Imported document layouts use known markers, never raw HTML. */
+.campaign-journal .journal-document-columns{display:flex;align-items:flex-start;gap:24px;min-width:0}
+.campaign-journal .journal-document-column{flex:var(--journal-column-width,50) 1 0;min-width:0}
+.campaign-journal .journal-document .session-recap-markdown{margin:0;min-width:0}
+.campaign-journal .journal-document .session-recap-markdown h3{font-size:1.5rem;line-height:1.25;margin:0 0 12px}
+.campaign-journal .journal-document .session-recap-markdown h4{font-size:1.05rem;margin:16px 0 10px}
+.campaign-journal .journal-document .journal-callout{border:1px solid var(--twe-w-line);border-left:3px solid var(--twe-w-gold);border-radius:7px;background:var(--twe-w-surface);padding:12px 14px;margin:12px 0}
+.campaign-journal .journal-callout .session-recap-markdown p{margin:0}
+.campaign-journal .journal-callout-title{display:block;margin-bottom:6px}
+.campaign-journal .journal-callout-warning,.campaign-journal .journal-callout-caution{border-left-color:#a85b36}
+.campaign-journal .journal-image-link{display:block;line-height:0;cursor:zoom-in}
+.campaign-journal .journal-image-link img{display:block;max-height:560px;width:auto;height:auto;border-radius:8px;object-fit:contain}
+.campaign-journal .journal-document .session-recap-table-wrap{max-width:100%;overflow-x:auto}
+@media(max-width:900px){.campaign-journal .journal-document-columns{flex-direction:column}.campaign-journal .journal-document-column{width:100%;flex:auto}.campaign-journal .journal-image-link img{max-height:400px}}

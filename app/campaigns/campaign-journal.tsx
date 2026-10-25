@@ -6,7 +6,7 @@ import { JournalPageIconView } from "./journal-page-icon";
 import { journalPropertiesMarkdown } from "@/lib/campaigns/journal-properties";
 import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
 import { JournalImport } from "./journal-import";
-import { SessionRecapMarkdown } from "./session-recap-markdown";
+import { JournalDocument } from "./journal-document";
 type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string;icon?:string;sourcePath?:string|null};
 export function CampaignJournal({campaignId}:{campaignId:string}){
 const [entries,setEntries]=useState<Entry[]>([]);
@@ -101,7 +101,7 @@ async function saveReaders(){
  const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
 }
 async function uploadJournalFile(file:File){
- if(!current||current.kind!=="page")return;
+ if(!current||current.kind!=="page"||!editing||uploading)return;
  setUploading(true);setError("");setUploadNotice("");
  try{
   const body=new FormData();body.set("entryId",current.id);body.set("file",file);
@@ -110,7 +110,7 @@ async function uploadJournalFile(file:File){
   if(!response.ok)throw new Error(result.error||"Upload failed.");
   const url=endpoint+"/files/"+encodeURIComponent(result.id);
   const markdown=file.type.startsWith("image/")?"!["+file.name+"]("+url+")":"["+file.name+"]("+url+")";
-  setDraft({title:current.title,visibility:current.visibility,content:current.content+"\n"+markdown,icon:journalPageIcon(current.icon)});
+  setDraft(old=>({...old,content:old.content+"\n"+markdown}));
   setIconSearch("");setEditing(true);
   setUploadNotice("File uploaded. Save this page to keep the attachment link.");
  }catch(error){setError(error instanceof Error?error.message:"Upload failed.");}
@@ -118,6 +118,7 @@ async function uploadJournalFile(file:File){
 }
 async function save(e:React.FormEvent){
  e.preventDefault();
+ if(uploading)return;
  const r=await fetch(endpoint,{method:selected?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(selected?{id:selected,...draft}:{kind:creatingFolder?"folder":"page",parentId,...draft})});
  const j=await r.json() as {error?:string;entry:Entry};
  if(!r.ok){setError(j.error||"Save failed");return;}
@@ -168,12 +169,13 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     <label className="twe-workspace-field">Title<input autoFocus required maxLength={160} placeholder={creatingFolder?"Folder name":"Untitled page"} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
     {!creatingFolder&&<fieldset className="twe-workspace-icon-field"><legend>Page icon</legend><div className="twe-workspace-icon-search"><input aria-label="Search page icons" placeholder="Find an icon (NPC, creature, location…)" value={iconSearch} onChange={e=>setIconSearch(e.target.value)}/><span>{JOURNAL_PAGE_ICONS.length} icons</span></div><div className="twe-workspace-icon-picker">{JOURNAL_PAGE_ICONS.filter(option=>(option.label+" "+option.id).toLocaleLowerCase().includes(iconSearch.trim().toLocaleLowerCase())).map(option=><button type="button" key={option.id} className={"twe-workspace-icon-choice"+(draft.icon===option.id?" is-selected":"")} aria-label={option.label} aria-pressed={draft.icon===option.id} title={option.label} onClick={()=>setDraft({...draft,icon:option.id})}><JournalPageIconView icon={option.id} size={22}/><span>{option.label}</span></button>)}</div>{!JOURNAL_PAGE_ICONS.some(option=>(option.label+" "+option.id).toLocaleLowerCase().includes(iconSearch.trim().toLocaleLowerCase()))&&<p className="twe-workspace-icon-empty">No matching icons.</p>}</fieldset>}
     {!creatingFolder&&<label className="twe-workspace-field">Page content<textarea rows={16} placeholder="Begin writing your story…" value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}
-    <div className="twe-workspace-editor-bottom"><label className="twe-workspace-field">Who can read this?<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label><div className="twe-workspace-action-row"><button className="twe-button twe-button-primary" type="submit">Save {creatingFolder?"folder":"page"}</button><button className="twe-button" type="button" onClick={()=>{setEditing(false);}}>Cancel</button></div></div>
+    {current?.kind==="page"&&!creatingFolder&&<label className="twe-workspace-attach">Attach image or PDF <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" disabled={uploading} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadJournalFile(file);event.target.value="";}}/></label>}
+    <div className="twe-workspace-editor-bottom"><label className="twe-workspace-field">Who can read this?<select value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label><div className="twe-workspace-action-row"><button className="twe-button twe-button-primary" type="submit" disabled={uploading}>Save {creatingFolder?"folder":"page"}</button><button className="twe-button" type="button" disabled={uploading} onClick={()=>{setEditing(false);}}>Cancel</button></div></div>
    </form>:current?<article className="twe-workspace-page">
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":"Journal entry"}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge · Markdown"}</div></div>
-    {canEdit&&current.kind==="page"&&<div className="twe-workspace-page-tools"><label className="twe-workspace-attach">Attach image or PDF <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" disabled={uploading} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadJournalFile(file);event.target.value="";}}/></label>{current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}</div>}
+    {canEdit&&current.kind==="page"&&current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}
     {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>+ New page here</button></div>}
-    {current.kind==="page"&&<div className="twe-workspace-prose"><SessionRecapMarkdown content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/></div>}
+    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&entries.some(entry=>entry.id===id&&entry.kind==="page")){setSelected(id);setEditing(false);}}}/></div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setIconSearch("");setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>

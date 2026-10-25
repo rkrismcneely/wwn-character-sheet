@@ -365,6 +365,13 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
        if(!archetype)return;
        setDraft(current=>({...current,...archetype,
         name:String(archetype.name??creature.name),
+        hpMax:Number(archetype.hpMax??creature.hpMax),
+        armorClass:Number(archetype.armorClass??creature.armorClass),
+        physicalSave:Number(archetype.physicalSave??creature.physicalSave),
+        evasionSave:Number(archetype.evasionSave??creature.evasionSave),
+        mentalSave:Number(archetype.mentalSave??creature.mentalSave),
+        notes:String(archetype.notes??creature.notes),
+        friendly:false, inventory:[],
         hitDice:creature.sourceStats.hitDice,
         attacksPerMainAction:creature.sourceStats.attacksPerMainAction,
         attacks:(archetype.attacks as CampaignNpcAttack[]).map(attack=>({...attack})),

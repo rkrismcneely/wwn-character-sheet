@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import "./twe-workspace.css";
 import "./journal-editor.css";
@@ -204,7 +204,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  {uploadNotice&&<p className="twe-workspace-notice" role="status">{uploadNotice}</p>}
  {importOpen&&canEdit&&<div className="twe-workspace-import"><JournalImport endpoint={endpoint} onImported={refresh}/></div>}
  {readerEditing&&canEdit&&<section className="twe-workspace-readers" aria-label="Selected journal readers"><h3>Share {entryById.get(readerEntryId)?.title} with players</h3><div className="twe-workspace-reader-list">{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}</div><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={()=>void saveReaders()}>Save players</button><button type="button" className="twe-button" onClick={()=>setReaderEditing(false)}>Cancel</button></div></section>}
- <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")} style={{"--journal-sidebar-width":sidebarWidth+"px"} as React.CSSProperties}>
+ <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")} style={{"--journal-sidebar-width":sidebarWidth+"px"} as CSSProperties}>
   <aside className="twe-workspace-nav" aria-label="Journal navigation">
    <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-folders-all" onClick={toggleAllFolders} aria-label={entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all folders":"Collapse all folders"}>{entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all":"Collapse all"}</button><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
    <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input aria-label="Search journal" placeholder="Find a page…" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>
@@ -219,7 +219,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  const source=entryById.get(dragged);
  if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}
  else if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
- }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(reorderTarget===entry.id)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
+ }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(entryById.get(dragged)?.parentId===entry.parentId)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
        <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} onClick={()=>{if(!discardDraft())return;setSelected(entry.id);setEditing(false);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?"▰":<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span></button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Move "+entry.title} title={"Move "+entry.title} onClick={()=>setMoveId(entry.id)}>⋮</button>}
       </div>;

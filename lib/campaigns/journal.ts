@@ -8,10 +8,10 @@ import type { CampaignActor } from "./types.ts";
 export type JournalEntry = {
   id: string; parentId: string | null; kind: "folder" | "page"; title: string;
   content: string; icon: string; visibility: "gm" | "players" | "selected";
-  createdAt: string; updatedAt: string; sourcePath?: string | null; source?: string | null;
+  createdAt: string; updatedAt: string; sortOrder?: number | null; sourcePath?: string | null; source?: string | null;
 };
 type Row = JournalEntry;
-const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.icon, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath, j.source AS source";
+const columns = "j.id, j.parent_id AS parentId, j.kind, j.title, j.content, j.icon, j.visibility, j.created_at AS createdAt, j.updated_at AS updatedAt, j.source_path AS sourcePath, j.source AS source, j.sort_order AS sortOrder";
 export function redactJournalSecrets(markdown:string):string {
  let depth=0,cursor=0,output="";
  for(const marker of markdown.matchAll(/<!--\s*gm-only:(start|end)\s*-->/giu)){
@@ -93,7 +93,7 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
       OR (? = 0 AND j.visibility = 'selected' AND EXISTS (
         SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
       )))
-    ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC`)
+    ORDER BY j.parent_id, j.sort_order IS NULL, j.sort_order, j.kind ASC, j.title COLLATE NOCASE ASC`)
     .bind(ctx.campaignId, gmView ? 1 : 0, preview ? 1 : 0, actor!.userId).all<Row>();
   return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
 }
@@ -173,6 +173,25 @@ export async function moveJournalEntry(db:D1Database,actor:CampaignActor|null,ca
  .bind(campaign,parent,campaign,parent,new Date().toISOString(),campaign,entry.id,entry.id,parent,parent).run();
  if(!result.meta.changes)throw new CampaignServiceError("Folder hierarchy changed. Refresh before moving.",409);
  return {id:entry.id,parentId:parent};
+}
+
+
+/** Persist explicit order for siblings without changing their folder or visibility. */
+export async function reorderJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;beforeId?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id)||typeof input.beforeId!=="string"||!uuidPattern.test(input.beforeId))
+  throw new CampaignServiceError("Invalid journal reorder request.",422);
+ const source=await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.id).first<{id:string;parentId:string|null}>();
+ const before=await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.beforeId).first<{id:string;parentId:string|null}>();
+ if(!source||!before||source.parentId!==before.parentId)throw new CampaignServiceError("Items must be in the same folder.",422);
+ const all=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND parent_id IS ? ORDER BY sort_order IS NULL,sort_order,kind ASC,title COLLATE NOCASE ASC,id").bind(campaign,source.parentId).all<{id:string}>();
+ const ids=all.results.map(row=>row.id).filter(id=>id!==source.id);
+ const index=ids.indexOf(before.id);
+ if(index<0)throw new CampaignServiceError("Reorder target no longer exists.",409);
+ ids.splice(index,0,source.id);
+ const now=new Date().toISOString();
+ await db.batch(ids.map((id,order)=>db.prepare("UPDATE campaign_journal_entries SET sort_order=?,updated_at=? WHERE campaign_id=? AND id=? AND parent_id IS ?").bind(order,now,campaign,id,source.parentId)));
+ return {ids,parentId:source.parentId};
 }
 
 export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string,userIds:string[]){

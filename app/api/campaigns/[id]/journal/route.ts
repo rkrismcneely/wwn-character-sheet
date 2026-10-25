@@ -34,8 +34,11 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     const actor = await getSessionActor(request);
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
-    const body = await readBoundedJson(request, 120 * 1024);
-    return Response.json({ entry: await updateJournalEntry(await getCampaignD1(), actor, id, (body ?? {}) as Record<string, unknown>) });
+    const body = await readBoundedJson(request, 120 * 1024) as Record<string, unknown> | null;
+    if (body && Object.hasOwn(body, "beforeId")) {
+      return Response.json({ order: await reorderJournalEntry(await getCampaignD1(), actor, id, body) });
+    }
+    return Response.json({ entry: await updateJournalEntry(await getCampaignD1(), actor, id, body ?? {}) });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The journal entry could not be updated.");
@@ -68,15 +71,3 @@ export async function DELETE(request:Request,context:Context):Promise<Response>{
  }
 }
 
-export async function PATCH(request:Request,context:Context):Promise<Response>{
- try{
-  const actor=await getSessionActor(request);
-  if(!actor)return Response.json({error:"Sign in is required."},{status:401});
-  const {id}=await context.params;
-  const body=await readBoundedJson(request,4096) as {id?:unknown;beforeId?:unknown}|null;
-  return Response.json({order:await reorderJournalEntry(await getCampaignD1(),actor,id,body??{})});
- }catch(error){
-  if(error instanceof RequestBodyError)return Response.json({error:error.message},{status:error.status});
-  return campaignErrorResponse(error,"Journal items could not be reordered.");
- }
-}

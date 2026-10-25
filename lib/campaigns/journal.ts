@@ -277,3 +277,17 @@ export async function requireReadableJournalPage(db:D1Database,actor:CampaignAct
  if(!page)throw new CampaignServiceError("Journal page not found.",404);
  return page;
 }
+
+/** Delete a page or folder with its descendants; attachment metadata is cascaded by D1. */
+export async function deleteJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid journal entry.",422);
+ const row=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.id).first();
+ if(!row)throw new CampaignServiceError("Journal entry not found.",404);
+ const result=await db.prepare(`WITH RECURSIVE descendants(id) AS (
+   SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=?
+   UNION SELECT child.id FROM campaign_journal_entries child JOIN descendants d ON child.parent_id=d.id WHERE child.campaign_id=?
+ ) DELETE FROM campaign_journal_entries WHERE campaign_id=? AND id IN (SELECT id FROM descendants)`)
+ .bind(campaign,input.id,campaign,campaign).run();
+ return {deleted:result.meta.changes??0};
+}

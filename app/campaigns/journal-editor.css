@@ -59,3 +59,12 @@
 .journal-document-secret{border:1px solid #9b7264;border-left-width:3px;border-radius:6px;background:#fbf0e9;padding:14px;margin:16px 0}.journal-secret-label{display:block;font:700 11px var(--font-ui,Arial,sans-serif);text-transform:uppercase;letter-spacing:.08em;color:#7e4934;margin-bottom:8px}
 
 .journal-property-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:10px;padding:12px;border:1px solid var(--twe-w-line);border-radius:6px}.journal-property-value{grid-column:1/-1}.journal-property-value textarea{box-sizing:border-box;width:100%;font:14px/1.5 var(--font-ui,Arial,sans-serif);padding:9px;border:1px solid var(--twe-w-line);border-radius:5px;background:var(--twe-w-paper);color:var(--twe-w-ink)}
+
+/* Keep secondary insertion tools accessible without an always-visible second toolbar. */
+.journal-editor-insert-menu{border-bottom:1px solid var(--twe-w-line)}
+.journal-editor-insert-menu>summary{list-style:none;cursor:pointer;padding:9px 12px;font:600 12px var(--font-ui,Arial,sans-serif);color:var(--twe-w-ink);background:var(--twe-w-surface)}
+.journal-editor-insert-menu>summary::-webkit-details-marker{display:none}
+.journal-editor-insert-menu>summary:hover{background:#eee1c6}
+.journal-editor-insert-menu>summary:focus-visible{outline:2px solid var(--twe-w-focus);outline-offset:-3px}
+.journal-editor-insert-menu .journal-editor-insert{border-bottom:0}
+.journal-template-choice label{display:flex;align-items:center;gap:10px;flex-wrap:wrap}

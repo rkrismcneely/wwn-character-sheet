@@ -11,9 +11,9 @@ import { CampaignDialog } from "./campaign-dialog";
 import { editableJournalProperties, writeJournalProperties, type JournalPropertyField } from "@/lib/campaigns/journal-editor-properties";
 
 type Page = { id: string; title: string; kind: string; sourcePath?: string | null; parentId: string | null };
-type Props = { value: string; onChange: (value: string) => void; disabled?: boolean; pages: Page[]; current?: Page; onAttach: (file: File) => Promise<string>; localImageUrls?: ReadonlySet<string> };
+type Props = { campaignId?: string; value: string; onChange: (value: string) => void; disabled?: boolean; pages: Page[]; current?: Page; onAttach: (file: File) => Promise<string>; localImageUrls?: ReadonlySet<string> };
 
-export function JournalVisualEditor({ value, onChange, disabled = false, pages, current, onAttach, localImageUrls }: Props) {
+export function JournalVisualEditor({ campaignId, value, onChange, disabled = false, pages, current, onAttach, localImageUrls }: Props) {
   const extensions = useMemo(() => journalEditorExtensions(), []);
   const [initial] = useState(() => initialJournalDocument(createJournalMarkdownManager(), value));
   const [mode, setMode] = useState<"visual" | "preview" | "markdown">("visual");
@@ -217,7 +217,7 @@ export function JournalVisualEditor({ value, onChange, disabled = false, pages, 
       <EditorContent editor={editor} className="journal-visual-surface"/>
     </>}
     {mode === "markdown" && <label className="twe-workspace-field">Page content<textarea aria-label="Markdown source" rows={20} value={value} disabled={locked} onChange={event => onChange(event.target.value)}/></label>}
-    {mode === "preview" && <div className="twe-workspace-prose journal-editor-preview"><JournalDocument content={resolveJournalWikilinks(journalPropertiesMarkdown(value), current ?? { id: "", title: "", parentId: null }, pages)} onJournalNavigate={() => {}} previewImageUrls={localImageUrls}/></div>}
+    {mode === "preview" && <div className="twe-workspace-prose journal-editor-preview"><JournalDocument campaignId={campaignId} content={resolveJournalWikilinks(journalPropertiesMarkdown(value), current ?? { id: "", title: "", parentId: null }, pages)} onJournalNavigate={() => {}} previewImageUrls={localImageUrls}/></div>}
     <input ref={attachment} className="journal-file-input" aria-label="Attach image or PDF" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" disabled={locked} onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void attach(files); }}/>
     {mode === "markdown" && <button type="button" className="twe-button" disabled={locked} onClick={() => attachment.current?.click()}>Attach image or PDF</button>}
     {busy && <p role="status">Adding attachment…</p>}

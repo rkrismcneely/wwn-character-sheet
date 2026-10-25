@@ -12,10 +12,10 @@ test("NPC data is saved through the existing campaign NPC library endpoint",()=>
  assert.match(creator,/encodeURIComponent\(campaignId\)\+"\/npcs"/u);
  assert.match(creator,/method:"POST"/u);
  assert.match(creator,/hpMax:hp,armorClass:ac/u);
- assert.match(creator,/attacks,notes,friendly,spells:\[\],arts:\[\],inventory:\[\]/u);
+ assert.match(creator,/attacks,notes,friendly,spells,arts,inventory:\[\]/u);
 });
 test("NPC creator inserts saved stat data only after server success",()=>{
  assert.match(creator,/if\(!response\.ok\|\|!data\.npc\)throw/u);
  assert.match(creator,/onInserted\(block\)/u);
- assert.match(creator,/NPC stat block · Saved in campaign NPC library/u);
+ assert.match(creator,/twe-npc:/u);
 });

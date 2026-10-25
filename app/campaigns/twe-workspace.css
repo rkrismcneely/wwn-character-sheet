@@ -256,3 +256,24 @@
 .campaign-journal .journal-npc-attacks{display:grid;gap:10px}
 .campaign-journal .journal-npc-attack{display:grid;grid-template-columns:1.3fr .65fr 1fr 1fr 1.5fr auto;gap:6px;align-items:end}
 @media(max-width:850px){.campaign-journal .journal-npc-attack{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.campaign-journal .journal-linked-npc{border:1px solid #b89a6f;border-radius:9px;padding:13px 16px;margin:16px 0;background:#fbf4e6;color:#4b3825}
+.campaign-journal .journal-linked-npc header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-bottom:8px;border-bottom:1px solid #dfcfb4}
+.campaign-journal .journal-linked-npc h4{margin:0;font-size:1.25rem}
+.campaign-journal .journal-linked-npc small{font:600 11px var(--font-ui,Arial,sans-serif);color:#78572f}
+.campaign-journal .journal-linked-npc-stats{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.campaign-journal .journal-linked-npc-stats div{min-width:61px;flex:1;padding:7px 9px;border:1px solid #e0d0b7;border-radius:6px;background:#fffbf1}
+.campaign-journal .journal-linked-npc-stats dt{font:700 10px var(--font-ui,Arial,sans-serif);color:#715331;text-transform:uppercase}
+.campaign-journal .journal-linked-npc-stats dd{margin:2px 0 0;font:700 16px var(--font-ui,Arial,sans-serif)}
+.campaign-journal .journal-linked-npc ul{margin:8px 0;padding-left:22px}
+.campaign-journal .journal-linked-npc-unavailable{background:#f6ebe4}
+.campaign-journal .journal-npc-creator select,.gm-npc-archetype select{display:block;width:100%;border:1px solid #cbb795;border-radius:5px;background:#fffaf0;padding:8px;color:#42311e}
+.gm-npc-archetype{display:block;margin:10px 0 16px;font-weight:600}
+
+.campaign-journal .journal-linked-npc-editor{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;padding:10px 0}
+.campaign-journal .journal-linked-npc-editor label{display:grid;gap:4px;font:600 12px var(--font-ui,Arial,sans-serif)}
+.campaign-journal .journal-linked-npc-editor input,.campaign-journal .journal-linked-npc-editor textarea{width:100%;min-width:0;padding:8px;border:1px solid #cdb68d;border-radius:5px;background:#fffaf1;color:#45331f}
+.campaign-journal .journal-linked-npc-editor label:has(textarea),.campaign-journal .journal-linked-npc-editor .twe-workspace-action-row{grid-column:1/-1}
+.campaign-journal .journal-npc-magic{border:1px solid #e2cfb0;border-radius:6px;padding:10px}
+.campaign-journal .journal-npc-magic-item{display:flex;gap:8px;align-items:center;margin:6px 0}
+.campaign-journal .journal-npc-magic-item input{flex:1}

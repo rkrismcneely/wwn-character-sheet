@@ -8,6 +8,7 @@ import { BestiaryBrowseItem } from "./bestiary-browse";
 import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcMagicReference, CampaignNpcTemplate } from "@/lib/campaigns/npcs";
+import { notifyCampaignNpcChanged } from "@/lib/campaigns/npc-change-events";
 import { npcAttackFromWeapon, npcWeaponStarters } from "@/lib/campaigns/npc-weapons";
 import { npcMagicCatalog } from "@/lib/campaigns/npc-magic-catalog";
 import {
@@ -326,6 +327,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
       const body = await response.json() as { npc?: CampaignNpcTemplate; error?: string };
       if (!response.ok || !body.npc) throw new Error(body.error || "NPC template could not be saved.");
       const saved = body.npc;
+      notifyCampaignNpcChanged(campaignId, saved.id);
       setNpcs(current => editing ? current.map(npc => npc.id === saved.id ? saved : npc) : [...current, saved].sort((left, right) => left.name.localeCompare(right.name)));
       setFormOpen(false); setEditing(null);
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "NPC template could not be saved."); }
@@ -348,6 +350,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
     try {
       const response = await fetch(`/api/campaigns/${campaignId}/npcs/${npcId}`, { method: "DELETE" });
       if (!response.ok) { const body = await response.json() as { error?: string }; throw new Error(body.error || "NPC template could not be deleted."); }
+      notifyCampaignNpcChanged(campaignId, npcId);
       setNpcs(current => current.filter(npc => npc.id !== npcId)); setDeleteId(null);
     } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "NPC template could not be deleted."); }
     finally { setBusy(false); }

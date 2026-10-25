@@ -1,3 +1,4 @@
+import { markdownTextEntities } from "@/lib/markdown-entities";
 import { safeJournalImage } from "@/lib/campaigns/journal-layout";
 import { markdownTableCells } from "@/lib/markdown-table";
 import { Fragment, type ReactNode } from "react";
@@ -13,24 +14,24 @@ function safeLink(href: string): string | null {
   } catch { return null; }
 }
 
-function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>void, journal = false): ReactNode[] {
+function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>void, journal = false, previewImageUrls?: ReadonlySet<string>): ReactNode[] {
   const pattern = /(!\[[^\]\n]*\]\([^\s)]+(?:\s+"[^"\n]*")?\)|\[[^\]\n]+\]\([^\s)]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/gu;
   const output: ReactNode[] = [];
   let start = 0;
   for (const match of text.matchAll(pattern)) {
     const index = match.index;
-    if (index > start) output.push(text.slice(start, index));
+    if (index > start) output.push(markdownTextEntities(text.slice(start, index)));
     const token = match[0];
     const key = keyPrefix + index;
     if (token.startsWith("![")) {
       const separator=token.indexOf("](");
-      const label=token.slice(2,separator);
+      const label=markdownTextEntities(token.slice(2,separator));
       const source=token.slice(separator+2,-1).replace(/\s+"[^"\n]*"$/u,"");
       const image=/^\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36}$/iu.test(source);
-      output.push((image || (journal && safeJournalImage(source)))?<a key={key} className="journal-image-link" href={source} target="_blank" rel="noopener noreferrer" aria-label={label || "Open image"}><img src={source} alt={label} loading="lazy" referrerPolicy="no-referrer" style={{maxWidth:"100%"}}/></a>:label);
+      output.push((image || (journal && (safeJournalImage(source) || previewImageUrls?.has(source))))?<a key={key} className="journal-image-link" href={source} target="_blank" rel="noopener noreferrer" aria-label={label || "Open image"}><img src={source} alt={label} loading="lazy" referrerPolicy="no-referrer" style={{maxWidth:"100%"}}/></a>:label);
     } else if (token.startsWith("[")) {
       const separator = token.indexOf("](");
-      const label = token.slice(1, separator);
+      const label = markdownTextEntities(token.slice(1, separator));
       const href = safeLink(token.slice(separator + 2, -1));
       const asset = /^\/api\/campaigns\/cmp_[A-Za-z0-9_-]{22}\/journal\/files\/[0-9a-f-]{36}$/iu.test(token.slice(separator + 2, -1));
       const local = /^\/journal-page\/([0-9a-f-]{36})(?:#.*)?$/iu.exec(token.slice(separator + 2, -1));
@@ -38,15 +39,15 @@ function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>v
     } else if (token.startsWith("`")) {
       output.push(<code key={key}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**") || token.startsWith("__")) {
-      output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal)}</strong>);
+      output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal,previewImageUrls)}</strong>);
     } else if (token.startsWith("~~")) {
-      output.push(<del key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal)}</del>);
+      output.push(<del key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal,previewImageUrls)}</del>);
     } else {
-      output.push(<em key={key}>{inline(token.slice(1, -1), key + ":",onJournalNavigate,journal)}</em>);
+      output.push(<em key={key}>{inline(token.slice(1, -1), key + ":",onJournalNavigate,journal,previewImageUrls)}</em>);
     }
     start = index + token.length;
   }
-  if (start < text.length) output.push(text.slice(start));
+  if (start < text.length) output.push(markdownTextEntities(text.slice(start)));
   return output;
 }
 
@@ -54,7 +55,7 @@ function isSpecial(line: string) {
   return /^\s*(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s?|```|---+\s*$)/u.test(line);
 }
 
-export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false, depth = 0 }: { content: string;onJournalNavigate?: (id:string)=>void;journal?:boolean;depth?:number }) {
+export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false, depth = 0, previewImageUrls }: { content: string;onJournalNavigate?: (id:string)=>void;journal?:boolean;depth?:number;previewImageUrls?:ReadonlySet<string> }) {
   const lines = content.replaceAll("\r\n", "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -71,7 +72,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       continue;
     }
     if (i + 1 < lines.length && line.trim() && /^ {0,3}(?:=+|-+)\s*$/u.test(lines[i+1])) {
-      blocks.push(<h3 key={key}>{inline(line,String(key),onJournalNavigate,journal)}</h3>);
+      blocks.push(<h3 key={key}>{inline(line,String(key),onJournalNavigate,journal,previewImageUrls)}</h3>);
       i += 2; continue;
     }
     if (/^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/u.test(line)) {
@@ -79,7 +80,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
     }
     const heading = /^(#{1,6})\s+(.+)$/u.exec(line);
     if (heading) {
-      const text = inline(heading[2], String(key),onJournalNavigate,journal);
+      const text = inline(heading[2], String(key),onJournalNavigate,journal,previewImageUrls);
       const level = heading[1].length;
       blocks.push(level === 1 ? <h2 key={key}>{text}</h2> : level === 2 ? <h3 key={key}>{text}</h3> : <h4 key={key}>{text}</h4>);
       i++; continue;
@@ -92,10 +93,10 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       while (i < lines.length && /^\s*>/u.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/u, ""));
       const callout = journal && depth < 8 ? /^\[!(NOTE|INFO|TIP|WARNING|CAUTION|IMPORTANT)\]\s*(.*)$/iu.exec(quote[0] ?? "") : null;
       if(callout) {
-        blocks.push(<aside key={key} className={"journal-callout journal-callout-"+callout[1].toLowerCase()}>{callout[2] && <strong className="journal-callout-title">{inline(callout[2],String(key),onJournalNavigate,journal)}</strong>}<SessionRecapMarkdown content={quote.slice(1).join("\n")} onJournalNavigate={onJournalNavigate} journal depth={depth+1} /></aside>);
+        blocks.push(<aside key={key} className={"journal-callout journal-callout-"+callout[1].toLowerCase()}>{callout[2] && <strong className="journal-callout-title">{inline(callout[2],String(key),onJournalNavigate,journal,previewImageUrls)}</strong>}<SessionRecapMarkdown content={quote.slice(1).join("\n")} onJournalNavigate={onJournalNavigate} journal depth={depth+1} previewImageUrls={previewImageUrls}/></aside>);
         continue;
       }
-      blocks.push(<blockquote key={key}>{quote.map((item, n) => <p key={n}>{inline(item, String(key) + ":" + n,onJournalNavigate,journal)}</p>)}</blockquote>);
+      blocks.push(<blockquote key={key}>{quote.map((item, n) => <p key={n}>{inline(item, String(key) + ":" + n,onJournalNavigate,journal,previewImageUrls)}</p>)}</blockquote>);
       continue;
     }
     const isBullet = /^\s*[-*+]\s+/u.test(line);
@@ -105,7 +106,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       const matcher = isBullet ? /^\s*[-*+]\s+(.+)$/u : /^\s*\d+\.\s+(.+)$/u;
       while (i < lines.length && matcher.test(lines[i])) {
         const item = matcher.exec(lines[i])?.[1] ?? "";
-        items.push(<li key={i}>{inline(item, String(i),onJournalNavigate,journal)}</li>);
+        items.push(<li key={i}>{inline(item, String(i),onJournalNavigate,journal,previewImageUrls)}</li>);
         i++;
       }
       blocks.push(isBullet ? <ul key={key}>{items}</ul> : <ol key={key}>{items}</ol>);
@@ -118,7 +119,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       const rows: string[][] = [];
       i += 2;
       while (i < lines.length && lines[i].trim() && lines[i].includes("|")) rows.push(parse(lines[i++]));
-      blocks.push(<div key={key} className="session-recap-table-wrap"><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate,journal)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate,journal)}</td>)}</tr>)}</tbody></table></div>);
+      blocks.push(<div key={key} className="session-recap-table-wrap"><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate,journal,previewImageUrls)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate,journal,previewImageUrls)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
     const para: string[] = [];
@@ -126,7 +127,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       para.push(lines[i++]);
     }
     // Two trailing spaces create a deliberate Markdown hard break.
-    blocks.push(<p key={key}>{para.map((part, n) => <Fragment key={n}>{n > 0 ? (para[n - 1].endsWith("  ") ? <br /> : " ") : null}{inline(part.trim(), String(key) + ":" + n,onJournalNavigate,journal)}</Fragment>)}</p>);
+    blocks.push(<p key={key}>{para.map((part, n) => <Fragment key={n}>{n > 0 ? (para[n - 1].endsWith("  ") ? <br /> : " ") : null}{inline(part.trim(), String(key) + ":" + n,onJournalNavigate,journal,previewImageUrls)}</Fragment>)}</p>);
   }
   return <div className="session-recap-markdown">{blocks}</div>;
 }

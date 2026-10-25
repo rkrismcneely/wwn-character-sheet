@@ -225,3 +225,19 @@
 .campaign-journal .journal-article-location .journal-document .session-recap-markdown>h2{color:#6d4c2d}
 .campaign-journal .journal-document-columns{gap:clamp(16px,3vw,30px)}
 @media(max-width:900px){.campaign-journal .journal-document-columns{gap:12px}.campaign-journal .journal-document .journal-image-link img{max-height:420px}}
+
+/* Imported Obsidian properties: key/value facts instead of a spreadsheet look. */
+.campaign-journal .journal-document .journal-table-properties{border:0;background:#f5eddd;border-radius:9px;padding:5px 12px}
+.campaign-journal .journal-document .journal-table-properties table{table-layout:auto}
+.campaign-journal .journal-document .journal-table-properties thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.campaign-journal .journal-document .journal-table-properties tbody tr{border-bottom:1px solid #dfcfb3}
+.campaign-journal .journal-document .journal-table-properties tbody tr:last-child{border-bottom:0}
+.campaign-journal .journal-document .journal-table-properties td{border:0;padding:7px 8px;vertical-align:top;overflow-wrap:anywhere}
+.campaign-journal .journal-document .journal-table-properties td:first-child{font:700 12px/1.45 var(--font-ui,Arial,sans-serif);letter-spacing:.02em;color:#77542d;width:36%}
+.campaign-journal .journal-document .journal-table-properties td:last-child{font-size:14px;line-height:1.5;color:#46392b}
+/* NPC / monster attributes remain compact and scan-friendly even with many numbers. */
+.campaign-journal .journal-document .journal-table-stats{background:#fbf5e9;border-color:#b99969}
+.campaign-journal .journal-document .journal-table-stats th,.campaign-journal .journal-document .journal-table-stats td{text-align:center;white-space:nowrap;min-width:48px}
+.campaign-journal .journal-document .journal-table-stats th{font:700 11px/1.4 var(--font-ui,Arial,sans-serif);letter-spacing:.04em;text-transform:uppercase}
+.campaign-journal .journal-document .journal-table-stats td{font-variant-numeric:tabular-nums;font-size:14px}
+@media(max-width:650px){.campaign-journal .journal-document .journal-table-properties td:first-child{width:40%}.campaign-journal .journal-document .journal-table-stats th,.campaign-journal .journal-document .journal-table-stats td{min-width:44px;padding:7px 6px}}

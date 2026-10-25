@@ -30,6 +30,14 @@ const [dropTarget,setDropTarget]=useState<string|null>(null);
 const [reorderTarget,setReorderTarget]=useState<string|null>(null);
 const [moveId,setMoveId]=useState("");
 const [menuId,setMenuId]=useState("");
+useEffect(()=>{
+ if(!menuId)return;
+ const close=(event:PointerEvent)=>{if(event.target instanceof Element&&!event.target.closest(".twe-workspace-entry-menu,.twe-workspace-move-button"))setMenuId("");};
+ const escape=(event:KeyboardEvent)=>{if(event.key==="Escape")setMenuId("");};
+ document.addEventListener("pointerdown",close);
+ document.addEventListener("keydown",escape);
+ return()=>{document.removeEventListener("pointerdown",close);document.removeEventListener("keydown",escape);};
+},[menuId]);
 const [collapsedFolders,setCollapsedFolders]=useState<Set<string>>(()=>new Set());
 const [sidebarOpen,setSidebarOpen]=useState(true);
 const [sidebarWidth,setSidebarWidth]=useState(270);

@@ -88,25 +88,15 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
   const gmView = ctx.isGM && !preview;
   // Do not fetch restricted content into the player response. Selected readers are
   // evaluated against the authenticated user, never an ID supplied by the client.
-  let rows: D1Result<Row>;
-  try {
-   rows = await db.prepare(`SELECT ${columns} FROM campaign_journal_entries j
+  // Keep reads compatible with production databases until the ordering migration is applied.
+  // Ordering is enabled separately after migration; never block access to existing notes.
+  const rows = await db.prepare(`SELECT ${columns.replace(", j.sort_order AS sortOrder","")} FROM campaign_journal_entries j
     WHERE j.campaign_id = ? AND (? = 1 OR j.visibility = 'players'
       OR (? = 0 AND j.visibility = 'selected' AND EXISTS (
         SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
       )))
-    ORDER BY j.parent_id, j.sort_order IS NULL, j.sort_order, j.kind ASC, j.title COLLATE NOCASE ASC`)
+    ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC`)
     .bind(ctx.campaignId, gmView ? 1 : 0, preview ? 1 : 0, actor!.userId).all<Row>();
-  } catch (error) {
-   // Allow the live Journal to keep reading while the additive ordering migration is pending.
-   if(!(error instanceof Error)||!error.message.includes("sort_order"))throw error;
-   rows = await db.prepare(`SELECT ${columns.replace(", j.sort_order AS sortOrder","")} FROM campaign_journal_entries j
-     WHERE j.campaign_id = ? AND (? = 1 OR j.visibility = 'players'
-       OR (? = 0 AND j.visibility = 'selected' AND EXISTS (
-         SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
-       ))) ORDER BY j.kind ASC,j.title COLLATE NOCASE ASC`)
-    .bind(ctx.campaignId, gmView ? 1 : 0, preview ? 1 : 0, actor!.userId).all<Row>();
-  }
   return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
 }
 export async function createJournalEntry(db: D1Database, actor: CampaignActor | null, campaignId: string,

@@ -21,3 +21,12 @@ test("delete is gated on GM permission, campaign scope, and confirmation",()=>{
  assert.match(server,/const campaign=await requireGM\(db,actor,campaignId\)/u);
  assert.match(server,/WITH RECURSIVE descendants/u);
 });
+
+test("duplicate copies a subtree with new IDs and keeps visibility",()=>{
+ assert.match(server,/export async function duplicateJournalEntry/u);
+ assert.match(server,/WITH RECURSIVE descendants/u);
+ assert.match(server,/const ids=new Map\(entries\.map/u);
+ assert.match(server,/entry\.visibility,now,now/u);
+ assert.match(route,/body\?\.action==="duplicate"/u);
+ assert.match(view,/action:"duplicate"/u);
+});

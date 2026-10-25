@@ -17,6 +17,8 @@ export function JournalVisualEditor({ value, onChange, disabled = false, pages, 
   const extensions = useMemo(() => journalEditorExtensions(), []);
   const [initial] = useState(() => initialJournalDocument(createJournalMarkdownManager(), value));
   const [mode, setMode] = useState<"visual" | "preview" | "markdown">("visual");
+  const [template, setTemplate] = useState("blank");
+  const templateApplied = useRef("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"link" | "card" | "columns" | "properties" | null>(null);
@@ -172,7 +174,17 @@ export function JournalVisualEditor({ value, onChange, disabled = false, pages, 
   const visiblePages = pages.filter(page => page.kind === "page" && page.title.toLocaleLowerCase().includes(linkSearch.toLocaleLowerCase()));
   return <section className="journal-composer" aria-label="Page editor" onKeyDown={event=>{if(dialog&&dialog!=="properties"&&event.key==="Enter"&&["INPUT","SELECT"].includes((event.target as HTMLElement).tagName)){event.preventDefault();if(dialog==="link")addLink();else if(dialog==="card")addCard();else addColumns();}}}>
     <div className="journal-editor-modes" role="group" aria-label="Editing mode">{(["visual", "preview", "markdown"] as const).map(item => <button type="button" key={item} aria-pressed={mode === item} disabled={locked} onClick={() => setMode(item)}>{item === "visual" ? "Write" : item === "preview" ? "Preview" : "Advanced Markdown"}</button>)}</div>
-    {!value.trim() && <label className="journal-template-choice">Start with<select aria-label="Page template" defaultValue="blank" disabled={locked} onChange={event => onChange(journalTemplates[event.target.value] ?? "")}><option value="blank">Blank page</option><option value="character">Character / creature</option><option value="location">Location</option><option value="session">Session notes</option></select></label>}
+    {!current && <div className="journal-template-choice"><label>Start with <select aria-label="Page template" value={template} disabled={locked} onChange={event => {
+       const next = event.target.value;
+       if (value.trim() && value !== templateApplied.current && !window.confirm("Replace the current page content with this template?")) return;
+       const content = journalTemplates[next] ?? "";
+       templateApplied.current = content;
+       setTemplate(next);
+       onChange(content);
+      }}><option value="blank">Blank page</option><option value="character">Character / creature</option><option value="location">Location</option><option value="session">Session notes</option></select></label>{template !== "blank" && <button type="button" className="twe-button twe-button-subtle" disabled={locked} onClick={() => {
+       if (value !== templateApplied.current && !window.confirm("Clear the page and return to a blank page?")) return;
+       templateApplied.current = ""; setTemplate("blank"); onChange("");
+      }}>Clear template</button>}</div>}
     {error && <p className="twe-workspace-alert" role="alert">{error}</p>}
     {mode === "visual" && <>
       <div className="journal-editor-toolbar" role="toolbar" aria-label="Text formatting">
@@ -187,7 +199,7 @@ export function JournalVisualEditor({ value, onChange, disabled = false, pages, 
         {button("Undo", () => { editor?.chain().focus().undo().run(); }, false, !state?.undo)}
         {button("Redo", () => { editor?.chain().focus().redo().run(); }, false, !state?.redo)}
       </div>
-      <div className="journal-editor-insert" role="toolbar" aria-label="Insert page content">
+      <details className="journal-editor-insert-menu"><summary>Insert content ▾</summary><div className="journal-editor-insert" role="toolbar" aria-label="Insert page content">
         {button("Image or PDF", () => attachment.current?.click())}
         {button("Properties",openProperties)}
         {button("Fact card", () => { setCardLabel(""); setCardValue(""); setError(""); setDialog("card"); })}

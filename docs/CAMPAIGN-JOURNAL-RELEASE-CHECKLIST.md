@@ -52,3 +52,10 @@ GitHub Actions quota failures are not application test failures. Do not dispatch
 - The sibling-ordering UI is also on `main`, but requires the additive `drizzle/0033_campaign_journal_order.sql` migration before persistent reordering can work. Journal reads include a compatibility fallback until migration is applied.
 - Rebuild from the latest `main` through the configured Cloudflare Git integration. Verify the live build SHA and the editor controls after deployment.
 - Do not consider persistent manual ordering production-verified until the D1 migration and a reorder/readback test have succeeded.
+
+## October 25 GM Dividers and sidebar release
+
+- PR #434 and PR #433 passed CI and were merged to `main`.
+- GM Dividers do not require a database migration.
+- Sidebar resize, preference saving and expand/collapse do not require the new schema; manual sibling-order persistence requires `drizzle/0033_campaign_journal_order.sql` on the production D1 database.
+- Do not mark ordering production-verified until the migration is applied and an actual reorder/reload check passes.

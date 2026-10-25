@@ -8,10 +8,11 @@ export function JournalLinkedNpc({campaignId,npcId}:{campaignId:string;npcId:str
   const controller=new AbortController();
   const load=async()=>{
    try{
-    const res=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs/"+encodeURIComponent(npcId),{cache:"no-store",signal:controller.signal});
-    const data=await res.json() as {npc?:CampaignNpcTemplate;error?:string};
-    if(!res.ok||!data.npc)throw new Error(data.error||"NPC unavailable");
-    if(!controller.signal.aborted){setNpc(data.npc);setError("");}
+    const res=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store",signal:controller.signal});
+    const data=await res.json() as {npcs?:CampaignNpcTemplate[];error?:string};
+    const linked=data.npcs?.find(entry=>entry.id===npcId);
+    if(!res.ok||!linked)throw new Error(data.error||"NPC unavailable");
+    if(!controller.signal.aborted){setNpc(linked);setError("");}
    }catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:"NPC unavailable");}
   };
   void load();const reload=()=>{void load();};

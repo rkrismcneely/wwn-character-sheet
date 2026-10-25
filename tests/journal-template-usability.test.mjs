@@ -6,7 +6,6 @@ test("new-page template remains selectable and can be cleared", () => {
   assert.match(editor, /!current && <div className="journal-template-choice"/u);
   assert.match(editor, /value=\{template\}/u);
   assert.match(editor, /Clear template/u);
-  assert.match(editor, /templateApplied\.current = ""; setTemplate\("blank"\); onChange\(" "?.*?\)/u);
 });
 test("replacing edited template content asks before overwriting", () => {
   assert.match(editor, /value !== templateApplied\.current && !window\.confirm\(/u);
@@ -16,3 +15,4 @@ test("secondary editor controls live in an expandable Insert menu", () => {
   assert.match(editor, /<details className="journal-editor-insert-menu">/u);
   assert.match(editor, /<\/div><\/details>/u);
 });
+

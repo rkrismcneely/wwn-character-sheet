@@ -59,10 +59,13 @@ useEffect(()=>{
   if(Number.isFinite(storedWidth)&&storedWidth>=220&&storedWidth<=520)width=storedWidth;
   open=localStorage.getItem(preferenceKey+"sidebar-open")!=="false";
  }catch{}
- setCollapsedFolders(new Set(folders));
- setSidebarWidth(width);
- setSidebarOpen(open);
- setLoadedPreferencesKey(preferenceKey);
+ const frame=requestAnimationFrame(()=>{
+  setCollapsedFolders(new Set(folders));
+  setSidebarWidth(width);
+  setSidebarOpen(open);
+  setLoadedPreferencesKey(preferenceKey);
+ });
+ return()=>cancelAnimationFrame(frame);
 },[preferenceKey]);
 useEffect(()=>{
  if(!preferenceKey||loadedPreferencesKey!==preferenceKey)return;

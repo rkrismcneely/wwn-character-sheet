@@ -88,14 +88,18 @@ export async function listJournal(db: D1Database, actor: CampaignActor | null, c
   const gmView = ctx.isGM && !preview;
   // Do not fetch restricted content into the player response. Selected readers are
   // evaluated against the authenticated user, never an ID supplied by the client.
-  // Keep reads compatible with production databases until the ordering migration is applied.
-  // Ordering is enabled separately after migration; never block access to existing notes.
-  const rows = await db.prepare(`SELECT ${columns.replace(", j.sort_order AS sortOrder","")} FROM campaign_journal_entries j
+  // Feature-detect the additive sort column so unmigrated databases can still read Journal entries.
+  const schema=await db.prepare("SELECT name FROM pragma_table_info('campaign_journal_entries') WHERE name='sort_order'").first<{name:string}>();
+  const hasOrder=Boolean(schema);
+  const selectedColumns=hasOrder?columns:columns.replace(", j.sort_order AS sortOrder","");
+  const orderClause=hasOrder
+   ? "ORDER BY j.parent_id, j.sort_order IS NULL, j.sort_order, j.kind ASC, j.title COLLATE NOCASE ASC"
+   : "ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC";
+  const rows=await db.prepare(`SELECT ${selectedColumns} FROM campaign_journal_entries j
     WHERE j.campaign_id = ? AND (? = 1 OR j.visibility = 'players'
       OR (? = 0 AND j.visibility = 'selected' AND EXISTS (
         SELECT 1 FROM campaign_journal_readers r JOIN campaign_members m ON m.user_id = r.user_id AND m.campaign_id = j.campaign_id WHERE r.entry_id = j.id AND r.user_id = ?
-      )))
-    ORDER BY j.kind ASC, j.title COLLATE NOCASE ASC`)
+      ))) ${orderClause}`)
     .bind(ctx.campaignId, gmView ? 1 : 0, preview ? 1 : 0, actor!.userId).all<Row>();
   return { entries: visibleJournalEntries(rows.results).map(row=>gmView?row:{...row,content:redactJournalSecrets(row.content)}), canEdit: ctx.isGM && !preview };
 }

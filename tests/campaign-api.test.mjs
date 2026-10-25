@@ -560,8 +560,8 @@ test("Bundle 13 keeps NPC magic selectors and campaign-item inventory GM-scoped"
     readFile(new URL("../app/campaigns/campaign-live-session.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/campaigns/npcs.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(consoleSource, /bestiaryNpcMagicOptions\("spells"\)/u);
-  assert.match(consoleSource, /bestiaryNpcMagicOptions\("arts"\)/u);
+  assert.match(consoleSource, /npcMagicCatalog\("spells"\)/u);
+  assert.match(consoleSource, /npcMagicCatalog\("arts"\)/u);
   assert.match(consoleSource, /<option value=\{OTHER_MAGIC_VALUE\}>Other…<\/option>/u);
   assert.match(consoleSource, /NpcMagicAdd kind="Spell"/u);
   assert.match(consoleSource, /NpcMagicAdd kind="Art"/u);

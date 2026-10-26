@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { redactJournalSecrets, visibleJournalEntries, conditionalJournalContentUpdateSQL } from "../lib/campaigns/journal.ts";
+import { redactJournalSecrets, visibleJournalEntries, conditionalJournalContentUpdateSQL, journalFolderRole, journalFolderRoles } from "../lib/campaigns/journal.ts";
 import { DatabaseSync } from "node:sqlite";
 
 test("hidden parent suppresses its otherwise visible descendants",()=>{
@@ -19,6 +19,17 @@ test("cycles are hidden, but pages can nest beneath visible location articles",(
 test("a child article cannot be exposed when its location article is hidden",()=>{
  const entries=[{id:"locations",parentId:null,kind:"folder",visibility:"players"},{id:"town",parentId:"locations",kind:"page",visibility:"gm"},{id:"store",parentId:"town",kind:"page",visibility:"players"}];
  assert.deepEqual(visibleJournalEntries(entries.filter(e=>e.visibility==="players")).map(e=>e.id),["locations"]);
+});
+
+test("all default journal roles can be assigned independently of imported folder titles",()=>{
+ assert.deepEqual(journalFolderRoles,["Locations","NPCs","Items","Stores","Quests","Session Notes"]);
+ for(const role of journalFolderRoles){
+  const entry={kind:"folder",title:"LegendKeeper Import",icon:"twe-role:"+role.toLowerCase()};
+  assert.equal(journalFolderRole(entry,[entry]),role.toLowerCase());
+ }
+ const imported=[{kind:"folder",title:"Locations",icon:"file-text"},{kind:"folder",title:"Places and Maps",icon:"twe-role:locations"}];
+ assert.equal(journalFolderRole(imported[0],imported),null);
+ assert.equal(journalFolderRole(imported[1],imported),"locations");
 });
 
 test("GM-only Markdown never reaches the player response",()=>{

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { JournalLinkedNpc } from "./journal-linked-npc";
 import type {
   CampaignStore,
   CampaignStoreItem,
@@ -544,7 +545,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
                 <option value="">No linked NPC</option>{npcChoices.map(npc=><option key={npc.id} value={npc.id}>{npc.name}</option>)}
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>
-              {proprietorNpcId&&npcChoices.find(n=>n.id===proprietorNpcId)&&<details><summary>Show linked NPC notes</summary><p>{npcChoices.find(n=>n.id===proprietorNpcId)?.notes||"No notes."}</p></details>}
+              {proprietorNpcId&&<details><summary>View linked NPC details</summary><JournalLinkedNpc campaignId={campaignId} npcId={proprietorNpcId}/></details>}
             </fieldset>
           <button type="submit" className="campaign-primary" disabled={busy || !storeName.trim()}>Create Store</button>
         </form>}
@@ -561,7 +562,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
                 <option value="">No linked NPC</option>{npcChoices.map(npc=><option key={npc.id} value={npc.id}>{npc.name}</option>)}
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>
-              {proprietorNpcId&&npcChoices.find(n=>n.id===proprietorNpcId)&&<details><summary>Show linked NPC notes</summary><p>{npcChoices.find(n=>n.id===proprietorNpcId)?.notes||"No notes."}</p></details>}
+              {proprietorNpcId&&<details><summary>View linked NPC details</summary><JournalLinkedNpc campaignId={campaignId} npcId={proprietorNpcId}/></details>}
             </fieldset>
             <button type="submit" className="campaign-secondary" disabled={busy || !storeName.trim()}>Save Store Details</button>
           </form>

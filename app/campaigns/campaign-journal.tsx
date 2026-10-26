@@ -433,7 +433,7 @@ async function save(e:React.FormEvent){
  if(uploading||savingRef.current)return;
  savingRef.current=true;setSaving(true);setError("");
  try{
-  const cleaned=draft.content.replace(mapLinkPattern,"").trimStart();
+  const cleaned=normalizeRecapContent(draft.content).replace(mapLinkPattern,"").trimStart();
   const savedDraft={...draft,content:!creatingFolder&&chosenMapId?"<!-- twe-map:"+chosenMapId+" -->\n\n"+cleaned:cleaned};
   const entry=await saveJournalEditorDraft({endpoint,id:selected,kind:creatingFolder?"folder":"page",parentId,draft:savedDraft,attachments:pendingAttachments.current,onCreated:created=>{setSelected(created.id);setEntries(old=>[...old,created]);}});
   if(creatingFolder&&(folderRoleDraft!==""||Boolean(selected&&current?.kind==="folder"&&roleFor(current)))){await designateFolder(entry,folderRoleDraft);}

@@ -26,3 +26,12 @@ export function npcMagicCatalog(kind:"spells"|"arts"):readonly BestiaryNpcMagicO
   ? (a.level??Number.MAX_SAFE_INTEGER)-(b.level??Number.MAX_SAFE_INTEGER)||a.name.localeCompare(b.name)
   : a.name.localeCompare(b.name));
 }
+
+/** Full rule text for a selected game spell; custom/Bestiary entries retain their saved summary. */
+export function npcSpellFullDescription(name:string,level:number|undefined,summary:string):string{
+ for(const spells of Object.values(traditionSpells)){
+  const match=spells.find(spell=>spell.name===name&&spell.level===level&&spell.text.slice(0,500)===summary);
+  if(match)return match.text;
+ }
+ return summary;
+}

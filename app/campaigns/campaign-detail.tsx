@@ -477,17 +477,16 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
               <p className="campaign-kicker">PRIVATE CAMPAIGN · {campaignRoleLabel(campaign).toUpperCase()}</p>
               <h1 id="campaign-title">{campaign.name}</h1>
               <p>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
-            </div>
-            <div className="campaign-hero-actions">
-              <CampaignAvailability campaignId={campaignId} />
-              
+              <div className="campaign-hero-actions">
               {campaign.permissions.canInviteMembers && (
                 <button type="button" className="campaign-primary" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>
               )}
               {campaign.permissions.canManageSettings && (
                 <button type="button" className="campaign-secondary" onClick={() => setRenameOpen(true)}>Rename Campaign</button>
               )}
+              </div>
             </div>
+            <CampaignAvailability campaignId={campaignId} />
           </section>
 
           {campaign.archivedAt && (

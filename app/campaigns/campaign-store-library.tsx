@@ -305,6 +305,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
+      await loadPlacements();
       setJournalNotice('Added "' + selectedStore.name + '" to the Journal (GM only).');
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not add store to Journal."); }
     finally { setBusy(false); }

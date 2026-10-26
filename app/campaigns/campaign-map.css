@@ -3136,8 +3136,16 @@
   }
 }
 
-/* Tablet: keep the closed Map launcher away from the Journal sidebar. */
-@media (min-width:821px) and (max-width:1200px) and (pointer:coarse) {
- .campaign-map-collapsed-drawer-left {top:auto;bottom:calc(1rem + env(safe-area-inset-bottom,0px));left:.75rem;width:auto;min-height:44px;padding:.65rem 1rem;writing-mode:horizontal-tb;text-orientation:mixed;transform:none;border-radius:999px;border-left:1px solid rgba(204,163,83,.7)}
- .campaign-map-collapsed-drawer-left:hover,.campaign-map-collapsed-drawer-left:focus-visible{transform:translateY(-1px)}
+
+/* Tablet launchers: stable, horizontal controls regardless of map dock side or pointer detection. */
+@media (min-width:821px) and (max-width:1366px) {
+ .campaign-map-collapsed-drawer.campaign-map-collapsed-drawer-left,
+ .campaign-map-collapsed-drawer.campaign-map-collapsed-drawer-right {
+  top:auto;right:auto;bottom:calc(1rem + env(safe-area-inset-bottom,0px));left:.75rem;
+  width:7.25rem;min-height:44px;padding:.65rem .8rem;
+  writing-mode:horizontal-tb;text-orientation:mixed;transform:none;
+  border-radius:999px;border:1px solid rgba(204,163,83,.7);
+  text-align:center;
+ }
+ .campaign-map-collapsed-drawer:hover,.campaign-map-collapsed-drawer:focus-visible{transform:translateY(-1px)}
 }

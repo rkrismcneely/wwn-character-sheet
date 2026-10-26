@@ -82,3 +82,5 @@
 .journal-editor-insert-hint{font:400 11px/1.4 var(--font-ui,Arial,sans-serif);color:#8a7655}
 .journal-editor-link-count{font:400 11px/1.4 var(--font-ui,Arial,sans-serif);color:#806c4d}
 @media(max-width:650px){.journal-editor-tool-label{margin-left:4px;padding-left:5px}.journal-editor-insert-hint{display:none}}
+
+.journal-unsaved-indicator{display:inline-flex;align-items:center;margin:0 8px;color:#8b5d21;font:600 11px/1.4 var(--font-ui,Arial,sans-serif)}

@@ -42,9 +42,9 @@ export interface CampaignStore {
   campaignId: string;
   name: string;
   description: string;
-  proprietorName: string;
-  proprietorDescription: string;
-  proprietorNpcId: string | null;
+  proprietorName?: string;
+  proprietorDescription?: string;
+  proprietorNpcId?: string | null;
   isActive: boolean;
   items: CampaignStoreItem[];
   createdAt: string;

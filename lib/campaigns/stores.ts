@@ -42,6 +42,9 @@ export interface CampaignStore {
   campaignId: string;
   name: string;
   description: string;
+  proprietorName: string;
+  proprietorDescription: string;
+  proprietorNpcId: string | null;
   isActive: boolean;
   items: CampaignStoreItem[];
   createdAt: string;
@@ -79,6 +82,9 @@ export interface CampaignStoreManagementPayload {
 export interface CampaignStoreDraft {
   name?: unknown;
   description?: unknown;
+  proprietorName?: unknown;
+  proprietorDescription?: unknown;
+  proprietorNpcId?: unknown;
 }
 
 export interface CampaignStoreItemDraft {
@@ -99,6 +105,9 @@ interface StoreRow {
   id: string;
   name: string;
   description: string;
+  proprietorName: string;
+  proprietorDescription: string;
+  proprietorNpcId: string | null;
   isActive: number;
   createdAt: string;
   updatedAt: string;
@@ -236,6 +245,9 @@ function toStore(row: StoreRow, campaignPublicId: string, items: CampaignStoreIt
     campaignId: campaignPublicId,
     name: row.name,
     description: row.description,
+    proprietorName: row.proprietorName,
+    proprietorDescription: row.proprietorDescription,
+    proprietorNpcId: row.proprietorNpcId,
     isActive: row.isActive === 1,
     items,
     createdAt: row.createdAt,
@@ -313,7 +325,7 @@ async function storesForCampaign(
 ): Promise<CampaignStore[]> {
   const [stores, items] = await Promise.all([
     db.prepare(
-      `SELECT id, name, description, is_active AS isActive,
+      `SELECT id, name, description, proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId, is_active AS isActive,
               created_at AS createdAt, updated_at AS updatedAt
        FROM campaign_stores
        WHERE campaign_id = ?
@@ -331,7 +343,7 @@ async function storeForManagement(
 ): Promise<StoreRow> {
   const id = identifier(storeId, "Store");
   const store = await db.prepare(
-    `SELECT id, name, description, is_active AS isActive,
+    `SELECT id, name, description, proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId, is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt
      FROM campaign_stores WHERE id = ? AND campaign_id = ?`,
   ).bind(id, campaignId).first<StoreRow>();
@@ -399,17 +411,21 @@ export async function createCampaignStore(
   const campaign = await managerCampaign(db, actor, campaignPublicId, true);
   const name = plainText(draft.name, "Store name", 80);
   const description = plainText(draft.description, "Store description", 2000, false, true);
+  const proprietorName = plainText(draft.proprietorName, "Proprietor name", 120, false);
+  const proprietorDescription = plainText(draft.proprietorDescription, "Proprietor description", 2000, false, true);
+  const proprietorNpcId = draft.proprietorNpcId ? identifier(draft.proprietorNpcId,"NPC") : null;
   const id = `cstore_${crypto.randomUUID().replaceAll("-", "")}`;
   await db.prepare(
     `INSERT INTO campaign_stores
-      (id, campaign_id, name, description, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 0, ?, ?)`,
-  ).bind(id, campaign.id, name, description, now, now).run();
+      (id, campaign_id, name, description, proprietor_name, proprietor_description, proprietor_npc_id, is_active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+  ).bind(id, campaign.id, name, description, proprietorName, proprietorDescription, proprietorNpcId, now, now).run();
   return {
     id,
     campaignId: campaign.publicId,
     name,
     description,
+    proprietorName, proprietorDescription, proprietorNpcId,
     isActive: false,
     items: [],
     createdAt: now,
@@ -429,16 +445,20 @@ export async function updateCampaignStore(
   const existing = await storeForManagement(db, campaign.id, storeId);
   const name = plainText(draft.name, "Store name", 80);
   const description = plainText(draft.description, "Store description", 2000, false, true);
+  const proprietorName = plainText(draft.proprietorName ?? existing.proprietorName, "Proprietor name", 120, false);
+  const proprietorDescription = plainText(draft.proprietorDescription ?? existing.proprietorDescription, "Proprietor description", 2000, false, true);
+  const proprietorNpcId = draft.proprietorNpcId === undefined ? existing.proprietorNpcId : draft.proprietorNpcId ? identifier(draft.proprietorNpcId,"NPC") : null;
   await db.prepare(
-    `UPDATE campaign_stores SET name = ?, description = ?, updated_at = ?
+    `UPDATE campaign_stores SET name = ?, description = ?, proprietor_name = ?, proprietor_description = ?, proprietor_npc_id = ?, updated_at = ?
      WHERE id = ? AND campaign_id = ?`,
-  ).bind(name, description, now, existing.id, campaign.id).run();
+  ).bind(name, description, proprietorName, proprietorDescription, proprietorNpcId, now, existing.id, campaign.id).run();
   const items = (await itemMap(db, campaign.id)).get(existing.id) ?? [];
   return {
     id: existing.id,
     campaignId: campaign.publicId,
     name,
     description,
+    proprietorName, proprietorDescription, proprietorNpcId,
     isActive: existing.isActive === 1,
     items,
     createdAt: existing.createdAt,
@@ -663,7 +683,7 @@ export async function readActiveCampaignStore(
 ): Promise<CampaignStore | null> {
   const campaign = await viewerCampaign(db, actor, campaignPublicId, characterId);
   const store = await db.prepare(
-    `SELECT id, name, description, is_active AS isActive,
+    `SELECT id, name, description, proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId, is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt
      FROM campaign_stores WHERE campaign_id = ? AND is_active = 1`,
   ).bind(campaign.id).first<StoreRow>();

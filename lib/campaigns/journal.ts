@@ -96,13 +96,13 @@ export function journalFolderRole(entry:{kind:string;icon?:string;title:string},
 export async function designateJournalFolder(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;role?:unknown}){
  const campaign=await requireGM(db,actor,campaignId);
  if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid folder.",422);
- if(typeof input.role!=="string"||!journalFolderRoles.some(role=>role.toLowerCase()===input.role))throw new CampaignServiceError("Invalid folder designation.",422);
+ if(typeof input.role!=="string"||(input.role!==""&&!journalFolderRoles.some(role=>role.toLowerCase()===input.role)))throw new CampaignServiceError("Invalid folder designation.",422);
  const target=await db.prepare("SELECT id FROM campaign_journal_entries WHERE id=? AND campaign_id=? AND kind='folder'").bind(input.id,campaign).first();
  if(!target)throw new CampaignServiceError("Folder not found.",404);
- const icon=folderRolePrefix+input.role;
+ const icon=input.role?folderRolePrefix+input.role:"file-text";
  const now=new Date().toISOString();
  await db.batch([
-  db.prepare("UPDATE campaign_journal_entries SET icon='file-text', updated_at=? WHERE campaign_id=? AND kind='folder' AND icon=? AND id<>?").bind(now,campaign,icon,input.id),
+  ...(input.role?[db.prepare("UPDATE campaign_journal_entries SET icon='file-text', updated_at=? WHERE campaign_id=? AND kind='folder' AND icon=? AND id<>?").bind(now,campaign,icon,input.id)]:[]),
   db.prepare("UPDATE campaign_journal_entries SET icon=?,updated_at=? WHERE campaign_id=? AND id=? AND kind='folder'").bind(icon,now,campaign,input.id),
  ]);
  return {id:input.id,role:input.role,icon};

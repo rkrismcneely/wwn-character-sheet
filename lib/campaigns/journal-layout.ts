@@ -50,5 +50,18 @@ export function safeJournalImage(source: string): boolean {
 
 /** Hide converter metadata in reading mode, while preserving code and stored text. */
 export function journalDocumentContent(content: string): string {
- return outsideMarkdownCode(content, text => text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, "").replace(/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/gmu, ""));
+ const isStore=/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/mu.test(content);
+ return outsideMarkdownCode(content, text => {
+  let visible=text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, "").replace(/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/gmu, "");
+  if(!isStore)return visible;
+  // Give existing Store-to-Journal articles the improved layout without modifying saved drafts.
+  visible=visible.replace(/^## Inventory\s*\n((?:\s*- \*\*[^\n]+\n?)+)/gmu,(_match:string,items:string)=>{
+   const rows=items.split("\n").map(line=>/^\s*- \*\*(.+?)\*\* — (.+?) \((unlimited stock|\d+ in stock)\)(?: — (.*))?\s*$/u.exec(line)).filter((row):row is RegExpExecArray=>Boolean(row));
+   if(!rows.length)return _match;
+   const safe=(value:string)=>value.replaceAll("|","\\|");
+   return "## Goods for sale\n\n| Item | Price | Availability |\n| :--- | ---: | :--- |\n"+
+    rows.map(row=>"| **"+safe(row[1])+"**"+(row[4]?" — "+safe(row[4]):"")+" | "+safe(row[2])+" | "+row[3]+" |").join("\n")+"\n";
+  });
+  return visible;
+ });
 }

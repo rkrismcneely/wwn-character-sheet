@@ -287,3 +287,14 @@
 .campaign-journal .journal-linked-npc-spell-summary{color:#735a3d}
 .campaign-journal .journal-linked-npc-spell-popover{display:none;position:absolute;z-index:40;top:calc(100% + 5px);left:0;width:max-content;max-width:min(350px,calc(100vw - 80px));white-space:normal;max-height:280px;overflow:auto;padding:12px 14px;border:1px solid #a47d47;border-radius:7px;background:#fff9eb;color:#382819;box-shadow:0 8px 24px #3020124d;font:400 13px/1.5 var(--font-body,serif)}
 .campaign-journal .journal-linked-npc-spell:hover>.journal-linked-npc-spell-popover,.campaign-journal .journal-linked-npc-spell:focus-visible>.journal-linked-npc-spell-popover{display:block}
+
+/* Visually separate journal folders from content pages without changing tree behavior. */
+.twe-workspace-tree-row.is-folder{background:rgba(176,137,77,.12);border-color:rgba(160,116,52,.19)}
+.twe-workspace-tree-row.is-folder:hover{background:#e4d3b4;border-color:#c5a676}
+.twe-workspace .twe-workspace-tree-row.is-folder .twe-workspace-tree-name{font-weight:700}
+.twe-workspace .twe-workspace-tree-row.is-folder .twe-workspace-tree-glyph{color:#98651f}
+.twe-workspace .twe-workspace-tree-row.is-article .twe-workspace-tree-name{font-weight:400}
+.twe-workspace .twe-workspace-tree-row.is-article .twe-workspace-tree-glyph{color:#927951}
+.twe-workspace-tree-row.is-folder.is-active,.twe-workspace-tree-row.is-article.is-active{background:#e0cba3;border-color:#cfaf76;box-shadow:inset 3px 0 #9a6d31}
+.twe-workspace-tree-row.is-folder.is-drop-target,.twe-workspace-tree-row.is-article.is-drop-target{background:#d9e7cc;border-color:#5b8750}
+.twe-workspace-tree-row.is-folder.is-reorder-target,.twe-workspace-tree-row.is-article.is-reorder-target{background:#f1e2c7;box-shadow:inset 0 3px #a97934}

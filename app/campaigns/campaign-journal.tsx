@@ -143,7 +143,7 @@ function FolderGlyph({role}:{role:string|null}){
  "Quests":<><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="m9 13 2 2 4-4"/></>,
  "Session Notes":<><path d="M2 11.5V5a2 2 0 0 1 2-2h3.9c.7 0 1.3.3 1.7.9l.8 1.2c.4.6 1 .9 1.7.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9.5"/><path d="M11.378 13.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></>
  };
- return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">{paths[role||""]??<><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></>}</svg>;
+ return <svg viewBox={role==="NPCs"?"-2 -2 28 28":"0 0 24 24"} width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">{paths[role||""]??<><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></>}</svg>;
 }
 const folderRoles=["Locations","NPCs","Items","Stores","Quests","Session Notes"] as const;
 const [folderRoleDraft,setFolderRoleDraft]=useState("");
@@ -498,6 +498,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
       const closingFolders=ancestry(entry).filter(parent=>!nextAncestors.has(parent.id));
       return <Fragment key={entry.id}><div className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview&&!isSessionRecap(entry)} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
  if(!dragged||dragged===entry.id)return;
+ setEndTarget(null);
  const source=entryById.get(dragged);
  if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}return;}
   if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}

@@ -186,7 +186,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
     const response=await fetch(url,{cache:"no-store"});
     if(!response.ok)return;
-    const body=await response.json() as {entries?:{id:string;kind:string;content:string}[]};
+    const body=await response.json() as {entries?:{id:string;kind:string;content:string;updatedAt:string}[]};
     if(!Array.isArray(body.entries))return;
     let changed=false;
     for(const store of updated){
@@ -194,7 +194,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       if(!page)continue;
       const content=updateStoreManagedPage(page.content,store);
       if(content===page.content)continue;
-      const update=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content})});
+      const update=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content,expectedContent:page.content,expectedUpdatedAt:page.updatedAt})});
       if(!update.ok)throw new Error("Could not update the Journal article for "+store.name+".");
       page.content=content;changed=true;
     }

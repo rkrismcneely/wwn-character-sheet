@@ -28,6 +28,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(() => !cachedPage(campaignId));
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [addingToJournal,setAddingToJournal]=useState(false);
+  const [journalNotice,setJournalNotice]=useState("");
   const [importNotice, setImportNotice] = useState("");
   const importFileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -53,7 +55,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
 
   function startNew() {
     setEditing("new"); setDraft({ date: localToday(), title: "", content: "" });
-    setError(""); setPreview(false); setImportNotice("");
+    setError(""); setPreview(false); setImportNotice(""); setJournalNotice("");
   }
 
   async function importObsidianNote(event: ChangeEvent<HTMLInputElement>) {
@@ -84,6 +86,27 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.content });
     setError(""); setPreview(false); setImportNotice("");
   }
+  async function addToJournal(){
+    if(!editing||editing==="new"||saving||addingToJournal)return;
+    setAddingToJournal(true);setError("");setJournalNotice("");
+    try{
+      const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
+      const response=await fetch(url,{cache:"no-store"});
+      const data=await response.json() as {entries?:{id:string;kind:string;title:string;icon?:string;parentId?:string|null;content:string}[];error?:string};
+      if(!response.ok||!Array.isArray(data.entries))throw new Error(data.error||"Journal could not be loaded.");
+      const marker="<!-- twe-session-recap:"+editing.id+" -->";
+      const duplicate=data.entries.find(entry=>entry.kind==="page"&&entry.content.includes(marker));
+      if(duplicate){setJournalNotice("Already in the Journal as “"+duplicate.title+"”.");return;}
+      const folder=data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:session notes")??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="session notes");
+      if(!folder)throw new Error("Choose a Session Notes folder category in the Journal before adding this recap.");
+      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:editing.date.slice(2)+" — "+editing.title,content:marker+"\\n\\n"+editing.content,visibility:"gm",icon:"calendar-days",...(folder?{parentId:folder.id}:{})})});
+      const result=await created.json() as {entry?:{id:string};error?:string};
+      if(!created.ok||!result.entry)throw new Error(result.error||"Could not add recap to Journal.");
+      setJournalNotice(folder?"Added to the Journal under "+folder.title+".":"Added to the Journal.");
+      window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not add recap to Journal.");}
+    finally{setAddingToJournal(false);}
+  }
   function cancelEdit() { setEditing(null); setError(""); setPreview(false); setImportNotice(""); }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -101,6 +124,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       setEditing(null); setPreview(false); setImportNotice("");
       recapPageCache.delete(campaignId);
       window.dispatchEvent(new CustomEvent(sessionRecapChangedEvent, { detail: { campaignId } }));
+      window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
       await loadPage(1);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save the session recap."); }
     finally { setSaving(false); }
@@ -113,9 +137,10 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     {editing ? <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">SESSION JOURNAL</p><h2 id="gm-session-recaps-title">{editing === "new" ? "New Session Recap" : "Edit Session Recap"}</h2></div>
-        <button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Back to Recaps</button>
+        <div className="session-recap-heading-actions">{editing!=="new"&&<button type="button" className="campaign-secondary" disabled={saving||addingToJournal} onClick={()=>void addToJournal()}>{addingToJournal?"Adding…":"Add to Journal"}</button>}<button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Back to Recaps</button></div>
       </div>
       {importNotice && <p className="session-recap-import-notice" role="status">{importNotice}</p>}
+      {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}
       <form className="session-recap-form" onSubmit={event => void save(event)}>
         <div className="session-recap-form-fields">
           <label><span>Session date</span><input type="date" required value={draft.date} onChange={event => setDraft(current => ({ ...current, date: event.target.value }))} /></label>

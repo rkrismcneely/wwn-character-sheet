@@ -270,6 +270,8 @@ export async function reorderJournalEntry(db:D1Database,actor:CampaignActor|null
  const source=await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.id).first<{id:string;parentId:string|null}>();
  const before=await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.beforeId).first<{id:string;parentId:string|null}>();
  if(!source||!before||source.parentId!==before.parentId)throw new CampaignServiceError("Items must be in the same folder.",422);
+ const linked=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id IN (?,?) AND kind='page' AND content LIKE '%<!-- twe-session-recap:%' LIMIT 1").bind(campaign,source.id,before.id).first();
+ if(linked)throw new CampaignServiceError("Session recaps are ordered automatically by date.",422);
  const all=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND parent_id IS ? ORDER BY sort_order IS NULL,sort_order,kind ASC,title COLLATE NOCASE ASC,id").bind(campaign,source.parentId).all<{id:string}>();
  const ids=all.results.map(row=>row.id).filter(id=>id!==source.id);
  const index=ids.indexOf(before.id);

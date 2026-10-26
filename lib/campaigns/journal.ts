@@ -124,7 +124,7 @@ async function initializeEmptyJournal(db: D1Database, campaignId: string) {
    for (const remaining of starterJournalFolders.slice(1)) {
     await db.prepare(`INSERT INTO campaign_journal_entries
      (id,campaign_id,parent_id,kind,title,content,icon,visibility,created_at,updated_at)
-     SELECT ?, ?, NULL, 'folder', ?, '', 'file-text', 'gm', ?, ?
+     SELECT ?, ?, NULL, 'folder', ?, '', ?, 'gm', ?, ?
      WHERE NOT EXISTS (SELECT 1 FROM campaign_journal_entries WHERE campaign_id = ? AND kind = 'folder' AND title = ?)`)
      .bind(crypto.randomUUID(),campaignId,remaining,folderRolePrefix+remaining.toLowerCase(),now,now,campaignId,remaining).run();
    }

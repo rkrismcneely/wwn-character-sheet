@@ -52,7 +52,7 @@ export function safeJournalImage(source: string): boolean {
 export function journalDocumentContent(content: string): string {
  const isStore=/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/mu.test(content);
  return outsideMarkdownCode(content, text => {
-  let visible=text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, "").replace(/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/gmu, "");
+  let visible=text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, "").replace(/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/gmu, "").replace(/^<!-- twe-map:map_[a-f0-9-]{36} -->[ \t]*$/gmu, "");
   if(!isStore)return visible;
   // Give existing Store-to-Journal articles the improved layout without modifying saved drafts.
   visible=visible.replace(/^## Inventory\s*\n((?:\s*- \*\*[^\n]+\n?)+)/gmu,(_match:string,items:string)=>{

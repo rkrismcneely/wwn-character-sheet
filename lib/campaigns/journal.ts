@@ -191,6 +191,29 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
 }
 
 /** Reparent a Journal item, preserving its content and preventing cycles. */
+/** Move multiple pages in a single D1 statement; folders are deliberately excluded. */
+export async function moveJournalPages(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{ids?:unknown;parentId?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ const ids=input.ids;
+ if(!Array.isArray(ids)||ids.length<1||ids.length>200||ids.some(id=>typeof id!=="string"||!uuidPattern.test(id))||new Set(ids).size!==ids.length)
+  throw new CampaignServiceError("Select between 1 and 200 distinct Journal pages.",422);
+ const parent=await getParent(db,campaign,input.parentId);
+ const marks=ids.map(()=>"?").join(",");
+ const rows=await db.prepare(`SELECT id,kind,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id IN (${marks})`)
+  .bind(campaign,...ids).all<{id:string;kind:string;parentId:string|null}>();
+ if(rows.results.length!==ids.length||rows.results.some(row=>row.kind!=="page"))
+  throw new CampaignServiceError("Only existing Journal articles can be moved together.",422);
+ const toMove=rows.results.filter(row=>row.parentId!==parent).map(row=>row.id);
+ if(!toMove.length)return {ids:[],parentId:parent};
+ const placeholders=toMove.map(()=>"?").join(",");
+ const result=await db.prepare(`UPDATE campaign_journal_entries SET parent_id=?,updated_at=?
+   WHERE campaign_id=? AND kind='page' AND id IN (${placeholders})
+   AND (? IS NULL OR EXISTS(SELECT 1 FROM campaign_journal_entries p WHERE p.id=? AND p.campaign_id=? AND p.kind='folder'))`)
+  .bind(parent,new Date().toISOString(),campaign,...toMove,parent,parent,campaign).run();
+ if(result.meta.changes!==toMove.length)throw new CampaignServiceError("Journal changed during the move. Refresh and try again.",409);
+ return {ids:toMove,parentId:parent};
+}
+
 export async function moveJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;parentId?:unknown}){
  const campaign=await requireGM(db,actor,campaignId);
  if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid journal entry.",422);

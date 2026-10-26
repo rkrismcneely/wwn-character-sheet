@@ -3,6 +3,12 @@ name: Verify production availability
 # Cloudflare Git Integration owns normal production deployment. This checks
 # reachability after main changes; it does not falsely claim SHA parity.
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/**'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +22,7 @@ jobs:
   smoke:
     name: Production health
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 12
     steps:
       - name: Confirm exact merged commit is live
         shell: bash
@@ -26,7 +32,7 @@ jobs:
           set -euo pipefail
           # Cloudflare Git Integration publishes asynchronously. Poll its
           # static build marker rather than accepting a healthy older release.
-          for attempt in $(seq 1 36); do
+          for attempt in $(seq 1 45); do
             status=$(curl --silent --show-error --location --connect-timeout 10 \
               --max-time 15 --output /tmp/twe-version \
               --write-out '%{http_code}' \

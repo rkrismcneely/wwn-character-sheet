@@ -431,7 +431,7 @@ export async function createCampaignStore(
     await db.prepare(`INSERT INTO campaign_stores (id,campaign_id,name,description,proprietor_name,proprietor_description,proprietor_npc_id,is_active,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,0,?,?)`).bind(id,campaign.id,name,description,proprietorName,proprietorDescription,proprietorNpcId,now,now).run();
   }else{
-    if(proprietorName||proprietorDescription||proprietorNpcId)throw new CampaignServiceError("Proprietor storage is being upgraded. Please try again after the database migration.",503);
+    if(proprietorName||proprietorDescription||proprietorNpcId)throw new CampaignServiceError("Proprietor storage is being upgraded. Please try again after the database migration.",409);
     await db.prepare(`INSERT INTO campaign_stores (id,campaign_id,name,description,is_active,created_at,updated_at) VALUES (?,?,?,?,0,?,?)`)
       .bind(id,campaign.id,name,description,now,now).run();
   }
@@ -467,7 +467,7 @@ export async function updateCampaignStore(
     await db.prepare(`UPDATE campaign_stores SET name=?,description=?,proprietor_name=?,proprietor_description=?,proprietor_npc_id=?,updated_at=? WHERE id=? AND campaign_id=?`)
       .bind(name,description,proprietorName,proprietorDescription,proprietorNpcId,now,existing.id,campaign.id).run();
   }else{
-    if(proprietorName||proprietorDescription||proprietorNpcId)throw new CampaignServiceError("Proprietor storage is being upgraded. Please try again after the database migration.",503);
+    if(proprietorName||proprietorDescription||proprietorNpcId)throw new CampaignServiceError("Proprietor storage is being upgraded. Please try again after the database migration.",409);
     await db.prepare(`UPDATE campaign_stores SET name=?,description=?,updated_at=? WHERE id=? AND campaign_id=?`)
       .bind(name,description,now,existing.id,campaign.id).run();
   }

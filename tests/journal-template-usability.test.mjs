@@ -12,7 +12,7 @@ test("replacing edited template content asks before overwriting", () => {
   assert.match(editor, /Replace the current page content with this template\?/u);
 });
 test("secondary editor controls live in an expandable Insert menu", () => {
-  assert.match(editor, /<details className="journal-editor-insert-menu">/u);
+  assert.match(editor, /<details className="journal-editor-insert-menu"/u);
   assert.match(editor, /<\/div><\/details>/u);
 });
 

@@ -700,6 +700,7 @@ export async function readActiveCampaignStore(
   characterId: unknown,
 ): Promise<CampaignStore | null> {
   const campaign = await viewerCampaign(db, actor, campaignPublicId, characterId);
+  const ready=await proprietorSchemaReady(db);
   const store = await db.prepare(
     `SELECT id, name, description, ${proprietorColumns(ready)} is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt

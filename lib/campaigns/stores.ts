@@ -318,14 +318,24 @@ async function itemMap(
   return resultMap;
 }
 
+/** Existing production databases may not have received the proprietor migration yet. */
+async function proprietorSchemaReady(db:D1Database):Promise<boolean>{
+ const columns=await db.prepare("PRAGMA table_info(campaign_stores)").all<{name:string}>();
+ return ["proprietor_name","proprietor_description","proprietor_npc_id"].every(name=>columns.results.some(row=>row.name===name));
+}
+const proprietorColumns=(ready:boolean)=>ready
+ ? "proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId,"
+ : "'' AS proprietorName, '' AS proprietorDescription, NULL AS proprietorNpcId,";
+
 async function storesForCampaign(
   db: D1Database,
   campaignId: string,
   campaignPublicId: string,
 ): Promise<CampaignStore[]> {
+  const ready=await proprietorSchemaReady(db);
   const [stores, items] = await Promise.all([
     db.prepare(
-      `SELECT id, name, description, proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId, is_active AS isActive,
+      `SELECT id, name, description, ${proprietorColumns(ready)} is_active AS isActive,
               created_at AS createdAt, updated_at AS updatedAt
        FROM campaign_stores
        WHERE campaign_id = ?
@@ -342,8 +352,10 @@ async function storeForManagement(
   storeId: unknown,
 ): Promise<StoreRow> {
   const id = identifier(storeId, "Store");
+  const ready=await proprietorSchemaReady(db);
+  const ready=await proprietorSchemaReady(db);
   const store = await db.prepare(
-    `SELECT id, name, description, proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId, is_active AS isActive,
+    `SELECT id, name, description, ${proprietorColumns(ready)} is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt
      FROM campaign_stores WHERE id = ? AND campaign_id = ?`,
   ).bind(id, campaignId).first<StoreRow>();
@@ -415,11 +427,14 @@ export async function createCampaignStore(
   const proprietorDescription = plainText(draft.proprietorDescription, "Proprietor description", 2000, false, true);
   const proprietorNpcId = draft.proprietorNpcId ? identifier(draft.proprietorNpcId,"NPC") : null;
   const id = `cstore_${crypto.randomUUID().replaceAll("-", "")}`;
-  await db.prepare(
-    `INSERT INTO campaign_stores
-      (id, campaign_id, name, description, proprietor_name, proprietor_description, proprietor_npc_id, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-  ).bind(id, campaign.id, name, description, proprietorName, proprietorDescription, proprietorNpcId, now, now).run();
+  if(await proprietorSchemaReady(db)){
+    await db.prepare(`INSERT INTO campaign_stores (id,campaign_id,name,description,proprietor_name,proprietor_description,proprietor_npc_id,is_active,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,0,?,?)`).bind(id,campaign.id,name,description,proprietorName,proprietorDescription,proprietorNpcId,now,now).run();
+  }else{
+    if(proprietorName||proprietorDescription||proprietorNpcId)throw new CampaignServiceError("Proprietor storage is being upgraded. Please try again after the database migration.",503);
+    await db.prepare(`INSERT INTO campaign_stores (id,campaign_id,name,description,is_active,created_at,updated_at) VALUES (?,?,?,?,0,?,?)`)
+      .bind(id,campaign.id,name,description,now,now).run();
+  }
   return {
     id,
     campaignId: campaign.publicId,
@@ -448,10 +463,14 @@ export async function updateCampaignStore(
   const proprietorName = plainText(draft.proprietorName ?? existing.proprietorName, "Proprietor name", 120, false);
   const proprietorDescription = plainText(draft.proprietorDescription ?? existing.proprietorDescription, "Proprietor description", 2000, false, true);
   const proprietorNpcId = draft.proprietorNpcId === undefined ? existing.proprietorNpcId : draft.proprietorNpcId ? identifier(draft.proprietorNpcId,"NPC") : null;
-  await db.prepare(
-    `UPDATE campaign_stores SET name = ?, description = ?, proprietor_name = ?, proprietor_description = ?, proprietor_npc_id = ?, updated_at = ?
-     WHERE id = ? AND campaign_id = ?`,
-  ).bind(name, description, proprietorName, proprietorDescription, proprietorNpcId, now, existing.id, campaign.id).run();
+  if(await proprietorSchemaReady(db)){
+    await db.prepare(`UPDATE campaign_stores SET name=?,description=?,proprietor_name=?,proprietor_description=?,proprietor_npc_id=?,updated_at=? WHERE id=? AND campaign_id=?`)
+      .bind(name,description,proprietorName,proprietorDescription,proprietorNpcId,now,existing.id,campaign.id).run();
+  }else{
+    if(proprietorName||proprietorDescription||proprietorNpcId)throw new CampaignServiceError("Proprietor storage is being upgraded. Please try again after the database migration.",503);
+    await db.prepare(`UPDATE campaign_stores SET name=?,description=?,updated_at=? WHERE id=? AND campaign_id=?`)
+      .bind(name,description,now,existing.id,campaign.id).run();
+  }
   const items = (await itemMap(db, campaign.id)).get(existing.id) ?? [];
   return {
     id: existing.id,
@@ -683,7 +702,7 @@ export async function readActiveCampaignStore(
 ): Promise<CampaignStore | null> {
   const campaign = await viewerCampaign(db, actor, campaignPublicId, characterId);
   const store = await db.prepare(
-    `SELECT id, name, description, proprietor_name AS proprietorName, proprietor_description AS proprietorDescription, proprietor_npc_id AS proprietorNpcId, is_active AS isActive,
+    `SELECT id, name, description, ${proprietorColumns(ready)} is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt
      FROM campaign_stores WHERE campaign_id = ? AND is_active = 1`,
   ).bind(campaign.id).first<StoreRow>();

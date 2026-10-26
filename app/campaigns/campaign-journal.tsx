@@ -223,6 +223,44 @@ const sortedEntries:Entry[]=[];const visited=new Set<string>();
 function addChildren(parent:string,depth=0){if(depth>20)return;for(const entry of childrenByParent.get(parent)??[]){if(visited.has(entry.id))continue;visited.add(entry.id);sortedEntries.push(entry);addChildren(entry.id,depth+1);}}
 addChildren("");for(const entry of entries.slice().sort(compareEntries)){if(!visited.has(entry.id)){visited.add(entry.id);sortedEntries.push(entry);}}
 const matchingEntries=sortedEntries.filter(entry=>matchesSearch(entry)&&(search.trim()||visibleInTree(entry)));
+const [bulkSelected,setBulkSelected]=useState<ReadonlySet<string>>(()=>new Set());
+const [selectionAnchor,setSelectionAnchor]=useState("");
+const [bulkBusy,setBulkBusy]=useState(false);
+const [bulkNotice,setBulkNotice]=useState("");
+const bulkIds=[...bulkSelected].filter(id=>entryById.get(id)?.kind==="page");
+function selectJournalPage(event:React.MouseEvent,id:string){
+ const visiblePages=matchingEntries.filter(item=>item.kind==="page").map(item=>item.id);
+ if(event.shiftKey&&selectionAnchor&&visiblePages.includes(selectionAnchor)){
+  event.preventDefault();
+  const start=visiblePages.indexOf(selectionAnchor),end=visiblePages.indexOf(id);
+  if(end>=0)setBulkSelected(new Set(visiblePages.slice(Math.min(start,end),Math.max(start,end)+1)));
+ }else if(event.metaKey||event.ctrlKey){
+  event.preventDefault();setBulkSelected(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next;});
+  setSelectionAnchor(id);
+ }else{setBulkSelected(new Set([id]));setSelectionAnchor(id);}
+}
+async function moveBulkPages(targetId:string|null){
+ if(!canEdit||preview||bulkBusy||!bulkIds.length||bulkIds.some(id=>!validTarget(id,targetId)))return;
+ const pending=bulkIds.filter(id=>entryById.get(id)?.parentId!==targetId);
+ if(!pending.length){setBulkSelected(new Set());return;}
+ setBulkBusy(true);setBulkNotice("");
+ const completed:string[]=[];
+ try{
+  for(const id of pending){
+   const response=await fetch(endpoint,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,parentId:targetId})});
+   const result=await response.json() as {error?:string};
+   if(!response.ok)throw new Error(result.error||"Could not move all selected pages.");
+   completed.push(id);
+  }
+  setEntries(old=>old.map(entry=>completed.includes(entry.id)?{...entry,parentId:targetId}:entry));
+  if(targetId)setCollapsedFolders(old=>{const next=new Set(old);next.delete(targetId);return next;});
+  setBulkSelected(new Set());setSelectionAnchor("");setBulkNotice(completed.length+" articles moved.");
+ }catch(error){
+  setError(error instanceof Error?error.message:"Bulk move failed.");
+  await refresh();setBulkSelected(new Set(bulkIds.filter(id=>!completed.includes(id))));
+ }finally{setBulkBusy(false);setDragged(null);setDropTarget(null);setReorderTarget(null);}
+}
+
 function toggleAllFolders(){const folders=entries.filter(entry=>entry.kind==="folder");setCollapsedFolders(old=>folders.every(folder=>old.has(folder.id))?new Set():new Set(folders.map(folder=>folder.id)));}
 function toggleFolder(id:string){setCollapsedFolders(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next;});}
 
@@ -402,19 +440,22 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
    <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-folders-all" onClick={toggleAllFolders} aria-label={entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all folders":"Collapse all folders"}>{entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all":"Collapse all"}</button><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
    <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input ref={searchRef} aria-label="Search journal" placeholder="Find a page… (Ctrl/⌘ K)" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>
    <div className="twe-workspace-nav-caption">{search.trim()?matchingEntries.length+" matches":entries.length+" items"}</div>
-   {canEdit&&!preview&&<button type="button" className={"twe-workspace-root-drop"+(dropTarget==="root"?" is-drop-target":"")} onDragOver={e=>{if(dragged&&validTarget(dragged,null)){e.preventDefault();setDropTarget("root");}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{e.preventDefault();if(dragged)void moveEntry(dragged,null);}} onClick={()=>{if(moveId)void moveEntry(moveId,null);}}>↖ Top level {moveId?"(move selected item)":""}</button>}
+   {canEdit&&!preview&&bulkIds.length>1&&<div className="twe-workspace-bulk-toolbar" role="status"><strong>{bulkIds.length} articles selected</strong><button type="button" onClick={()=>{setBulkSelected(new Set());setSelectionAnchor("");}}>Clear</button><select aria-label="Move selected articles to folder" value="" disabled={bulkBusy} onChange={event=>{if(event.target.value)void moveBulkPages(event.target.value==="root"?null:event.target.value);}}><option value="">Move to…</option><option value="root">Top level</option>{sortedEntries.filter(item=>item.kind==="folder").map(item=><option value={item.id} key={item.id}>{ancestry(item).map(p=>p.title+" / ").join("")+item.title}</option>)}</select></div>}
+   {bulkNotice&&<div role="status" className="twe-workspace-nav-caption">{bulkNotice}</div>}
+   {canEdit&&!preview&&<button type="button" className={"twe-workspace-root-drop"+(dropTarget==="root"?" is-drop-target":"")} onDragOver={e=>{if(dragged&&validTarget(dragged,null)){e.preventDefault();setDropTarget("root");}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{e.preventDefault();if(dragged){if(bulkIds.length>1&&bulkSelected.has(dragged))void moveBulkPages(null);else void moveEntry(dragged,null);}}} onClick={()=>{if(moveId)void moveEntry(moveId,null);else if(bulkIds.length)void moveBulkPages(null);}}>↖ Top level {moveId?"(move selected item)":""}</button>}
    <nav className="twe-workspace-tree" aria-label="Pages and folders">
     {matchingEntries.map(entry=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
+      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
  if(!dragged||dragged===entry.id)return;
  const source=entryById.get(dragged);
- if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}
+ if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}return;}
+  if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}
  else if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
- }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(entryById.get(dragged)?.parentId===entry.parentId)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
+ }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder)void moveBulkPages(entry.id);}else if(entryById.get(dragged)?.parentId===entry.parentId)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
-       <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} aria-expanded={folder?!collapsedFolders.has(entry.id):undefined} onClick={()=>{if(entry.id!==selected){if(!discardDraft())return;if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);setForwardStack([]);setSelected(entry.id);setEditing(false);}if(folder)toggleFolder(entry.id);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></svg>:<JournalPageIconView icon={entry.icon} size={16}/>}</span><span title={searchTerm?ancestry(entry).map(parent=>parent.title).concat(entry.title).join(" / "):entry.title} className="twe-workspace-entry-title">{entry.title}{searchTerm&&searchSnippet(entry)&&<small className="twe-workspace-search-snippet">{searchSnippet(entry)}</small>}</span>{entry.visibility==="gm"&&<span className="twe-workspace-entry-lock" role="img" aria-label="GM only" title="GM only">🔒</span>}</button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Actions for "+entry.title} aria-expanded={menuId===entry.id} title={"Actions for "+entry.title} onClick={()=>setMenuId(old=>old===entry.id?"":entry.id)}>⋮</button>}
+       <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} aria-expanded={folder?!collapsedFolders.has(entry.id):undefined} onClick={event=>{if(canEdit&&!preview&&entry.kind==="page"){selectJournalPage(event,entry.id);if(event.shiftKey||event.metaKey||event.ctrlKey)return;}else if(!event.shiftKey&&!event.ctrlKey&&!event.metaKey)setBulkSelected(new Set());if(entry.id!==selected){if(!discardDraft())return;if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);setForwardStack([]);setSelected(entry.id);setEditing(false);}if(folder)toggleFolder(entry.id);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></svg>:<JournalPageIconView icon={entry.icon} size={16}/>}</span><span title={searchTerm?ancestry(entry).map(parent=>parent.title).concat(entry.title).join(" / "):entry.title} className="twe-workspace-entry-title">{entry.title}{searchTerm&&searchSnippet(entry)&&<small className="twe-workspace-search-snippet">{searchSnippet(entry)}</small>}</span>{entry.visibility==="gm"&&<span className="twe-workspace-entry-lock" role="img" aria-label="GM only" title="GM only">🔒</span>}</button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Actions for "+entry.title} aria-expanded={menuId===entry.id} title={"Actions for "+entry.title} onClick={()=>setMenuId(old=>old===entry.id?"":entry.id)}>⋮</button>}
        {menuId===entry.id&&canEdit&&!preview&&<div className="twe-workspace-entry-menu" role="group" aria-label={"Actions for "+entry.title}>
         <button type="button" onClick={()=>{setMoveId(entry.id);setMenuId("");}}>Move to folder…</button>
         <button type="button" onClick={()=>{const title=window.prompt("Rename entry",entry.title);if(title!==null&&title.trim()&&title!==entry.title)void editEntryQuick(entry,{title:title.trim()});else setMenuId("");}}>Rename</button>

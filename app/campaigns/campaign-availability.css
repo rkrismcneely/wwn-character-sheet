@@ -58,3 +58,22 @@
 .campaign-availability-game-day-label{position:absolute;bottom:0;left:0;right:0;background:#a35d17;color:white;font:bold 7px/9px Arial,sans-serif;letter-spacing:.35px}
 .campaign-availability-day.is-game-day{padding-bottom:8px}
 @media(max-width:700px){.campaign-shell .campaign-detail-hero{grid-template-columns:1fr!important}}
+
+/* Match the main Campaign content column regardless of inherited hero width rules. */
+.campaign-shell .campaign-hero.campaign-detail-hero{
+ width:min(calc(100vw - 32px), 765px)!important;
+ max-width:none!important;
+ min-width:0;
+ grid-template-columns:minmax(0,1fr) 255px!important;
+ margin-inline:auto!important;
+}
+.campaign-availability{width:255px;max-width:255px}
+.campaign-availability-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 5px;align-items:center}
+.campaign-availability-heading h2{grid-column:1;grid-row:1}
+.campaign-availability-heading .campaign-availability-month{grid-column:2;grid-row:1}
+.campaign-availability-heading .campaign-availability-group-toggle{grid-row:2;justify-self:end;white-space:nowrap}
+.campaign-availability-heading .campaign-availability-group-toggle[aria-pressed]{grid-column:1;justify-self:start}
+@media(max-width:700px){
+ .campaign-shell .campaign-hero.campaign-detail-hero{width:calc(100% - 24px)!important;grid-template-columns:1fr!important}
+ .campaign-detail-hero>.campaign-availability{justify-self:start;max-width:100%}
+}

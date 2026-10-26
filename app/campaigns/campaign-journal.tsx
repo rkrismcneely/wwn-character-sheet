@@ -179,11 +179,13 @@ useEffect(()=>{
   }catch{}
  };
  const onFocus=()=>{void check();};
+ const onDataChanged=(event:Event)=>{const detail=(event as CustomEvent<{campaignId?:string}>).detail;if(detail?.campaignId===campaignId)void check();};
+ window.addEventListener("twe:campaign-data-changed",onDataChanged);
  window.addEventListener("focus",onFocus);
  document.addEventListener("visibilitychange",onFocus);
  const interval=window.setInterval(()=>{void check();},30_000);
- return()=>{active=false;window.clearInterval(interval);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onFocus);};
-},[endpoint,preview,editing,saving,uploading]);
+ return()=>{active=false;window.clearInterval(interval);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onFocus);window.removeEventListener("twe:campaign-data-changed",onDataChanged);};
+},[endpoint,preview,editing,saving,uploading,campaignId]);
 const current=entries.find(e=>e.id===selected);
 function openJournalEntry(id:string){
  if(id===selected||!discardDraft())return;
@@ -445,7 +447,7 @@ async function save(e:React.FormEvent){
   const savedDraft=retainedMapId&&!linkedMapId({...current!,content:draft.content})?{...draft,content:"<!-- twe-map:"+retainedMapId+" -->\n\n"+draft.content}:draft;
   const entry=await saveJournalEditorDraft({endpoint,id:selected,kind:creatingFolder?"folder":"page",parentId,draft:savedDraft,attachments:pendingAttachments.current,onCreated:created=>{setSelected(created.id);setEntries(old=>[...old,created]);}});
   if(creatingFolder&&(folderRoleDraft!==""||Boolean(selected&&current?.kind==="folder"&&roleFor(current)))){await designateFolder(entry,folderRoleDraft);}
-  setEntries(old=>old.some(item=>item.id===entry.id)?old.map(item=>item.id===entry.id?entry:item):[...old,entry]);setSelected(entry.id);setDraft({title:entry.title,content:entry.content,visibility:entry.visibility,icon:journalPageIcon(entry.icon)});setEditing(false);setCreatingFolder(false);clearRecoveredDraft();clearAttachments();setUploadNotice("");await refresh();
+  setEntries(old=>old.some(item=>item.id===entry.id)?old.map(item=>item.id===entry.id?entry:item):[...old,entry]);setSelected(entry.id);setDraft({title:entry.title,content:entry.content,visibility:entry.visibility,icon:journalPageIcon(entry.icon)});setEditing(false);setCreatingFolder(false);clearRecoveredDraft();clearAttachments();setUploadNotice("");await refresh();window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
  }catch(cause){setError(cause instanceof Error?cause.message:"The page could not be saved.");}
  finally{savingRef.current=false;setSaving(false);}
 }

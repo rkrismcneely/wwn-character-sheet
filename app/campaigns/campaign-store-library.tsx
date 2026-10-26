@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { JournalLinkedNpc } from "./journal-linked-npc";
 import type {
   CampaignStore,
@@ -88,6 +88,11 @@ function ManagedStoreItem({
 
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
+  const syncInitialized=useRef(false);
+  useEffect(()=>{
+    if(!syncInitialized.current){syncInitialized.current=true;return;}
+    window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"stores"}}));
+  },[stores,campaignId]);
   const [catalog, setCatalog] = useState<CampaignStoreManagementPayload["catalog"]>([]);
   const [campaignItems, setCampaignItems] = useState<CampaignStoreManagementPayload["campaignItems"]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
@@ -132,6 +137,13 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setPlacements(body.entries);return body.entries;
   }
   useEffect(()=>{const controller=new AbortController();void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((value:unknown)=>{const body=value as {entries?:Placement[]};if(!controller.signal.aborted&&Array.isArray(body.entries))setPlacements(body.entries);}).catch(()=>{});return()=>controller.abort();},[campaignId]);
+  useEffect(()=>{
+    const onJournalChanged=(event:Event)=>{const detail=(event as CustomEvent<{campaignId?:string;area?:string}>).detail;
+      if(detail?.campaignId===campaignId&&detail.area==="journal")void loadPlacements().catch(()=>{});
+    };
+    window.addEventListener("twe:campaign-data-changed",onJournalChanged);
+    return()=>window.removeEventListener("twe:campaign-data-changed",onJournalChanged);
+  },[campaignId]);
   async function moveStoreLocation(next:string){
     if(!selectedStore||locationBusy)return;
     if(next&&!locations.some(l=>l.id===next))return;
@@ -148,7 +160,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,parentId:next||folder?.id||null})});
       const body=await response.json() as {entry?:Placement;error?:string};
       if(!response.ok||!body.entry)throw new Error(body.error||"Could not move store article.");
-      await loadPlacements();setPendingLocation({storeId:selectedStore.id,id:next});setJournalNotice(next?"Store filed beneath the selected location.":"Store filed under Stores.");
+      await loadPlacements();window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));setPendingLocation({storeId:selectedStore.id,id:next});setJournalNotice(next?"Store filed beneath the selected location.":"Store filed under Stores.");
     }catch(err){setError(err instanceof Error?err.message:"Could not set location.");}
     finally{setLocationBusy(false);}
   }
@@ -310,6 +322,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
       await loadPlacements();
+      window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
       setJournalNotice('Added "' + selectedStore.name + '" to the Journal (GM only).');
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not add store to Journal."); }
     finally { setBusy(false); }

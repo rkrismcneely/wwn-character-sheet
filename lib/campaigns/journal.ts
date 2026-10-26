@@ -200,6 +200,29 @@ export async function reorderJournalEntry(db:D1Database,actor:CampaignActor|null
  return {ids,parentId:source.parentId};
 }
 
+/** GM-authorized bulk folder visibility. Never changes selected-reader grants or page content. */
+export async function setJournalFolderVisibility(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;visibility?:unknown;includeContents?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id)||typeof input.includeContents!=="boolean")throw new CampaignServiceError("Invalid folder operation.",422);
+ const visibility=cleanVisibility(input.visibility);
+ if(visibility==="selected")throw new CampaignServiceError("Choose individual players for selected visibility.",422);
+ const folder=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind='folder'").bind(campaign,input.id).first();
+ if(!folder)throw new CampaignServiceError("Folder not found.",404);
+ const recursive=input.includeContents;
+ const rows=recursive
+  ? await db.prepare(`WITH RECURSIVE tree(id) AS (
+    SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind='folder'
+    UNION ALL
+    SELECT child.id FROM campaign_journal_entries child JOIN tree parent ON child.parent_id=parent.id WHERE child.campaign_id=?
+   ) SELECT id FROM tree LIMIT 5001`).bind(campaign,input.id,campaign).all<{id:string}>()
+  : {results:[{id:input.id}]};
+ if(rows.results.length>5000)throw new CampaignServiceError("Folder contains too many items to update at once.",422);
+ const now=new Date().toISOString();
+ const statements=rows.results.map(row=>db.prepare("UPDATE campaign_journal_entries SET visibility=?,updated_at=? WHERE campaign_id=? AND id=?").bind(visibility,now,campaign,row.id));
+ if(statements.length)await db.batch(statements);
+ return {updated:statements.length,visibility};
+}
+
 export async function setJournalReaders(db:D1Database,actor:CampaignActor|null,campaignId:string,entryId:string,userIds:string[]){
  const campaign=await requireGM(db,actor,campaignId);
  if(!uuidPattern.test(entryId)||!Array.isArray(userIds)||userIds.length>100||userIds.some(id=>typeof id!=="string"||id.length<1||id.length>128))

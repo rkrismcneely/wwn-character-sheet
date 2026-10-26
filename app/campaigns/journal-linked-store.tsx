@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CampaignStore } from "@/lib/campaigns/stores";
+import { JournalLinkedNpc } from "./journal-linked-npc";
 
 export function JournalLinkedStore({ campaignId, storeId }: { campaignId: string; storeId: string }) {
  const [store,setStore]=useState<CampaignStore|null>(null);
@@ -30,6 +31,7 @@ export function JournalLinkedStore({ campaignId, storeId }: { campaignId: string
   {error&&<p role="alert">{error} The original Journal snapshot remains saved.</p>}
   {store&&!loading&&!error&&<>
    {store.description&&<p>{store.description}</p>}
+   {(store.proprietorName||store.proprietorNpcId)&&<section className="journal-store-proprietor"><h3>Proprietor: {store.proprietorName||"Linked NPC"}</h3>{store.proprietorDescription&&<p>{store.proprietorDescription}</p>}{store.proprietorNpcId&&<details><summary>NPC details</summary><JournalLinkedNpc campaignId={campaignId} npcId={store.proprietorNpcId}/></details>}</section>}
    <h3>Goods for sale</h3>
    {store.items.length?<div className="session-recap-table-wrap"><table><thead><tr><th>Item</th><th>Price</th><th>Availability</th></tr></thead><tbody>
     {store.items.map(item=><tr key={item.id}><td><strong>{item.name}</strong>{item.note&&<small className="journal-linked-store-note">{item.note}</small>}</td><td>{item.cost}</td><td>{item.quantity===null?"Unlimited":item.quantity+" in stock"}</td></tr>)}

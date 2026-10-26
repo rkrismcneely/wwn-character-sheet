@@ -314,3 +314,15 @@
 .twe-workspace-history button:hover:not(:disabled){background:#e7d8bd}
 .twe-workspace-history button:disabled{opacity:.35;cursor:default}
 .twe-workspace-search:focus-within{outline:2px solid #a97934;outline-offset:1px}
+
+/* Authoritative Store detail within GM Journal pages. */
+.journal-linked-store{max-width:100%}
+.journal-linked-store-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;margin-bottom:16px;border:1px solid #d6c6a6;border-radius:6px;background:#f5e9d3;color:#765428;font:700 11px/1.4 var(--font-ui,Arial,sans-serif)}
+.journal-linked-store-heading button{padding:5px 9px;border:1px solid #c4ac81;border-radius:4px;background:#fff8e9;color:#684820;cursor:pointer}
+.journal-linked-store-heading button:disabled{opacity:.5}
+.journal-linked-store .session-recap-table-wrap{overflow-x:auto}
+.journal-linked-store .session-recap-table-wrap table{width:100%;border-collapse:collapse;font:13px/1.5 var(--font-ui,Arial,sans-serif)}
+.journal-linked-store .session-recap-table-wrap th,.journal-linked-store .session-recap-table-wrap td{padding:9px 11px;border-bottom:1px solid #dfd0b4;text-align:left;vertical-align:top}
+.journal-linked-store .session-recap-table-wrap th{background:#f2e7d1;color:#664a2a}
+.journal-linked-store .session-recap-table-wrap tr:nth-child(even){background:#f9f3e7}
+.journal-linked-store-note{display:block;margin-top:3px;color:#766953;font-weight:400}

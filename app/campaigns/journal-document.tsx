@@ -2,8 +2,11 @@ import type { CSSProperties, ReactNode } from "react";
 import { journalDocumentContent, parseJournalLayout, type JournalLayoutNode } from "@/lib/campaigns/journal-layout";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
 import { JournalLinkedNpc } from "./journal-linked-npc";
+import { JournalLinkedStore } from "./journal-linked-store";
 
-export function JournalDocument({content,onJournalNavigate,previewImageUrls,campaignId}:{content:string;onJournalNavigate:(id:string)=>void;previewImageUrls?:ReadonlySet<string>;campaignId?:string}) {
+export function JournalDocument({content,onJournalNavigate,previewImageUrls,campaignId,gmView=false}:{content:string;onJournalNavigate:(id:string)=>void;previewImageUrls?:ReadonlySet<string>;campaignId?:string;gmView?:boolean}) {
+ const storeId=/^<!-- twe-store:(cstore_[a-f0-9]{32}) -->/mu.exec(content)?.[1];
+ if(storeId&&gmView&&campaignId)return <JournalLinkedStore campaignId={campaignId} storeId={storeId}/>;
  const display=journalDocumentContent(content);
  const layout=parseJournalLayout(display);
  const renderText=(source:string):ReactNode=>source.split(/(\{\{twe-npc:(?:cnpc_[0-9a-f]{32}|[0-9a-f-]{36})\}\})/giu).map((part,index)=>{

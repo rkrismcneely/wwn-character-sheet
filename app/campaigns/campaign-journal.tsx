@@ -284,7 +284,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     {matchingEntries.map(entry=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
+      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
  if(!dragged||dragged===entry.id)return;
  const source=entryById.get(dragged);
  if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}

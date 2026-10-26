@@ -422,8 +422,7 @@ async function save(e:React.FormEvent){
   const retainedMapId=current&&!creatingFolder?linkedMapId(current):"";
   const savedDraft=retainedMapId&&!linkedMapId({...current!,content:draft.content})?{...draft,content:"<!-- twe-map:"+retainedMapId+" -->\n\n"+draft.content}:draft;
   const entry=await saveJournalEditorDraft({endpoint,id:selected,kind:creatingFolder?"folder":"page",parentId,draft:savedDraft,attachments:pendingAttachments.current,onCreated:created=>{setSelected(created.id);setEntries(old=>[...old,created]);}});
-  if(creatingFolder&&folderRoleDraft){await designateFolder(entry,folderRoleDraft);}
-  else if(creatingFolder&&selected&&current?.kind==="folder"&&roleFor(current)){await refresh();}
+  if(creatingFolder&&(folderRoleDraft!==""||Boolean(selected&&current?.kind==="folder"&&roleFor(current)))){await designateFolder(entry,folderRoleDraft);}
   setEntries(old=>old.some(item=>item.id===entry.id)?old.map(item=>item.id===entry.id?entry:item):[...old,entry]);setSelected(entry.id);setDraft({title:entry.title,content:entry.content,visibility:entry.visibility,icon:journalPageIcon(entry.icon)});setEditing(false);setCreatingFolder(false);clearRecoveredDraft();clearAttachments();setUploadNotice("");await refresh();
  }catch(cause){setError(cause instanceof Error?cause.message:"The page could not be saved.");}
  finally{savingRef.current=false;setSaving(false);}

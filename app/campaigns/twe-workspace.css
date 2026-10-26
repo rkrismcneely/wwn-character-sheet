@@ -326,3 +326,9 @@
 .journal-linked-store .session-recap-table-wrap th{background:#f2e7d1;color:#664a2a}
 .journal-linked-store .session-recap-table-wrap tr:nth-child(even){background:#f9f3e7}
 .journal-linked-store-note{display:block;margin-top:3px;color:#766953;font-weight:400}
+
+/* Journal articles can point to an existing campaign map. */
+.journal-map-link-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.journal-map-link-picker{display:flex;align-items:end;gap:8px;flex-wrap:wrap;width:100%;padding:10px;border:1px solid #d5bd90;border-radius:7px;background:#f8efdf}
+.journal-map-link-picker label{display:grid;gap:4px;flex:1 1 180px;font:600 12px var(--font-ui,Arial,sans-serif);color:#5c4325}
+.journal-map-link-picker select{min-height:34px;width:100%;border:1px solid #bca77d;border-radius:5px;background:#fffaf0;color:#4c3925}

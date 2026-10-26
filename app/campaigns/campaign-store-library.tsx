@@ -308,7 +308,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       } else lines.push("No inventory listed yet.");
       const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
       const destinationId=locationId&&locations.some(e=>e.id===locationId)?locationId:storesFolder?.id;
-      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
+      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
       await loadPlacements();

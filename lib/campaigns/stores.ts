@@ -708,5 +708,6 @@ export async function readActiveCampaignStore(
   ).bind(campaign.id).first<StoreRow>();
   if (!store) return null;
   const items = (await itemMap(db, campaign.id)).get(store.id) ?? [];
-  return toStore(store, campaign.publicId, items);
+  // Store purchases are player-facing; private proprietor notes and NPC references remain GM-only.
+  return { ...toStore(store, campaign.publicId, items), proprietorName:"", proprietorDescription:"", proprietorNpcId:null };
 }

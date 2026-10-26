@@ -386,7 +386,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     try {
       const url = "/api/campaigns/" + encodeURIComponent(campaignId) + "/journal";
       const response = await fetch(url, { cache: "no-store" });
-      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string;parentId?:string|null}[];error?:string};
+      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string;parentId?:string|null;icon?:string}[];error?:string};
       if (!response.ok || !Array.isArray(result.entries)) throw new Error(result.error || "Could not check existing Journal pages.");
       const marker = "<!-- twe-store:" + selectedStore.id + " -->";
       const duplicate = result.entries.find(page => page.kind === "page" && page.content.includes(marker));

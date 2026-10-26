@@ -240,7 +240,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     try {
       const url = "/api/campaigns/" + encodeURIComponent(campaignId) + "/journal";
       const response = await fetch(url, { cache: "no-store" });
-      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string}[];error?:string};
+      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string;parentId?:string|null}[];error?:string};
       if (!response.ok || !Array.isArray(result.entries)) throw new Error(result.error || "Could not check existing Journal pages.");
       const marker = "<!-- twe-store:" + selectedStore.id + " -->";
       const duplicate = result.entries.find(page => page.kind === "page" && page.content.includes(marker));
@@ -258,7 +258,8 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
           lines.push("| **" + safe(item.name) + (item.note ? "** — " + safe(item.note) : "**") + " | " + safe(item.cost) + " | " + quantity + " |");
         }
       } else lines.push("No inventory listed yet.");
-      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm"})});
+      const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
+      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm",...(storesFolder?{parentId:storesFolder.id}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
       setJournalNotice('Added "' + selectedStore.name + '" to the Journal (GM only).');

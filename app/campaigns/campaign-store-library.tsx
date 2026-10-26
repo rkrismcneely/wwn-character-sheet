@@ -337,7 +337,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: storeName, description: storeDescription }),
+        body: JSON.stringify({ name: storeName, description: storeDescription, ...(proprietorReady?{proprietorName,proprietorDescription,proprietorNpcId:proprietorNpcId||null}:{}) }),
       });
       const body = await response.json() as { store?: CampaignStore; error?: string };
       if (!response.ok || !body.store) throw new Error(body.error || "Campaign store could not be saved.");

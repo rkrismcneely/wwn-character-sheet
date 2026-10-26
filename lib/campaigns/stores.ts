@@ -353,7 +353,6 @@ async function storeForManagement(
 ): Promise<StoreRow> {
   const id = identifier(storeId, "Store");
   const ready=await proprietorSchemaReady(db);
-  const ready=await proprietorSchemaReady(db);
   const store = await db.prepare(
     `SELECT id, name, description, ${proprietorColumns(ready)} is_active AS isActive,
             created_at AS createdAt, updated_at AS updatedAt

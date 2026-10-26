@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import "./twe-workspace.css";
 import "./journal-editor.css";
@@ -134,7 +134,7 @@ function restoreRecoveredDraft(){
 
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 function FolderGlyph({role}:{role:string|null}){
- const paths:Record<string,React.ReactNode>={
+ const paths:Record<string,ReactNode>={
  "Locations":<><circle cx="15" cy="19" r="2"/><path d="M20.9 19.8A2 2 0 0 0 22 18V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h5.1"/><path d="M15 11v-1M15 17v-2"/></>,
  "NPCs":<><path d="M5.254 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2V9.255"/><circle cx="13" cy="15" r="3"/><path d="M17 22a4 4 0 0 0-8 0M22 22A4 4 0 0 0 20.24 18.686a1 1 0 0 1-.14-1.543A3 3 0 0 0 19.5 12.402"/></>,
  "Items":<><path d="M13 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v1.36M19 12v6M19 14h2"/><circle cx="19" cy="20" r="2"/></>,
@@ -496,8 +496,8 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  if(!dragged||dragged===entry.id)return;
  const source=entryById.get(dragged);
  if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}return;}
-  if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}\n else if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}
- else if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
+  if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
+ else if(source?.parentId===entry.parentId){e.preventDefault();setReorderTarget(entry.id);setDropTarget(null);}
  }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder)void moveBulkPages(entry.id);}else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);else if(entryById.get(dragged)?.parentId===entry.parentId)void reorderEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
        <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} aria-expanded={folder?!collapsedFolders.has(entry.id):undefined} onClick={event=>{if(canEdit&&!preview&&entry.kind==="page"){selectJournalPage(event,entry.id);if(event.shiftKey||event.metaKey||event.ctrlKey)return;}else if(!event.shiftKey&&!event.ctrlKey&&!event.metaKey)setBulkSelected(new Set());if(entry.id!==selected){if(!discardDraft())return;if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);setForwardStack([]);setSelected(entry.id);setEditing(false);}if(folder)toggleFolder(entry.id);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?<FolderGlyph role={roleFor(entry)}/>:<JournalPageIconView icon={entry.icon} size={16}/>}</span><span title={searchTerm?ancestry(entry).map(parent=>parent.title).concat(entry.title).join(" / "):entry.title} className="twe-workspace-entry-title">{entry.title}{searchTerm&&searchSnippet(entry)&&<small className="twe-workspace-search-snippet">{searchSnippet(entry)}</small>}</span>{entry.visibility==="gm"&&<span className="twe-workspace-entry-lock" role="img" aria-label="GM only" title="GM only">🔒</span>}</button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Actions for "+entry.title} aria-expanded={menuId===entry.id} title={"Actions for "+entry.title} onClick={()=>setMenuId(old=>old===entry.id?"":entry.id)}>⋮</button>}

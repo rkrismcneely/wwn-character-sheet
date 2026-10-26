@@ -249,7 +249,8 @@ const searchSnippet=(entry:Entry)=>{
 const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolders.has(folder.id));
 const childrenByParent=new Map<string,Entry[]>();
 for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}
-const compareEntries=(a:Entry,b:Entry)=>a.sortOrder!=null&&b.sortOrder!=null?a.sortOrder-b.sortOrder:a.sortOrder!=null?-1:b.sortOrder!=null?1:a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
+const isSessionRecap=(entry:Entry|undefined)=>entry?.kind==="page"&&entry.content.includes("<!-- twe-session-recap:");
+const compareEntries=(a:Entry,b:Entry)=>isSessionRecap(a)&&isSessionRecap(b)?b.title.localeCompare(a.title):a.sortOrder!=null&&b.sortOrder!=null?a.sortOrder-b.sortOrder:a.sortOrder!=null?-1:b.sortOrder!=null?1:a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
 for(const siblings of childrenByParent.values())siblings.sort(compareEntries);
 const sortedEntries:Entry[]=[];const visited=new Set<string>();
 function addChildren(parent:string,depth=0){if(depth>20)return;for(const entry of childrenByParent.get(parent)??[]){if(visited.has(entry.id))continue;visited.add(entry.id);sortedEntries.push(entry);addChildren(entry.id,depth+1);}}
@@ -301,6 +302,7 @@ const validTarget=(sourceId:string,targetId:string|null)=>{
  return targetId===null||entryById.get(targetId)?.kind==="folder";
 };
 async function reorderEntry(sourceId:string,beforeId:string){
+ if(isSessionRecap(entryById.get(sourceId)!)||isSessionRecap(entryById.get(beforeId)!))return;
  if(!canEdit||preview||sourceId===beforeId)return;
  const source=entryById.get(sourceId),target=entryById.get(beforeId);
  if(!source||!target||source.parentId!==target.parentId)return;
@@ -477,7 +479,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     {matchingEntries.map(entry=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
+      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview&&!isSessionRecap(entry)} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
  if(!dragged||dragged===entry.id)return;
  const source=entryById.get(dragged);
  if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}return;}

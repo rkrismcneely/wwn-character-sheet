@@ -191,7 +191,7 @@ useEffect(()=>{
 useEffect(()=>{allowLeave.current=false;},[draft,editing,selected]);
 useEffect(()=>{const files=pendingAttachments.current;return()=>{for(const url of files.keys())URL.revokeObjectURL(url);files.clear();};},[]);
 function clearAttachments(){for(const url of pendingAttachments.current.keys())URL.revokeObjectURL(url);pendingAttachments.current.clear();setLocalImageUrls(new Set());}
-function discardDraft(){if(uploading||saving)return false;if(dirty&&!window.confirm("Discard unsaved changes?"))return false;clearRecoveredDraft();clearAttachments();setError("");setUploadNotice("");return true;}
+function discardDraft(){if(uploading||saving)return false;if(dirty&&!window.confirm("Discard unsaved changes?"))return false;if(editing)clearRecoveredDraft();clearAttachments();setError("");setUploadNotice("");return true;}
 const entryById=new Map(entries.map(entry=>[entry.id,entry]));
 const ancestry=(entry:Entry):Entry[]=>{
  const parents:Entry[]=[];const seen=new Set<string>([entry.id]);let parent=entry.parentId;

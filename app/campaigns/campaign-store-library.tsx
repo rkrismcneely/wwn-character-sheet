@@ -87,6 +87,45 @@ function ManagedStoreItem({
   </article>;
 }
 
+const storeManagedStart="<!-- twe-store-managed:start -->";
+const storeManagedEnd="<!-- twe-store-managed:end -->";
+function storeManagedMarkdown(store:CampaignStore){
+ const safe=(value:string)=>value.replaceAll("\\","\\\\").replaceAll("*","\\*").replaceAll("[","\\[").replaceAll("]","\\]").replaceAll("|","\\|").replaceAll("\n"," ");
+ const lines=[storeManagedStart];
+ if(store.description.trim())lines.push(store.description.trim(),"");
+ if(store.proprietorNpcId)lines.push("## Proprietor","","{{twe-npc:"+store.proprietorNpcId+"}}","");
+ else if(store.proprietorName||store.proprietorDescription){
+  lines.push("## Proprietor","");
+  if(store.proprietorName)lines.push("**"+safe(store.proprietorName)+"**","");
+  if(store.proprietorDescription)lines.push(store.proprietorDescription.trim(),"");
+ }
+ lines.push("## Goods for sale","","| Item | Price | Availability |","| :--- | ---: | :--- |");
+ if(store.items.length)for(const item of store.items){
+  const availability=item.quantity===null?"unlimited stock":item.quantity+" in stock";
+  lines.push("| **"+safe(item.name)+"**"+(item.note?" — "+safe(item.note):"")+" | "+safe(item.cost)+" | "+availability+" |");
+ }else lines.push("No inventory listed yet.");
+ lines.push(storeManagedEnd);
+ return lines.join("\n");
+}
+function updateStoreManagedPage(content:string,store:CampaignStore){
+ const fresh=storeManagedMarkdown(store);
+ const start=content.indexOf(storeManagedStart),end=content.indexOf(storeManagedEnd);
+ if(start>=0&&end>start)return content.slice(0,start)+fresh+content.slice(end+storeManagedEnd.length);
+ // Only convert legacy generated articles with no added content after the inventory table.
+ const legacy=content.match(/\n\n## Goods for sale\n\n\| Item \| Price \| Availability \|[\s\S]*$/u);
+ if(!legacy)return content;
+ const rows=legacy[0].trim().split("\n");
+ const generated=rows.length>=4&&rows[2]==="| Item | Price | Availability |"&&rows[3]==="| :--- | ---: | :--- |"&&rows.slice(4).every(line=>line.startsWith("|")||line==="No inventory listed yet.");
+ if(!generated)return content;
+ const prefix=content.slice(0,legacy.index);
+ const marker=prefix.match(/^<!-- twe-store:[^>]+ -->/u)?.[0];
+ if(!marker)return content;
+ // A legacy article's description and proprietor paragraphs may have been edited.
+ // Preserve the original prefix instead of silently replacing it.
+ const inventory=fresh.slice(fresh.indexOf("## Goods for sale"),fresh.indexOf(storeManagedEnd)).trimEnd();
+ return prefix+"\n\n"+inventory;
+}
+
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
   const syncInitialized=useRef(false);
@@ -140,6 +179,34 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [journalNotice, setJournalNotice] = useState("");
+
+  const storeSyncStarted=useRef(false);
+  const storeSyncQueue=useRef<Promise<void>>(Promise.resolve());
+  async function syncManagedStorePages(updated:CampaignStore[]){
+    const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
+    const response=await fetch(url,{cache:"no-store"});
+    if(!response.ok)return;
+    const body=await response.json() as {entries?:{id:string;kind:string;content:string}[]};
+    if(!Array.isArray(body.entries))return;
+    let changed=false;
+    for(const store of updated){
+      const page=body.entries.find(e=>e.kind==="page"&&e.content.includes("<!-- twe-store:"+store.id+" -->"));
+      if(!page)continue;
+      const content=updateStoreManagedPage(page.content,store);
+      if(content===page.content)continue;
+      const update=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content})});
+      if(!update.ok)throw new Error("Could not update the Journal article for "+store.name+".");
+      page.content=content;changed=true;
+    }
+    if(changed)window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+  }
+  useEffect(()=>{
+    if(!storeSyncStarted.current){storeSyncStarted.current=true;return;}
+    storeSyncQueue.current=storeSyncQueue.current.catch(()=>{}).then(()=>syncManagedStorePages(stores)).catch(cause=>{
+      setJournalNotice(cause instanceof Error?cause.message:"Unable to refresh linked Store articles.");
+    });
+  },[stores,campaignId]);
+
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);
   const [pendingLocation,setPendingLocation]=useState<{storeId:string;id:string}|null>(null);
@@ -177,7 +244,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         setJournalNotice("Location selected. Use Add to Journal to create the store article there.");
         return;
       }
-      const folder=latest.find(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="stores");
+      const folder=latest.find(e=>e.kind==="folder"&&e.icon==="twe-role:stores")??latest.find(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="stores");
       const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,parentId:next||folder?.id||null})});
       const body=await response.json() as {entry?:Placement;error?:string};
       if(!response.ok||!body.entry)throw new Error(body.error||"Could not move store article.");
@@ -319,7 +386,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     try {
       const url = "/api/campaigns/" + encodeURIComponent(campaignId) + "/journal";
       const response = await fetch(url, { cache: "no-store" });
-      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string;parentId?:string|null}[];error?:string};
+      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string;parentId?:string|null;icon?:string}[];error?:string};
       if (!response.ok || !Array.isArray(result.entries)) throw new Error(result.error || "Could not check existing Journal pages.");
       const marker = "<!-- twe-store:" + selectedStore.id + " -->";
       const duplicate = result.entries.find(page => page.kind === "page" && page.content.includes(marker));
@@ -329,22 +396,10 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       }
       const sameName = result.entries.find(page => page.kind === "page" && page.title.trim().toLocaleLowerCase() === selectedStore.name.trim().toLocaleLowerCase());
       if (sameName && !window.confirm('An article named "' + sameName.title + '" already exists. Create a separate store article?')) return;
-      const safe = (value:string) => value.replaceAll("\\", "\\\\").replaceAll("*", "\\*").replaceAll("[", "\\[").replaceAll("]", "\\]").replaceAll("|", "\\|").replaceAll("\n", " ");
-      const lines = [marker, "", selectedStore.description.trim(), "", "## Goods for sale", "", "| Item | Price | Availability |", "| :--- | ---: | :--- |"];
-      if (selectedStore.items.length) {
-        for (const item of selectedStore.items) {
-          const quantity = item.quantity === null ? "unlimited stock" : String(item.quantity) + " in stock";
-          lines.push("| **" + safe(item.name) + (item.note ? "** — " + safe(item.note) : "**") + " | " + safe(item.cost) + " | " + quantity + " |");
-        }
-      } else lines.push("No inventory listed yet.");
-      if(selectedStore.proprietorNpcId){
-        lines.splice(4,0,"## Proprietor","","{{twe-npc:"+selectedStore.proprietorNpcId+"}}","");
-      }else if(selectedStore.proprietorName||selectedStore.proprietorDescription){
-        lines.splice(4,0,"## Proprietor","",selectedStore.proprietorName? "**"+safe(selectedStore.proprietorName)+"**":"",selectedStore.proprietorDescription||"","");
-      }
-      const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
+      const content=marker+"\n\n"+storeManagedMarkdown(selectedStore)+"\n";
+      const storesFolder = result.entries.find(page => page.kind === "folder" && page.icon === "twe-role:stores") ?? result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
       const destinationId=locationId&&locations.some(e=>e.id===locationId)?locationId:storesFolder?.id;
-      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
+      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content,icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
       await loadPlacements();
@@ -363,7 +418,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const response = await fetch(`/api/campaigns/${campaignId}/stores/${selectedStore.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: storeName, description: storeDescription }),
+        body: JSON.stringify({ name: storeName, description: storeDescription, ...(proprietorReady?{proprietorName,proprietorDescription,proprietorNpcId:proprietorNpcId||null}:{}) }),
       });
       const body = await response.json() as { store?: CampaignStore; error?: string };
       if (!response.ok || !body.store) throw new Error(body.error || "Campaign store could not be saved.");

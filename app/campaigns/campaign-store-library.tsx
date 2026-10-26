@@ -146,13 +146,6 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     }
     if(changed)window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
   }
-  useEffect(()=>{
-    if(!syncInitialized.current){syncInitialized.current=true;return;}
-    window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"stores"}}));
-    syncQueue.current=syncQueue.current.catch(()=>{}).then(()=>syncStoreJournalPages(stores)).catch(error=>{
-      setJournalNotice(error instanceof Error?error.message:"Could not update linked Journal articles.");
-    });
-  },[stores,campaignId]);
   const [catalog, setCatalog] = useState<CampaignStoreManagementPayload["catalog"]>([]);
   const [campaignItems, setCampaignItems] = useState<CampaignStoreManagementPayload["campaignItems"]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
@@ -179,6 +172,13 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [journalNotice, setJournalNotice] = useState("");
+  useEffect(()=>{
+    if(!syncInitialized.current){syncInitialized.current=true;return;}
+    window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"stores"}}));
+    syncQueue.current=syncQueue.current.catch(()=>{}).then(()=>syncStoreJournalPages(stores)).catch(error=>{
+      setJournalNotice(error instanceof Error?error.message:"Could not update linked Journal articles.");
+    });
+  },[stores,campaignId]);
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);
   const [pendingLocation,setPendingLocation]=useState<{storeId:string;id:string}|null>(null);

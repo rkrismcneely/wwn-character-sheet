@@ -33,6 +33,30 @@ type Confirmation =
 export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campaignId: string; initialTab?: "campaign" | "journal" }) {
   const router = useRouter();
   const [campaignTab, setCampaignTab] = useState<"campaign" | "journal" | ConsoleTab>(initialTab);
+  // Keep in-page campaign tabs in browser history so mouse Back/Forward buttons
+  // navigate between sections before leaving the campaign.
+  useEffect(() => {
+    const validTabs = new Set(["campaign","journal","encounter","bestiary","npcs","items","stores","party","recaps"]);
+    const restore = () => {
+      const requested = new URL(window.location.href).searchParams.get("tab");
+      const next = requested && validTabs.has(requested) ? requested as "campaign" | "journal" | ConsoleTab : initialTab;
+      setCampaignTab(next);
+      if(next === "journal")setJournalOpened(true);
+      else if(next !== "campaign")setGmOpened(true);
+    };
+    restore();
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [campaignId, initialTab]);
+  function navigateCampaignTab(next:"campaign" | "journal" | ConsoleTab){
+    if(next===campaignTab)return;
+    const url=new URL(window.location.href);
+    url.searchParams.set("tab",next);
+    window.history.pushState({...window.history.state}, "", url);
+    setCampaignTab(next);
+    if(next==="journal")setJournalOpened(true);
+    else if(next!=="campaign")setGmOpened(true);
+  }
   const [gmOpened, setGmOpened] = useState(false);
   const [journalOpened, setJournalOpened] = useState(initialTab === "journal");
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
@@ -462,7 +486,7 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
       {!busy && campaign && (
         <>
           <nav className="gm-console-tabs" aria-label="Campaign pages">
-            {(["campaign", ...(campaign.permissions.canUseGmConsole && !campaign.archivedAt ? ["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const : []), "journal"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => { setCampaignTab(item); if (item === "journal") setJournalOpened(true); else if (item !== "campaign") setGmOpened(true); }}>{item === "campaign" ? "Campaign" : item === "journal" ? "Campaign Journal" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
+            {(["campaign", ...(campaign.permissions.canUseGmConsole && !campaign.archivedAt ? ["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const : []), "journal"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => navigateCampaignTab(item)}>{item === "campaign" ? "Campaign" : item === "journal" ? "Campaign Journal" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
           </nav>
           {journalOpened && <div hidden={campaignTab !== "journal"}><CampaignJournal campaignId={campaignId} /></div>}
           {gmOpened && campaign.permissions.canUseGmConsole && !campaign.archivedAt && (

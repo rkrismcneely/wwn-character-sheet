@@ -156,7 +156,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         setJournalNotice("Location selected. Use Add to Journal to create the store article there.");
         return;
       }
-      const folder=latest.find(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="stores");
+      const folder=latest.find(e=>e.kind==="folder"&&(e.icon==="twe-role:stores"||(!e.parentId&&e.title.trim().toLowerCase()==="stores")));
       const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,parentId:next||folder?.id||null})});
       const body=await response.json() as {entry?:Placement;error?:string};
       if(!response.ok||!body.entry)throw new Error(body.error||"Could not move store article.");
@@ -316,7 +316,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
           lines.push("| **" + safe(item.name) + (item.note ? "** — " + safe(item.note) : "**") + " | " + safe(item.cost) + " | " + quantity + " |");
         }
       } else lines.push("No inventory listed yet.");
-      const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
+      const storesFolder = result.entries.find(page => page.kind === "folder" && page.icon === "twe-role:stores") ?? result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
       const destinationId=locationId&&locations.some(e=>e.id===locationId)?locationId:storesFolder?.id;
       const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};

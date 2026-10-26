@@ -77,6 +77,7 @@ export interface CampaignStoreManagementPayload {
   stores: CampaignStore[];
   catalog: CampaignStoreCatalogItem[];
   campaignItems: CampaignStoreCustomItem[];
+  proprietorReady: boolean;
 }
 
 export interface CampaignStoreDraft {
@@ -409,7 +410,7 @@ export async function listCampaignStoresForManagement(
     storesForCampaign(db, campaign.id, campaign.publicId),
     campaignItems(db, campaign.id),
   ]);
-  return { stores, catalog: catalog(), campaignItems: customItems };
+  return { stores, catalog: catalog(), campaignItems: customItems, proprietorReady: await proprietorSchemaReady(db) };
 }
 
 export async function createCampaignStore(

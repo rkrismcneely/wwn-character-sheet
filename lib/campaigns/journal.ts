@@ -168,7 +168,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   // Source-aware icon inference; keep NPC braces escaped as regex literals.
   const inferredIcon = /<!-- twe-store:cstore_[a-f0-9]{32} -->/u.test(content) ? "warehouse" :
     /\{\{twe-npc:(?:cnpc_[a-f0-9]{32}|[a-f0-9-]{36})\}\}/u.test(content) ? "user-round" :
-    folderIcons[parent?.title.trim().toLowerCase()??""]??journalPageIcon(null);
+    folderIcons[parent?.icon?.startsWith(folderRolePrefix)?parent.icon.slice(folderRolePrefix.length):parent?.title.trim().toLowerCase()??""]??journalPageIcon(null);
   const icon = kind === "folder" ? (journalFolderRoles.some(role=>role.toLowerCase()===title.toLowerCase())?folderRolePrefix+title.toLowerCase():"file-text") : input.icon === undefined ? inferredIcon : cleanPageIcon(input.icon);
   const entryId = crypto.randomUUID();
   const now = new Date().toISOString();

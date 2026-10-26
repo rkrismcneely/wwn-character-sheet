@@ -130,7 +130,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     if(!response.ok||!Array.isArray(body.entries))throw new Error(body.error||"Cannot load Journal locations.");
     setPlacements(body.entries);return body.entries;
   }
-  useEffect(()=>{void loadPlacements().catch(()=>{});},[campaignId]);
+  useEffect(()=>{const controller=new AbortController();void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((body:{entries?:Placement[]})=>{if(!controller.signal.aborted&&Array.isArray(body.entries))setPlacements(body.entries);}).catch(()=>{});return()=>controller.abort();},[campaignId]);
   async function moveStoreLocation(next:string){
     if(!selectedStore||locationBusy)return;
     if(next&&!locations.some(l=>l.id===next))return;
@@ -153,15 +153,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   }
 
 
-  const selectedStore = useMemo(
-    () => stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null,
-    [selectedStoreId, stores],
-  );
-
-  useEffect(()=>{
-    const article=placements.find(e=>e.kind==="page"&&!!selectedStore&&e.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
-    setLocationId(article&&locations.some(l=>l.id===article.parentId)?article.parentId!:"");
-  },[placements,locations,selectedStore?.id]);
+  const selectedStore = stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null;
   const categories = useMemo(
     () => Array.from(new Set(catalog.map(item => item.category))),
     [catalog],
@@ -543,7 +535,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             {proprietorReady&&<fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
               <label className="gm-npc-notes"><span>Name</span><input maxLength={120} value={proprietorName} onChange={event=>setProprietorName(event.target.value)} placeholder="Shopkeeper name"/></label>
               <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={proprietorDescription} onChange={event=>setProprietorDescription(event.target.value)} placeholder="Appearance, mannerisms, personality…"/></label>
-              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:{npcs?:{id:string;name:string;notes:string}[]})=>setNpcChoices(v.npcs||[])).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
+              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:unknown)=>{const data=v as {npcs?:{id:string;name:string;notes:string}[]};setNpcChoices(data.npcs||[]);}).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
                 <option value="">No linked NPC</option>{npcChoices.map(npc=><option key={npc.id} value={npc.id}>{npc.name}</option>)}
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>
@@ -560,7 +552,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             {proprietorReady&&<fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
               <label className="gm-npc-notes"><span>Name</span><input maxLength={120} value={proprietorName} onChange={event=>setProprietorName(event.target.value)} placeholder="Shopkeeper name"/></label>
               <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={proprietorDescription} onChange={event=>setProprietorDescription(event.target.value)} placeholder="Appearance, mannerisms, personality…"/></label>
-              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:{npcs?:{id:string;name:string;notes:string}[]})=>setNpcChoices(v.npcs||[])).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
+              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:unknown)=>{const data=v as {npcs?:{id:string;name:string;notes:string}[]};setNpcChoices(data.npcs||[]);}).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
                 <option value="">No linked NPC</option>{npcChoices.map(npc=><option key={npc.id} value={npc.id}>{npc.name}</option>)}
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>

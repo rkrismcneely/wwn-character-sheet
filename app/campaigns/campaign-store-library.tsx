@@ -337,6 +337,11 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
           lines.push("| **" + safe(item.name) + (item.note ? "** — " + safe(item.note) : "**") + " | " + safe(item.cost) + " | " + quantity + " |");
         }
       } else lines.push("No inventory listed yet.");
+      if(selectedStore.proprietorNpcId){
+        lines.splice(4,0,"## Proprietor","","{{twe-npc:"+selectedStore.proprietorNpcId+"}}","");
+      }else if(selectedStore.proprietorName||selectedStore.proprietorDescription){
+        lines.splice(4,0,"## Proprietor","",selectedStore.proprietorName? "**"+safe(selectedStore.proprietorName)+"**":"",selectedStore.proprietorDescription||"","");
+      }
       const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
       const destinationId=locationId&&locations.some(e=>e.id===locationId)?locationId:storesFolder?.id;
       const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});

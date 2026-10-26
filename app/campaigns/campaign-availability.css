@@ -1,0 +1,28 @@
+
+.campaign-detail-hero{padding-top:12px!important;padding-bottom:12px!important;min-height:0!important;align-items:center!important;gap:14px}
+.campaign-detail-hero h1{font-size:clamp(1.45rem,2.3vw,2.1rem)!important;margin:.15rem 0!important}
+.campaign-detail-hero .campaign-kicker{margin-bottom:2px}
+.campaign-detail-hero .campaign-hero-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.campaign-availability{position:relative;width:min(310px,100%);background:rgba(254,247,227,.8);border:1px solid #cdb58b;border-radius:6px;padding:8px;color:#47351f;font:13px/1.35 var(--font-ui,Arial,sans-serif)}
+.campaign-availability-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.campaign-availability-heading h2{font:700 14px var(--font-ui,Arial,sans-serif);margin:0}
+.campaign-availability button{cursor:pointer}
+.campaign-availability-heading button,.campaign-availability-month button{border:1px solid #baa17b;background:#f9ebcf;color:#50371f;border-radius:4px;padding:4px 8px}
+.campaign-availability-body{padding-top:10px}
+.campaign-availability-month{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.campaign-availability-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.campaign-availability-weekday{font-size:10px;font-weight:700;color:#766349}
+.campaign-availability-day{font:700 12px var(--font-ui,Arial,sans-serif);border:1px solid #d9c5a1;border-radius:4px;background:#fff7e8;color:#503c26;aspect-ratio:1}
+.campaign-availability-day.yes{background:#d7f0d4;color:#216d31;border-color:#6ba36e;font-size:16px}
+.campaign-availability-day.maybe{background:#d7e7fc;color:#205b9e;border-color:#7aa5d8;font-size:15px}
+.campaign-availability-day.no{background:#f7d5d1;color:#af3029;border-color:#c77b73;font-size:16px}
+.campaign-availability-day:focus-visible{outline:2px solid #705123;outline-offset:2px}
+.campaign-availability-legend{display:flex;flex-wrap:wrap;gap:5px 10px;font-size:10px;margin:8px 0 0}
+.campaign-availability-gm{margin-top:12px;border-top:1px solid #c7af85;padding-top:8px;max-height:250px;overflow-y:auto}
+.campaign-availability-gm h3{font-size:12px;margin:0 0 5px}
+.campaign-availability-gm ol{margin:0;padding-left:20px}
+.campaign-availability-gm li{margin-bottom:8px;font-size:11px}
+.campaign-availability-gm li p{margin:2px 0}
+.campaign-availability-gm small{display:block}
+@media(min-width:900px){.campaign-availability-body{position:absolute;top:100%;right:0;z-index:40;width:310px;background:#fff6e3;border:1px solid #be9d66;box-shadow:0 12px 32px #34230b38;padding:12px;border-radius:6px}}
+@media(max-width:899px){.campaign-detail-hero{flex-wrap:wrap}.campaign-availability{width:100%}}

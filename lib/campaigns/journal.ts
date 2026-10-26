@@ -142,7 +142,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const parent=parentId?await db.prepare("SELECT title FROM campaign_journal_entries WHERE id=? AND campaign_id=? AND kind='folder'").bind(parentId,id).first<{title:string}>():null;
   const folderIcons:Record<string,string>={locations:"map-pin",npcs:"user-round",items:"sword",stores:"warehouse",quests:"scroll-text","session notes":"calendar-days"};
   const inferredIcon = /<!-- twe-store:cstore_[a-f0-9]{32} -->/u.test(content) ? "warehouse" :
-    /\\{\\{twe-npc:(?:cnpc_[a-f0-9]{32}|[a-f0-9-]{36})\\}\\}/u.test(content) ? "user-round" :
+    /\{\{twe-npc:(?:cnpc_[a-f0-9]{32}|[a-f0-9-]{36})\}\}/u.test(content) ? "user-round" :
     folderIcons[parent?.title.trim().toLowerCase()??""]??journalPageIcon(null);
   const icon = kind === "folder" ? "file-text" : input.icon === undefined ? inferredIcon : cleanPageIcon(input.icon);
   const entryId = crypto.randomUUID();

@@ -5,6 +5,7 @@ export const campaignMapDockEvent = "twe:campaign-map-dock";
 export type CampaignMapOpenDetail = {
   campaignId: string;
   action?: "open" | "close";
+  mapId?: string;
 };
 
 export type CampaignMapStateDetail = {

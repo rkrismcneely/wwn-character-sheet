@@ -107,6 +107,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [journalNotice, setJournalNotice] = useState("");
 
   const selectedStore = useMemo(
     () => stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null,
@@ -231,6 +232,38 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function addStoreToJournal() {
+    if (!selectedStore || busy) return;
+    setBusy(true); setError(""); setJournalNotice("");
+    try {
+      const url = "/api/campaigns/" + encodeURIComponent(campaignId) + "/journal";
+      const response = await fetch(url, { cache: "no-store" });
+      const result = await response.json() as {entries?: {id:string;title:string;content:string;kind:string}[];error?:string};
+      if (!response.ok || !Array.isArray(result.entries)) throw new Error(result.error || "Could not check existing Journal pages.");
+      const marker = "<!-- twe-store:" + selectedStore.id + " -->";
+      const duplicate = result.entries.find(page => page.kind === "page" && page.content.includes(marker));
+      if (duplicate) {
+        window.alert('This store is already in the Journal as "' + duplicate.title + '". No duplicate was created.');
+        return;
+      }
+      const sameName = result.entries.find(page => page.kind === "page" && page.title.trim().toLocaleLowerCase() === selectedStore.name.trim().toLocaleLowerCase());
+      if (sameName && !window.confirm('An article named "' + sameName.title + '" already exists. Create a separate store article?')) return;
+      const safe = (value:string) => value.replaceAll("\\", "\\\\").replaceAll("*", "\\*").replaceAll("[", "\\[").replaceAll("]", "\\]").replaceAll("|", "\\|").replaceAll("\n", " ");
+      const lines = [marker, "", selectedStore.description.trim(), "", "## Inventory", ""];
+      if (selectedStore.items.length) {
+        for (const item of selectedStore.items) {
+          const quantity = item.quantity === null ? "unlimited stock" : String(item.quantity) + " in stock";
+          lines.push("- **" + safe(item.name) + "** — " + safe(item.cost) + " (" + quantity + ")" + (item.note ? " — " + safe(item.note) : ""));
+        }
+      } else lines.push("No inventory listed yet.");
+      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm"})});
+      const created = await create.json() as {entry?:{id:string};error?:string};
+      if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
+      setJournalNotice('Added "' + selectedStore.name + '" to the Journal (GM only).');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not add store to Journal."); }
+    finally { setBusy(false); }
   }
 
   async function saveStore(event: FormEvent) {
@@ -436,7 +469,8 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         setError("");
       }}>New Store</button>
     </div>
-    {error && <p className="campaign-error" role="status">{error}</p>}
+    {journalNotice && <p className="campaign-notice" role="status">{journalNotice}</p>}
+      {error && <p className="campaign-error" role="status">{error}</p>}
     {loading && <p className="campaign-empty-copy">Loading campaign stores…</p>}
     {!loading && <div className="campaign-store-management-layout">
       <aside className="campaign-store-list-panel" aria-label="Campaign stores">
@@ -455,7 +489,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         </form>}
         {!creating && selectedStore && <>
           <form className="gm-npc-form campaign-store-form" onSubmit={saveStore}>
-            <div className="gm-npc-form-heading"><div><p className="campaign-kicker">{selectedStore.isActive ? "VISIBLE TO PARTY" : "GM ONLY"}</p><h3>{selectedStore.name}</h3></div><div className="campaign-store-editor-actions">{selectedStore.isActive ? <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void setActive(false)}>Hide from Party</button> : <button type="button" className="campaign-primary" disabled={busy} onClick={() => void setActive(true)}>Make Visible to Party</button>}<button type="button" className="campaign-danger" disabled={busy} onClick={() => void removeStore()}>Delete Store</button></div></div>
+            <div className="gm-npc-form-heading"><div><p className="campaign-kicker">{selectedStore.isActive ? "VISIBLE TO PARTY" : "GM ONLY"}</p><h3>{selectedStore.name}</h3></div><div className="campaign-store-editor-actions"><button type="button" className="campaign-secondary" disabled={busy} onClick={() => void addStoreToJournal()}>Add to Journal</button>{selectedStore.isActive ? <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void setActive(false)}>Hide from Party</button> : <button type="button" className="campaign-primary" disabled={busy} onClick={() => void setActive(true)}>Make Visible to Party</button>}<button type="button" className="campaign-danger" disabled={busy} onClick={() => void removeStore()}>Delete Store</button></div></div>
             <label className="gm-npc-notes"><span>Store name</span><input required maxLength={80} value={storeName} onChange={event => setStoreName(event.target.value)} /></label>
             <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={storeDescription} onChange={event => setStoreDescription(event.target.value)} placeholder="Merchant, atmosphere, and other details the party should see." /></label>
             <button type="submit" className="campaign-secondary" disabled={busy || !storeName.trim()}>Save Store Details</button>

@@ -139,7 +139,8 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = cleanTitle(input.title);
   const content = kind === "folder" ? "" : cleanContent(input.content ?? "");
   const visibility = cleanVisibility(input.visibility ?? "gm");
-  const icon = kind === "folder" ? "file-text" : input.icon === undefined ? journalPageIcon(null) : cleanPageIcon(input.icon);
+  const inferredIcon = /<!-- twe-store:cstore_[a-f0-9]{32} -->/u.test(content) ? "house" : /\{\{twe-npc:(?:cnpc_[a-f0-9]{32}|[a-f0-9-]{36})\}\}/u.test(content) ? "user-round" : journalPageIcon(null);
+  const icon = kind === "folder" ? "file-text" : input.icon === undefined ? inferredIcon : cleanPageIcon(input.icon);
   const entryId = crypto.randomUUID();
   const now = new Date().toISOString();
   const guard=journalAttachmentWriteGuard(content,campaignId,id);

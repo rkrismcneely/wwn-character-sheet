@@ -50,5 +50,5 @@ export function safeJournalImage(source: string): boolean {
 
 /** Hide converter metadata in reading mode, while preserving code and stored text. */
 export function journalDocumentContent(content: string): string {
- return outsideMarkdownCode(content, text => text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, ""));
+ return outsideMarkdownCode(content, text => text.replace(/^<!-- Restricted LegendKeeper resource; review before sharing\. -->[ \t]*$/gmu, "").replace(/^<!-- twe-store:[A-Za-z0-9_-]+ -->[ \t]*$/gmu, ""));
 }

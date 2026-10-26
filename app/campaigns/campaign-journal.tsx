@@ -162,6 +162,28 @@ useEffect(()=>{
  })();
  return ()=>controller.abort();
 },[endpoint,preview]);
+useEffect(()=>{
+ let active=true;
+ const check=async()=>{
+  if(!active||editing||saving||uploading||document.visibilityState!=="visible")return;
+  try{
+   const response=await fetch(endpoint+(preview?"?preview=player":""),{cache:"no-store"});
+   if(!response.ok||!active)return;
+   const body=await response.json() as {entries?:Entry[]};
+   if(active&&Array.isArray(body.entries))setEntries(previous=>{
+    const changed=previous.length!==body.entries!.length||previous.some((entry,i)=>{
+     const other=body.entries![i];return !other||entry.id!==other.id||entry.title!==other.title||entry.content!==other.content||entry.parentId!==other.parentId||entry.icon!==other.icon||entry.visibility!==other.visibility;
+    });
+    return changed?body.entries!:previous;
+   });
+  }catch{}
+ };
+ const onFocus=()=>{void check();};
+ window.addEventListener("focus",onFocus);
+ document.addEventListener("visibilitychange",onFocus);
+ const interval=window.setInterval(()=>{void check();},30_000);
+ return()=>{active=false;window.clearInterval(interval);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onFocus);};
+},[endpoint,preview,editing,saving,uploading]);
 const current=entries.find(e=>e.id===selected);
 function openJournalEntry(id:string){
  if(id===selected||!discardDraft())return;

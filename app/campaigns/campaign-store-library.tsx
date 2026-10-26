@@ -114,12 +114,13 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [journalNotice, setJournalNotice] = useState("");
-  type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string};
+  type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);
   const [pendingLocation,setPendingLocation]=useState<{storeId:string;id:string}|null>(null);
   const [locationBusy,setLocationBusy]=useState(false);
   const locations=useMemo(()=>{
-    const root=placements.filter(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="locations");
+    const designated=placements.find(e=>e.kind==="folder"&&e.icon==="twe-role:locations");
+    const root=designated?[designated]:placements.filter(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="locations");
     const folders=new Set(root.map(e=>e.id));
     for(let i=0;i<20;i++)for(const e of placements)if(e.kind==="folder"&&e.parentId&&folders.has(e.parentId))folders.add(e.id);
     return placements.filter(e=>e.kind==="page"&&!!e.parentId&&folders.has(e.parentId)).sort((a,b)=>a.title.localeCompare(b.title));

@@ -178,6 +178,34 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [journalNotice, setJournalNotice] = useState("");
+
+  const storeSyncStarted=useRef(false);
+  const storeSyncQueue=useRef<Promise<void>>(Promise.resolve());
+  async function syncManagedStorePages(updated:CampaignStore[]){
+    const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
+    const response=await fetch(url,{cache:"no-store"});
+    if(!response.ok)return;
+    const body=await response.json() as {entries?:{id:string;kind:string;content:string}[]};
+    if(!Array.isArray(body.entries))return;
+    let changed=false;
+    for(const store of updated){
+      const page=body.entries.find(e=>e.kind==="page"&&e.content.includes("<!-- twe-store:"+store.id+" -->"));
+      if(!page)continue;
+      const content=updateStoreManagedPage(page.content,store);
+      if(content===page.content)continue;
+      const update=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content})});
+      if(!update.ok)throw new Error("Could not update the Journal article for "+store.name+".");
+      page.content=content;changed=true;
+    }
+    if(changed)window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+  }
+  useEffect(()=>{
+    if(!storeSyncStarted.current){storeSyncStarted.current=true;return;}
+    storeSyncQueue.current=storeSyncQueue.current.catch(()=>{}).then(()=>syncManagedStorePages(stores)).catch(cause=>{
+      setJournalNotice(cause instanceof Error?cause.message:"Unable to refresh linked Store articles.");
+    });
+  },[stores,campaignId]);
+
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);
   const [pendingLocation,setPendingLocation]=useState<{storeId:string;id:string}|null>(null);

@@ -365,3 +365,10 @@ export const campaignAvailability=sqliteTable("campaign_availability",{
   primaryKey({columns:[table.campaignId,table.userId,table.sessionDate]}),
   index("campaign_availability_by_date_idx").on(table.campaignId,table.sessionDate),
 ]);
+
+export const campaignGameDays=sqliteTable("campaign_game_days",{
+ campaignId:text("campaign_id").notNull().references(()=>campaigns.id,{onDelete:"cascade"}),
+ sessionDate:text("session_date").notNull(),
+ createdBy:text("created_by").notNull().references(()=>user.id),
+ createdAt:text("created_at").notNull(),
+},table=>[primaryKey({columns:[table.campaignId,table.sessionDate]})]);

@@ -163,7 +163,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = cleanTitle(input.title);
   const content = kind === "folder" ? "" : cleanContent(input.content ?? "");
   const visibility = cleanVisibility(input.visibility ?? "gm");
-  const parent=parentId?await db.prepare("SELECT title FROM campaign_journal_entries WHERE id=? AND campaign_id=? AND kind='folder'").bind(parentId,id).first<{title:string}>():null;
+  const parent=parentId?await db.prepare("SELECT title,icon FROM campaign_journal_entries WHERE id=? AND campaign_id=? AND kind='folder'").bind(parentId,id).first<{title:string;icon:string}>():null;
   const folderIcons:Record<string,string>={locations:"map-pin",npcs:"user-round",items:"sword",stores:"warehouse",quests:"scroll-text","session notes":"calendar-days"};
   // Source-aware icon inference; keep NPC braces escaped as regex literals.
   const inferredIcon = /<!-- twe-store:cstore_[a-f0-9]{32} -->/u.test(content) ? "warehouse" :

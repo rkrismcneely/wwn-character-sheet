@@ -267,6 +267,18 @@ async function editEntryQuick(entry:Entry,fields:{title?:string;visibility?:stri
  }catch(e){setError(e instanceof Error?e.message:"Could not update entry.");}
  finally{setMenuId("");}
 }
+async function changeFolderVisibility(entry:Entry,visibility:"gm"|"players",includeContents:boolean){
+ if(!canEdit||preview||saving||uploading||!discardDraft())return;
+ const count=entries.filter(item=>item.id===entry.id||(includeContents&&ancestry(item).some(parent=>parent.id===entry.id))).length;
+ if(!window.confirm((visibility==="players"?"Reveal":"Hide")+" "+(includeContents?count+" folder and nested items":"folder only")+" for "+entry.title+"? Existing GM-only passages inside articles remain protected."))return;
+ try{
+  const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"folderVisibility",id:entry.id,visibility,includeContents})});
+  const result=await response.json() as {error?:string;updated?:number};
+  if(!response.ok)throw new Error(result.error||"Folder visibility could not be updated.");
+  await refresh();setError("");
+ }catch(cause){setError(cause instanceof Error?cause.message:"Folder visibility could not be updated.");}
+ finally{setMenuId("");}
+}
 async function duplicateEntry(entry:Entry){
  if(!canEdit||preview||saving||uploading)return;
  try{
@@ -297,7 +309,7 @@ async function openReaders(id:string){
 }
 async function saveReaders(){
  const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:readerEntryId,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
- const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}setReaderEditing(false);
+ const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}const entry=entryById.get(readerEntryId);if(entry?.visibility!=="selected")await editEntryQuick(entry!,{visibility:"selected"});setReaderEditing(false);await refresh();
 }
 async function uploadJournalFile(file:File):Promise<string>{
  if(!editing||creatingFolder||savingRef.current)throw new Error("Finish the current save first.");
@@ -364,7 +376,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
         <button type="button" onClick={()=>void duplicateEntry(entry)}>Duplicate</button>
         <button type="button" aria-pressed={entry.visibility==="gm"} onClick={()=>void editEntryQuick(entry,{visibility:"gm"})}>{entry.visibility==="gm"?"✓ ":""}GM only</button>
         <button type="button" aria-pressed={entry.visibility==="players"} onClick={()=>void editEntryQuick(entry,{visibility:"players"})}>{entry.visibility==="players"?"✓ ":""}All players</button>
-        {entry.visibility==="selected"&&<button type="button" onClick={()=>{setMenuId("");void openReaders(entry.id);}}>Manage selected players…</button>}
+        <button type="button" onClick={()=>{setMenuId("");void openReaders(entry.id);}}>{entry.visibility==="selected"?"✓ ":""}Choose selected players…</button>{folder&&<><button type="button" onClick={()=>void changeFolderVisibility(entry,"players",false)}>Reveal folder only…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"players",true)}>Reveal folder and contents…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"gm",false)}>Hide folder only…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"gm",true)}>Hide folder and contents…</button></>}
         <button type="button" className="is-danger" onClick={()=>void deleteEntry(entry)}>Delete…</button>
        </div>}
       </div>;

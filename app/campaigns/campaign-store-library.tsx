@@ -131,10 +131,6 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setPlacements(body.entries);return body.entries;
   }
   useEffect(()=>{void loadPlacements().catch(()=>{});},[campaignId]);
-  useEffect(()=>{
-    const article=placements.find(e=>e.kind==="page"&&!!selectedStore&&e.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
-    setLocationId(article&&locations.some(l=>l.id===article.parentId)?article.parentId!:"");
-  },[placements,locations,selectedStore?.id]);
   async function moveStoreLocation(next:string){
     if(!selectedStore||locationBusy)return;
     if(next&&!locations.some(l=>l.id===next))return;
@@ -162,6 +158,10 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     [selectedStoreId, stores],
   );
 
+  useEffect(()=>{
+    const article=placements.find(e=>e.kind==="page"&&!!selectedStore&&e.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
+    setLocationId(article&&locations.some(l=>l.id===article.parentId)?article.parentId!:"");
+  },[placements,locations,selectedStore?.id]);
   const categories = useMemo(
     () => Array.from(new Set(catalog.map(item => item.category))),
     [catalog],

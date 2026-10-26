@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CampaignDialog } from "./campaign-dialog";
 import { SignedInHeader } from "../app-header";
 import { SessionRecapPanel } from "./session-recap-panel";
+import { CampaignAvailability } from "./campaign-availability";
 import dynamic from "next/dynamic";
 import type { ConsoleTab } from "./gm-console";
 
@@ -478,6 +479,7 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
               <p>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
             </div>
             <div className="campaign-hero-actions">
+              <CampaignAvailability campaignId={campaignId} />
               
               {campaign.permissions.canInviteMembers && (
                 <button type="button" className="campaign-primary" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>

@@ -83,9 +83,36 @@ async function getParent(db: D1Database, campaignId: string, parentId: unknown) 
   if (row?.kind !== "folder") throw new CampaignServiceError("Parent folder not found.", 422);
   return parentId;
 }
+const starterJournalFolders = ["Locations", "NPCs", "Items", "Stores", "Quests", "Session Notes"] as const;
+
+/** Bootstrap only truly empty journals, so edited, moved, or deleted folders never regenerate. */
+async function initializeEmptyJournal(db: D1Database, campaignId: string) {
+ const now = new Date().toISOString();
+ // The INSERT ... SELECT guard keeps repeated reads idempotent.
+ for (const title of starterJournalFolders) {
+  await db.prepare(`INSERT INTO campaign_journal_entries
+    (id,campaign_id,parent_id,kind,title,content,icon,visibility,created_at,updated_at)
+    SELECT ?, ?, NULL, 'folder', ?, '', 'file-text', 'gm', ?, ?
+    WHERE NOT EXISTS (SELECT 1 FROM campaign_journal_entries WHERE campaign_id = ?)`)
+    .bind(crypto.randomUUID(),campaignId,title,now,now,campaignId).run();
+  // Once the first folder exists, subsequent inserts must use a separate condition.
+  if (title === starterJournalFolders[0]) {
+   for (const remaining of starterJournalFolders.slice(1)) {
+    await db.prepare(`INSERT INTO campaign_journal_entries
+     (id,campaign_id,parent_id,kind,title,content,icon,visibility,created_at,updated_at)
+     SELECT ?, ?, NULL, 'folder', ?, '', 'file-text', 'gm', ?, ?
+     WHERE NOT EXISTS (SELECT 1 FROM campaign_journal_entries WHERE campaign_id = ? AND kind = 'folder' AND title = ?)`)
+     .bind(crypto.randomUUID(),campaignId,remaining,now,now,campaignId,remaining).run();
+   }
+   break;
+  }
+ }
+}
+
 export async function listJournal(db: D1Database, actor: CampaignActor | null, campaignId: string, preview = false) {
   const ctx = await context(db, actor, campaignId);
   const gmView = ctx.isGM && !preview;
+  if (gmView) await initializeEmptyJournal(db, ctx.campaignId);
   // Do not fetch restricted content into the player response. Selected readers are
   // evaluated against the authenticated user, never an ID supplied by the client.
   // Feature-detect the additive sort column so unmigrated databases can still read Journal entries.

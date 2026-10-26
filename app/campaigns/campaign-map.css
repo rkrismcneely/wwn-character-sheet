@@ -3135,3 +3135,9 @@
     padding: .3rem .48rem;
   }
 }
+
+/* Tablet: keep the closed Map launcher away from the Journal sidebar. */
+@media (min-width:821px) and (max-width:1200px) and (pointer:coarse) {
+ .campaign-map-collapsed-drawer-left {top:auto;bottom:calc(1rem + env(safe-area-inset-bottom,0px));left:.75rem;width:auto;min-height:44px;padding:.65rem 1rem;writing-mode:horizontal-tb;text-orientation:mixed;transform:none;border-radius:999px;border-left:1px solid rgba(204,163,83,.7)}
+ .campaign-map-collapsed-drawer-left:hover,.campaign-map-collapsed-drawer-left:focus-visible{transform:translateY(-1px)}
+}

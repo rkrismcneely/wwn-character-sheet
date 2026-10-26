@@ -26,6 +26,9 @@ const [editing,setEditing]=useState(false);
 const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
+const searchRef=useRef<HTMLInputElement>(null);
+const [backStack,setBackStack]=useState<string[]>([]);
+const [forwardStack,setForwardStack]=useState<string[]>([]);
 const [dragged,setDragged]=useState<string|null>(null);
 const [dropTarget,setDropTarget]=useState<string|null>(null);
 const [reorderTarget,setReorderTarget]=useState<string|null>(null);
@@ -118,6 +121,28 @@ useEffect(()=>{
  return ()=>controller.abort();
 },[endpoint,preview]);
 const current=entries.find(e=>e.id===selected);
+function openJournalEntry(id:string){
+ if(id===selected||!discardDraft())return;
+ if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);
+ setForwardStack([]);
+ setSelected(id);setEditing(false);
+}
+function travelJournal(direction:"back"|"forward"){
+ const source=direction==="back"?backStack:forwardStack;
+ const target=source[source.length-1];
+ if(!target||!entries.some(entry=>entry.id===target)||!discardDraft())return;
+ if(direction==="back"){setBackStack(stack=>stack.slice(0,-1));if(selected)setForwardStack(stack=>[...stack,selected]);}
+ else{setForwardStack(stack=>stack.slice(0,-1));if(selected)setBackStack(stack=>[...stack,selected]);}
+ setSelected(target);setEditing(false);
+}
+useEffect(()=>{
+ const onKey=(event:KeyboardEvent)=>{
+  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setSidebarOpen(true);searchRef.current?.focus();searchRef.current?.select();}
+  if(event.key==="Escape"&&document.activeElement===searchRef.current){setSearch("");searchRef.current?.blur();}
+ };
+ document.addEventListener("keydown",onKey);
+ return()=>document.removeEventListener("keydown",onKey);
+},[]);
 const dirty=editing&&(current?draft.title!==current.title||draft.content!==current.content||draft.visibility!==current.visibility||draft.icon!==journalPageIcon(current.icon):Boolean(draft.title.trim()||draft.content.trim()));
 useEffect(()=>{
  if(!dirty)return;
@@ -142,7 +167,16 @@ const ancestry=(entry:Entry):Entry[]=>{
  while(parent&&!seen.has(parent)){seen.add(parent);const item=entryById.get(parent);if(!item)break;parents.unshift(item);parent=item.parentId;}
  return parents;
 };
-const matchesSearch=(entry:Entry)=>{const term=search.trim().toLocaleLowerCase();return entry.title.toLocaleLowerCase().includes(term)||(entry.kind==="page"&&entry.content.toLocaleLowerCase().includes(term));};
+const searchTerm=search.trim().toLocaleLowerCase();
+const matchesSearch=(entry:Entry)=>!searchTerm||entry.title.toLocaleLowerCase().includes(searchTerm)||(entry.kind==="page"&&entry.content.toLocaleLowerCase().includes(searchTerm));
+const searchSnippet=(entry:Entry)=>{
+ if(!searchTerm||entry.kind!=="page")return "";
+ const content=entry.content.replace(/[#*_~\x60>\[\]()]|\s+/g," ").trim();
+ const at=content.toLocaleLowerCase().indexOf(searchTerm);
+ if(at<0)return "";
+ const start=Math.max(0,at-35);
+ return (start?"…":"")+content.slice(start,at+searchTerm.length+60).trim()+(at+searchTerm.length+60<content.length?"…":"");
+};
 const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolders.has(folder.id));
 const childrenByParent=new Map<string,Entry[]>();
 for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}
@@ -277,7 +311,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")} style={{"--journal-sidebar-width":sidebarWidth+"px"} as CSSProperties}>
   <aside className="twe-workspace-nav" aria-label="Journal navigation">
    <div className="twe-workspace-nav-top"><span className="twe-workspace-section-label">Library</span><button type="button" className="twe-workspace-folders-all" onClick={toggleAllFolders} aria-label={entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all folders":"Collapse all folders"}>{entries.filter(item=>item.kind==="folder").every(item=>collapsedFolders.has(item.id))?"Expand all":"Collapse all"}</button><button type="button" className="twe-workspace-icon-button" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={()=>setSidebarOpen(false)}>‹</button></div>
-   <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input aria-label="Search journal" placeholder="Find a page…" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>
+   <label className="twe-workspace-search"><span className="twe-workspace-search-icon" aria-hidden="true">⌕</span><input ref={searchRef} aria-label="Search journal" placeholder="Find a page… (Ctrl/⌘ K)" value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch("")}>×</button>}</label>
    <div className="twe-workspace-nav-caption">{search.trim()?matchingEntries.length+" matches":entries.length+" items"}</div>
    {canEdit&&!preview&&<button type="button" className={"twe-workspace-root-drop"+(dropTarget==="root"?" is-drop-target":"")} onDragOver={e=>{if(dragged&&validTarget(dragged,null)){e.preventDefault();setDropTarget("root");}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{e.preventDefault();if(dragged)void moveEntry(dragged,null);}} onClick={()=>{if(moveId)void moveEntry(moveId,null);}}>↖ Top level {moveId?"(move selected item)":""}</button>}
    <nav className="twe-workspace-tree" aria-label="Pages and folders">
@@ -291,7 +325,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  else if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);setReorderTarget(null);}
  }} onDragLeave={()=>{setDropTarget(null);setReorderTarget(null);}} onDrop={e=>{if(!dragged)return;e.preventDefault();e.stopPropagation();if(entryById.get(dragged)?.parentId===entry.parentId)void reorderEntry(dragged,entry.id);else if(folder&&validTarget(dragged,entry.id))void moveEntry(dragged,entry.id);}} style={{paddingLeft:8+depth*14}}>
        {folder?<button type="button" className="twe-workspace-tree-toggle" aria-label={(collapsedFolders.has(entry.id)?"Expand ":"Collapse ")+entry.title} aria-expanded={!collapsedFolders.has(entry.id)} onClick={()=>toggleFolder(entry.id)}>{collapsedFolders.has(entry.id)?"▸":"▾"}</button>:<span className="twe-workspace-tree-spacer"/>}
-       <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} aria-expanded={folder?!collapsedFolders.has(entry.id):undefined} onClick={()=>{if(!discardDraft())return;setSelected(entry.id);setEditing(false);if(folder)toggleFolder(entry.id);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></svg>:<JournalPageIconView icon={entry.icon} size={16}/>}</span><span>{entry.title}</span>{entry.visibility==="gm"&&<span className="twe-workspace-entry-lock" role="img" aria-label="GM only" title="GM only">🔒</span>}</button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Actions for "+entry.title} aria-expanded={menuId===entry.id} title={"Actions for "+entry.title} onClick={()=>setMenuId(old=>old===entry.id?"":entry.id)}>⋮</button>}
+       <button type="button" disabled={uploading||saving} className="twe-workspace-tree-name" aria-current={selected===entry.id?"page":undefined} aria-expanded={folder?!collapsedFolders.has(entry.id):undefined} onClick={()=>{if(entry.id!==selected){if(!discardDraft())return;if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);setForwardStack([]);setSelected(entry.id);setEditing(false);}if(folder)toggleFolder(entry.id);}}><span className="twe-workspace-tree-glyph" aria-hidden="true">{folder?<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></svg>:<JournalPageIconView icon={entry.icon} size={16}/>}</span><span title={searchTerm?ancestry(entry).map(parent=>parent.title).concat(entry.title).join(" / "):entry.title} className="twe-workspace-entry-title">{entry.title}{searchTerm&&searchSnippet(entry)&&<small className="twe-workspace-search-snippet">{searchSnippet(entry)}</small>}</span>{entry.visibility==="gm"&&<span className="twe-workspace-entry-lock" role="img" aria-label="GM only" title="GM only">🔒</span>}</button>{canEdit&&!preview&&<button type="button" className="twe-workspace-move-button" aria-label={"Actions for "+entry.title} aria-expanded={menuId===entry.id} title={"Actions for "+entry.title} onClick={()=>setMenuId(old=>old===entry.id?"":entry.id)}>⋮</button>}
        {menuId===entry.id&&canEdit&&!preview&&<div className="twe-workspace-entry-menu" role="group" aria-label={"Actions for "+entry.title}>
         <button type="button" onClick={()=>{setMoveId(entry.id);setMenuId("");}}>Move to folder…</button>
         <button type="button" onClick={()=>{const title=window.prompt("Rename entry",entry.title);if(title!==null&&title.trim()&&title!==entry.title)void editEntryQuick(entry,{title:title.trim()});else setMenuId("");}}>Rename</button>
@@ -311,7 +345,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
   {sidebarOpen&&<div className="twe-workspace-resize-handle" role="separator" aria-label="Resize Journal sidebar" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={520} aria-valuenow={sidebarWidth} tabIndex={0} onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();resizing.current=true;document.body.style.cursor="col-resize";document.body.style.userSelect="none";}} onKeyDown={event=>{if(event.key==="ArrowRight"||event.key==="ArrowLeft"){event.preventDefault();setSidebarWidth(width=>Math.min(520,Math.max(220,width+(event.key==="ArrowRight"?20:-20))));}}}/>}
   <main className="twe-workspace-document">
    <div className="twe-workspace-document-toolbar">
-    <div className="twe-workspace-crumbs">{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>
+    <div className="twe-workspace-crumbs"><div className="twe-workspace-history"><button type="button" aria-label="Previous Journal page" title="Previous Journal page" disabled={!backStack.length} onClick={()=>travelJournal("back")}>←</button><button type="button" aria-label="Next Journal page" title="Next Journal page" disabled={!forwardStack.length} onClick={()=>travelJournal("forward")}>→</button></div>{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>
     {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" disabled={uploading||saving} className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(current.kind==="folder");setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setEditing(true);}}>{current.kind==="folder"?"Edit folder":"Edit page"}</button>}{canEdit&&editing&&<div className="twe-workspace-action-row"><button form="twe-journal-page-editor" type="submit" disabled={uploading||saving} className="twe-button twe-button-primary">{saving?"Saving…":"Save "+(creatingFolder?"folder":"page")}</button><button type="button" disabled={uploading||saving} className="twe-button" onClick={()=>{if(discardDraft())setEditing(false);}}>Cancel</button></div>}</div>}
    </div>
    {editing&&canEdit?<form id="twe-journal-page-editor" className="twe-workspace-editor" onSubmit={save}>
@@ -323,7 +357,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":(/npc|character|people|person/i.test(ancestry(current).map(p=>p.title).join(" / "))?"NPC":/monster|creature|bestiary|enemy/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Creature":/location|city|town|village|region|place|settlement/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Location":"Journal entry")}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge"}</div></div>
     {canEdit&&current.kind==="page"&&current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}
     {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>+ New page here</button></div>}
-    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")&&discardDraft()){setSelected(id);setEditing(false);}}}/></div>}
+    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")&&discardDraft()){openJournalEntry(id);}}}/></div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>

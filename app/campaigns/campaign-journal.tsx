@@ -12,6 +12,7 @@ import { journalPropertiesMarkdown } from "@/lib/campaigns/journal-properties";
 import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
 import { JournalImport } from "./journal-import";
 import { JournalDocument } from "./journal-document";
+import { campaignMapOpenEvent } from "./campaign-map-events";
 import { JournalNpcCreator } from "./journal-npc-creator";
 type RecoveryDraft={id:string;parentId:string|null;creatingFolder:boolean;draft:{title:string;content:string;visibility:string;icon:string};timestamp:number};
 type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string;icon?:string;sourcePath?:string|null;sortOrder?:number|null};
@@ -27,6 +28,11 @@ const [editing,setEditing]=useState(false);
 const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
+const [mapChoices,setMapChoices]=useState<{id:string;name:string}[]>([]);
+const [mapPickerOpen,setMapPickerOpen]=useState(false);
+const [mapLinkBusy,setMapLinkBusy]=useState(false);
+const [chosenMapId,setChosenMapId]=useState("");
+
 const searchRef=useRef<HTMLInputElement>(null);
 const [backStack,setBackStack]=useState<string[]>([]);
 const [forwardStack,setForwardStack]=useState<string[]>([]);
@@ -255,6 +261,37 @@ async function moveEntry(sourceId:string,targetId:string|null){
  }catch(e){setError(e instanceof Error?e.message:"Move failed.");await refresh();}
  finally{setDragged(null);setDropTarget(null);setMoveId("");}
 }
+const mapLinkPattern=/^<!-- twe-map:(map_[a-f0-9-]{36}) -->\\s*$/gmu;
+function linkedMapId(entry:Entry){return /^<!-- twe-map:(map_[a-f0-9-]{36}) -->\\s*$/mu.exec(entry.content)?.[1]??"";}
+async function openMapPicker(entry:Entry){
+ if(!canEdit||preview||!discardDraft())return;
+ setMapLinkBusy(true);setError("");
+ try{
+  const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/map",{cache:"no-store"});
+  const data=await response.json() as {maps?:{id:string;name:string}[];error?:string};
+  if(!response.ok||!Array.isArray(data.maps))throw new Error(data.error||"Unable to load campaign maps.");
+  setMapChoices(data.maps);setChosenMapId(linkedMapId(entry));setMapPickerOpen(true);
+ }catch(cause){setError(cause instanceof Error?cause.message:"Unable to load campaign maps.");}
+ finally{setMapLinkBusy(false);}
+}
+async function saveMapLink(entry:Entry){
+ if(mapLinkBusy||!canEdit||preview)return;
+ if(chosenMapId&&!mapChoices.some(map=>map.id===chosenMapId)){setError("Choose an existing campaign map.");return;}
+ setMapLinkBusy(true);setError("");
+ try{
+  const cleaned=entry.content.replace(mapLinkPattern,"").trimEnd();
+  const content=chosenMapId?("<!-- twe-map:"+chosenMapId+" -->\\n\\n"+cleaned):cleaned;
+  const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:entry.id,content})});
+  const result=await response.json() as {entry?:Entry;error?:string};
+  if(!response.ok||!result.entry)throw new Error(result.error||"Unable to save linked map.");
+  setEntries(old=>old.map(item=>item.id===entry.id?result.entry!:item));
+  setMapPickerOpen(false);
+ }catch(cause){setError(cause instanceof Error?cause.message:"Unable to save linked map.");}
+ finally{setMapLinkBusy(false);}
+}
+function openLinkedMap(mapId:string){
+ window.dispatchEvent(new CustomEvent(campaignMapOpenEvent,{detail:{campaignId,action:"open",mapId}}));
+}
 async function editEntryQuick(entry:Entry,fields:{title?:string;visibility?:string}){
  if(!canEdit||preview||saving||uploading)return;
  try{
@@ -407,6 +444,11 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":(/npc|character|people|person/i.test(ancestry(current).map(p=>p.title).join(" / "))?"NPC":/monster|creature|bestiary|enemy/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Creature":/location|city|town|village|region|place|settlement/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Location":"Journal entry")}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge"}</div></div>
     {canEdit&&current.kind==="page"&&current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}
     {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>+ New page here</button></div>}
+    {current.kind==="page"&&<div className="journal-map-link-bar">
+    {linkedMapId(current)&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>openLinkedMap(linkedMapId(current))}>Open linked map</button>}
+    {canEdit&&!preview&&!editing&&<button type="button" className="twe-button twe-button-subtle" disabled={mapLinkBusy} onClick={()=>void openMapPicker(current)}>{linkedMapId(current)?"Change linked map":"Link to a map"}</button>}
+    {mapPickerOpen&&canEdit&&!preview&&<div className="journal-map-link-picker"><label>Campaign map <select value={chosenMapId} disabled={mapLinkBusy} onChange={event=>setChosenMapId(event.target.value)}><option value="">No linked map</option>{mapChoices.map(map=><option key={map.id} value={map.id}>{map.name}</option>)}</select></label><button type="button" className="twe-button twe-button-primary" disabled={mapLinkBusy} onClick={()=>void saveMapLink(current)}>Save link</button><button type="button" className="twe-button" disabled={mapLinkBusy} onClick={()=>setMapPickerOpen(false)}>Cancel</button></div>}
+   </div>}
     {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/></div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>Create a page</button>}</div>}
   </main>

@@ -13,6 +13,7 @@ import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
 import { JournalImport } from "./journal-import";
 import { JournalDocument } from "./journal-document";
 import { JournalNpcCreator } from "./journal-npc-creator";
+type RecoveryDraft={id:string;parentId:string|null;creatingFolder:boolean;draft:{title:string;content:string;visibility:string;icon:string};timestamp:number};
 type Entry={id:string;parentId:string|null;title:string;content:string;kind:string;visibility:string;icon?:string;sourcePath?:string|null;sortOrder?:number|null};
 const JournalVisualEditor=dynamic(()=>import("./journal-visual-editor").then(module=>module.JournalVisualEditor),{ssr:false,loading:()=> <p role="status">Opening editor…</p>});
 export function CampaignJournal({campaignId}:{campaignId:string}){
@@ -100,6 +101,31 @@ const [editorSession,setEditorSession]=useState(0);
 const pendingAttachments=useRef(new Map<string,PendingJournalAttachment>());
 const [localImageUrls,setLocalImageUrls]=useState<ReadonlySet<string>>(()=>new Set());
 const [uploadNotice,setUploadNotice]=useState("");
+const [recovery,setRecovery]=useState<RecoveryDraft|null>(null);
+const recoveryKey=viewerId?"twe-journal-recovery:"+viewerId+":"+campaignId:"";
+useEffect(()=>{
+ if(!recoveryKey||!canEdit||preview){return;}
+ try{
+  const raw=sessionStorage.getItem(recoveryKey);
+  const data=raw?JSON.parse(raw) as RecoveryDraft:null;
+  if(data&&typeof data.timestamp==="number"&&Date.now()-data.timestamp<7*24*60*60*1000&&
+   typeof data.id==="string"&&typeof data.draft?.title==="string"&&typeof data.draft?.content==="string"&&
+   typeof data.draft?.visibility==="string"&&typeof data.draft?.icon==="string"&&
+   (!data.id||entries.some(entry=>entry.id===data.id))){
+   requestAnimationFrame(()=>setRecovery(data));
+  }else if(raw)sessionStorage.removeItem(recoveryKey);
+ }catch{try{sessionStorage.removeItem(recoveryKey);}catch{}}
+},[recoveryKey,canEdit,preview,entries]);
+function clearRecoveredDraft(){
+ if(recoveryKey)try{sessionStorage.removeItem(recoveryKey);}catch{}
+ setRecovery(null);
+}
+function restoreRecoveredDraft(){
+ if(!recovery||!discardDraft())return;
+ setSelected(recovery.id);setParentId(recovery.parentId);setCreatingFolder(recovery.creatingFolder);
+ setDraft(recovery.draft);setEditorSession(value=>value+1);setEditing(true);setRecovery(null);
+}
+
 const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
 async function refresh(){
  const r=await fetch(endpoint+(preview?"?preview=player":""));
@@ -145,6 +171,11 @@ useEffect(()=>{
 },[]);
 const dirty=editing&&(current?draft.title!==current.title||draft.content!==current.content||draft.visibility!==current.visibility||draft.icon!==journalPageIcon(current.icon):Boolean(draft.title.trim()||draft.content.trim()));
 useEffect(()=>{
+ if(!recoveryKey||!canEdit||preview||!editing||!dirty||uploading||draft.content.includes("blob:"))return;
+ const snapshot:RecoveryDraft={id:selected,parentId,creatingFolder,draft,timestamp:Date.now()};
+ try{sessionStorage.setItem(recoveryKey,JSON.stringify(snapshot));}catch{}
+},[recoveryKey,canEdit,preview,editing,dirty,uploading,selected,parentId,creatingFolder,draft]);
+useEffect(()=>{
  if(!dirty)return;
  const warn=(event:BeforeUnloadEvent)=>{if(!allowLeave.current){event.preventDefault();event.returnValue="";}};
  const navigate=(event:MouseEvent)=>{
@@ -160,7 +191,7 @@ useEffect(()=>{
 useEffect(()=>{allowLeave.current=false;},[draft,editing,selected]);
 useEffect(()=>{const files=pendingAttachments.current;return()=>{for(const url of files.keys())URL.revokeObjectURL(url);files.clear();};},[]);
 function clearAttachments(){for(const url of pendingAttachments.current.keys())URL.revokeObjectURL(url);pendingAttachments.current.clear();setLocalImageUrls(new Set());}
-function discardDraft(){if(uploading||saving)return false;if(dirty&&!window.confirm("Discard unsaved changes?"))return false;clearAttachments();setError("");setUploadNotice("");return true;}
+function discardDraft(){if(uploading||saving)return false;if(dirty&&!window.confirm("Discard unsaved changes?"))return false;clearRecoveredDraft();clearAttachments();setError("");setUploadNotice("");return true;}
 const entryById=new Map(entries.map(entry=>[entry.id,entry]));
 const ancestry=(entry:Entry):Entry[]=>{
  const parents:Entry[]=[];const seen=new Set<string>([entry.id]);let parent=entry.parentId;
@@ -289,7 +320,7 @@ async function save(e:React.FormEvent){
  savingRef.current=true;setSaving(true);setError("");
  try{
   const entry=await saveJournalEditorDraft({endpoint,id:selected,kind:creatingFolder?"folder":"page",parentId,draft,attachments:pendingAttachments.current,onCreated:created=>{setSelected(created.id);setEntries(old=>[...old,created]);}});
-  setEntries(old=>old.some(item=>item.id===entry.id)?old.map(item=>item.id===entry.id?entry:item):[...old,entry]);setSelected(entry.id);setDraft({title:entry.title,content:entry.content,visibility:entry.visibility,icon:journalPageIcon(entry.icon)});setEditing(false);setCreatingFolder(false);clearAttachments();setUploadNotice("");await refresh();
+  setEntries(old=>old.some(item=>item.id===entry.id)?old.map(item=>item.id===entry.id?entry:item):[...old,entry]);setSelected(entry.id);setDraft({title:entry.title,content:entry.content,visibility:entry.visibility,icon:journalPageIcon(entry.icon)});setEditing(false);setCreatingFolder(false);clearRecoveredDraft();clearAttachments();setUploadNotice("");await refresh();
  }catch(cause){setError(cause instanceof Error?cause.message:"The page could not be saved.");}
  finally{savingRef.current=false;setSaving(false);}
 }
@@ -307,6 +338,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  {error&&<p className="twe-workspace-alert" role="alert">{error}</p>}
  {uploadNotice&&<p className="twe-workspace-notice" role="status">{uploadNotice}</p>}
  {importOpen&&canEdit&&<div className="twe-workspace-import"><JournalImport endpoint={endpoint} onImported={refresh}/></div>}
+ {recovery&&canEdit&&!preview&&<div className="journal-recovery-banner" role="status"><span>Unsaved Journal draft from this tab is available to restore. Attachments may need to be added again.</span><button type="button" className="twe-button twe-button-primary" onClick={restoreRecoveredDraft}>Restore draft</button><button type="button" className="twe-button" onClick={clearRecoveredDraft}>Discard</button></div>}
  {readerEditing&&canEdit&&<section className="twe-workspace-readers" aria-label="Selected journal readers"><h3>Share {entryById.get(readerEntryId)?.title} with players</h3><div className="twe-workspace-reader-list">{readers.map((reader,index)=><label key={reader.userId}><input type="checkbox" checked={Boolean(reader.selected)} onChange={e=>setReaders(old=>old.map((item,i)=>i===index?{...item,selected:e.target.checked?1:0}:item))}/>{reader.name}</label>)}</div><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={()=>void saveReaders()}>Save players</button><button type="button" className="twe-button" onClick={()=>setReaderEditing(false)}>Cancel</button></div></section>}
  <div className={"twe-workspace-shell"+(sidebarOpen?"":" twe-workspace-shell-collapsed")} style={{"--journal-sidebar-width":sidebarWidth+"px"} as CSSProperties}>
   <aside className="twe-workspace-nav" aria-label="Journal navigation">

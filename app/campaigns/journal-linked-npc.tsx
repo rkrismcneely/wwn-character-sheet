@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import type {CampaignNpcTemplate} from "@/lib/campaigns/npcs";
+import { npcSpellFullDescription } from "@/lib/campaigns/npc-magic-catalog";
 import { NPC_CHANGED_EVENT, notifyCampaignNpcChanged } from "@/lib/campaigns/npc-change-events";
 export function JournalLinkedNpc({campaignId,npcId}:{campaignId:string;npcId:string}){
  const [npc,setNpc]=useState<CampaignNpcTemplate|null>(null);
@@ -58,7 +59,7 @@ export function JournalLinkedNpc({campaignId,npcId}:{campaignId:string;npcId:str
   </div>}
   <dl className="journal-linked-npc-stats">{[["HP",npc.hpMax],["AC",npc.armorClass],["Physical",npc.physicalSave],["Evasion",npc.evasionSave],["Mental",npc.mentalSave],["HD",npc.hitDice],["Attacks / action",npc.attacksPerMainAction]].filter(([,value])=>value!==null).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
   {npc.attacks.length>0&&<ul>{npc.attacks.map((attack,i)=><li key={i}><strong>{attack.name}</strong> {attack.attackBonus>=0?"+":""}{attack.attackBonus} · {attack.damage}{attack.shock?" · Shock "+attack.shock:""}{attack.description?" · "+attack.description:""}</li>)}</ul>}
-  {npc.spells.length>0&&<p><strong>Spells:</strong> {npc.spells.map(s=>s.name).join(", ")}</p>}
+  {npc.spells.length>0&&<div className="journal-linked-npc-spells"><strong>Spells:</strong><ul>{npc.spells.map((spell,i)=>{const full=npcSpellFullDescription(spell.name,spell.level,spell.summary);const brief=spell.summary.length>115?spell.summary.slice(0,112).trimEnd()+"…":spell.summary;return <li key={i}><span className="journal-linked-npc-spell" tabIndex={0} aria-label={spell.name+(full?": "+full:"")}><strong>{spell.name}</strong>{full&&<span className="journal-linked-npc-spell-popover" role="tooltip">{full}</span>}</span>{brief&&<span className="journal-linked-npc-spell-summary"> — {brief}</span>}</li>;})}</ul></div>}
   {npc.arts.length>0&&<p><strong>Arts:</strong> {npc.arts.map(a=>a.name).join(", ")}</p>}
   {npc.friendly&&<p>Friendly / allied</p>}
   {npc.notes&&<p>{npc.notes}</p>}

@@ -277,3 +277,13 @@
 .campaign-journal .journal-npc-magic{border:1px solid #e2cfb0;border-radius:6px;padding:10px}
 .campaign-journal .journal-npc-magic-item{display:flex;gap:8px;align-items:center;margin:6px 0}
 .campaign-journal .journal-npc-magic-item input{flex:1}
+
+/* Linked NPC spells: compact summaries and keyboard-accessible full descriptions. */
+.campaign-journal .journal-linked-npc-spells{margin:10px 0;font-size:.94rem}
+.campaign-journal .journal-linked-npc-spells>ul{list-style:none;margin:5px 0 0;padding:0}
+.campaign-journal .journal-linked-npc-spells li{position:relative;margin:5px 0;line-height:1.45}
+.campaign-journal .journal-linked-npc-spell{position:relative;display:inline-block;cursor:help;border-bottom:1px dotted #9a7442;outline-offset:3px}
+.campaign-journal .journal-linked-npc-spell:focus-visible{outline:2px solid #a77636;border-radius:2px}
+.campaign-journal .journal-linked-npc-spell-summary{color:#735a3d}
+.campaign-journal .journal-linked-npc-spell-popover{display:none;position:absolute;z-index:40;top:calc(100% + 5px);left:0;width:max-content;max-width:min(350px,calc(100vw - 80px));white-space:normal;max-height:280px;overflow:auto;padding:12px 14px;border:1px solid #a47d47;border-radius:7px;background:#fff9eb;color:#382819;box-shadow:0 8px 24px #3020124d;font:400 13px/1.5 var(--font-body,serif)}
+.campaign-journal .journal-linked-npc-spell:hover>.journal-linked-npc-spell-popover,.campaign-journal .journal-linked-npc-spell:focus-visible>.journal-linked-npc-spell-popover{display:block}

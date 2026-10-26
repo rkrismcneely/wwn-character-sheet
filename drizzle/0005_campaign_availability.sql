@@ -1,4 +1,4 @@
-CREATE TABLE campaign_availability (
+CREATE TABLE IF NOT EXISTS campaign_availability (
  campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE cascade,
  user_id text NOT NULL REFERENCES user(id) ON DELETE cascade,
  session_date text NOT NULL,
@@ -7,4 +7,4 @@ CREATE TABLE campaign_availability (
  PRIMARY KEY (campaign_id,user_id,session_date)
 );
 --> statement-breakpoint
-CREATE INDEX campaign_availability_by_date_idx ON campaign_availability(campaign_id,session_date);
+CREATE INDEX IF NOT EXISTS campaign_availability_by_date_idx ON campaign_availability(campaign_id,session_date);

@@ -97,7 +97,7 @@ function storeJournalManagedContent(store:CampaignStore){
     lines.push("## Proprietor","");
     if(store.proprietorName)lines.push("**"+safe(store.proprietorName)+"**","");
     if(store.proprietorDescription)lines.push(store.proprietorDescription.trim(),"");
-    if(store.proprietorNpcId)lines.push("Linked NPC: "+store.proprietorNpcId,"");
+
   }
   lines.push("## Goods for sale","","| Item | Price | Availability |","| :--- | ---: | :--- |");
   if(store.items.length)for(const item of store.items){
@@ -126,9 +126,32 @@ function nextStoreJournalContent(content:string,store:CampaignStore){
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
   const syncInitialized=useRef(false);
+  const syncQueue=useRef<Promise<void>>(Promise.resolve());
+  async function syncStoreJournalPages(updated:CampaignStore[]){
+    const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
+    const response=await fetch(url,{cache:"no-store"});
+    if(!response.ok)return;
+    const body=await response.json() as {entries?:{id:string;kind:string;content:string}[]};
+    if(!Array.isArray(body.entries))return;
+    let changed=false;
+    for(const store of updated){
+      const marker="<!-- twe-store:"+store.id+" -->";
+      const page=body.entries.find(e=>e.kind==="page"&&e.content.includes(marker));
+      if(!page)continue;
+      const content=nextStoreJournalContent(page.content,store);
+      if(content===page.content)continue;
+      const update=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content})});
+      if(!update.ok)throw new Error("Could not synchronize the Journal page for "+store.name+".");
+      page.content=content;changed=true;
+    }
+    if(changed)window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+  }
   useEffect(()=>{
     if(!syncInitialized.current){syncInitialized.current=true;return;}
     window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"stores"}}));
+    syncQueue.current=syncQueue.current.catch(()=>{}).then(()=>syncStoreJournalPages(stores)).catch(error=>{
+      setJournalNotice(error instanceof Error?error.message:"Could not update linked Journal articles.");
+    });
   },[stores,campaignId]);
   const [catalog, setCatalog] = useState<CampaignStoreManagementPayload["catalog"]>([]);
   const [campaignItems, setCampaignItems] = useState<CampaignStoreManagementPayload["campaignItems"]>([]);
@@ -345,17 +368,10 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       }
       const sameName = result.entries.find(page => page.kind === "page" && page.title.trim().toLocaleLowerCase() === selectedStore.name.trim().toLocaleLowerCase());
       if (sameName && !window.confirm('An article named "' + sameName.title + '" already exists. Create a separate store article?')) return;
-      const safe = (value:string) => value.replaceAll("\\", "\\\\").replaceAll("*", "\\*").replaceAll("[", "\\[").replaceAll("]", "\\]").replaceAll("|", "\\|").replaceAll("\n", " ");
-      const lines = [marker, "", selectedStore.description.trim(), "", "## Goods for sale", "", "| Item | Price | Availability |", "| :--- | ---: | :--- |"];
-      if (selectedStore.items.length) {
-        for (const item of selectedStore.items) {
-          const quantity = item.quantity === null ? "unlimited stock" : String(item.quantity) + " in stock";
-          lines.push("| **" + safe(item.name) + (item.note ? "** — " + safe(item.note) : "**") + " | " + safe(item.cost) + " | " + quantity + " |");
-        }
-      } else lines.push("No inventory listed yet.");
+      const content=marker+"\n\n"+storeJournalManagedContent(selectedStore)+"\n";
       const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
       const destinationId=locationId&&locations.some(e=>e.id===locationId)?locationId:storesFolder?.id;
-      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
+      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content,icon:"warehouse",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
       await loadPlacements();

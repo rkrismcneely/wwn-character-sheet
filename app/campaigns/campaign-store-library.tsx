@@ -93,6 +93,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [selectedStoreId, setSelectedStoreId] = useState("");
   const [storeName, setStoreName] = useState("");
   const [storeDescription, setStoreDescription] = useState("");
+  const [proprietorReady,setProprietorReady]=useState(false);
   const [proprietorName,setProprietorName]=useState("");
   const [proprietorDescription,setProprietorDescription]=useState("");
   const [proprietorNpcId,setProprietorNpcId]=useState("");
@@ -243,6 +244,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
           throw new Error(body.error || "Campaign stores are unavailable.");
         }
         if (cancelled) return;
+        setProprietorReady(Boolean(body.proprietorReady));
         setStores(body.stores);
         setCatalog(body.catalog);
         setCampaignItems(body.campaignItems);
@@ -538,7 +540,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
           <div className="gm-npc-form-heading"><h3>New Store</h3>{stores.length > 0 && <button type="button" className="campaign-quiet" onClick={() => selectedStore && chooseStore(selectedStore)}>Cancel</button>}</div>
           <label className="gm-npc-notes"><span>Store name</span><input required maxLength={80} value={storeName} onChange={event => setStoreName(event.target.value)} placeholder="The Brass Lantern" /></label>
           <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={storeDescription} onChange={event => setStoreDescription(event.target.value)} placeholder="Merchant, atmosphere, and other details the party should see." /></label>
-            <fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
+            {proprietorReady&&<fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
               <label className="gm-npc-notes"><span>Name</span><input maxLength={120} value={proprietorName} onChange={event=>setProprietorName(event.target.value)} placeholder="Shopkeeper name"/></label>
               <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={proprietorDescription} onChange={event=>setProprietorDescription(event.target.value)} placeholder="Appearance, mannerisms, personality…"/></label>
               <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:{npcs?:{id:string;name:string;notes:string}[]})=>setNpcChoices(v.npcs||[])).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
@@ -546,7 +548,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>
               {proprietorNpcId&&<details><summary>View linked NPC details</summary><JournalLinkedNpc campaignId={campaignId} npcId={proprietorNpcId}/></details>}
-            </fieldset>
+            </fieldset>}
           <button type="submit" className="campaign-primary" disabled={busy || !storeName.trim()}>Create Store</button>
         </form>}
         {!creating && selectedStore && <>
@@ -555,7 +557,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             <label className="gm-npc-notes"><span>Store name</span><input required maxLength={80} value={storeName} onChange={event => setStoreName(event.target.value)} /></label>
             <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={storeDescription} onChange={event => setStoreDescription(event.target.value)} placeholder="Merchant, atmosphere, and other details the party should see." /></label>
             <label className="gm-npc-notes"><span>Location (optional)</span><select disabled={busy||locationBusy} value={locationId} onChange={event=>void moveStoreLocation(event.target.value)}><option value="">No location — Stores folder</option>{locations.map(location=><option key={location.id} value={location.id}>{location.title}</option>)}</select></label>
-            <fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
+            {proprietorReady&&<fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
               <label className="gm-npc-notes"><span>Name</span><input maxLength={120} value={proprietorName} onChange={event=>setProprietorName(event.target.value)} placeholder="Shopkeeper name"/></label>
               <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={proprietorDescription} onChange={event=>setProprietorDescription(event.target.value)} placeholder="Appearance, mannerisms, personality…"/></label>
               <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:{npcs?:{id:string;name:string;notes:string}[]})=>setNpcChoices(v.npcs||[])).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
@@ -563,7 +565,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>
               {proprietorNpcId&&<details><summary>View linked NPC details</summary><JournalLinkedNpc campaignId={campaignId} npcId={proprietorNpcId}/></details>}
-            </fieldset>
+            </fieldset>}
             <button type="submit" className="campaign-secondary" disabled={busy || !storeName.trim()}>Save Store Details</button>
           </form>
           <section className="campaign-store-stock">

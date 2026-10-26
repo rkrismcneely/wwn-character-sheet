@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import "./twe-workspace.css";
 import "./journal-editor.css";
@@ -493,7 +493,10 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     {matchingEntries.map((entry,index)=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview&&!isSessionRecap(entry)} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
+      const next=matchingEntries[index+1];
+      const nextAncestors=next?new Set(ancestry(next).map(item=>item.id)):new Set<string>();
+      const closingFolders=ancestry(entry).filter(parent=>!nextAncestors.has(parent.id));
+      return <Fragment key={entry.id}><div className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview&&!isSessionRecap(entry)} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
  if(!dragged||dragged===entry.id)return;
  const source=entryById.get(dragged);
  if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}return;}
@@ -511,12 +514,9 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
         <button type="button" onClick={()=>{setMenuId("");void openReaders(entry.id);}}>{entry.visibility==="selected"?"✓ ":""}Choose selected players…</button>{folder&&<><button type="button" onClick={()=>void changeFolderVisibility(entry,"players",false)}>Reveal folder only…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"players",true)}>Reveal folder and contents…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"gm",false)}>Hide folder only…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"gm",true)}>Hide folder and contents…</button></>}
         <button type="button" className="is-danger" onClick={()=>void deleteEntry(entry)}>Delete…</button>
        </div>}
-      </div>;
+      </div>{canEdit&&!preview&&dragged&&closingFolders.filter(parent=>parent.id===entryById.get(dragged)?.parentId).map(parent=><div key={parent.id} className={"twe-workspace-end-drop"+(endTarget===parent.id?" is-active":"")} onDragOver={e=>{e.preventDefault();e.stopPropagation();setEndTarget(parent.id);setReorderTarget(null);setDropTarget(null);}} onDragLeave={()=>setEndTarget(null)} onDrop={e=>{e.preventDefault();e.stopPropagation();void reorderEntry(dragged,null,parent.id);}}>Drop at end of {parent.title}</div>)}</Fragment>;
     })}
-    {canEdit&&!preview&&dragged&&<div className="twe-workspace-end-targets" aria-label="Drop at end of folder">
-      {entries.filter(item=>item.kind==="folder"&&visibleInTree(item)&&!collapsedFolders.has(item.id)&&item.id!==dragged&&entryById.get(dragged)?.parentId===item.id).map(folder=><div key={folder.id} className={"twe-workspace-end-drop"+(endTarget===folder.id?" is-active":"")} onDragOver={e=>{e.preventDefault();e.stopPropagation();setEndTarget(folder.id);setReorderTarget(null);setDropTarget(null);}} onDragLeave={()=>setEndTarget(null)} onDrop={e=>{e.preventDefault();e.stopPropagation();void reorderEntry(dragged,null,folder.id);}}><span>Drop at end of {folder.title}</span></div>)}
-      {entryById.get(dragged)?.parentId===null&&<div className={"twe-workspace-end-drop"+(endTarget==="root"?" is-active":"")} onDragOver={e=>{e.preventDefault();setEndTarget("root");setReorderTarget(null);}} onDragLeave={()=>setEndTarget(null)} onDrop={e=>{e.preventDefault();void reorderEntry(dragged,null,null);}}>Drop at end of top level</div>}
-    </div>}
+    {canEdit&&!preview&&dragged&&entryById.get(dragged)?.parentId===null&&<div className={"twe-workspace-end-drop"+(endTarget==="root"?" is-active":"")} onDragOver={e=>{e.preventDefault();setEndTarget("root");setReorderTarget(null);}} onDragLeave={()=>setEndTarget(null)} onDrop={e=>{e.preventDefault();void reorderEntry(dragged,null,null);}}>Drop at end of top level</div>}
     {moveId&&canEdit&&!preview&&<div className="twe-workspace-move-panel"><label>Move to folder<select aria-label="Destination folder" defaultValue="" onChange={e=>{if(e.target.value)void moveEntry(moveId,e.target.value==="root"?null:e.target.value);}}><option value="">Choose destination…</option><option value="root">Top level</option>{sortedEntries.filter(item=>item.kind==="folder"&&validTarget(moveId,item.id)).map(item=><option key={item.id} value={item.id}>{ancestry(item).map(p=>p.title).join(" / ")}{ancestry(item).length?" / ":""}{item.title}</option>)}</select></label><button type="button" onClick={()=>setMoveId("")}>Cancel</button></div>}
     {!matchingEntries.length&&<p className="twe-workspace-nav-empty">{search?"No matching pages":"This journal is empty"}</p>}
    </nav>

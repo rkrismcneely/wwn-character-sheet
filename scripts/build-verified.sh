@@ -25,6 +25,9 @@ if [[ "${release_sha}" =~ ^[0-9a-f]{40}$ ]]; then
   printf '{"commit":"%s"}\n' "${release_sha}" > "${SITES_PROJECT_ROOT}/public/twe-build-version.json"
 fi
 
+echo "Checking source syntax before bundling..."
+node "${script_dir}/preflight-source.mjs"
+
 rm -rf "${SITES_PROJECT_ROOT}/dist"
 
 echo "Running bounded vinext build..."

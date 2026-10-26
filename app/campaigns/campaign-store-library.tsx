@@ -137,6 +137,13 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     setPlacements(body.entries);return body.entries;
   }
   useEffect(()=>{const controller=new AbortController();void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((value:unknown)=>{const body=value as {entries?:Placement[]};if(!controller.signal.aborted&&Array.isArray(body.entries))setPlacements(body.entries);}).catch(()=>{});return()=>controller.abort();},[campaignId]);
+  useEffect(()=>{
+    const onJournalChanged=(event:Event)=>{const detail=(event as CustomEvent<{campaignId?:string;area?:string}>).detail;
+      if(detail?.campaignId===campaignId&&detail.area==="journal")void loadPlacements().catch(()=>{});
+    };
+    window.addEventListener("twe:campaign-data-changed",onJournalChanged);
+    return()=>window.removeEventListener("twe:campaign-data-changed",onJournalChanged);
+  },[campaignId]);
   async function moveStoreLocation(next:string){
     if(!selectedStore||locationBusy)return;
     if(next&&!locations.some(l=>l.id===next))return;

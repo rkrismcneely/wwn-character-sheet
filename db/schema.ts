@@ -354,3 +354,14 @@ export const campaignJournalFiles = sqliteTable(
     uniqueIndex("campaign_journal_files_storage_key_unique").on(table.storageKey),
   ],
 );
+
+export const campaignAvailability=sqliteTable("campaign_availability",{
+  campaignId:text("campaign_id").notNull().references(()=>campaigns.id,{onDelete:"cascade"}),
+  userId:text("user_id").notNull().references(()=>user.id,{onDelete:"cascade"}),
+  sessionDate:text("session_date").notNull(),
+  status:text("status",{enum:["yes","maybe","no"]}).notNull(),
+  updatedAt:text("updated_at").notNull(),
+},table=>[
+  primaryKey({columns:[table.campaignId,table.userId,table.sessionDate]}),
+  index("campaign_availability_by_date_idx").on(table.campaignId,table.sessionDate),
+]);

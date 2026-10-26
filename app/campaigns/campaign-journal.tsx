@@ -332,6 +332,10 @@ async function moveEntry(sourceId:string,targetId:string|null){
  }catch(e){setError(e instanceof Error?e.message:"Move failed.");await refresh();}
  finally{setDragged(null);setDropTarget(null);setMoveId("");}
 }
+function normalizeRecapContent(content:string){
+ if(!content.startsWith("<!-- twe-session-recap:"))return content;
+ return content.replace(/^(<!-- twe-session-recap:[^>]* -->)\\n\\n/, "$1\n\n");
+}
 const mapLinkPattern=/^<!-- twe-map:(map_[a-f0-9-]{36}) -->\s*$/gmu;
 function linkedMapId(entry:Entry){return /^<!-- twe-map:(map_[a-f0-9-]{36}) -->\s*$/mu.exec(entry.content)?.[1]??"";}
 async function openMapPicker(entry:Entry){
@@ -527,7 +531,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     {canEdit&&!preview&&!editing&&<button type="button" className="twe-button twe-button-subtle" disabled={mapLinkBusy} onClick={()=>void openMapPicker(current)}>{linkedMapId(current)?"Change linked map":"Link to a map"}</button>}
     {mapPickerOpen&&canEdit&&!preview&&!editing&&<div className="journal-map-link-picker"><label>Campaign map <select value={chosenMapId} disabled={mapLinkBusy} onChange={event=>setChosenMapId(event.target.value)}><option value="">No linked map</option>{mapChoices.map(map=><option key={map.id} value={map.id}>{map.name}</option>)}</select></label><button type="button" className="twe-button twe-button-primary" disabled={mapLinkBusy} onClick={()=>void saveMapLink(current)}>Save link</button><button type="button" className="twe-button" disabled={mapLinkBusy} onClick={()=>setMapPickerOpen(false)}>Cancel</button></div>}
    </div>}
-    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/></div>}
+    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={resolveJournalWikilinks(journalPropertiesMarkdown(normalizeRecapContent(current.content)),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/></div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>

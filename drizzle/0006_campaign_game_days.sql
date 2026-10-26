@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS campaign_game_days (campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE cascade,session_date text NOT NULL,created_by text NOT NULL REFERENCES user(id),created_at text NOT NULL,PRIMARY KEY(campaign_id,session_date));

@@ -28,6 +28,7 @@ export function JournalVisualEditor({ campaignId, value, onChange, disabled = fa
   const [linkTarget, setLinkTarget] = useState("");
   const [linkText, setLinkText] = useState("");
   const [linkSearch, setLinkSearch] = useState("");
+  const [insertOpen, setInsertOpen] = useState(false);
   const [cardLabel, setCardLabel] = useState("");
   const [cardValue, setCardValue] = useState("");
   const [layout, setLayout] = useState("portrait");
@@ -65,7 +66,7 @@ export function JournalVisualEditor({ campaignId, value, onChange, disabled = fa
     setLinkKind(href.startsWith("http") ? "web" : "page");
     setLinkTarget(href.startsWith("/journal-page/") ? href.slice(14).split("#")[0] : href);
     setLinkText(String(wiki.label ?? editor.state.doc.textBetween(selection.current.from, selection.current.to, " ")));
-    setError(""); setDialog("link");
+    setLinkSearch(""); setError(""); setDialog("link");
   }
   function addLink() {
     if (!editor) return;
@@ -171,7 +172,21 @@ export function JournalVisualEditor({ campaignId, value, onChange, disabled = fa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, onAttach, locked, mode, value]);
   const button = (label: string, action: () => void, active = false, unavailable = false) => <button type="button" aria-label={label} aria-pressed={active} title={label} disabled={locked || unavailable} className={active ? "is-active" : ""} onMouseDown={event => event.preventDefault()} onClick={action}>{label}</button>;
-  const visiblePages = pages.filter(page => page.kind === "page" && page.title.toLocaleLowerCase().includes(linkSearch.toLocaleLowerCase()));
+  const pageById = new Map(pages.map(page => [page.id, page]));
+  const pagePath = (page: Page) => {
+    const chain: string[] = [page.title];
+    const seen = new Set<string>([page.id]);
+    let parentId = page.parentId;
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId);
+      const parent = pageById.get(parentId);
+      if (!parent) break;
+      chain.unshift(parent.title);
+      parentId = parent.parentId;
+    }
+    return chain.join(" / ");
+  };
+  const visiblePages = pages.filter(page => page.kind === "page" && pagePath(page).toLocaleLowerCase().includes(linkSearch.trim().toLocaleLowerCase())).sort((a,b)=>pagePath(a).localeCompare(pagePath(b)));
   return <section className="journal-composer" aria-label="Page editor" onKeyDown={event=>{if(dialog&&dialog!=="properties"&&event.key==="Enter"&&["INPUT","SELECT"].includes((event.target as HTMLElement).tagName)){event.preventDefault();if(dialog==="link")addLink();else if(dialog==="card")addCard();else addColumns();}}}>
     <div className="journal-editor-modes" role="group" aria-label="Editing mode">{(["visual", "preview", "markdown"] as const).map(item => <button type="button" key={item} aria-pressed={mode === item} disabled={locked} onClick={() => setMode(item)}>{item === "visual" ? "Write" : item === "preview" ? "Preview" : "Advanced Markdown"}</button>)}</div>
     {!current && <div className="journal-template-choice"><label>Start with <select aria-label="Page template" value={template} disabled={locked} onChange={event => {
@@ -187,25 +202,28 @@ export function JournalVisualEditor({ campaignId, value, onChange, disabled = fa
       }}>Clear template</button>}</div>}
     {error && <p className="twe-workspace-alert" role="alert">{error}</p>}
     {mode === "visual" && <>
-      <div className="journal-editor-toolbar" role="toolbar" aria-label="Text formatting">
+      <div className="journal-editor-toolbar" role="toolbar" aria-label="Text formatting"><span className="journal-editor-tool-label">Text</span>
         <select aria-label="Text style" value={state?.heading ?? "paragraph"} disabled={!editor || locked} onChange={event => event.target.value === "paragraph" ? editor?.chain().focus().setParagraph().run() : editor?.chain().focus().setHeading({ level: Number(event.target.value) as 1 | 2 | 3 }).run()}><option value="paragraph">Body text</option><option value="1">Heading 1</option><option value="2">Heading 2</option><option value="3">Heading 3</option></select>
         {button("Bold", () => { editor?.chain().focus().toggleBold().run(); }, state?.bold)}
         {button("Italic", () => { editor?.chain().focus().toggleItalic().run(); }, state?.italic)}
         {button("Strikethrough", () => { editor?.chain().focus().toggleStrike().run(); }, state?.strike)}
+        <span className="journal-editor-tool-label">Lists</span>
         {button("Bullets", () => { editor?.chain().focus().toggleBulletList().run(); }, state?.bullet)}
         {button("Numbered list", () => { editor?.chain().focus().toggleOrderedList().run(); }, state?.ordered)}
         {button("Quote", () => { editor?.chain().focus().toggleBlockquote().run(); }, state?.quote)}
+        <span className="journal-editor-tool-label">Links & history</span>
         {button("Link", openLink)}
         {button("Undo", () => { editor?.chain().focus().undo().run(); }, false, !state?.undo)}
         {button("Redo", () => { editor?.chain().focus().redo().run(); }, false, !state?.redo)}
       </div>
-      <details className="journal-editor-insert-menu"><summary>Insert content ▾</summary><div className="journal-editor-insert" role="toolbar" aria-label="Insert page content">
+      <details className="journal-editor-insert-menu" open={insertOpen} onToggle={event=>setInsertOpen(event.currentTarget.open)}><summary>+ Insert content <span className="journal-editor-insert-hint">Images, tables, cards, columns, GM-only text</span></summary><div className="journal-editor-insert" role="toolbar" aria-label="Insert page content"><span className="journal-editor-tool-label">Media & layout</span>
         {button("Image or PDF", () => attachment.current?.click())}
         {button("Properties",openProperties)}
         {button("Fact card", () => { setCardLabel(""); setCardValue(""); setError(""); setDialog("card"); })}
         {button("Table", () => { editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(); })}
         {button("Columns", () => setDialog("columns"))}
         {button("Divider", () => { editor?.chain().focus().setHorizontalRule().run(); })}
+        <span className="journal-editor-tool-label">Visibility</span>
         {button("GM-only block", () => { editor?.chain().focus().wrapIn("journalSecret").run(); }, state?.secret, state?.secret)}
         {button("GM dividers (start/end)", () => { if (!editor) return; if (state?.secret) { setError("Place the cursor outside the existing GM-only section."); return; } if (!editor.chain().focus().wrapIn("journalSecret").run()) setError("Select one or more complete paragraphs before adding GM dividers."); }, false, Boolean(state?.secret))}
         {(state?.table || state?.columns || state?.secret || state?.callout) && button("Continue below block", continueBelow)}
@@ -223,7 +241,7 @@ export function JournalVisualEditor({ campaignId, value, onChange, disabled = fa
     {busy && <p role="status">Adding attachment…</p>}
     {dialog && <CampaignDialog title={dialog === "link" ? "Add link" : dialog === "card" ? "Add fact card" : dialog === "properties" ? "Page properties" : "Add columns"} onClose={() => { setDialog(null); setError(""); }}>
       {error && <p role="alert">{error}</p>}
-      {dialog === "link" && <div className="journal-editor-dialog-fields"><label>Link to<select value={linkKind} onChange={event => { setLinkKind(event.target.value as "page" | "web"); setLinkTarget(""); }}><option value="page">Journal page</option><option value="web">Web address</option></select></label>{linkKind === "page" ? <><label>Find a page<input value={linkSearch} onChange={event => setLinkSearch(event.target.value)}/></label><label>Page<select value={linkTarget} onChange={event => setLinkTarget(event.target.value)}><option value="">Choose a page…</option>{visiblePages.map(page => <option key={page.id} value={page.id}>{page.title}</option>)}</select></label></> : <label>Web address<input autoFocus type="url" placeholder="https://…" value={linkTarget} onChange={event => setLinkTarget(event.target.value)}/></label>}<label>Link text<input value={linkText} onChange={event => setLinkText(event.target.value)}/></label><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={addLink}>Add link</button><button type="button" className="twe-button" onClick={() => { editor?.chain().focus().setTextSelection(selection.current).unsetLink().run(); setDialog(null); }}>Remove link</button></div></div>}
+      {dialog === "link" && <div className="journal-editor-dialog-fields"><label>Link to<select value={linkKind} onChange={event => { setLinkKind(event.target.value as "page" | "web"); setLinkTarget(""); }}><option value="page">Journal page</option><option value="web">Web address</option></select></label>{linkKind === "page" ? <><label>Find a page or folder<input autoFocus placeholder="Search titles and locations…" value={linkSearch} onChange={event => setLinkSearch(event.target.value)}/></label><label>Page<select value={linkTarget} onChange={event => setLinkTarget(event.target.value)}><option value="">Choose a page…</option>{visiblePages.map(page => <option key={page.id} value={page.id}>{pagePath(page)}</option>)}</select></label><small className="journal-editor-link-count">{visiblePages.length} matching {visiblePages.length===1?"page":"pages"}</small></> : <label>Web address<input autoFocus type="url" placeholder="https://…" value={linkTarget} onChange={event => setLinkTarget(event.target.value)}/></label>}<label>Link text<input value={linkText} onChange={event => setLinkText(event.target.value)}/></label><div className="twe-workspace-action-row"><button type="button" className="twe-button twe-button-primary" onClick={addLink}>Add link</button><button type="button" className="twe-button" onClick={() => { editor?.chain().focus().setTextSelection(selection.current).unsetLink().run(); setDialog(null); }}>Remove link</button></div></div>}
       {dialog === "card" && <div className="journal-editor-dialog-fields"><label>Label<input autoFocus placeholder="Location, species, affiliation…" value={cardLabel} onChange={event => setCardLabel(event.target.value)}/></label><label>Value<input placeholder="The detail to display" value={cardValue} onChange={event => setCardValue(event.target.value)}/></label><button type="button" className="twe-button twe-button-primary" onClick={addCard}>Add card</button></div>}
       {dialog === "columns" && <div className="journal-editor-dialog-fields"><label>Layout<select value={layout} onChange={event => setLayout(event.target.value)}><option value="portrait">Wide text + portrait / details</option><option value="equal">Two equal columns</option><option value="three">Three columns</option></select></label><button type="button" className="twe-button twe-button-primary" onClick={addColumns}>Add columns</button></div>}
       {dialog === "properties"&&<div className="journal-editor-dialog-fields" onKeyDown={event=>{if(event.key==="Enter"&&(event.target as HTMLElement).tagName!=="TEXTAREA")event.preventDefault();}}>

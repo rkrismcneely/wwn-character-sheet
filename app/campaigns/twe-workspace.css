@@ -370,3 +370,7 @@
 .twe-workspace .twe-workspace-end-line{position:relative;height:13px;margin:0 9px;z-index:3}
 .twe-workspace .twe-workspace-end-line::after{content:"";position:absolute;left:0;right:0;top:5px;height:3px;background:#b58a4e;border-radius:2px;pointer-events:none}
 .twe-workspace .twe-workspace-end-line.is-active::after{height:4px;background:#85521d;box-shadow:0 0 0 1px #fff1ce}
+
+/* The append hit zone stays available while dragging; the line is shown only while hovered. */
+.twe-workspace .twe-workspace-end-line::after{opacity:0}
+.twe-workspace .twe-workspace-end-line.is-active::after{opacity:1}

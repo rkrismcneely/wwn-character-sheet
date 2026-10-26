@@ -116,7 +116,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [journalNotice, setJournalNotice] = useState("");
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string};
   const [placements,setPlacements]=useState<Placement[]>([]);
-  const [locationId,setLocationId]=useState("");
+  const [pendingLocation,setPendingLocation]=useState<{storeId:string;id:string}|null>(null);
   const [locationBusy,setLocationBusy]=useState(false);
   const locations=useMemo(()=>{
     const root=placements.filter(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="locations");
@@ -139,7 +139,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const latest=await loadPlacements();
       const page=latest.find(e=>e.kind==="page"&&e.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
       if(!page){
-        setLocationId(next);
+        setPendingLocation({storeId:selectedStore.id,id:next});
         setJournalNotice("Location selected. Use Add to Journal to create the store article there.");
         return;
       }
@@ -147,13 +147,15 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,parentId:next||folder?.id||null})});
       const body=await response.json() as {entry?:Placement;error?:string};
       if(!response.ok||!body.entry)throw new Error(body.error||"Could not move store article.");
-      await loadPlacements();setJournalNotice(next?"Store filed beneath the selected location.":"Store filed under Stores.");
+      await loadPlacements();setPendingLocation({storeId:selectedStore.id,id:next});setJournalNotice(next?"Store filed beneath the selected location.":"Store filed under Stores.");
     }catch(err){setError(err instanceof Error?err.message:"Could not set location.");}
     finally{setLocationBusy(false);}
   }
 
 
   const selectedStore = stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null;
+  const linkedPage=placements.find(page=>page.kind==="page"&&!!selectedStore&&page.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
+  const locationId=pendingLocation?.storeId===selectedStore?.id?pendingLocation.id:(linkedPage&&locations.some(location=>location.id===linkedPage.parentId)?linkedPage.parentId!:"");
   const categories = useMemo(
     () => Array.from(new Set(catalog.map(item => item.category))),
     [catalog],

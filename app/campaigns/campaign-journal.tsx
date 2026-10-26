@@ -261,8 +261,8 @@ async function moveEntry(sourceId:string,targetId:string|null){
  }catch(e){setError(e instanceof Error?e.message:"Move failed.");await refresh();}
  finally{setDragged(null);setDropTarget(null);setMoveId("");}
 }
-const mapLinkPattern=/^<!-- twe-map:(map_[a-f0-9-]{36}) -->\\s*$/gmu;
-function linkedMapId(entry:Entry){return /^<!-- twe-map:(map_[a-f0-9-]{36}) -->\\s*$/mu.exec(entry.content)?.[1]??"";}
+const mapLinkPattern=/^<!-- twe-map:(map_[a-f0-9-]{36}) -->\s*$/gmu;
+function linkedMapId(entry:Entry){return /^<!-- twe-map:(map_[a-f0-9-]{36}) -->\s*$/mu.exec(entry.content)?.[1]??"";}
 async function openMapPicker(entry:Entry){
  if(!canEdit||preview||!discardDraft())return;
  setMapLinkBusy(true);setError("");
@@ -280,7 +280,7 @@ async function saveMapLink(entry:Entry){
  setMapLinkBusy(true);setError("");
  try{
   const cleaned=entry.content.replace(mapLinkPattern,"").trimEnd();
-  const content=chosenMapId?("<!-- twe-map:"+chosenMapId+" -->\\n\\n"+cleaned):cleaned;
+  const content=chosenMapId?("<!-- twe-map:"+chosenMapId+" -->\n\n"+cleaned):cleaned;
   const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:entry.id,content})});
   const result=await response.json() as {entry?:Entry;error?:string};
   if(!response.ok||!result.entry)throw new Error(result.error||"Unable to save linked map.");

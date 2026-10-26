@@ -86,6 +86,43 @@ function ManagedStoreItem({
   </article>;
 }
 
+
+const managedStart="<!-- twe-store-managed:start -->";
+const managedEnd="<!-- twe-store-managed:end -->";
+function storeJournalManagedContent(store:CampaignStore){
+  const safe=(value:string)=>value.replaceAll("\\","\\\\").replaceAll("*","\\*").replaceAll("[","\\[").replaceAll("]","\\]").replaceAll("|","\\|").replaceAll("\n"," ");
+  const lines=[managedStart];
+  if(store.description.trim())lines.push(store.description.trim(),"");
+  if(store.proprietorName||store.proprietorDescription||store.proprietorNpcId){
+    lines.push("## Proprietor","");
+    if(store.proprietorName)lines.push("**"+safe(store.proprietorName)+"**","");
+    if(store.proprietorDescription)lines.push(store.proprietorDescription.trim(),"");
+    if(store.proprietorNpcId)lines.push("Linked NPC: "+store.proprietorNpcId,"");
+  }
+  lines.push("## Goods for sale","","| Item | Price | Availability |","| :--- | ---: | :--- |");
+  if(store.items.length)for(const item of store.items){
+    const availability=item.quantity===null?"unlimited stock":String(item.quantity)+" in stock";
+    lines.push("| **"+safe(item.name)+"**"+(item.note?" — "+safe(item.note):"")+" | "+safe(item.cost)+" | "+availability+" |");
+  }else lines.push("No inventory listed yet.");
+  lines.push(managedEnd);
+  return lines.join("\n");
+}
+function nextStoreJournalContent(content:string,store:CampaignStore){
+  const managed=storeJournalManagedContent(store);
+  const start=content.indexOf(managedStart),end=content.indexOf(managedEnd);
+  if(start>=0&&end>start)return content.slice(0,start)+managed+content.slice(end+managedEnd.length);
+  // Legacy imports: update only the original generated block, never freeform notes.
+  const legacy=content.match(/\n\n## Goods for sale\n\n\| Item \| Price \| Availability \|[\s\S]*$/u);
+  if(legacy){
+    const prefix=content.slice(0,legacy.index);
+    // Don't replace notes added after the generated table.
+    const rows=legacy[0].trim().split("\n");
+    const expected=rows.slice(2).every(line=>line.startsWith("|")||line==="No inventory listed yet.");
+    if(expected)return prefix+"\n\n"+managed;
+  }
+  return content;
+}
+
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
   const syncInitialized=useRef(false);

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { JournalLinkedNpc } from "./journal-linked-npc";
+import { NPC_CHANGED_EVENT } from "@/lib/campaigns/npc-change-events";
 import type {
   CampaignStore,
   CampaignStoreItem,
@@ -103,6 +104,26 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [proprietorDescription,setProprietorDescription]=useState("");
   const [proprietorNpcId,setProprietorNpcId]=useState("");
   const [npcChoices,setNpcChoices]=useState<{id:string;name:string;notes:string}[]>([]);
+  useEffect(()=>{
+    let disposed=false;
+    const reload=async()=>{
+      try{
+        const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"});
+        if(!response.ok)return;
+        const data=await response.json() as {npcs?:{id:string;name:string;notes:string}[]};
+        if(!disposed&&Array.isArray(data.npcs))setNpcChoices(data.npcs);
+      }catch{}
+    };
+    const onChanged=(event:Event)=>{
+      const detail=(event as CustomEvent<{campaignId?:string}>).detail;
+      if(detail?.campaignId===campaignId)void reload();
+    };
+    const onFocus=()=>{if(!document.hidden)void reload();};
+    void reload();
+    window.addEventListener(NPC_CHANGED_EVENT,onChanged);
+    window.addEventListener("focus",onFocus);
+    return()=>{disposed=true;window.removeEventListener(NPC_CHANGED_EVENT,onChanged);window.removeEventListener("focus",onFocus);};
+  },[campaignId]);
   const [creating, setCreating] = useState(false);
   const [addSourceMode, setAddSourceMode] = useState<AddSourceMode>("catalog");
   const [catalogCategory, setCatalogCategory] = useState("");
@@ -551,7 +572,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             {proprietorReady&&<fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
               <label className="gm-npc-notes"><span>Name</span><input maxLength={120} value={proprietorName} onChange={event=>setProprietorName(event.target.value)} placeholder="Shopkeeper name"/></label>
               <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={proprietorDescription} onChange={event=>setProprietorDescription(event.target.value)} placeholder="Appearance, mannerisms, personality…"/></label>
-              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:unknown)=>{const data=v as {npcs?:{id:string;name:string;notes:string}[]};setNpcChoices(data.npcs||[]);}).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
+              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
                 <option value="">No linked NPC</option>{npcChoices.map(npc=><option key={npc.id} value={npc.id}>{npc.name}</option>)}
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>
@@ -568,7 +589,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             {proprietorReady&&<fieldset className="campaign-store-proprietor"><legend>Proprietor (optional)</legend>
               <label className="gm-npc-notes"><span>Name</span><input maxLength={120} value={proprietorName} onChange={event=>setProprietorName(event.target.value)} placeholder="Shopkeeper name"/></label>
               <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={proprietorDescription} onChange={event=>setProprietorDescription(event.target.value)} placeholder="Appearance, mannerisms, personality…"/></label>
-              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onFocus={()=>{void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/npcs",{cache:"no-store"}).then(r=>r.json()).then((v:unknown)=>{const data=v as {npcs?:{id:string;name:string;notes:string}[]};setNpcChoices(data.npcs||[]);}).catch(()=>{});}} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
+              <label className="gm-npc-notes"><span>Link an existing NPC</span><select value={proprietorNpcId} onChange={event=>{const id=event.target.value;setProprietorNpcId(id);const npc=npcChoices.find(n=>n.id===id);if(npc&&!proprietorName)setProprietorName(npc.name);}}>
                 <option value="">No linked NPC</option>{npcChoices.map(npc=><option key={npc.id} value={npc.id}>{npc.name}</option>)}
                 {proprietorNpcId&&!npcChoices.some(n=>n.id===proprietorNpcId)&&<option value={proprietorNpcId}>Current linked NPC</option>}
               </select></label>

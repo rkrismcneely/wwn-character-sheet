@@ -251,11 +251,11 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
       const sameName = result.entries.find(page => page.kind === "page" && page.title.trim().toLocaleLowerCase() === selectedStore.name.trim().toLocaleLowerCase());
       if (sameName && !window.confirm('An article named "' + sameName.title + '" already exists. Create a separate store article?')) return;
       const safe = (value:string) => value.replaceAll("\\", "\\\\").replaceAll("*", "\\*").replaceAll("[", "\\[").replaceAll("]", "\\]").replaceAll("|", "\\|").replaceAll("\n", " ");
-      const lines = [marker, "", selectedStore.description.trim(), "", "## Inventory", ""];
+      const lines = [marker, "", selectedStore.description.trim(), "", "## Goods for sale", "", "| Item | Price | Availability |", "| :--- | ---: | :--- |"];
       if (selectedStore.items.length) {
         for (const item of selectedStore.items) {
           const quantity = item.quantity === null ? "unlimited stock" : String(item.quantity) + " in stock";
-          lines.push("- **" + safe(item.name) + "** — " + safe(item.cost) + " (" + quantity + ")" + (item.note ? " — " + safe(item.note) : ""));
+          lines.push("| **" + safe(item.name) + (item.note ? "** — " + safe(item.note) : "**") + " | " + safe(item.cost) + " | " + quantity + " |");
         }
       } else lines.push("No inventory listed yet.");
       const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm"})});

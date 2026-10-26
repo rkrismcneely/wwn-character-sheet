@@ -250,7 +250,7 @@ const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolder
 const childrenByParent=new Map<string,Entry[]>();
 for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}
 const isSessionRecap=(entry:Entry|undefined)=>entry?.kind==="page"&&entry.content.includes("<!-- twe-session-recap:");
-const compareEntries=(a:Entry,b:Entry)=>isSessionRecap(a)&&isSessionRecap(b)?b.title.localeCompare(a.title):a.sortOrder!=null&&b.sortOrder!=null?a.sortOrder-b.sortOrder:a.sortOrder!=null?-1:b.sortOrder!=null?1:a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
+const compareEntries=(a:Entry,b:Entry)=>isSessionRecap(a)!==isSessionRecap(b)?(isSessionRecap(a)?-1:1):isSessionRecap(a)&&isSessionRecap(b)?b.title.localeCompare(a.title):a.sortOrder!=null&&b.sortOrder!=null?a.sortOrder-b.sortOrder:a.sortOrder!=null?-1:b.sortOrder!=null?1:a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
 for(const siblings of childrenByParent.values())siblings.sort(compareEntries);
 const sortedEntries:Entry[]=[];const visited=new Set<string>();
 function addChildren(parent:string,depth=0){if(depth>20)return;for(const entry of childrenByParent.get(parent)??[]){if(visited.has(entry.id))continue;visited.add(entry.id);sortedEntries.push(entry);addChildren(entry.id,depth+1);}}

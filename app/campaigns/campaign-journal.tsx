@@ -244,20 +244,17 @@ async function moveBulkPages(targetId:string|null){
  const pending=bulkIds.filter(id=>entryById.get(id)?.parentId!==targetId);
  if(!pending.length){setBulkSelected(new Set());return;}
  setBulkBusy(true);setBulkNotice("");
- const completed:string[]=[];
  try{
-  for(const id of pending){
-   const response=await fetch(endpoint,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,parentId:targetId})});
-   const result=await response.json() as {error?:string};
-   if(!response.ok)throw new Error(result.error||"Could not move all selected pages.");
-   completed.push(id);
-  }
-  setEntries(old=>old.map(entry=>completed.includes(entry.id)?{...entry,parentId:targetId}:entry));
+  const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"movePages",ids:pending,parentId:targetId})});
+  const result=await response.json() as {move?:{ids:string[]};error?:string};
+  if(!response.ok||!result.move)throw new Error(result.error||"Could not move selected articles.");
+  const moved=new Set(result.move.ids);
+  setEntries(old=>old.map(entry=>moved.has(entry.id)?{...entry,parentId:targetId}:entry));
   if(targetId)setCollapsedFolders(old=>{const next=new Set(old);next.delete(targetId);return next;});
-  setBulkSelected(new Set());setSelectionAnchor("");setBulkNotice(completed.length+" articles moved.");
+  setBulkSelected(new Set());setSelectionAnchor("");setBulkNotice(moved.size+" articles moved.");setError("");
  }catch(error){
   setError(error instanceof Error?error.message:"Bulk move failed.");
-  await refresh();setBulkSelected(new Set(bulkIds.filter(id=>!completed.includes(id))));
+  await refresh();
  }finally{setBulkBusy(false);setDragged(null);setDropTarget(null);setReorderTarget(null);}
 }
 

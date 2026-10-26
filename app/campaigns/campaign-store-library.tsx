@@ -130,7 +130,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
     if(!response.ok||!Array.isArray(body.entries))throw new Error(body.error||"Cannot load Journal locations.");
     setPlacements(body.entries);return body.entries;
   }
-  useEffect(()=>{const controller=new AbortController();void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((body:{entries?:Placement[]})=>{if(!controller.signal.aborted&&Array.isArray(body.entries))setPlacements(body.entries);}).catch(()=>{});return()=>controller.abort();},[campaignId]);
+  useEffect(()=>{const controller=new AbortController();void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((value:unknown)=>{const body=value as {entries?:Placement[]};if(!controller.signal.aborted&&Array.isArray(body.entries))setPlacements(body.entries);}).catch(()=>{});return()=>controller.abort();},[campaignId]);
   async function moveStoreLocation(next:string){
     if(!selectedStore||locationBusy)return;
     if(next&&!locations.some(l=>l.id===next))return;

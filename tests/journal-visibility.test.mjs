@@ -11,9 +11,14 @@ test("nested pages require a complete chain of visible folders",()=>{
  const entries=[{id:"top",parentId:null,kind:"folder"},{id:"middle",parentId:"top",kind:"folder"},{id:"page",parentId:"middle",kind:"page"}];
  assert.equal(visibleJournalEntries(entries).length,3);
 });
-test("cycles and non-folder parents are not exposed",()=>{
+test("cycles are hidden, but pages can nest beneath visible location articles",()=>{
  const entries=[{id:"a",parentId:"b",kind:"folder"},{id:"b",parentId:"a",kind:"folder"},{id:"bad",parentId:"page",kind:"page"},{id:"page",parentId:null,kind:"page"}];
- assert.deepEqual(visibleJournalEntries(entries).map(e=>e.id),["page"]);
+ assert.deepEqual(visibleJournalEntries(entries).map(e=>e.id),["bad","page"]);
+});
+
+test("a child article cannot be exposed when its location article is hidden",()=>{
+ const entries=[{id:"locations",parentId:null,kind:"folder",visibility:"players"},{id:"town",parentId:"locations",kind:"page",visibility:"gm"},{id:"store",parentId:"town",kind:"page",visibility:"players"}];
+ assert.deepEqual(visibleJournalEntries(entries.filter(e=>e.visibility==="players")).map(e=>e.id),["locations"]);
 });
 
 test("GM-only Markdown never reaches the player response",()=>{

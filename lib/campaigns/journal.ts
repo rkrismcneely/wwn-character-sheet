@@ -31,7 +31,7 @@ export function visibleJournalEntries<T extends {id:string;parentId:string|null;
    if(seen.has(parent))return false;
    seen.add(parent);
    const folder=byId.get(parent);
-   if(!folder||folder.kind!=="folder")return false;
+   if(!folder||(folder.kind!=="folder"&&folder.kind!=="page"))return false;
    parent=folder.parentId;
   }
   return true;
@@ -39,7 +39,7 @@ export function visibleJournalEntries<T extends {id:string;parentId:string|null;
 }
 /** Atomic content-only update used by attachment imports to detect concurrent GM edits. */
 export const atomicJournalMoveSQL =
- "WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind='folder' UNION SELECT p.id,p.parent_id FROM campaign_journal_entries p JOIN ancestors a ON p.id=a.parent_id WHERE p.campaign_id=?) UPDATE campaign_journal_entries SET parent_id=?,updated_at=? WHERE campaign_id=? AND id=? AND NOT EXISTS (SELECT 1 FROM ancestors WHERE id=?) AND (? IS NULL OR EXISTS (SELECT 1 FROM ancestors WHERE id=?))";
+ "WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind IN ('folder','page') UNION SELECT p.id,p.parent_id FROM campaign_journal_entries p JOIN ancestors a ON p.id=a.parent_id WHERE p.campaign_id=?) UPDATE campaign_journal_entries SET parent_id=?,updated_at=? WHERE campaign_id=? AND id=? AND NOT EXISTS (SELECT 1 FROM ancestors WHERE id=?) AND (? IS NULL OR EXISTS (SELECT 1 FROM ancestors WHERE id=?))";
 
 export const conditionalJournalContentUpdateSQL =
  "UPDATE campaign_journal_entries SET content = ?, updated_at = ? WHERE campaign_id = ? AND id = ? AND kind = 'page' AND content = ? AND updated_at = ?";
@@ -74,13 +74,13 @@ async function requireGM(db: D1Database, actor: CampaignActor | null, campaignId
   if (!ctx.isGM) throw new CampaignServiceError("Only campaign GMs can edit the journal.", 403);
   return ctx.campaignId;
 }
-async function getParent(db: D1Database, campaignId: string, parentId: unknown) {
+async function getParent(db: D1Database, campaignId: string, parentId: unknown, allowPage = false) {
   if (parentId == null || parentId === "") return null;
   if (typeof parentId !== "string" || !uuidPattern.test(parentId))
     throw new CampaignServiceError("Invalid parent folder.", 422);
   const row = await db.prepare("SELECT kind FROM campaign_journal_entries WHERE campaign_id = ? AND id = ?")
     .bind(campaignId, parentId).first<{ kind: string }>();
-  if (row?.kind !== "folder") throw new CampaignServiceError("Parent folder not found.", 422);
+  if (row?.kind !== "folder" && !(allowPage && row?.kind === "page")) throw new CampaignServiceError("Parent folder or location article not found.", 422);
   return parentId;
 }
 const starterJournalFolders = ["Locations", "NPCs", "Items", "Stores", "Quests", "Session Notes"] as const;
@@ -135,7 +135,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const id = await requireGM(db, actor, campaignId);
   const kind = input.kind === "folder" ? "folder" : input.kind === "page" ? "page" : null;
   if (!kind) throw new CampaignServiceError("Invalid entry type.", 422);
-  const parentId = await getParent(db, id, input.parentId);
+  const parentId = await getParent(db, id, input.parentId, kind === "page");
   const title = cleanTitle(input.title);
   const content = kind === "folder" ? "" : cleanContent(input.content ?? "");
   const visibility = cleanVisibility(input.visibility ?? "gm");
@@ -219,14 +219,14 @@ export async function moveJournalEntry(db:D1Database,actor:CampaignActor|null,ca
  if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid journal entry.",422);
  const entry=await db.prepare("SELECT id,parent_id AS parentId,kind FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.id).first<{id:string;parentId:string|null;kind:string}>();
  if(!entry)throw new CampaignServiceError("Journal entry not found.",404);
- const parent=await getParent(db,campaign,input.parentId);
+ const parent=await getParent(db,campaign,input.parentId,entry.kind==="page");
  if(parent===entry.id)throw new CampaignServiceError("A folder cannot contain itself.",422);
  let current=parent;
  const seen=new Set<string>([entry.id]);
  for(let i=0;current;i++){
   if(i>1000||seen.has(current))throw new CampaignServiceError("Circular folder move is not allowed.",422);
   seen.add(current);
-  const row=await db.prepare("SELECT parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind='folder'").bind(campaign,current).first<{parentId:string|null}>();
+  const row=await db.prepare("SELECT parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=? AND kind IN ('folder','page')").bind(campaign,current).first<{parentId:string|null}>();
   if(!row)throw new CampaignServiceError("Destination folder not found.",422);
   current=row.parentId;
  }

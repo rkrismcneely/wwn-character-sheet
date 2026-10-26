@@ -83,7 +83,31 @@ async function getParent(db: D1Database, campaignId: string, parentId: unknown, 
   if (row?.kind !== "folder" && !(allowPage && row?.kind === "page")) throw new CampaignServiceError("Parent folder or location article not found.", 422);
   return parentId;
 }
-const starterJournalFolders = ["Locations", "NPCs", "Items", "Stores", "Quests", "Session Notes"] as const;
+export const journalFolderRoles = ["Locations", "NPCs", "Items", "Stores", "Quests", "Session Notes"] as const;
+const starterJournalFolders = journalFolderRoles;
+const folderRolePrefix="twe-role:";
+export function journalFolderRole(entry:{kind:string;icon?:string;title:string},entries:ReadonlyArray<{kind:string;icon?:string;title:string}>):string|null{
+ if(entry.kind!=="folder")return null;
+ const role=entry.icon?.startsWith(folderRolePrefix)?entry.icon.slice(folderRolePrefix.length):"";
+ if(journalFolderRoles.some(name=>name.toLowerCase()===role))return role;
+ const fallback=entry.title.trim().toLowerCase();
+ return journalFolderRoles.some(name=>name.toLowerCase()===fallback)&&!entries.some(item=>item.kind==="folder"&&item.icon===folderRolePrefix+fallback)?fallback:null;
+}
+export async function designateJournalFolder(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;role?:unknown}){
+ const campaign=await requireGM(db,actor,campaignId);
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id))throw new CampaignServiceError("Invalid folder.",422);
+ if(typeof input.role!=="string"||!journalFolderRoles.some(role=>role.toLowerCase()===input.role))throw new CampaignServiceError("Invalid folder designation.",422);
+ const target=await db.prepare("SELECT id FROM campaign_journal_entries WHERE id=? AND campaign_id=? AND kind='folder'").bind(input.id,campaign).first();
+ if(!target)throw new CampaignServiceError("Folder not found.",404);
+ const icon=folderRolePrefix+input.role;
+ const now=new Date().toISOString();
+ await db.batch([
+  db.prepare("UPDATE campaign_journal_entries SET icon='file-text', updated_at=? WHERE campaign_id=? AND kind='folder' AND icon=? AND id<>?").bind(now,campaign,icon,input.id),
+  db.prepare("UPDATE campaign_journal_entries SET icon=?,updated_at=? WHERE campaign_id=? AND id=? AND kind='folder'").bind(icon,now,campaign,input.id),
+ ]);
+ return {id:input.id,role:input.role,icon};
+}
+
 
 /** Bootstrap only truly empty journals, so edited, moved, or deleted folders never regenerate. */
 async function initializeEmptyJournal(db: D1Database, campaignId: string) {
@@ -92,9 +116,9 @@ async function initializeEmptyJournal(db: D1Database, campaignId: string) {
  for (const title of starterJournalFolders) {
   await db.prepare(`INSERT INTO campaign_journal_entries
     (id,campaign_id,parent_id,kind,title,content,icon,visibility,created_at,updated_at)
-    SELECT ?, ?, NULL, 'folder', ?, '', 'file-text', 'gm', ?, ?
+    SELECT ?, ?, NULL, 'folder', ?, '', ?, 'gm', ?, ?
     WHERE NOT EXISTS (SELECT 1 FROM campaign_journal_entries WHERE campaign_id = ?)`)
-    .bind(crypto.randomUUID(),campaignId,title,now,now,campaignId).run();
+    .bind(crypto.randomUUID(),campaignId,title,folderRolePrefix+title.toLowerCase(),now,now,campaignId).run();
   // Once the first folder exists, subsequent inserts must use a separate condition.
   if (title === starterJournalFolders[0]) {
    for (const remaining of starterJournalFolders.slice(1)) {
@@ -102,7 +126,7 @@ async function initializeEmptyJournal(db: D1Database, campaignId: string) {
      (id,campaign_id,parent_id,kind,title,content,icon,visibility,created_at,updated_at)
      SELECT ?, ?, NULL, 'folder', ?, '', 'file-text', 'gm', ?, ?
      WHERE NOT EXISTS (SELECT 1 FROM campaign_journal_entries WHERE campaign_id = ? AND kind = 'folder' AND title = ?)`)
-     .bind(crypto.randomUUID(),campaignId,remaining,now,now,campaignId,remaining).run();
+     .bind(crypto.randomUUID(),campaignId,remaining,folderRolePrefix+remaining.toLowerCase(),now,now,campaignId,remaining).run();
    }
    break;
   }
@@ -145,7 +169,7 @@ export async function createJournalEntry(db: D1Database, actor: CampaignActor | 
   const inferredIcon = /<!-- twe-store:cstore_[a-f0-9]{32} -->/u.test(content) ? "warehouse" :
     /\{\{twe-npc:(?:cnpc_[a-f0-9]{32}|[a-f0-9-]{36})\}\}/u.test(content) ? "user-round" :
     folderIcons[parent?.title.trim().toLowerCase()??""]??journalPageIcon(null);
-  const icon = kind === "folder" ? "file-text" : input.icon === undefined ? inferredIcon : cleanPageIcon(input.icon);
+  const icon = kind === "folder" ? (journalFolderRoles.some(role=>role.toLowerCase()===title.toLowerCase())?folderRolePrefix+title.toLowerCase():"file-text") : input.icon === undefined ? inferredIcon : cleanPageIcon(input.icon);
   const entryId = crypto.randomUUID();
   const now = new Date().toISOString();
   const guard=journalAttachmentWriteGuard(content,campaignId,id);
@@ -167,7 +191,7 @@ export async function updateJournalEntry(db: D1Database, actor: CampaignActor | 
   const title = input.title === undefined ? old.title : cleanTitle(input.title);
   const content = old.kind === "folder" ? "" : input.content === undefined ? old.content : cleanContent(input.content);
   const visibility = input.visibility === undefined ? old.visibility : cleanVisibility(input.visibility);
-  const icon = old.kind === "folder" ? "file-text" : input.icon === undefined ? old.icon : cleanPageIcon(input.icon);
+  const icon = old.kind === "folder" ? old.icon : input.icon === undefined ? old.icon : cleanPageIcon(input.icon);
   const updatedAt = new Date().toISOString();
   const guard=journalAttachmentWriteGuard(content,campaignId,id);
   if(input.expectedContent!==undefined){

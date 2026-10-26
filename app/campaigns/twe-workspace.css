@@ -361,3 +361,12 @@
 .twe-workspace .twe-workspace-end-drop.is-active{
   border-color:#78501a;background:#e1ba72;box-shadow:0 0 0 2px #fff2d1;
 }
+
+/* The generic nth-last-child selector can match the glyph when no lock is present.
+   Never crop the icon; truncate the actual title only. */
+.twe-workspace .twe-workspace-tree-name > .twe-workspace-tree-glyph{overflow:visible!important;flex-shrink:0}
+.twe-workspace .twe-workspace-tree-name > .twe-workspace-entry-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A thin insertion line at the end of each folder, with an invisible padded hit area. */
+.twe-workspace .twe-workspace-end-line{position:relative;height:13px;margin:0 9px;z-index:3}
+.twe-workspace .twe-workspace-end-line::after{content:"";position:absolute;left:0;right:0;top:5px;height:3px;background:#b58a4e;border-radius:2px;pointer-events:none}
+.twe-workspace .twe-workspace-end-line.is-active::after{height:4px;background:#85521d;box-shadow:0 0 0 1px #fff1ce}

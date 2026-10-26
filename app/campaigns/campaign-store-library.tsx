@@ -122,7 +122,8 @@ function updateStoreManagedPage(content:string,store:CampaignStore){
  if(!marker)return content;
  // A legacy article's description and proprietor paragraphs may have been edited.
  // Preserve the original prefix instead of silently replacing it.
- return prefix+"\n\n"+fresh;
+ const inventory=fresh.slice(fresh.indexOf("## Goods for sale"),fresh.indexOf(storeManagedEnd)).trimEnd();
+ return prefix+"\n\n"+inventory;
 }
 
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {

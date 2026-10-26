@@ -309,7 +309,13 @@ async function openReaders(id:string){
 }
 async function saveReaders(){
  const r=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entryId:readerEntryId,userIds:readers.filter(x=>x.selected).map(x=>x.userId)})});
- const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}const entry=entryById.get(readerEntryId);if(entry?.visibility!=="selected")await editEntryQuick(entry!,{visibility:"selected"});setReaderEditing(false);await refresh();
+ const j=await r.json() as {error?:string};if(!r.ok){setError(j.error||"Could not save players");return;}const entry=entryById.get(readerEntryId);
+ if(entry&&entry.visibility!=="selected"){
+  const change=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:entry.id,visibility:"selected"})});
+  const outcome=await change.json() as {error?:string};
+  if(!change.ok){setError(outcome.error||"Players saved but visibility could not be changed.");return;}
+ }
+ setReaderEditing(false);await refresh();
 }
 async function uploadJournalFile(file:File):Promise<string>{
  if(!editing||creatingFolder||savingRef.current)throw new Error("Finish the current save first.");

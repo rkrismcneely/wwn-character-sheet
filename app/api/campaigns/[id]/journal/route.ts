@@ -1,7 +1,7 @@
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignD1 } from "@/lib/campaigns/service";
-import { createJournalEntry, deleteJournalEntry, duplicateJournalEntry, journalReaderOptions, listJournal, moveJournalEntry, reorderJournalEntry, setJournalReaders, setJournalFolderVisibility, updateJournalEntry } from "@/lib/campaigns/journal";
+import { createJournalEntry, deleteJournalEntry, duplicateJournalEntry, journalReaderOptions, listJournal, moveJournalEntry, moveJournalPages, reorderJournalEntry, setJournalReaders, setJournalFolderVisibility, updateJournalEntry } from "@/lib/campaigns/journal";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
 type Context = { params: Promise<{ id: string }> };
@@ -36,6 +36,7 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
     const body = await readBoundedJson(request, 120 * 1024) as Record<string, unknown> | null;
+    if(body?.action==="movePages")return Response.json({move:await moveJournalPages(await getCampaignD1(),actor,id,body)});
     if(body?.action==="folderVisibility")return Response.json(await setJournalFolderVisibility(await getCampaignD1(),actor,id,body));
     if (body && Object.hasOwn(body, "beforeId")) {
       return Response.json({ order: await reorderJournalEntry(await getCampaignD1(), actor, id, body) });

@@ -115,7 +115,7 @@ function updateStoreManagedPage(content:string,store:CampaignStore){
  const legacy=content.match(/\n\n## Goods for sale\n\n\| Item \| Price \| Availability \|[\s\S]*$/u);
  if(!legacy)return content;
  const rows=legacy[0].trim().split("\n");
- const generated=rows.length>=3&&rows[1]==="| :--- | ---: | :--- |"&&rows.slice(2).every(line=>line.startsWith("|")||line==="No inventory listed yet.");
+ const generated=rows.length>=4&&rows[2]==="| Item | Price | Availability |"&&rows[3]==="| :--- | ---: | :--- |"&&rows.slice(4).every(line=>line.startsWith("|")||line==="No inventory listed yet.");
  if(!generated)return content;
  const prefix=content.slice(0,legacy.index);
  const marker=prefix.match(/^<!-- twe-store:[^>]+ -->/u)?.[0];

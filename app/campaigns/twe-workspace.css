@@ -338,3 +338,7 @@
 .twe-workspace-bulk-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:7px 9px;margin:6px 0;background:var(--panel-bg,#f7f1e5);border:1px solid #a98f65;border-radius:6px;font-size:12px}
 .twe-workspace-bulk-toolbar select{min-width:115px;max-width:100%;flex:1}
 .twe-workspace-bulk-toolbar button{cursor:pointer}
+
+/* Reserve the full width of Lucide folder glyphs, including the NPC and pen outlines. */
+.twe-workspace .twe-workspace-tree-glyph{flex:0 0 19px;width:19px;min-width:19px;overflow:visible}
+.twe-workspace .twe-workspace-tree-glyph svg{max-width:none;overflow:visible}

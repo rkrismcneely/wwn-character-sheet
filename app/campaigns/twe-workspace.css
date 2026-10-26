@@ -305,3 +305,12 @@
 .twe-workspace-tree-row.is-folder.is-active,.twe-workspace-tree-row.is-article.is-active{background:#dfc69a;border-color:#c69f60;box-shadow:inset 3px 0 #916023}
 .twe-workspace-tree-row.is-folder.is-drop-target,.twe-workspace-tree-row.is-article.is-drop-target{background:#d9e7cc;border-color:#5b8750;outline:2px solid #769866;outline-offset:-2px}
 .twe-workspace-tree-row.is-folder.is-reorder-target,.twe-workspace-tree-row.is-article.is-reorder-target{background:#f1e2c7;box-shadow:inset 0 3px #a97934}
+
+/* Search result excerpts and lightweight in-journal navigation. */
+.twe-workspace .twe-workspace-entry-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.twe-workspace-search-snippet{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#806e55;font-size:10px;font-weight:400;line-height:1.45}
+.twe-workspace-history{display:inline-flex;gap:3px;margin-right:8px;vertical-align:middle}
+.twe-workspace-history button{min-width:25px;height:25px;border:1px solid #d6c4a4;border-radius:5px;background:transparent;color:#72552c;cursor:pointer}
+.twe-workspace-history button:hover:not(:disabled){background:#e7d8bd}
+.twe-workspace-history button:disabled{opacity:.35;cursor:default}
+.twe-workspace-search:focus-within{outline:2px solid #a97934;outline-offset:1px}

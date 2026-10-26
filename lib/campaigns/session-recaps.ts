@@ -135,5 +135,11 @@ export async function updateCampaignSessionRecap(
     throw new CampaignServiceError(existing
       ? "This recap was edited elsewhere. Reload it before saving." : "Session recap not found.", existing ? 409 : 404);
   }
+  // Keep the linked Journal article's date/title synchronized. Its Markdown and
+  // visibility remain independently editable in the Journal.
+  const marker="<!-- twe-session-recap:"+id+" -->";
+  await db.prepare(`UPDATE campaign_journal_entries SET title=?,updated_at=?
+    WHERE campaign_id=? AND kind='page' AND instr(content,?)>0`)
+    .bind(draft.date.slice(2)+" — "+draft.title,now,internalId,marker).run();
   return { id, ...draft, createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
 }

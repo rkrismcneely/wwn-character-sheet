@@ -342,3 +342,22 @@
 /* Reserve the full width of Lucide folder glyphs, including the NPC and pen outlines. */
 .twe-workspace .twe-workspace-tree-glyph{flex:0 0 19px;width:19px;min-width:19px;overflow:visible}
 .twe-workspace .twe-workspace-tree-glyph svg{max-width:none;overflow:visible}
+
+/* Show the exact insertion edge above drag previews and neighboring rows. */
+.twe-workspace .twe-workspace-tree-row.is-reorder-target{
+  position:relative;z-index:2;box-shadow:none;
+}
+.twe-workspace .twe-workspace-tree-row.is-reorder-target::before{
+  content:"";position:absolute;top:-2px;left:0;right:0;height:4px;
+  background:#a16a23;border-radius:4px;z-index:5;pointer-events:none;
+  box-shadow:0 0 0 1px #fff4d4;
+}
+.twe-workspace .twe-workspace-end-drop{
+  position:relative;min-height:18px;margin:2px 8px 6px;
+  border:2px dashed #bb9660;border-radius:4px;
+  background:#fff0d3;color:#624420;text-align:center;
+  font:600 10px/14px var(--font-ui,Arial,sans-serif);
+}
+.twe-workspace .twe-workspace-end-drop.is-active{
+  border-color:#78501a;background:#e1ba72;box-shadow:0 0 0 2px #fff2d1;
+}

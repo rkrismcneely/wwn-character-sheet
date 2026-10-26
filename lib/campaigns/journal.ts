@@ -263,18 +263,18 @@ export async function moveJournalEntry(db:D1Database,actor:CampaignActor|null,ca
 
 
 /** Persist explicit order for siblings without changing their folder or visibility. */
-export async function reorderJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;beforeId?:unknown}){
+export async function reorderJournalEntry(db:D1Database,actor:CampaignActor|null,campaignId:string,input:{id?:unknown;beforeId?:unknown;parentId?:unknown}){
  const campaign=await requireGM(db,actor,campaignId);
- if(typeof input.id!=="string"||!uuidPattern.test(input.id)||typeof input.beforeId!=="string"||!uuidPattern.test(input.beforeId))
+ if(typeof input.id!=="string"||!uuidPattern.test(input.id)||(input.beforeId!==null&&(typeof input.beforeId!=="string"||!uuidPattern.test(input.beforeId))))
   throw new CampaignServiceError("Invalid journal reorder request.",422);
  const source=await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.id).first<{id:string;parentId:string|null}>();
- const before=await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.beforeId).first<{id:string;parentId:string|null}>();
- if(!source||!before||source.parentId!==before.parentId)throw new CampaignServiceError("Items must be in the same folder.",422);
- const linked=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id IN (?,?) AND kind='page' AND content LIKE '%<!-- twe-session-recap:%' LIMIT 1").bind(campaign,source.id,before.id).first();
+ const before=input.beforeId===null?null:await db.prepare("SELECT id,parent_id AS parentId FROM campaign_journal_entries WHERE campaign_id=? AND id=?").bind(campaign,input.beforeId).first<{id:string;parentId:string|null}>();
+ if(!source||(input.beforeId!==null&&!before)||(before&&source.parentId!==before.parentId)||(input.beforeId===null&&input.parentId!==source.parentId))throw new CampaignServiceError("Items must be in the same folder.",422);
+ const linked=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND id IN (?,?) AND kind='page' AND content LIKE '%<!-- twe-session-recap:%' LIMIT 1").bind(campaign,source.id,before?.id??source.id).first();
  if(linked)throw new CampaignServiceError("Session recaps are ordered automatically by date.",422);
  const all=await db.prepare("SELECT id FROM campaign_journal_entries WHERE campaign_id=? AND parent_id IS ? ORDER BY sort_order IS NULL,sort_order,kind ASC,title COLLATE NOCASE ASC,id").bind(campaign,source.parentId).all<{id:string}>();
  const ids=all.results.map(row=>row.id).filter(id=>id!==source.id);
- const index=ids.indexOf(before.id);
+ const index=before?ids.indexOf(before.id):ids.length;
  if(index<0)throw new CampaignServiceError("Reorder target no longer exists.",409);
  ids.splice(index,0,source.id);
  const now=new Date().toISOString();

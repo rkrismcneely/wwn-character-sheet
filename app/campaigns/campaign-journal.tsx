@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import "./twe-workspace.css";
 import "./journal-editor.css";
@@ -39,6 +39,7 @@ const [forwardStack,setForwardStack]=useState<string[]>([]);
 const [dragged,setDragged]=useState<string|null>(null);
 const [dropTarget,setDropTarget]=useState<string|null>(null);
 const [reorderTarget,setReorderTarget]=useState<string|null>(null);
+const [endTarget,setEndTarget]=useState<string|null>(null);
 const [moveId,setMoveId]=useState("");
 const [menuId,setMenuId]=useState("");
 const [npcCreatorOpen,setNpcCreatorOpen]=useState(false);
@@ -301,7 +302,7 @@ async function moveBulkPages(targetId:string|null){
  }catch(error){
   setError(error instanceof Error?error.message:"Bulk move failed.");
   await refresh();
- }finally{setBulkBusy(false);setDragged(null);setDropTarget(null);setReorderTarget(null);}
+ }finally{setBulkBusy(false);setDragged(null);setDropTarget(null);setReorderTarget(null);setEndTarget(null);}
 }
 
 function toggleAllFolders(){const folders=entries.filter(entry=>entry.kind==="folder");setCollapsedFolders(old=>folders.every(folder=>old.has(folder.id))?new Set():new Set(folders.map(folder=>folder.id)));}
@@ -314,13 +315,13 @@ const validTarget=(sourceId:string,targetId:string|null)=>{
  while(cursor){if(seen.has(cursor))return false;seen.add(cursor);cursor=entryById.get(cursor)?.parentId??null;}
  return targetId===null||entryById.get(targetId)?.kind==="folder";
 };
-async function reorderEntry(sourceId:string,beforeId:string){
- if(isSessionRecap(entryById.get(sourceId)!)||isSessionRecap(entryById.get(beforeId)!))return;
+async function reorderEntry(sourceId:string,beforeId:string|null,parentId:string|null=null){
+ if(isSessionRecap(entryById.get(sourceId)!)||(beforeId!==null&&isSessionRecap(entryById.get(beforeId)!)))return;
  if(!canEdit||preview||sourceId===beforeId)return;
- const source=entryById.get(sourceId),target=entryById.get(beforeId);
- if(!source||!target||source.parentId!==target.parentId)return;
+ const source=entryById.get(sourceId),target=beforeId===null?null:entryById.get(beforeId);
+ if(!source||(beforeId!==null&&!target)||source.parentId!==(target?target.parentId:parentId))return;
  try{
-  const r=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:sourceId,beforeId})});
+  const r=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:sourceId,beforeId,parentId})});
   const data=await r.json() as {error?:string;order?:{ids:string[]}};
   if(!r.ok||!data.order)throw new Error(data.error||"Could not reorder items.");
   const positions=new Map(data.order.ids.map((id,index)=>[id,index]));
@@ -489,10 +490,13 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
    {bulkNotice&&<div role="status" className="twe-workspace-nav-caption">{bulkNotice}</div>}
    {canEdit&&!preview&&<button type="button" className={"twe-workspace-root-drop"+(dropTarget==="root"?" is-drop-target":"")} onDragOver={e=>{if(dragged&&validTarget(dragged,null)){e.preventDefault();setDropTarget("root");}}} onDragLeave={()=>setDropTarget(null)} onDrop={e=>{e.preventDefault();if(dragged){if(bulkIds.length>1&&bulkSelected.has(dragged))void moveBulkPages(null);else void moveEntry(dragged,null);}}} onClick={()=>{if(moveId)void moveEntry(moveId,null);else if(bulkIds.length)void moveBulkPages(null);}}>↖ Top level {moveId?"(move selected item)":""}</button>}
    <nav className="twe-workspace-tree" aria-label="Pages and folders">
-    {matchingEntries.map(entry=>{
+    {matchingEntries.map((entry,index)=>{
       const depth=Math.min(ancestry(entry).length,6);
       const folder=entry.kind==="folder";
-      return <div key={entry.id} className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview&&!isSessionRecap(entry)} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
+      const next=matchingEntries[index+1];
+      const nextAncestors=next?new Set(ancestry(next).map(item=>item.id)):new Set<string>();
+      const closingFolders=ancestry(entry).filter(parent=>!nextAncestors.has(parent.id));
+      return <Fragment key={entry.id}><div className={"twe-workspace-tree-row"+(folder?" is-folder":" is-article")+(depth===0?" is-root":" is-nested")+(selected===entry.id?" is-active":"")+(bulkSelected.has(entry.id)?" is-bulk-selected":"")+(dropTarget===entry.id?" is-drop-target":"")+(reorderTarget===entry.id?" is-reorder-target":"")} draggable={canEdit&&!preview&&!isSessionRecap(entry)} onDragStart={e=>{if(entry.kind==="page"&&!bulkSelected.has(entry.id)){setBulkSelected(new Set([entry.id]));setSelectionAnchor(entry.id);}setDragged(entry.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",entry.id);}} onDragEnd={()=>{setDragged(null);setDropTarget(null);setReorderTarget(null);}} onDragOver={e=>{
  if(!dragged||dragged===entry.id)return;
  const source=entryById.get(dragged);
  if(bulkIds.length>1&&bulkSelected.has(dragged)){if(folder&&validTarget(dragged,entry.id)){e.preventDefault();setDropTarget(entry.id);}return;}
@@ -510,8 +514,9 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
         <button type="button" onClick={()=>{setMenuId("");void openReaders(entry.id);}}>{entry.visibility==="selected"?"✓ ":""}Choose selected players…</button>{folder&&<><button type="button" onClick={()=>void changeFolderVisibility(entry,"players",false)}>Reveal folder only…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"players",true)}>Reveal folder and contents…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"gm",false)}>Hide folder only…</button><button type="button" onClick={()=>void changeFolderVisibility(entry,"gm",true)}>Hide folder and contents…</button></>}
         <button type="button" className="is-danger" onClick={()=>void deleteEntry(entry)}>Delete…</button>
        </div>}
-      </div>;
+      </div>{canEdit&&!preview&&dragged&&closingFolders.filter(parent=>parent.id===entryById.get(dragged)?.parentId).map(parent=><div key={parent.id} className={"twe-workspace-end-drop"+(endTarget===parent.id?" is-active":"")} onDragOver={e=>{e.preventDefault();e.stopPropagation();setEndTarget(parent.id);setReorderTarget(null);setDropTarget(null);}} onDragLeave={()=>setEndTarget(null)} onDrop={e=>{e.preventDefault();e.stopPropagation();void reorderEntry(dragged,null,parent.id);}}>Drop at end of {parent.title}</div>)}</Fragment>;
     })}
+    {canEdit&&!preview&&dragged&&entryById.get(dragged)?.parentId===null&&<div className={"twe-workspace-end-drop"+(endTarget==="root"?" is-active":"")} onDragOver={e=>{e.preventDefault();setEndTarget("root");setReorderTarget(null);}} onDragLeave={()=>setEndTarget(null)} onDrop={e=>{e.preventDefault();void reorderEntry(dragged,null,null);}}>Drop at end of top level</div>}
     {moveId&&canEdit&&!preview&&<div className="twe-workspace-move-panel"><label>Move to folder<select aria-label="Destination folder" defaultValue="" onChange={e=>{if(e.target.value)void moveEntry(moveId,e.target.value==="root"?null:e.target.value);}}><option value="">Choose destination…</option><option value="root">Top level</option>{sortedEntries.filter(item=>item.kind==="folder"&&validTarget(moveId,item.id)).map(item=><option key={item.id} value={item.id}>{ancestry(item).map(p=>p.title).join(" / ")}{ancestry(item).length?" / ":""}{item.title}</option>)}</select></label><button type="button" onClick={()=>setMoveId("")}>Cancel</button></div>}
     {!matchingEntries.length&&<p className="twe-workspace-nav-empty">{search?"No matching pages":"This journal is empty"}</p>}
    </nav>

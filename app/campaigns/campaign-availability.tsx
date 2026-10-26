@@ -23,7 +23,7 @@ export function CampaignAvailability({campaignId}:{campaignId:string}){
  const [markGameDay,setMarkGameDay]=useState(false);
  useEffect(()=>{
   const controller=new AbortController();
-  void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/game-days?month="+month,{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((v:{dates?:string[]})=>{if(!controller.signal.aborted)setGameDays(v.dates||[]);}).catch(()=>{});
+  void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/game-days?month="+month,{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then((value:unknown)=>{const v=value as {dates?:string[]};if(!controller.signal.aborted)setGameDays(v.dates||[]);}).catch(()=>{});
   void (async()=>{setLoading(true);setError("");
    try{
     const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/availability?month="+month,{cache:"no-store",signal:controller.signal});

@@ -108,6 +108,48 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [journalNotice, setJournalNotice] = useState("");
+  type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string};
+  const [placements,setPlacements]=useState<Placement[]>([]);
+  const [locationId,setLocationId]=useState("");
+  const [locationBusy,setLocationBusy]=useState(false);
+  const locations=useMemo(()=>{
+    const root=placements.filter(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="locations");
+    const folders=new Set(root.map(e=>e.id));
+    for(let i=0;i<20;i++)for(const e of placements)if(e.kind==="folder"&&e.parentId&&folders.has(e.parentId))folders.add(e.id);
+    return placements.filter(e=>e.kind==="page"&&!!e.parentId&&folders.has(e.parentId)).sort((a,b)=>a.title.localeCompare(b.title));
+  },[placements]);
+  async function loadPlacements(){
+    const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{cache:"no-store"});
+    const body=await response.json() as {entries?:Placement[];error?:string};
+    if(!response.ok||!Array.isArray(body.entries))throw new Error(body.error||"Cannot load Journal locations.");
+    setPlacements(body.entries);return body.entries;
+  }
+  useEffect(()=>{void loadPlacements().catch(()=>{});},[campaignId]);
+  useEffect(()=>{
+    const article=placements.find(e=>e.kind==="page"&&!!selectedStore&&e.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
+    setLocationId(article&&locations.some(l=>l.id===article.parentId)?article.parentId!:"");
+  },[placements,locations,selectedStore?.id]);
+  async function moveStoreLocation(next:string){
+    if(!selectedStore||locationBusy)return;
+    if(next&&!locations.some(l=>l.id===next))return;
+    setLocationBusy(true);setError("");setJournalNotice("");
+    try{
+      const latest=await loadPlacements();
+      const page=latest.find(e=>e.kind==="page"&&e.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
+      if(!page){
+        setLocationId(next);
+        setJournalNotice("Location selected. Use Add to Journal to create the store article there.");
+        return;
+      }
+      const folder=latest.find(e=>e.kind==="folder"&&!e.parentId&&e.title.toLowerCase()==="stores");
+      const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/journal",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,parentId:next||folder?.id||null})});
+      const body=await response.json() as {entry?:Placement;error?:string};
+      if(!response.ok||!body.entry)throw new Error(body.error||"Could not move store article.");
+      await loadPlacements();setJournalNotice(next?"Store filed beneath the selected location.":"Store filed under Stores.");
+    }catch(err){setError(err instanceof Error?err.message:"Could not set location.");}
+    finally{setLocationBusy(false);}
+  }
+
 
   const selectedStore = useMemo(
     () => stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null,
@@ -259,7 +301,8 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
         }
       } else lines.push("No inventory listed yet.");
       const storesFolder = result.entries.find(page => page.kind === "folder" && !page.parentId && page.title.trim().toLocaleLowerCase() === "stores");
-      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm",...(storesFolder?{parentId:storesFolder.id}:{})})});
+      const destinationId=locationId&&locations.some(e=>e.id===locationId)?locationId:storesFolder?.id;
+      const create = await fetch(url, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:selectedStore.name,content:lines.join("\n"),icon:"house",visibility:"gm",...(destinationId?{parentId:destinationId}:{})})});
       const created = await create.json() as {entry?:{id:string};error?:string};
       if (!create.ok || !created.entry) throw new Error(created.error || "Could not create the Journal page.");
       setJournalNotice('Added "' + selectedStore.name + '" to the Journal (GM only).');
@@ -493,6 +536,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
             <div className="gm-npc-form-heading"><div><p className="campaign-kicker">{selectedStore.isActive ? "VISIBLE TO PARTY" : "GM ONLY"}</p><h3>{selectedStore.name}</h3></div><div className="campaign-store-editor-actions"><button type="button" className="campaign-secondary" disabled={busy} onClick={() => void addStoreToJournal()}>Add to Journal</button>{selectedStore.isActive ? <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void setActive(false)}>Hide from Party</button> : <button type="button" className="campaign-primary" disabled={busy} onClick={() => void setActive(true)}>Make Visible to Party</button>}<button type="button" className="campaign-danger" disabled={busy} onClick={() => void removeStore()}>Delete Store</button></div></div>
             <label className="gm-npc-notes"><span>Store name</span><input required maxLength={80} value={storeName} onChange={event => setStoreName(event.target.value)} /></label>
             <label className="gm-npc-notes"><span>Description</span><textarea maxLength={2000} value={storeDescription} onChange={event => setStoreDescription(event.target.value)} placeholder="Merchant, atmosphere, and other details the party should see." /></label>
+            <label className="gm-npc-notes"><span>Location (optional)</span><select disabled={busy||locationBusy} value={locationId} onChange={event=>void moveStoreLocation(event.target.value)}><option value="">No location — Stores folder</option>{locations.map(location=><option key={location.id} value={location.id}>{location.title}</option>)}</select></label>
             <button type="submit" className="campaign-secondary" disabled={busy || !storeName.trim()}>Save Store Details</button>
           </form>
           <section className="campaign-store-stock">

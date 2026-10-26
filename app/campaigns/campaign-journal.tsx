@@ -179,11 +179,13 @@ useEffect(()=>{
   }catch{}
  };
  const onFocus=()=>{void check();};
+ const onDataChanged=(event:Event)=>{const detail=(event as CustomEvent<{campaignId?:string}>).detail;if(detail?.campaignId===campaignId)void check();};
+ window.addEventListener("twe:campaign-data-changed",onDataChanged);
  window.addEventListener("focus",onFocus);
  document.addEventListener("visibilitychange",onFocus);
  const interval=window.setInterval(()=>{void check();},30_000);
- return()=>{active=false;window.clearInterval(interval);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onFocus);};
-},[endpoint,preview,editing,saving,uploading]);
+ return()=>{active=false;window.clearInterval(interval);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onFocus);window.removeEventListener("twe:campaign-data-changed",onDataChanged);};
+},[endpoint,preview,editing,saving,uploading,campaignId]);
 const current=entries.find(e=>e.id===selected);
 function openJournalEntry(id:string){
  if(id===selected||!discardDraft())return;

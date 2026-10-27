@@ -4,7 +4,8 @@ import type { CampaignActor } from "./types.ts";
 
 export type PreparedEncounterEntry =
  | { kind: "saved"; npcId: string; quantity: number }
- | { kind: "bestiary"; bestiaryId: string; quantity: number };
+ | { kind: "bestiary"; bestiaryId: string; quantity: number }
+ | { kind: "party"; characterId: string; quantity: 1 };
 export type PreparedEncounter = { id: string; name: string; entries: PreparedEncounterEntry[]; createdAt: string; updatedAt: string };
 type Row={id:string;name:string;entriesJson:string;createdAt:string;updatedAt:string};
 
@@ -16,6 +17,7 @@ export function normalizePreparedEntries(value:unknown):PreparedEncounterEntry[]
   if(!Number.isInteger(v.quantity)||(v.quantity as number)<1||(v.quantity as number)>30)throw new CampaignServiceError("Creature quantity must be 1–30.",422);
   const quantity=v.quantity as number;
   if(v.kind==="saved"&&typeof v.npcId==="string"&&/^cnpc_[a-f0-9]{32}$/u.test(v.npcId))return {kind:"saved",npcId:v.npcId,quantity};
+  if(v.kind==="party"&&v.quantity===1&&typeof v.characterId==="string"&&(v.characterId==="all"||/^[a-zA-Z0-9_-]{1,100}$/u.test(v.characterId)))return {kind:"party",characterId:v.characterId,quantity:1};
   if(v.kind==="bestiary"&&typeof v.bestiaryId==="string"&&v.bestiaryId.length>0&&v.bestiaryId.length<=100)return {kind:"bestiary",bestiaryId:v.bestiaryId,quantity};
   throw new CampaignServiceError("Encounter creature is invalid.",422);
  });

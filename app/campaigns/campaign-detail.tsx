@@ -33,32 +33,32 @@ type Confirmation =
 
 export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campaignId: string; initialTab?: "campaign" | "journal" }) {
   const router = useRouter();
-  const [campaignTab, setCampaignTab] = useState<"campaign" | "journal" | ConsoleTab>(initialTab);
+  const [campaignTab, setCampaignTab] = useState<"campaign" | "journal" | "my-character" | ConsoleTab>(initialTab);
   const [gmOpened, setGmOpened] = useState(false);
   const [journalOpened, setJournalOpened] = useState(initialTab === "journal");
   // Keep in-page campaign tabs in browser history so mouse Back/Forward buttons
   // navigate between sections before leaving the campaign.
   useEffect(() => {
-    const validTabs = new Set(["campaign","journal","encounter","bestiary","npcs","items","stores","party","recaps"]);
+    const validTabs = new Set(["campaign","journal","my-character","encounter","bestiary","npcs","items","stores","party","recaps"]);
     const restore = () => {
       const requested = new URL(window.location.href).searchParams.get("tab");
-      const next = requested && validTabs.has(requested) ? requested as "campaign" | "journal" | ConsoleTab : initialTab;
+      const next = requested && validTabs.has(requested) ? requested as "campaign" | "journal" | "my-character" | ConsoleTab : initialTab;
       setCampaignTab(next);
       if(next === "journal")setJournalOpened(true);
-      else if(next !== "campaign")setGmOpened(true);
+      else if(next !== "campaign" && next !== "my-character")setGmOpened(true);
     };
     restore();
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, [campaignId, initialTab]);
-  function navigateCampaignTab(next:"campaign" | "journal" | ConsoleTab){
+  function navigateCampaignTab(next:"campaign" | "journal" | "my-character" | ConsoleTab){
     if(next===campaignTab)return;
     const url=new URL(window.location.href);
     url.searchParams.set("tab",next);
     window.history.pushState({...window.history.state}, "", url);
     setCampaignTab(next);
     if(next==="journal")setJournalOpened(true);
-    else if(next!=="campaign")setGmOpened(true);
+    else if(next!=="campaign"&&next!=="my-character")setGmOpened(true);
   }
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
   const [members, setMembers] = useState<CampaignMember[]>([]);
@@ -450,12 +450,19 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
       {!busy && campaign && (
         <>
           <nav className="gm-console-tabs" aria-label="Campaign pages">
-            {(["campaign", ...(campaign.permissions.canUseGmConsole && !campaign.archivedAt ? ["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const : []), "journal"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => navigateCampaignTab(item)}>{item === "campaign" ? "Campaign" : item === "journal" ? "Campaign Journal" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
+            {(["campaign", ...(campaign.permissions.canUseGmConsole && !campaign.archivedAt ? ["encounter", "bestiary", "npcs", "items", "stores", "party", "recaps"] as const : []), "journal"] as const).map(item => <button type="button" key={item} className={campaignTab === item ? "active" : ""} aria-current={campaignTab === item ? "page" : undefined} onClick={() => navigateCampaignTab(item)}>{item === "campaign" ? "Campaign" : item === "encounter" ? "Encounters" : item === "journal" ? "Campaign Journal" : item === "npcs" ? "My NPCs" : item === "recaps" ? "Session Recap" : item[0].toUpperCase() + item.slice(1)}</button>)}
+            <button type="button" className={campaignTab==="my-character"?"campaign-my-character-tab active":"campaign-my-character-tab"} aria-current={campaignTab==="my-character"?"page":undefined} onClick={()=>navigateCampaignTab("my-character")}>My Character</button>
           </nav>
+          <section className="campaign-my-character-panel" hidden={campaignTab!=="my-character"} aria-label="My Character">
+            {characters.find(character=>character.isMine) ? <>
+              <div className="campaign-my-character-toolbar"><strong>{characters.find(character=>character.isMine)?.name}</strong><Link href={`/campaigns/${campaign.id}/characters/${characters.find(character=>character.isMine)?.id}`}>Open full character sheet</Link></div>
+              {campaignTab==="my-character"&&<iframe title="My campaign character sheet" className="campaign-my-character-frame" src={`/campaigns/${campaign.id}/characters/${characters.find(character=>character.isMine)?.id}`}/>}
+            </> : <div className="campaign-page-state"><p>No character is linked to your account in this campaign.</p><button type="button" className="campaign-secondary" onClick={()=>navigateCampaignTab("campaign")}>Go to Campaign to link a character</button></div>}
+          </section>
           {journalOpened && <div hidden={campaignTab !== "journal"}><CampaignJournal campaignId={campaignId} /></div>}
           {gmOpened && campaign.permissions.canUseGmConsole && !campaign.archivedAt && (
-            <div hidden={campaignTab === "campaign" || campaignTab === "journal"}>
-              <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded visible={campaignTab !== "campaign" && campaignTab !== "journal"} activeTab={campaignTab === "campaign" || campaignTab === "journal" ? "encounter" : campaignTab} />
+            <div hidden={campaignTab === "campaign" || campaignTab === "journal" || campaignTab === "my-character"}>
+              <GmConsole campaignId={campaignId} campaignName={campaign.name} embedded visible={campaignTab !== "campaign" && campaignTab !== "journal" && campaignTab !== "my-character"} activeTab={campaignTab === "campaign" || campaignTab === "journal" || campaignTab === "my-character" ? "encounter" : campaignTab} />
             </div>
           )}
           <div hidden={campaignTab !== "campaign"}>

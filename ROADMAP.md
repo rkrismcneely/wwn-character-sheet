@@ -1,6 +1,6 @@
 # Tales Without End Roadmap
 
-_Last reconciled against `main` after PR #289 on 2026-10-08._
+_Reconciled against `main` and recent development decisions on 2026-10-22 (through PR #373). Deployment status must be verified separately._
 
 This is a **forward-only roadmap**. Completed work belongs in Git history, merged PRs, and the compact TWE current-state documents, not in this file. When an item is merged and production-verified, remove it from the roadmap rather than leaving a permanent completed checklist.
 
@@ -10,7 +10,7 @@ This is a **forward-only roadmap**. Completed work belongs in Git history, merge
 - Cloudflare Git Integration is the normal automatic production deployment path for `main`.
 - `.github/workflows/deploy-production.yml` is manual fallback only.
 - GitHub Actions CI is intentionally focused on pull requests/manual validation; do not add duplicate post-merge validation without a concrete reason.
-- There are currently **no unfinished product-code PRs**.
+- Recent WWN rules-audit fixes and the level 1–10 legal multiclass progression regression matrix are merged through PR #373. Do not equate merge with independently verified production deployment.
 - The application already includes the character sheet/builder, authentication and ownership, private campaigns, tested campaign invitations/joining, GM/NPC tooling, shared maps/scenes, tokens, square/hex grids, fog, annotations, rules-accurate measured area/spell templates, live-session/initiative tooling, shared rolls, campaign stores, companions, and the major rules/content audits completed to date.
 - Character import was intentionally removed and is not future scope unless explicitly reconsidered.
 - The character autosave/navigation data-loss bug is fixed and production-deployed.
@@ -41,13 +41,14 @@ Keep it small. It uses one Chromium worker, disposable local D1 data, no product
 
 The core VTT foundation already exists. Future work should extend it rather than rebuilding maps, tokens, grids, fog, initiative, shared rolls, stores, annotations, or character-to-campaign integration.
 
-Other potential expansions:
+Prioritized candidate work (not automatic commitments):
 
-- richer map layers/overlays
-- dynamic lighting / line-of-sight if the complexity is justified
-- campaign notes, handouts, journals, and lore organization
-- deeper mobile/tablet actual-play UX
-- further encounter/session conveniences only when a concrete play need is identified
+1. **Campaign knowledge and recap interoperability.** Verify the current Session Recap feature and its pagination/editing/Markdown before extending it. Add an Obsidian Markdown note import to the existing recap workflow if not already implemented; start with a user-selected Markdown file rather than claiming direct Obsidian vault access. Consider LegendKeeper interoperability only after confirming a viable supported export/import route. Expand GM notes, handouts, journals, and lore organization where actual campaign use justifies it.
+2. **Targeted end-to-end character regression checks.** Exercise saved-character creation, level advancement, class/Focus changes, spell/Art/Effort recovery, and save persistence with representative cases. The broad WWN rules audit and multiclass matrix are completed; this is additional cross-system confidence, not another open-ended rules audit.
+3. **Map layers and richer overlays.** Extend existing annotation, measured AoE, fog, token, and map-selection tools. Do not re-add already shipped drawing/annotation capabilities as an unbuilt feature.
+4. **Mobile/tablet actual-play UX.** Fix concrete touch, docking, dragging, scrolling, focus, and screen-space issues observed during sessions.
+5. **Dynamic lighting and line of sight.** Optional, higher-complexity work; define performance and usability requirements before committing.
+6. **GM encounter/session conveniences.** Add only where repeated actual-play friction establishes a need.
 
 Treat the remaining expansion bullets as product choices rather than mandatory scope. Prefer small useful additions over turning Tales Without End into an unnecessarily heavy VTT.
 
@@ -81,6 +82,7 @@ Only after the WWN experience is stable and the remaining reliability work is in
 - architecture/content support for other **Without Number** games
 - additional campaign organization tools justified by actual play
 - export/interoperability improvements where there is a real user need
+- **Standalone D&D map mode** separate from WWN character-sheet rules, reusing the existing map/VTT foundation. Investigate D&D Beyond character and roll interoperability, especially the existing Beyond20 browser-extension workflow; do not assume D&D Beyond provides an unrestricted public character API or that Beyond20 already supports TWE. Scope and feasibility first, implementation only after a deliberate decision.
 
 ---
 

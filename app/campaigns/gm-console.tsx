@@ -398,7 +398,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter, kind = "npc
        if(!creature)return;
        const archetype=builtInBestiaryCreatureDraft(creature.id);
        if(!archetype)return;
-       setDraft(current=>({...current,...archetype,
+       setDraft(current=>({...current,...archetype,kind:current.kind,
         name:String(archetype.name??creature.name),
         hpMax:Number(archetype.hpMax??creature.hpMax),
         armorClass:Number(archetype.armorClass??creature.armorClass),

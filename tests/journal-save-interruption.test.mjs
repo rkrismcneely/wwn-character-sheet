@@ -46,3 +46,15 @@ test("edited imported pages are not rewritten by import retry",()=>{
  assert.equal(mayLinkImportedAssets("import original","linked assets","linked assets"),true);
  assert.equal(mayLinkImportedAssets("import original","GM revisions","linked assets"),false);
 });
+
+test("a failed final save does not report a successful attachment publication",async()=>{
+ const attachments=new Map([["blob:map",{file:new File(["map"],"map.png")}]]);
+ let published=false;
+ const request=async(url,options)=>{
+  if(String(url).endsWith("/files"))return {ok:true,json:async()=>({id:"asset1"})};
+  if(options.method==="PATCH")return {ok:false,json:async()=>({error:"save interrupted"})};
+  return response({id:"draft1",kind:"page",parentId:null,...JSON.parse(options.body)});
+ };
+ await assert.rejects(saveJournalEditorDraft({endpoint:"/journal",id:"",kind:"page",parentId:null,draft:draft("![map](blob:map)"),attachments,onCreated:()=>{},request}).then(()=>{published=true}),/save interrupted/);
+ assert.equal(published,false);
+});

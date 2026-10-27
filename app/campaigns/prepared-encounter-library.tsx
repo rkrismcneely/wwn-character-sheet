@@ -12,7 +12,7 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
  const [entries,setEntries]=useState<Entry[]>([]);
  const [kind,setKind]=useState<"saved"|"bestiary">("bestiary");
  const [selection,setSelection]=useState("");
- const [quantity,setQuantity]=useState(1);
+ const [quantity,setQuantity]=useState("1");
  const [working,setWorking]=useState(false);
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
@@ -54,12 +54,12 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   {error&&<p role="alert" className="campaign-error">{error}</p>}{notice&&<p role="status" className="campaign-notice">{notice}</p>}
   {editing&&<form className="gm-npc-form" onSubmit={save}>
    <div className="gm-npc-form-heading"><h3>{editing==="new"?"New Encounter":"Edit Encounter"}</h3><button className="campaign-quiet" type="button" onClick={()=>setEditing(null)}>Cancel</button></div>
-   <label>Encounter name <input required maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder="Ambush at the Old Bridge"/></label>
+   <label style={{display:"flex",flexDirection:"column",gap:4,width:"100%"}}>Encounter name <input style={{width:"100%",minWidth:0}} required maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder="Ambush at the Old Bridge"/></label>
    <div className="gm-bestiary-filters">
     <label>Creature source<select value={kind} onChange={e=>{setKind(e.target.value as "saved"|"bestiary");setSelection("");}}><option value="bestiary">Bestiary</option><option value="saved">Saved NPCs and creatures</option></select></label>
     <label>Creature<select value={selection} onChange={e=>setSelection(e.target.value)}><option value="">Choose creature</option>{choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-    <label>Quantity<input type="number" min={1} max={30} value={quantity} onChange={e=>setQuantity(Math.min(30,Math.max(1,Number(e.target.value)||1)))}/></label>
-    <button type="button" className="campaign-secondary" disabled={!selection||entries.length>=30} onClick={()=>{setEntries(current=>[...current,kind==="saved"?{kind,npcId:selection,quantity}:{kind,bestiaryId:selection,quantity}]);setSelection("");}}>Add Creature</button>
+    <label>Quantity<input type="number" min={1} max={30} value={quantity} onChange={e=>setQuantity(e.target.value)} onBlur={()=>{if(!quantity||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30)setQuantity("1");}}/></label>
+    <button type="button" className="campaign-secondary" disabled={!selection||entries.length>=30||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30} onClick={()=>{const count=Number(quantity);setEntries(current=>[...current,kind==="saved"?{kind,npcId:selection,quantity:count}:{kind,bestiaryId:selection,quantity:count}]);setSelection("");}}>Add Creature</button>
    </div>
    <ul>{entries.map((entry,i)=><li key={i}>{entry.quantity} × {label(entry)} <button className="campaign-quiet" type="button" onClick={()=>setEntries(current=>current.filter((_,j)=>j!==i))}>Remove</button></li>)}</ul>
    <button className="campaign-primary" type="submit" disabled={working||busy}>Save Encounter</button>

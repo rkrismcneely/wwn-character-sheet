@@ -499,3 +499,14 @@ test("custom Bestiary creatures use the shared NPC editor and linked Journal mec
   assert.match(npcService, /creatureMarker/u);
   assert.match(npcService, /draft\.kind \?\? existing\.kind/u);
 });
+
+test("new Journal pages inherit icon from the active folder role with a root fallback", async () => {
+ const journal=await source("app/campaigns/campaign-journal.tsx");
+ for(const [role,icon] of [["Locations","map-pin"],["NPCs","user-round"],["Items","sword"],["Stores","warehouse"],["Quests","scroll-text"],["Session Notes","calendar-days"]]){
+  assert.ok(journal.includes(`${role}:${JSON.stringify(icon)}`) || journal.includes(`${JSON.stringify(role)}:${JSON.stringify(icon)}`),role);
+ }
+ assert.match(journal,/function newPageIconForFolder\(folderId:string\|null\)/u);
+ assert.match(journal,/return "file-text";/u);
+ assert.match(journal,/icon:newPageIconForFolder\(current\.id\)/u);
+ assert.match(journal,/const folderId=activeNewPageFolder\(\)/u);
+});

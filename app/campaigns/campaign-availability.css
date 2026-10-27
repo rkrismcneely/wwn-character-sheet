@@ -3,6 +3,7 @@
 .campaign-shell .campaign-hero-layout{margin-top:22px}
 .campaign-shell .campaign-hero-layout .campaign-detail-hero{
   box-sizing:border-box;
+  grid-column:1 / -1;
   width:100%!important;
   max-width:none!important;
   min-width:0;

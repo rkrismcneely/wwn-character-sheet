@@ -4,7 +4,7 @@ type Entry={kind:"saved"|"bestiary";npcId?:string;bestiaryId?:string;quantity:nu
 type Plan={id:string;name:string;entries:Entry[];createdAt:string;updatedAt:string};
 type Npc={id:string;name:string;kind?:"npc"|"creature"};
 type Creature={id:string;name:string};
-export function PreparedEncounterLibrary({campaignId,activeEncounter,canManage,busy,onDeploy,creatures}:{campaignId:string;activeEncounter:boolean;canManage:boolean;busy:boolean;onDeploy:(id:string)=>Promise<void>;creatures:readonly Creature[]}){
+export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActive,canManage,busy,onDeploy,creatures}:{campaignId:string;activeEncounter:boolean;sessionActive:boolean;canManage:boolean;busy:boolean;onDeploy:(id:string)=>Promise<void>;creatures:readonly Creature[]}){
  const [plans,setPlans]=useState<Plan[]>([]);
  const [npcs,setNpcs]=useState<Npc[]>([]);
  const [editing,setEditing]=useState<string|null>(null);
@@ -65,6 +65,6 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,canManage,b
    <button className="campaign-primary" type="submit" disabled={working||busy}>Save Encounter</button>
   </form>}
   {!plans.length&&!editing&&<p className="campaign-empty-copy">Save encounters ahead of time, then deploy one during a live session.</p>}
-  <div className="gm-npc-list">{plans.map(plan=><article className="gm-npc-card" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.entries.reduce((total,item)=>total+item.quantity,0)} creatures</p><ul>{plan.entries.map((entry,i)=><li key={i}>{entry.quantity} × {label(entry)}</li>)}</ul></div><div className="gm-bestiary-actions"><button className="campaign-primary" type="button" disabled={busy||working||activeEncounter||!plan.entries.length} title={activeEncounter?"End the current encounter before deploying.":undefined} onClick={()=>void deploy(plan)}>Deploy</button><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>edit(plan)}>Edit</button><button className="campaign-quiet" type="button" disabled={busy||working} onClick={()=>void remove(plan)}>Delete</button></div></article>)}</div>
+  <div className="gm-npc-list">{plans.map(plan=><article className="gm-npc-card" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.entries.reduce((total,item)=>total+item.quantity,0)} creatures</p><ul>{plan.entries.map((entry,i)=><li key={i}>{entry.quantity} × {label(entry)}</li>)}</ul></div><div className="gm-bestiary-actions"><button className="campaign-primary" type="button" disabled={busy||working||activeEncounter||!sessionActive||!plan.entries.length} title={activeEncounter?"End the current encounter before deploying.":!sessionActive?"Start a live session before deploying.":undefined} onClick={()=>void deploy(plan)}>Deploy</button><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>edit(plan)}>Edit</button><button className="campaign-quiet" type="button" disabled={busy||working} onClick={()=>void remove(plan)}>Delete</button></div></article>)}</div>
  </section>;
 }

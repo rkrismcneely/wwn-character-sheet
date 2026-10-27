@@ -1,0 +1,9 @@
+/* This stylesheet only affects the campaign-tab embed, never the full character sheet. */
+body.twe-embedded-character-body{overflow:hidden;background:transparent!important}
+body.twe-embedded-character-body .site-footer{display:none!important}
+.twe-embedded-character .app-header,
+.twe-embedded-character .app-header-error,
+.twe-embedded-character .topbar,
+.twe-embedded-character .campaign-character-context{display:none!important}
+.twe-embedded-character>main{min-height:0;padding-top:0!important}
+.twe-embedded-character{width:100%;min-width:0}

@@ -421,10 +421,10 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
     {journalNotice&&<p className="campaign-notice" role="status">{journalNotice}</p>}
     <div className="gm-npc-list">{npcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.inventory.length > 0 && <p><strong>Inventory:</strong> {npc.inventory.map(item => inventoryItemDisplayName(item)).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions">
   {activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(npc.id).catch(() => {})}>Add to Encounter</button>}
-  <button type="button" className="campaign-quiet" disabled={busy} onClick={() => openEdit(npc)}>Edit</button>
   <details className="gm-npc-more">
     <summary aria-label={"More actions for "+npc.name} title="More actions">⋯</summary>
     <div className="gm-npc-more-menu">
+      <button type="button" disabled={busy} onClick={() => openEdit(npc)}>Edit</button>
       <button type="button" disabled={busy} onClick={()=>void addNpcToJournal(npc)}>Add to Journal</button>
       <button type="button" disabled={busy} onClick={() => void duplicate(npc)}>Duplicate</button>
       {deleteId===npc.id

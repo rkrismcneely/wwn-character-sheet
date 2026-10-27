@@ -176,13 +176,15 @@ useEffect(()=>{
 },[endpoint,preview]);
 useEffect(()=>{
  let active=true;
+ let latestRequest=0;
  const check=async()=>{
   if(!active||editing||saving||uploading||document.visibilityState!=="visible")return;
+  const requestId=++latestRequest;
   try{
    const response=await fetch(endpoint+(preview?"?preview=player":""),{cache:"no-store"});
    if(!response.ok||!active)return;
    const body=await response.json() as {entries?:Entry[]};
-   if(active&&Array.isArray(body.entries))setEntries(previous=>{
+   if(active&&requestId===latestRequest&&Array.isArray(body.entries))setEntries(previous=>{
     const changed=previous.length!==body.entries!.length||previous.some((entry,i)=>{
      const other=body.entries![i];return !other||entry.id!==other.id||entry.title!==other.title||entry.content!==other.content||entry.parentId!==other.parentId||entry.icon!==other.icon||entry.visibility!==other.visibility||entry.kind!==other.kind||entry.sortOrder!==other.sortOrder||entry.sourcePath!==other.sourcePath;
     });

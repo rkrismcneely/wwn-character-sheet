@@ -23,10 +23,16 @@ export function normalizePreparedEntries(value:unknown):PreparedEncounterEntry[]
  });
 }
 function rowToPlan(row:Row):PreparedEncounter{return {id:row.id,name:row.name,entries:normalizePreparedEntries(JSON.parse(row.entriesJson) as unknown),createdAt:row.createdAt,updatedAt:row.updatedAt};}
+async function ensurePreparedEncounterTable(db:D1Database){
+ // A deploy can precede manual D1 migrations; bootstrap is idempotent.
+ await db.prepare("CREATE TABLE IF NOT EXISTS campaign_prepared_encounters (id text PRIMARY KEY NOT NULL,campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE cascade,name text NOT NULL,entries_json text NOT NULL,created_at text NOT NULL,updated_at text NOT NULL)").run();
+ await db.prepare("CREATE INDEX IF NOT EXISTS campaign_prepared_encounters_campaign_idx ON campaign_prepared_encounters(campaign_id,updated_at)").run();
+}
 async function access(db:D1Database,actor:CampaignActor,publicId:string,mutation=false){
  const {campaign}=await loadCampaignAccess(db,actor,publicId);
  if(!canManageCampaignRuntime(actor,campaign))throw new CampaignServiceError("Only the campaign owner or a site admin can manage prepared encounters.",403);
  if(mutation)requireActiveCampaign(campaign);
+ await ensurePreparedEncounterTable(db);
  return campaign;
 }
 export async function listPreparedEncounters(db:D1Database,actor:CampaignActor,publicId:string){

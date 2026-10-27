@@ -116,6 +116,7 @@ function updateStoreManagedSection(content:string,store:CampaignStore){
 }
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
+  const [journalNotice, setJournalNotice] = useState("");
   const syncInitialized=useRef(false);
   const syncQueue=useRef<Promise<void>>(Promise.resolve());
   async function updateLinkedJournalStores(snapshot:CampaignStore[]){
@@ -188,7 +189,6 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [journalNotice, setJournalNotice] = useState("");
 
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);

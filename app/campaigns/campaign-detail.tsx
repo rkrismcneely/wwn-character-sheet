@@ -33,6 +33,8 @@ type Confirmation =
 export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campaignId: string; initialTab?: "campaign" | "journal" }) {
   const router = useRouter();
   const [campaignTab, setCampaignTab] = useState<"campaign" | "journal" | ConsoleTab>(initialTab);
+  const [gmOpened, setGmOpened] = useState(false);
+  const [journalOpened, setJournalOpened] = useState(initialTab === "journal");
   // Keep in-page campaign tabs in browser history so mouse Back/Forward buttons
   // navigate between sections before leaving the campaign.
   useEffect(() => {
@@ -57,8 +59,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
     if(next==="journal")setJournalOpened(true);
     else if(next!=="campaign")setGmOpened(true);
   }
-  const [gmOpened, setGmOpened] = useState(false);
-  const [journalOpened, setJournalOpened] = useState(initialTab === "journal");
   const [campaign, setCampaign] = useState<CampaignSummary | null>(null);
   const [members, setMembers] = useState<CampaignMember[]>([]);
   const [characters, setCharacters] = useState<CampaignCharacter[]>([]);

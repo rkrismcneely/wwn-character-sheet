@@ -347,7 +347,7 @@ async function loadMapChoices(){
  }catch(cause){setError(cause instanceof Error?cause.message:"Unable to load maps.");}
  finally{setMapLinkBusy(false);}
 }
-useEffect(()=>{if(editing&&!creatingFolder)void loadMapChoices();},[editing,creatingFolder,campaignId]);
+useEffect(()=>{if(!editing||creatingFolder)return;const timer=window.setTimeout(()=>void loadMapChoices(),0);return()=>window.clearTimeout(timer);},[editing,creatingFolder,campaignId]);
 function openLinkedMap(mapId:string){
  window.dispatchEvent(new CustomEvent(campaignMapOpenEvent,{detail:{campaignId,action:"open",mapId}}));
 }

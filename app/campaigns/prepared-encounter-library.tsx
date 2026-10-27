@@ -37,7 +37,7 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   try{
    const response=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...(editing!=="new"?{id:editing}:{}),name,entries})});
    const body=await response.json() as {error?:string};
-   if(!response.ok)throw new Error(body.error||"Could not save encounter.");
+   if(!response.ok)throw new Error(body.error||`Could not save encounter (HTTP ${response.status}).`);
    setEditing(null);await refresh();setNotice("Encounter saved.");
   }catch(e){setError(e instanceof Error?e.message:"Could not save encounter.");}finally{setWorking(false);}
  }

@@ -741,7 +741,7 @@ html[data-theme="dark"] .gm-npc-magic-add label>span{color:#d3a75d}html[data-the
 
 /* Campaign character shortcut stays at the right end of the tab bar. */
 .gm-console-tabs .campaign-my-character-tab{margin-left:auto}
-.campaign-my-character-panel{width:min(1540px,calc(100% - 32px));margin:0 auto 24px}
+.campaign-my-character-panel{width:min(1420px,calc(100% - 32px));margin:0 auto 24px}
 .campaign-my-character-panel[hidden]{display:none}
 .campaign-my-character-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;background:#f3e7cb;border:1px solid #a78b5a}
 .campaign-my-character-frame{display:block;width:100%;height:max(760px,calc(100vh - 280px));min-height:600px;border:1px solid #a78b5a;background:#f3e7cb}

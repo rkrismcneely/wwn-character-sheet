@@ -1,23 +1,19 @@
-
-/* Match the Campaign Overview's actual CSS grid track; no guessed widths. */
-.campaign-shell .campaign-hero-layout{margin-top:22px}
-.campaign-shell .campaign-hero-layout .campaign-detail-hero{
+/* Campaign overview header shares the full-width Campaign grid. */
+.campaign-shell .campaign-hero-layout {margin-top:22px}
+.campaign-shell .campaign-hero-layout .campaign-detail-hero {
   box-sizing:border-box;
   grid-column:1 / -1;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:start;
+  gap:16px;
   width:100%!important;
   max-width:none!important;
   min-width:0;
+  min-height:154px;
   margin:0!important;
-  padding:12px 16px!important;
-  display:grid!important;
-  grid-template-columns:minmax(0,1fr) 244px!important;
-  align-items:center;
-  gap:12px;
+  padding:20px 24px!important;
 }
-.campaign-detail-hero h1 {font-size:clamp(1.55rem,2.4vw,2.2rem);margin:2px 0}
-.campaign-detail-hero .campaign-kicker {margin-bottom:3px}
-.campaign-detail-hero .campaign-hero-actions {display:flex;justify-content:flex-start;align-items:center;flex-wrap:wrap;gap:6px;margin-top:7px}
-.campaign-detail-hero .campaign-hero-actions button {padding:5px 9px;font-size:10px}
 .campaign-availability {box-sizing:border-box;position:relative;justify-self:end;width:244px;min-width:0;padding:7px 8px;background:#f9efda;border:1px solid #cdb58b;border-radius:5px;color:#47351f;font:12px/1.25 var(--font-ui,Arial,sans-serif)}
 .campaign-availability-heading {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 5px;align-items:center;margin-bottom:5px}
 .campaign-availability-heading h2 {grid-column:1;grid-row:1;margin:0;font:700 12px var(--font-ui,Arial,sans-serif);white-space:nowrap}
@@ -46,42 +42,40 @@
 .campaign-availability-gm small {display:block}
 .campaign-availability-legend {margin:6px 0;font-size:10px}
 
-@media(max-width:700px) {
- .campaign-shell .campaign-hero-layout .campaign-detail-hero {grid-template-columns:minmax(0,1fr)!important;gap:10px}
- .campaign-detail-hero>.campaign-availability {justify-self:start;max-width:100%}
-}
-
-/* Campaign header typography and right-side actions match the GM workspace. */
-.campaign-shell .campaign-hero-layout .campaign-detail-hero{
-  grid-template-columns:minmax(0,1fr) auto!important;
-  padding:20px 24px!important;
-  min-height:154px;
-  align-items:start;
-}
-.campaign-detail-hero h1{
+/* One title scale and one layout source of truth. */
+.campaign-detail-hero h1 {
   font:600 clamp(44px,4.6vw,60px)/.96 var(--font-display);
   margin:7px 0 12px;
 }
-.campaign-detail-hero .campaign-kicker{margin:0 0 5px}
-.campaign-detail-hero .campaign-hero-subtitle{
-  font:15px/1.4 var(--font-body);
-  margin:0;
-}
-.campaign-hero-right{
+.campaign-detail-hero .campaign-kicker {margin:0 0 5px}
+.campaign-detail-hero .campaign-hero-subtitle {font:15px/1.4 var(--font-body);margin:0}
+.campaign-hero-right {
   display:flex;
   align-items:flex-start;
   justify-content:flex-end;
   gap:12px;
   min-width:0;
 }
-.campaign-hero-right .campaign-hero-invite{
+.campaign-hero-right .campaign-hero-invite {
   white-space:nowrap;
   align-self:flex-start;
   padding:9px 12px;
-  margin-top:0;
+  margin:0;
 }
-.campaign-hero-right .campaign-availability{flex-shrink:0}
-@media(max-width:700px){
- .campaign-shell .campaign-hero-layout .campaign-detail-hero{grid-template-columns:minmax(0,1fr)!important}
- .campaign-hero-right{justify-content:flex-start;flex-wrap:wrap}
+.campaign-hero-right .campaign-availability {flex-shrink:0}
+/* Stack before the title, invite button and calendar become cramped. */
+@media(max-width:1000px) {
+  .campaign-shell .campaign-hero-layout .campaign-detail-hero {
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:16px;
+  }
+  .campaign-hero-right {justify-content:flex-start;flex-wrap:wrap}
+}
+@media(max-width:700px) {
+  .campaign-shell .campaign-hero-layout .campaign-detail-hero {padding:16px!important}
+  .campaign-detail-hero h1 {font-size:clamp(35px,9vw,48px);overflow-wrap:anywhere}
+  .campaign-detail-hero .campaign-hero-subtitle {font-size:13px}
+  .campaign-hero-right {gap:10px}
+  .campaign-availability {max-width:100%}
+  .campaign-availability-gm {right:auto;left:0;max-width:calc(100vw - 40px)}
 }

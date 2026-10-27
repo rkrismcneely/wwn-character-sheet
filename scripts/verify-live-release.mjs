@@ -26,6 +26,12 @@ if(expected&&expected.toLowerCase()!==data.commit.toLowerCase()){
  console.error("Expected "+expected+" but production is still serving "+data.commit);
  process.exit(1);
 }
-const health=await fetch("https://taleswithoutend.com/",{signal:AbortSignal.timeout(12000)});
+let health;
+try{
+ health=await fetch("https://taleswithoutend.com/",{signal:AbortSignal.timeout(12000)});
+}catch(error){
+ console.error("Could not reach the production homepage:",error.message);
+ process.exit(1);
+}
 if(!health.ok){console.error("Production root HTTP "+health.status);process.exit(1);}
 console.log(expected?"Verified exact production release and homepage.":"Verified release marker and homepage.");

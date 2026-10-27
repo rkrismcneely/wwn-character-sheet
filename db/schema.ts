@@ -372,3 +372,12 @@ export const campaignGameDays=sqliteTable("campaign_game_days",{
  createdBy:text("created_by").notNull().references(()=>user.id),
  createdAt:text("created_at").notNull(),
 },table=>[primaryKey({columns:[table.campaignId,table.sessionDate]})]);
+
+export const campaignPreparedEncounters=sqliteTable("campaign_prepared_encounters",{
+ id:text("id").primaryKey(),
+ campaignId:text("campaign_id").notNull().references(()=>campaigns.id,{onDelete:"cascade"}),
+ name:text("name").notNull(),
+ entriesJson:text("entries_json").notNull(),
+ createdAt:text("created_at").notNull(),
+ updatedAt:text("updated_at").notNull(),
+},table=>[index("campaign_prepared_encounters_campaign_idx").on(table.campaignId,table.updatedAt)]);

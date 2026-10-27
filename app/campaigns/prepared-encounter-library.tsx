@@ -34,7 +34,7 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   try{
    const response=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...(editing!=="new"?{id:editing}:{}),name,entries})});
    const body=await response.json() as {error?:string};
-   if(!response.ok)throw new Error(body.error||"Could not save encounter.");
+   if(!response.ok)throw new Error(body.error||`Could not save encounter (HTTP ${response.status}).`);
    setEditing(null);await refresh();setNotice("Encounter saved.");
   }catch(e){setError(e instanceof Error?e.message:"Could not save encounter.");}finally{setWorking(false);}
  }
@@ -59,7 +59,7 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
     <label>Creature source<select value={kind} onChange={e=>{setKind(e.target.value as "saved"|"bestiary");setSelection("");}}><option value="bestiary">Bestiary</option><option value="saved">Saved NPCs and creatures</option></select></label>
     <label>Creature<select value={selection} onChange={e=>setSelection(e.target.value)}><option value="">Choose creature</option>{choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
     <label>Quantity<input type="number" min={1} max={30} value={quantity} onChange={e=>setQuantity(e.target.value)} onBlur={()=>{if(!quantity||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30)setQuantity("1");}}/></label>
-    <button type="button" className="campaign-secondary" disabled={!selection||entries.length>=30||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30} onClick={()=>{const count=Number(quantity);setEntries(current=>[...current,kind==="saved"?{kind,npcId:selection,quantity:count}:{kind,bestiaryId:selection,quantity:count}]);setSelection("");}}>Add Creature</button>
+    <button type="button" className="campaign-secondary" disabled={!selection||entries.length>=30||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30} onClick={()=>{const count=Number(quantity);setEntries(current=>[...current,kind==="saved"?{kind,npcId:selection,quantity:count}:{kind,bestiaryId:selection,quantity:count}]);}}>Add Creature</button>
    </div>
    <ul>{entries.map((entry,i)=><li key={i}>{entry.quantity} × {label(entry)} <button className="campaign-quiet" type="button" onClick={()=>setEntries(current=>current.filter((_,j)=>j!==i))}>Remove</button></li>)}</ul>
    <button className="campaign-primary" type="submit" disabled={working||busy}>Save Encounter</button>

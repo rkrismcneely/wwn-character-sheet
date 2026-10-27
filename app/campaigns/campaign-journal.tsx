@@ -263,7 +263,8 @@ const searchSnippet=(entry:Entry)=>{
 const visibleInTree=(entry:Entry)=>!ancestry(entry).some(folder=>collapsedFolders.has(folder.id));
 const childrenByParent=new Map<string,Entry[]>();
 for(const entry of entries){const key=entry.parentId??"";const siblings=childrenByParent.get(key)??[];siblings.push(entry);childrenByParent.set(key,siblings);}
-const isSessionRecap=(entry:Entry|undefined)=>entry?.kind==="page"&&entry.content.includes("<!-- twe-session-recap:");
+const sessionRecapIds=new Set(entries.filter(entry=>entry.kind==="page"&&entry.content.includes("<!-- twe-session-recap:")).map(entry=>entry.id));
+ const isSessionRecap=(entry:Entry|undefined)=>Boolean(entry&&sessionRecapIds.has(entry.id));
 const compareEntries=(a:Entry,b:Entry)=>isSessionRecap(a)!==isSessionRecap(b)?(isSessionRecap(a)?-1:1):isSessionRecap(a)&&isSessionRecap(b)?b.title.localeCompare(a.title):a.sortOrder!=null&&b.sortOrder!=null?a.sortOrder-b.sortOrder:a.sortOrder!=null?-1:b.sortOrder!=null?1:a.kind===b.kind?a.title.localeCompare(b.title):a.kind==="folder"?-1:1;
 for(const siblings of childrenByParent.values())siblings.sort(compareEntries);
 const sortedEntries:Entry[]=[];const visited=new Set<string>();

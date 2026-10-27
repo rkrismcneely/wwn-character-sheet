@@ -289,11 +289,15 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter, kind = "npc
       const marker="{{twe-npc:"+npc.id+"}}";
       const existing=data.entries.find(entry=>entry.kind==="page"&&entry.content.includes(marker));
       if(existing){setJournalNotice('"'+npc.name+'" is already in the Journal as "'+existing.title+'".');return;}
-      const folder=data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
-        ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs");
+      const folder=kind==="creature"
+        ? data.entries.find(entry=>entry.kind==="folder"&&["creatures","bestiary","monsters"].includes(entry.title.trim().toLowerCase()))
+          ??data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
+          ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs")
+        : data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
+          ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs");
       const sameName=data.entries.find(entry=>entry.kind==="page"&&entry.parentId===(folder?.id??null)&&entry.title.trim().toLowerCase()===npc.name.trim().toLowerCase());
       if(sameName&&!window.confirm('A Journal page named "'+npc.name+'" already exists here. Create a separate NPC page?'))return;
-      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:npc.name,content:marker,icon:"user-round",visibility:"gm",...(folder?{parentId:folder.id}:{})})});
+      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:npc.name,content:marker,icon:kind==="creature"?"paw-print":"user-round",visibility:"gm",...(folder?{parentId:folder.id}:{})})});
       const result=await created.json() as {entry?:{id:string};error?:string};
       if(!created.ok||!result.entry)throw new Error(result.error||"Could not add NPC to Journal.");
       window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));

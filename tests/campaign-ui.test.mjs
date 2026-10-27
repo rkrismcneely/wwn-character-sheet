@@ -548,3 +548,13 @@ test("prepared encounter table self-initializes if migration deployment trails w
  assert.match(sourceText,/await ensurePreparedEncounterTable\(db\)/u);
  assert.match(migration,/CREATE TABLE IF NOT EXISTS campaign_prepared_encounters/u);
 });
+
+test("Journal recap paragraphs and editor-linked maps coexist with folder icon defaults",async()=>{
+ const journal=await source("app/campaigns/campaign-journal.tsx");
+ const recaps=await source("app/campaigns/session-recap-manager.tsx");
+ assert.match(journal,/normalizeRecapContent/u);
+ assert.match(journal,/Linked map<select/u);
+ assert.match(journal,/newPageIconForFolder/u);
+ assert.doesNotMatch(journal,/mapPickerOpen/u);
+ assert.match(recaps,/content:marker\+"\\n\\n"\+editing.content/u);
+});

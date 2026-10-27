@@ -287,7 +287,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
       if(!response.ok||!Array.isArray(data.entries))throw new Error(data.error||"Could not load Journal.");
       const marker="{{twe-npc:"+npc.id+"}}";
       const existing=data.entries.find(entry=>entry.kind==="page"&&entry.content.includes(marker));
-      if(existing){setJournalNotice('"'+""+'"'+"");return;}
+      if(existing){setJournalNotice('"'+npc.name+'" is already in the Journal as "'+existing.title+'".');return;}
       const folder=data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
         ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs");
       const sameName=data.entries.find(entry=>entry.kind==="page"&&entry.parentId===(folder?.id??null)&&entry.title.trim().toLowerCase()===npc.name.trim().toLowerCase());

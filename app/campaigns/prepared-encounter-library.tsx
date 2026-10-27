@@ -24,7 +24,7 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   if(!p.ok||!n.ok)throw new Error(plansBody.error||npcBody.error||"Could not load encounter plans.");
   setPlans(plansBody.encounters||[]);setNpcs(npcBody.npcs||[]);
  }
- useEffect(()=>{if(!canManage)return;void refresh().catch(e=>setError(String(e)));},[campaignId,canManage]); // eslint-disable-line react-hooks/exhaustive-deps
+ useEffect(()=>{if(!canManage)return;const timer=window.setTimeout(()=>void refresh().catch(e=>setError(String(e))),0);return ()=>window.clearTimeout(timer);},[campaignId,canManage]); // eslint-disable-line react-hooks/exhaustive-deps
  if(!canManage)return null;
  const choices=kind==="saved"?npcs:creatures;
  const label=(entry:Entry)=>entry.kind==="saved"?npcs.find(n=>n.id===entry.npcId)?.name||"Missing saved NPC":creatures.find(c=>c.id===entry.bestiaryId)?.name||"Missing Bestiary creature";

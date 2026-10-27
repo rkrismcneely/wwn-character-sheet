@@ -4,7 +4,6 @@ export function EmbeddedCampaignCharacter({campaignId,characterId}:{campaignId:s
  const frame=useRef<HTMLIFrameElement>(null);
  const [height,setHeight]=useState(1250);
  useEffect(()=>{
-  setHeight(1250);
   const onMessage=(event:MessageEvent)=>{
    if(event.origin!==window.location.origin||event.source!==frame.current?.contentWindow)return;
    const data=event.data as {type?:string;height?:number}|null;

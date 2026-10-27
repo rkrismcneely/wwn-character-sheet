@@ -558,3 +558,12 @@ test("Journal recap paragraphs and editor-linked maps coexist with folder icon d
  assert.doesNotMatch(journal,/mapPickerOpen/u);
  assert.match(recaps,/content:marker\+"\\n\\n"\+editing.content/u);
 });
+
+test("Store edits synchronize only tagged Journal sections without overwriting custom writing",async()=>{
+ const store=await source("app/campaigns/campaign-store-library.tsx");
+ assert.match(store,/function updateStoreManagedSection/u);
+ assert.match(store,/if\(start<0\|\|end<start\)return content/u);
+ assert.match(store,/syncQueue\.current=/u);
+ assert.match(store,/updateLinkedJournalStores\(stores\)/u);
+ assert.match(store,/area:"journal"/u);
+});

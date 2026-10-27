@@ -107,13 +107,43 @@ function storeManagedMarkdown(store:CampaignStore){
  lines.push(storeManagedEnd);
  return lines.join("\n");
 }
+function updateStoreManagedSection(content:string,store:CampaignStore){
+ const start=content.indexOf(storeManagedStart);
+ const end=content.indexOf(storeManagedEnd);
+ if(start<0||end<start)return content; // Respect existing untagged/custom Journal articles.
+ const generated=storeManagedMarkdown(store);
+ return content.slice(0,start)+generated+content.slice(end+storeManagedEnd.length);
+}
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
+  const [journalNotice, setJournalNotice] = useState("");
   const syncInitialized=useRef(false);
+  const syncQueue=useRef<Promise<void>>(Promise.resolve());
+  async function updateLinkedJournalStores(snapshot:CampaignStore[]){
+    const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
+    const response=await fetch(url,{cache:"no-store"});
+    if(!response.ok)return;
+    const data=await response.json() as {entries?:{id:string;kind:string;content:string}[]};
+    if(!Array.isArray(data.entries))return;
+    let changed=false;
+    for(const store of snapshot){
+      const page=data.entries.find(entry=>entry.kind==="page"&&entry.content.includes("<!-- twe-store:"+store.id+" -->"));
+      if(!page)continue;
+      const content=updateStoreManagedSection(page.content,store);
+      if(content===page.content)continue;
+      const saved=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content})});
+      if(!saved.ok)throw new Error("Could not update the linked Journal page for "+store.name+".");
+      page.content=content;changed=true;
+    }
+    if(changed)window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+  }
   useEffect(()=>{
     if(!syncInitialized.current){syncInitialized.current=true;return;}
     window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"stores"}}));
-  },[stores,campaignId]);
+    syncQueue.current=syncQueue.current.catch(()=>{}).then(()=>updateLinkedJournalStores(stores)).catch(cause=>{
+      setJournalNotice(cause instanceof Error?cause.message:"Could not synchronize linked Journal stores.");
+    });
+  },[stores,campaignId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [catalog, setCatalog] = useState<CampaignStoreManagementPayload["catalog"]>([]);
   const [campaignItems, setCampaignItems] = useState<CampaignStoreManagementPayload["campaignItems"]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
@@ -159,7 +189,6 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [journalNotice, setJournalNotice] = useState("");
 
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);

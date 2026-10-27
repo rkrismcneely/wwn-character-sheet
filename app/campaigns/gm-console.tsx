@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { SignedInHeader } from "../app-header";
 import { EncounterTracker } from "./campaign-live-session";
+import { PreparedEncounterLibrary } from "./prepared-encounter-library";
 import { BestiaryBrowseItem } from "./bestiary-browse";
 import { useCampaignLiveSession } from "./use-live-session";
 import type { CampaignEncounter } from "@/lib/campaigns/live-session";
@@ -620,6 +621,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
     <section className="campaign-panel gm-console-panel">
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
+      {tab === "encounter" && <PreparedEncounterLibrary campaignId={campaignId} canManage={state.permissions.canManageEncounter} activeEncounter={Boolean(session?.encounter)} busy={busy} creatures={builtInBestiaryCreatures} onDeploy={preparedId=>encounterAction({action:"deploy_prepared",preparedId})} />}
       {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} partyLevels={partyLevels} partyLoaded={partyLoaded} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
       {tab === "bestiary" && <><NpcLibrary campaignId={campaignId} kind="creature" activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} /><BuiltInBestiary partyLevels={partyLevels} partyLoaded={partyLoaded} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} /></>}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}

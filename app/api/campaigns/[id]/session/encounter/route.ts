@@ -4,6 +4,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
 import { normalizeNpcAttacks, normalizeNpcMagicReferences, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
+import { getPreparedEncounter } from "@/lib/campaigns/prepared-encounters";
 import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
 import type { CampaignNpcCombatStats } from "@/lib/campaigns/live-session";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
@@ -57,7 +58,23 @@ export async function POST(request: Request, context: Context): Promise<Response
     const durable = env.CAMPAIGN_LIVE_SESSION.getByName(`campaign:${authorization.campaignId}`);
     let encounter;
 
-    if (body.action === "start") encounter = await durable.startEncounter(authorization.sessionId);
+    if (body.action === "deploy_prepared") {
+      if (await durable.encounter(authorization.sessionId)) throw new CampaignServiceError("End the current encounter before deploying another.", 409);
+      if (typeof body.preparedId !== "string") throw new CampaignServiceError("Choose a prepared encounter.", 422);
+      const plan = await getPreparedEncounter(db, actor, id, body.preparedId);
+      // Validate all referenced templates before starting to avoid partial deployments from missing records.
+      const seeds = [];
+      for (const entry of plan.entries) {
+        const seed = entry.kind === "saved"
+          ? await campaignNpcEncounterSeed(db, authorization.campaignId, entry.npcId)
+          : builtInBestiaryEncounterSeed(entry.bestiaryId);
+        if (!seed) throw new CampaignServiceError("A creature in this plan is no longer available.", 422);
+        for (let count = 0; count < entry.quantity; count++) seeds.push(seed);
+      }
+      encounter = await durable.startEncounter(authorization.sessionId);
+      for (const seed of seeds) encounter = await durable.addNpc(authorization.sessionId, seed);
+    }
+    else if (body.action === "start") encounter = await durable.startEncounter(authorization.sessionId);
     else {
       if (!(await durable.encounter(authorization.sessionId))) throw new CampaignServiceError("There is no active encounter.", 409);
       if (body.action === "add_pc") {

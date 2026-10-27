@@ -510,3 +510,20 @@ test("new Journal pages inherit icon from the active folder role with a root fal
  assert.match(journal,/icon:newPageIconForFolder\(current\.id\)/u);
  assert.match(journal,/const folderId=activeNewPageFolder\(\)/u);
 });
+
+test("prepared encounters are private campaign plans and deploy only to an empty live encounter", async () => {
+ const ui=await source("app/campaigns/prepared-encounter-library.tsx");
+ const consoleSource=await source("app/campaigns/gm-console.tsx");
+ const route=await source("app/api/campaigns/[id]/session/encounter/route.ts");
+ const plans=await source("lib/campaigns/prepared-encounters.ts");
+ const migration=await source("drizzle/0007_prepared_encounters.sql");
+ assert.match(ui, /Prepare Encounter/u);
+ assert.match(ui, /Save Encounter/u);
+ assert.match(ui, /activeEncounter\|\|!sessionActive/u);
+ assert.match(consoleSource, /deploy_prepared/u);
+ assert.match(route, /End the current encounter before deploying another/u);
+ assert.match(route, /Validate all referenced templates before starting/u);
+ assert.match(plans, /canManageCampaignRuntime/u);
+ assert.match(plans, /campaign_id=\?/u);
+ assert.match(migration, /campaign_prepared_encounters/u);
+});

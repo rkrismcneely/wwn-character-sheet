@@ -60,34 +60,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Only explicitly allowlisted presentation-only changes get a reduced
-      # test run. Any server, auth, schema, rules, test, or workflow edit runs
-      # the complete suite. Dispatch and scheduled checks are always full.
-      - name: Select safe test scope
+      - name: Select test impact
         id: scope
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          echo "fast=false" >> "$GITHUB_OUTPUT"
-          if [ "$EVENT_NAME" != pull_request ] || [ -z "$BASE_SHA" ]; then
-            exit 0
-          fi
-          git diff --name-only "$BASE_SHA" HEAD > /tmp/ci-changed-files
-          if [ ! -s /tmp/ci-changed-files ]; then exit 0; fi
-          while IFS= read -r file; do
-            case "$file" in
-              app/campaigns/campaign-map-*.tsx|app/campaigns/map-*.tsx|app/campaigns/campaign-map.css|app/campaigns/campaign-ui.css|app/globals.css|public/*|*.md|docs/*)
-                ;;
-              *)
-                echo "Full suite required by: $file"
-                exit 0
-                ;;
-            esac
-          done < /tmp/ci-changed-files
-          echo "fast=true" >> "$GITHUB_OUTPUT"
-          echo "Presentation-only PR: use the routine test suite."
+          node scripts/select-test-impact.mjs | tee /tmp/test-impact
+          cat /tmp/test-impact >> "$GITHUB_OUTPUT"
+          cat /tmp/test-impact >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
@@ -96,7 +77,7 @@ jobs:
       - name: Run tests that do not need the compiled Worker
         shell: bash
         env:
-          FAST_SUITE: ${{ steps.scope.outputs.fast }}
+          TEST_MODE: ${{ steps.scope.outputs.mode }}
         run: |
           set -euo pipefail
           files=(tests/*.test.mjs)
@@ -104,10 +85,8 @@ jobs:
           for file in "${files[@]}"; do
             if [ "$file" != tests/rendered-html.test.mjs ]; then selected+=("$file"); fi
           done
-          if [ "$FAST_SUITE" = true ]; then
-            node --experimental-strip-types --test \
-              --test-skip-pattern='Phase 4C campaign foundation is additive|existing character data remains readable and unchanged after Phase 4B migrations|Phase 4D migration is additive|Rules Search Phase 4 broad benchmark meets Top-1 and Top-3 accuracy targets' \
-              "${selected[@]}"
+          if [ "$TEST_MODE" = appearance ]; then
+            echo "Appearance-only changes: source tests are covered by scheduled full CI."
           else
             node --experimental-strip-types --test "${selected[@]}"
           fi
@@ -119,34 +98,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Only explicitly allowlisted presentation-only changes get a reduced
-      # test run. Any server, auth, schema, rules, test, or workflow edit runs
-      # the complete suite. Dispatch and scheduled checks are always full.
-      - name: Select safe test scope
+      - name: Select test impact
         id: scope
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          echo "fast=false" >> "$GITHUB_OUTPUT"
-          if [ "$EVENT_NAME" != pull_request ] || [ -z "$BASE_SHA" ]; then
-            exit 0
-          fi
-          git diff --name-only "$BASE_SHA" HEAD > /tmp/ci-changed-files
-          if [ ! -s /tmp/ci-changed-files ]; then exit 0; fi
-          while IFS= read -r file; do
-            case "$file" in
-              app/campaigns/campaign-map-*.tsx|app/campaigns/map-*.tsx|app/campaigns/campaign-map.css|app/campaigns/campaign-ui.css|app/globals.css|public/*|*.md|docs/*)
-                ;;
-              *)
-                echo "Full suite required by: $file"
-                exit 0
-                ;;
-            esac
-          done < /tmp/ci-changed-files
-          echo "fast=true" >> "$GITHUB_OUTPUT"
-          echo "Presentation-only PR: use the routine test suite."
+          node scripts/select-test-impact.mjs | tee /tmp/test-impact
+          cat /tmp/test-impact >> "$GITHUB_OUTPUT"
+          cat /tmp/test-impact >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
@@ -155,17 +115,11 @@ jobs:
       - name: Build and run Worker integration tests
         shell: bash
         env:
-          FAST_SUITE: ${{ steps.scope.outputs.fast }}
+          TEST_MODE: ${{ steps.scope.outputs.mode }}
         run: |
           set -euo pipefail
           npm run build
-          if [ "$FAST_SUITE" = true ]; then
-            node --experimental-strip-types --test \
-              --test-skip-pattern='local Worker renders the signed-out UI|local Worker enforces read-only administrator access|local Worker signs out an authenticated session' \
-              tests/rendered-html.test.mjs
-          else
-            node --experimental-strip-types --test tests/rendered-html.test.mjs
-          fi
+          node --experimental-strip-types --test tests/rendered-html.test.mjs
       - name: Save tested production bundle
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@v4

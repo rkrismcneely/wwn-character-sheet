@@ -1,0 +1,51 @@
+name: Verify Production Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-twe-production
+  cancel-in-progress: false
+jobs:
+  verify:
+    name: Confirm live production version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Wait for Cloudflare and verify live release
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if node scripts/verify-live-release.mjs "$EXPECTED_SHA"; then
+              echo "### Production verified" >> "$GITHUB_STEP_SUMMARY"
+              echo "Commit $EXPECTED_SHA is live on taleswithoutend.com." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            # A later merge may overtake this one; only accept verified descendants.
+            live="$(curl -fsSL --max-time 10 -H 'Cache-Control: no-cache' "https://taleswithoutend.com/twe-build-version.json?attempt=$attempt" 2>/dev/null | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{try{const v=JSON.parse(s).commit;if(/^[a-f0-9]{40}$/.test(v))process.stdout.write(v)}catch{}})' || true)"
+            if [[ "$live" =~ ^[a-f0-9]{40}$ && "$live" != "$EXPECTED_SHA" ]]; then
+              git fetch --quiet origin main
+              if git cat-file -e "$live^{commit}" 2>/dev/null && git merge-base --is-ancestor "$EXPECTED_SHA" "$live"; then
+                if node scripts/verify-live-release.mjs "$live"; then
+                  echo "### Production verified (superseded)" >> "$GITHUB_STEP_SUMMARY"
+                  echo "Expected $EXPECTED_SHA; newer descendant $live is live and healthy." >> "$GITHUB_STEP_SUMMARY"
+                  exit 0
+                fi
+              fi
+            fi
+            sleep 10
+          done
+          echo "### Production verification failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Expected $EXPECTED_SHA, but could not confirm it or a newer descendant on the healthy live site." >> "$GITHUB_STEP_SUMMARY"
+          exit 1

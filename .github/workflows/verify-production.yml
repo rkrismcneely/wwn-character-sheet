@@ -7,7 +7,9 @@ permissions:
   contents: read
   statuses: write
 concurrency:
-  group: verify-twe-production
+  # Each merge must retain its own verification result; GitHub otherwise replaces
+  # older pending runs in a shared concurrency group during rapid merges.
+  group: verify-twe-production-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   verify:

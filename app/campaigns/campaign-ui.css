@@ -738,3 +738,11 @@ html[data-theme="dark"] .gm-npc-magic-add label>span{color:#d3a75d}html[data-the
 .gm-npc-more-menu button.is-danger{color:#8e342a}
 .gm-npc-more-menu button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:700px){.gm-npc-actions{align-self:stretch;justify-content:flex-start}.gm-npc-more-menu{left:0;right:auto}}
+
+/* Campaign character shortcut stays at the right end of the tab bar. */
+.gm-console-tabs .campaign-my-character-tab{margin-left:auto}
+.campaign-my-character-panel{width:min(1280px,calc(100% - 48px));margin:0 auto 24px}
+.campaign-my-character-panel[hidden]{display:none}
+.campaign-my-character-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;background:#f3e7cb;border:1px solid #a78b5a}
+.campaign-my-character-frame{display:block;width:100%;height:max(760px,calc(100vh - 280px));min-height:600px;border:1px solid #a78b5a;background:#f3e7cb}
+@media(max-width:700px){.gm-console-tabs .campaign-my-character-tab{margin-left:auto}.campaign-my-character-panel{width:calc(100% - 24px)}.campaign-my-character-frame{min-height:540px;height:75vh}.campaign-my-character-toolbar{flex-wrap:wrap}}

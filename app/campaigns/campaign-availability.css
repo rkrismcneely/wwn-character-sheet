@@ -56,7 +56,7 @@
   grid-template-columns:minmax(0,1fr) auto!important;
   padding:20px 24px!important;
   min-height:154px;
-  align-items:center;
+  align-items:start;
 }
 .campaign-detail-hero h1{
   font:600 clamp(44px,4.6vw,60px)/.96 var(--font-display);

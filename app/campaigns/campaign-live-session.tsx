@@ -118,6 +118,17 @@ export function EncounterTracker({ campaignId, session, partyLevels, partyLoaded
 }) {
   const encounter = session.encounter;
   const participantCharacters = session.participants.flatMap(participant => participant.character ? [participant.character] : []);
+  const [linkedCharacters,setLinkedCharacters]=useState<{id:string;name:string;hpCurrent:number;hpMax:number;armorClass:number}[]>([]);
+  useEffect(()=>{
+    if(!canManage)return;
+    const controller=new AbortController();
+    void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/characters",{cache:"no-store",signal:controller.signal})
+      .then(async response=>{if(!response.ok)throw new Error("Campaign characters unavailable.");return response.json() as Promise<{characters?:typeof linkedCharacters}>;})
+      .then(data=>{if(!controller.signal.aborted)setLinkedCharacters(data.characters||[]);})
+      .catch(()=>{});
+    return()=>controller.abort();
+  },[campaignId,canManage]);
+
   const activeCharacterIds = new Set(encounter?.combatants.flatMap(combatant => combatant.kind === "pc" ? [combatant.characterId] : []) || []);
 
   function addNpc(event: FormEvent<HTMLFormElement>) {
@@ -142,11 +153,11 @@ export function EncounterTracker({ campaignId, session, partyLevels, partyLoaded
   return <section className="campaign-encounter" aria-labelledby="campaign-encounter-title">
     <div className="campaign-encounter-heading"><div><h3 id="campaign-encounter-title">Encounter</h3><span>Round {encounter.round}</span></div>{canManage && <button type="button" className="campaign-danger" disabled={busy} onClick={() => void onAction({ action: "end" })}>End Encounter</button>}</div>
     <EncounterThreatSummary encounter={encounter} partyLevels={partyLevels} partyLoaded={partyLoaded} />
-    {canManage && participantCharacters.some(character => !activeCharacterIds.has(character.id)) && <div className="campaign-encounter-add-pcs"><span>Add linked character</span>{participantCharacters.filter(character => !activeCharacterIds.has(character.id)).map(character => <button type="button" className="campaign-quiet" disabled={busy} key={character.id} onClick={() => void onAction({ action: "add_pc", characterId: character.id })}>Add {character.name}</button>)}</div>}
+    {canManage && (linkedCharacters.length?linkedCharacters:participantCharacters).some(character => !activeCharacterIds.has(character.id)) && <div className="campaign-encounter-add-pcs"><span>Add linked character</span>{(linkedCharacters.length?linkedCharacters:participantCharacters).filter(character => !activeCharacterIds.has(character.id)).map(character => <button type="button" className="campaign-quiet" disabled={busy} key={character.id} onClick={() => void onAction({ action: "add_pc", characterId: character.id })}>Add {character.name}</button>)}</div>}
     {canManage && <form className="campaign-encounter-npc" onSubmit={addNpc}><label><span>Temporary NPC</span><input name="name" required maxLength={80} placeholder="Orc Warrior" /></label><label><span>Initiative</span><input name="initiative" type="number" defaultValue={0} min={-1000} max={1000} required /></label><label><span>Current HP</span><input name="hpCurrent" type="number" defaultValue={1} min={0} max={100000} required /></label><label><span>Max HP</span><input name="hpMax" type="number" defaultValue={1} min={1} max={100000} required /></label><label><span>AC</span><input name="armorClass" type="number" defaultValue={10} min={0} max={1000} required /></label><label className="campaign-encounter-friendly"><span>Friendly</span><input name="friendly" type="checkbox" /></label><button type="submit" className="campaign-secondary" disabled={busy}>Add NPC</button></form>}
     {encounter.combatants.length ? <ol className="campaign-encounter-order" aria-live="polite">{encounter.combatants.map(combatant => {
       const participant = combatant.kind === "pc" ? session.participants.find(candidate => candidate.character?.id === combatant.characterId) : null;
-      const character = participant?.character ?? null;
+      const character = participant?.character ?? linkedCharacters.find(entry=>entry.id===combatant.characterId) ?? null;
       const name = combatant.kind === "npc" ? combatant.name : character?.name || "Unavailable character";
       const hpCurrent = combatant.kind === "npc" ? combatant.hpCurrent : character?.hpCurrent;
       const hpMax = combatant.kind === "npc" ? combatant.hpMax : character?.hpMax;

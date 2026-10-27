@@ -29,6 +29,7 @@ import { useDisplayTheme } from "@/app/theme-provider";
 import { RulesAssistant } from "@/app/rules-assistant";
 import { CampaignItemLibrary } from "./campaign-item-library";
 import { CampaignStoreLibrary } from "./campaign-store-library";
+import { StoreErrorBoundary } from "./store-error-boundary";
 import { SessionRecapManager } from "./session-recap-manager";
 import type { CampaignItem, CampaignItemManagementPayload } from "@/lib/campaigns/items";
 import { campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventoryValue, inventoryItemDisplayName } from "@/lib/inventory/items";
@@ -578,7 +579,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       {tab === "bestiary" && <BuiltInBestiary partyLevels={partyLevels} partyLoaded={partyLoaded} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
       {tab === "items" && <CampaignItemLibrary campaignId={campaignId} />}
-      {tab === "stores" && <CampaignStoreLibrary campaignId={campaignId} />}
+      {tab === "stores" && <StoreErrorBoundary><CampaignStoreLibrary campaignId={campaignId} /></StoreErrorBoundary>}
       {tab === "recaps" && <SessionRecapManager campaignId={campaignId} />}
       {tab === "party" && <section className="gm-console-section gm-party-status" aria-labelledby="gm-party-status-title"><div className="campaign-section-heading"><div><p className="campaign-kicker">CURRENT CHARACTER STATUS</p><h2 id="gm-party-status-title">Party</h2></div></div>{partyStatusLoading && <p className="campaign-empty-copy">Loading linked party…</p>}{partyStatusError && <p className="campaign-error" role="status">{partyStatusError}</p>}{!partyStatusLoading && !partyStatusError && !partyStatus.length && <p className="campaign-empty-copy">No characters are linked to this campaign.</p>}{partyStatus.length > 0 && <div className="gm-party-status-grid">{partyStatus.map(character => <GmPartyStatus key={character.id} campaignId={campaignId} character={character} />)}</div>}</section>}
     </section>

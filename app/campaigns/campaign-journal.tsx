@@ -184,7 +184,7 @@ useEffect(()=>{
    const body=await response.json() as {entries?:Entry[]};
    if(active&&Array.isArray(body.entries))setEntries(previous=>{
     const changed=previous.length!==body.entries!.length||previous.some((entry,i)=>{
-     const other=body.entries![i];return !other||entry.id!==other.id||entry.title!==other.title||entry.content!==other.content||entry.parentId!==other.parentId||entry.icon!==other.icon||entry.visibility!==other.visibility;
+     const other=body.entries![i];return !other||entry.id!==other.id||entry.title!==other.title||entry.content!==other.content||entry.parentId!==other.parentId||entry.icon!==other.icon||entry.visibility!==other.visibility||entry.kind!==other.kind||entry.sortOrder!==other.sortOrder||entry.sourcePath!==other.sourcePath;
     });
     return changed?body.entries!:previous;
    });

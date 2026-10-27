@@ -472,6 +472,7 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
             </div>
           )}
           <div hidden={campaignTab !== "campaign"}>
+          <div className="campaign-detail-layout campaign-hero-layout">
           <section className="campaign-hero campaign-detail-hero" aria-labelledby="campaign-title">
             <div>
               <p className="campaign-kicker">PRIVATE CAMPAIGN · {campaignRoleLabel(campaign).toUpperCase()}</p>
@@ -488,6 +489,7 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
             </div>
             <CampaignAvailability campaignId={campaignId} />
           </section>
+          </div>
 
           {campaign.archivedAt && (
             <div className="campaign-readonly campaign-archived-notice" role="status">

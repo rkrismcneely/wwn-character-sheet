@@ -148,6 +148,24 @@ function FolderGlyph({role}:{role:string|null}){
 const folderRoles=["Locations","NPCs","Items","Stores","Quests","Session Notes"] as const;
 const [folderRoleDraft,setFolderRoleDraft]=useState("");
 function roleFor(entry:Entry){const role=entry.icon?.startsWith("twe-role:")?entry.icon.slice(9):"";return folderRoles.find(name=>name.toLowerCase()===role)||folderRoles.find(name=>name.toLowerCase()===entry.title.trim().toLowerCase()&&!entries.some(other=>other.kind==="folder"&&other.icon==="twe-role:"+name.toLowerCase()))||null;}
+function newPageIconForFolder(folderId:string|null):string{
+ const roleIcons:Record<string,string>={Locations:"map-pin",NPCs:"user-round",Items:"sword",Stores:"warehouse",Quests:"scroll-text","Session Notes":"calendar-days"};
+ const seen=new Set<string>();
+ let id=folderId;
+ while(id&&!seen.has(id)){
+  seen.add(id);
+  const folder=entries.find(entry=>entry.id===id&&entry.kind==="folder");
+  if(!folder)break;
+  const role=roleFor(folder);
+  if(role&&roleIcons[role])return roleIcons[role];
+  id=folder.parentId;
+ }
+ return "file-text";
+}
+function activeNewPageFolder():string|null{
+ const current=entries.find(entry=>entry.id===selected);
+ return current?.kind==="folder"?current.id:current?.parentId??null;
+}
 async function designateFolder(entry:Entry,role:string){
  try{const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"designateFolder",id:entry.id,role:role.toLowerCase()})});
  const body=await response.json() as {error?:string;icon?:string};if(!response.ok||!body.icon)throw new Error(body.error||"Could not designate folder.");
@@ -472,7 +490,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
  <header className="twe-workspace-header">
   <div className="twe-workspace-heading"><span className="twe-workspace-eyebrow">Campaign knowledge</span><h2>Campaign Journal</h2><p>Notes, places, characters and stories from your world.</p></div>
   <div className="twe-workspace-header-actions">
-   {canEdit&&!preview&&<button type="button" disabled={uploading||saving} className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(null);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>+ New page</button>}
+   {canEdit&&!preview&&<button type="button" disabled={uploading||saving} className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");const folderId=activeNewPageFolder();setParentId(folderId);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:newPageIconForFolder(folderId)});setEditing(true);}}>+ New page</button>}
    {canEdit&&!preview&&<button type="button" disabled={uploading||saving} className="twe-button" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(null);setCreatingFolder(true);setFolderRoleDraft("");setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>New folder</button>}
    {canEdit&&!preview&&<button type="button" className="twe-button" aria-expanded={importOpen} onClick={()=>setImportOpen(open=>!open)}>{importOpen?"Close import":"Import"}</button>}
    {canEdit&&!preview&&<button type="button" disabled={uploading||saving} className="twe-button" onClick={()=>{if(discardDraft()){setEditing(false);setPreview(true);}}}>View as player</button>}
@@ -541,7 +559,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
    </form>:current?<article className={"twe-workspace-page journal-article-"+(current.kind==="folder"?"folder":(/npc|character|people|person/i.test(ancestry(current).map(p=>p.title).join(" / "))?"npc":/monster|creature|bestiary|enemy/i.test(ancestry(current).map(p=>p.title).join(" / "))?"monster":/location|city|town|village|region|place|settlement/i.test(ancestry(current).map(p=>p.title).join(" / "))?"location":"general"))}>
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":(/npc|character|people|person/i.test(ancestry(current).map(p=>p.title).join(" / "))?"NPC":/monster|creature|bestiary|enemy/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Creature":/location|city|town|village|region|place|settlement/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Location":"Journal entry")}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge"}</div></div>
     {canEdit&&current.kind==="page"&&current.visibility==="selected"&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>void openReaders(current.id)}>Choose players</button>}
-    {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>+ New page here</button></div>}
+    {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:newPageIconForFolder(current.id)});setEditing(true);}}>+ New page here</button></div>}
     {current.kind==="page"&&<div className="journal-map-link-bar">
     {canEdit&&!preview&&linkedMapId(current)&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>openLinkedMap(linkedMapId(current))}>Open linked map</button>}
     {canEdit&&!preview&&!editing&&<button type="button" className="twe-button twe-button-subtle" disabled={mapLinkBusy} onClick={()=>void openMapPicker(current)}>{linkedMapId(current)?"Change linked map":"Link to a map"}</button>}

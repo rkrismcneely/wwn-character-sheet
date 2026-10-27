@@ -119,11 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run build
-          if [ "$TEST_MODE" = appearance ]; then
-            node --experimental-strip-types --test --test-name-pattern='local Worker renders the signed-out UI' tests/rendered-html.test.mjs
-          else
-            node --experimental-strip-types --test tests/rendered-html.test.mjs
-          fi
+          node --experimental-strip-types --test tests/rendered-html.test.mjs
       - name: Save tested production bundle
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@v4

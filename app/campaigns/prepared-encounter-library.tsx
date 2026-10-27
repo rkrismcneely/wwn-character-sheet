@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState,type FormEvent} from "react";
+import "./prepared-encounter-library.css";
 type Entry={kind:"saved"|"bestiary"|"party";npcId?:string;bestiaryId?:string;characterId?:string;quantity:number};
 type Plan={id:string;name:string;entries:Entry[];createdAt:string;updatedAt:string};
 type Npc={id:string;name:string;kind?:"npc"|"creature"};
@@ -52,22 +53,22 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   try{await onDeploy(plan.id);setNotice("Deployed "+plan.name+".");}
   catch(e){setError(e instanceof Error?e.message:"Could not deploy encounter.");}finally{setWorking(false);}
  }
- return <section className="gm-console-section" aria-labelledby="prepared-encounters-title">
+ return <section className="gm-console-section prepared-encounters" aria-labelledby="prepared-encounters-title">
   <div className="campaign-section-heading"><div><p className="campaign-kicker">ENCOUNTER PLANNING</p><h2 id="prepared-encounters-title">Prepared Encounters</h2></div><button className="campaign-primary" type="button" disabled={working||busy} onClick={()=>edit()}>Prepare Encounter</button></div>
   {error&&<p role="alert" className="campaign-error">{error}</p>}{notice&&<p role="status" className="campaign-notice">{notice}</p>}
-  {editing&&<form className="gm-npc-form" onSubmit={save}>
+  {editing&&<form className="gm-npc-form prepared-encounter-form" onSubmit={save}>
    <div className="gm-npc-form-heading"><h3>{editing==="new"?"New Encounter":"Edit Encounter"}</h3><button className="campaign-quiet" type="button" onClick={()=>setEditing(null)}>Cancel</button></div>
-   <label style={{display:"flex",flexDirection:"column",gap:4,width:"100%"}}>Encounter name <input style={{width:"100%",minWidth:0}} required maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder="Ambush at the Old Bridge"/></label>
-   <div className="gm-bestiary-filters">
-    <label>Creature source<select value={kind} onChange={e=>{setKind(e.target.value as "saved"|"bestiary"|"party");setSelection("");}}><option value="bestiary">Bestiary</option><option value="saved">Saved NPCs and creatures</option><option value="party">Party</option></select></label>
-    <label>Creature<select value={selection} onChange={e=>setSelection(e.target.value)}><option value="">Choose creature</option>{choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-    {kind!=="party"&&<label>Quantity<input type="number" min={1} max={30} value={quantity} onChange={e=>setQuantity(e.target.value)} onBlur={()=>{if(!quantity||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30)setQuantity("1");}}/></label>}
-    <button type="button" className="campaign-secondary" disabled={!selection||entries.length>=30||(kind!=="party"&&(!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30))} onClick={()=>{const count=Number(quantity);setEntries(current=>[...current,kind==="party"?{kind,characterId:selection,quantity:1}:kind==="saved"?{kind,npcId:selection,quantity:count}:{kind,bestiaryId:selection,quantity:count}]);}}>Add Creature</button>
+   <label className="prepared-encounter-name">Encounter name <input required maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder="Ambush at the Old Bridge"/></label>
+   <div className="prepared-encounter-picker">
+    <label className="prepared-encounter-source">Creature source<select value={kind} onChange={e=>{setKind(e.target.value as "saved"|"bestiary"|"party");setSelection("");}}><option value="bestiary">Bestiary</option><option value="saved">Saved NPCs and creatures</option><option value="party">Party</option></select></label>
+    <label className="prepared-encounter-creature">Creature<select value={selection} onChange={e=>setSelection(e.target.value)}><option value="">Choose creature</option>{choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+    <label className="prepared-encounter-quantity">Quantity<input type="number" min={1} max={30} value={quantity} onChange={e=>setQuantity(e.target.value)} onBlur={()=>{if(!quantity||!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30)setQuantity("1");}} disabled={kind==="party"}/></label>
+    <button type="button" className="campaign-secondary prepared-encounter-add" disabled={!selection||entries.length>=30||(kind!=="party"&&(!Number.isInteger(Number(quantity))||Number(quantity)<1||Number(quantity)>30))} onClick={()=>{const count=Number(quantity);setEntries(current=>[...current,kind==="party"?{kind,characterId:selection,quantity:1}:kind==="saved"?{kind,npcId:selection,quantity:count}:{kind,bestiaryId:selection,quantity:count}]);}}>Add Creature</button>
    </div>
-   <ul>{entries.map((entry,i)=><li key={i}>{entry.kind==="party"?"":`${entry.quantity} × `}{label(entry)} <button className="campaign-quiet" type="button" onClick={()=>setEntries(current=>current.filter((_,j)=>j!==i))}>Remove</button></li>)}</ul>
-   <button className="campaign-primary" type="submit" disabled={working||busy}>Save Encounter</button>
+   {entries.length>0&&<div className="prepared-encounter-roster"><div className="prepared-encounter-roster-heading">Encounter participants <span>{entries.length} selections</span></div><ul>{entries.map((entry,i)=><li key={i}><span className="prepared-encounter-entry-label"><span className="prepared-encounter-entry-count">{entry.kind==="party"?"PC":`${entry.quantity} ×`}</span>{label(entry)}</span><button className="campaign-quiet" type="button" aria-label={`Remove ${label(entry)}`} onClick={()=>setEntries(current=>current.filter((_,j)=>j!==i))}>Remove</button></li>)}</ul></div>}
+   <div className="prepared-encounter-form-actions"><button className="campaign-primary" type="submit" disabled={working||busy}>Save Encounter</button></div>
   </form>}
   {!plans.length&&!editing&&<p className="campaign-empty-copy">Save encounters ahead of time, then deploy one during a live session.</p>}
-  <div className="gm-npc-list">{plans.map(plan=><article className="gm-npc-card" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.entries.reduce((total,item)=>total+item.quantity,0)} creatures</p><ul>{plan.entries.map((entry,i)=><li key={i}>{entry.kind==="party"?"":`${entry.quantity} × `}{label(entry)}</li>)}</ul></div><div className="gm-bestiary-actions"><button className="campaign-primary" type="button" disabled={busy||working||activeEncounter||!sessionActive||!plan.entries.length} title={activeEncounter?"End the current encounter before deploying.":!sessionActive?"Start a live session before deploying.":undefined} onClick={()=>void deploy(plan)}>Deploy</button><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>edit(plan)}>Edit</button><button className="campaign-quiet" type="button" disabled={busy||working} onClick={()=>void remove(plan)}>Delete</button></div></article>)}</div>
+  <div className="prepared-encounter-list">{plans.map(plan=><article className="prepared-encounter-card" key={plan.id}><div className="prepared-encounter-card-content"><h3>{plan.name}</h3><p>{plan.entries.length} selections</p><ul>{plan.entries.map((entry,i)=><li key={i}>{entry.kind==="party"?"":`${entry.quantity} × `}{label(entry)}</li>)}</ul></div><div className="prepared-encounter-card-actions"><button className="campaign-primary" type="button" disabled={busy||working||activeEncounter||!sessionActive||!plan.entries.length} title={activeEncounter?"End the current encounter before deploying.":!sessionActive?"Start a live session before deploying.":undefined} onClick={()=>void deploy(plan)}>Deploy</button><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>edit(plan)}>Edit</button><button className="campaign-quiet" type="button" disabled={busy||working} onClick={()=>void remove(plan)}>Delete</button></div></article>)}</div>
  </section>;
 }

@@ -50,3 +50,37 @@
  .campaign-shell .campaign-hero-layout .campaign-detail-hero {grid-template-columns:minmax(0,1fr)!important;gap:10px}
  .campaign-detail-hero>.campaign-availability {justify-self:start;max-width:100%}
 }
+
+/* Campaign header typography and right-side actions match the GM workspace. */
+.campaign-shell .campaign-hero-layout .campaign-detail-hero{
+  grid-template-columns:minmax(0,1fr) auto!important;
+  padding:16px 18px!important;
+  min-height:134px;
+}
+.campaign-detail-hero h1{
+  font:600 clamp(32px,3.2vw,43px)/.96 var(--font-display);
+  margin:5px 0 7px;
+}
+.campaign-detail-hero .campaign-kicker{margin:0}
+.campaign-detail-hero .campaign-hero-subtitle{
+  font:13px/1.4 var(--font-body);
+  margin:6px 0 0;
+}
+.campaign-hero-right{
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-end;
+  gap:12px;
+  min-width:0;
+}
+.campaign-hero-right .campaign-hero-invite{
+  white-space:nowrap;
+  align-self:flex-start;
+  padding:9px 12px;
+  margin-top:3px;
+}
+.campaign-hero-right .campaign-availability{flex-shrink:0}
+@media(max-width:700px){
+ .campaign-shell .campaign-hero-layout .campaign-detail-hero{grid-template-columns:minmax(0,1fr)!important}
+ .campaign-hero-right{justify-content:flex-start;flex-wrap:wrap}
+}

@@ -540,3 +540,11 @@ test("prepared encounters can select all or individual linked party characters",
  assert.match(route,/durable.addPc\(authorization.sessionId/u);
  assert.match(service,/v.kind==="party"/u);
 });
+
+test("prepared encounter table self-initializes if migration deployment trails website code", async () => {
+ const sourceText=await source("lib/campaigns/prepared-encounters.ts");
+ const migration=await source("drizzle/0007_prepared_encounters.sql");
+ assert.match(sourceText,/CREATE TABLE IF NOT EXISTS campaign_prepared_encounters/u);
+ assert.match(sourceText,/await ensurePreparedEncounterTable\(db\)/u);
+ assert.match(migration,/CREATE TABLE IF NOT EXISTS campaign_prepared_encounters/u);
+});

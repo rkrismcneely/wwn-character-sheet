@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { CampaignLiveSessionState, CampaignNpcCombatStats, CampaignSharedRoll } from "@/lib/campaigns/live-session";
 import type { CampaignNpcAttack, CampaignNpcMagicReference } from "@/lib/campaigns/npc-combat";
 import { collapsedNpcCombatSummary } from "@/lib/campaigns/encounter";

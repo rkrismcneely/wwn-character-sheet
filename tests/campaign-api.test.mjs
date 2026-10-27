@@ -171,7 +171,7 @@ test("live sessions allow owner/admin runtime management, member participation, 
   await expectServiceError(startLiveSession(db, player, campaign.id, now), 403);
   const started = await startLiveSession(db, owner, campaign.id, now);
   assert.ok(started.state.session);
-  assert.equal(started.state.session.participants.length, 1);
+  assert.equal(started.state.session.participants.length, 2);
   assert.equal(started.state.permissions.canEnd, true);
   const duplicateStart = await startLiveSession(db, owner, campaign.id, now);
   assert.equal(duplicateStart.state.session.id, started.state.session.id);
@@ -220,8 +220,8 @@ test("shared rolls require a joined participant's own linked character", async (
     .run(campaignRow.id, "character-owner", now);
   const started = await startLiveSession(db, owner, campaign.id, now);
   assert.equal(started.state.session?.participants[0]?.character?.name, "Owner Hero");
-  await expectServiceError(authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012"), 409);
-  await joinLiveSession(db, player, campaign.id, now);
+  // Campaign members are now enrolled automatically, even before opening their sheet.
+  assert.equal((await readLiveSession(db, player, campaign.id)).permissions.joined, true);
   const authorization = await authorizeLiveSessionRoll(db, player, campaign.id, "chr_1234567890123456789012");
   assert.equal(authorization.character.name, "Player Hero");
   assert.equal((await authorizeEncounterCharacter(db, authorization.campaignId, authorization.sessionId, "chr_1234567890123456789012")).id, "chr_1234567890123456789012");
@@ -249,7 +249,8 @@ test("non-member administrators receive live-session runtime access and may join
   await addMember(sqlite, campaign.id, player);
   await startLiveSession(db, owner, campaign.id, now);
   const memberState = await readLiveSession(db, player, campaign.id);
-  assert.equal(memberState.permissions.canJoin, true);
+  assert.equal(memberState.permissions.canJoin, false);
+  assert.equal(memberState.permissions.joined, true);
   assert.ok(memberState.session.participants.every(participant => participant.character === null));
   assert.equal(Object.hasOwn(memberState.session.participants[0], "userId"), false);
 

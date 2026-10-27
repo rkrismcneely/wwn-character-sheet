@@ -10,6 +10,7 @@ import { campaignInventorySnapshot } from "../inventory/items.ts";
 export type { CampaignNpcAttack, CampaignNpcMagicReference, CampaignNpcThreatStats } from "./npc-combat.ts";
 
 export interface CampaignNpcTemplate {
+  kind: "npc" | "creature";
   id: string;
   name: string;
   hpMax: number;
@@ -30,6 +31,7 @@ export interface CampaignNpcTemplate {
 }
 
 export interface CampaignNpcDraft {
+  kind?: unknown;
   name?: unknown;
   hpMax?: unknown;
   armorClass?: unknown;
@@ -83,11 +85,17 @@ function normalizeNpcInventory(value: unknown, campaignPublicId: string): string
   return [...new Set(entries)];
 }
 
+// Store the discriminator inside existing notes data to preserve D1 schema compatibility.
+const creatureMarker = "[twe:custom-creature:v1]";
+function storedNotes(kind: "npc" | "creature", notes: string): string {
+  return kind === "creature" ? creatureMarker + "\n" + notes : notes;
+}
 function toTemplate(row: NpcRow): CampaignNpcTemplate {
   let parsedAttacks: CampaignNpcAttack[] = [];
   try { parsedAttacks = readStoredNpcAttacks(JSON.parse(row.attacksJson) as unknown); } catch { /* invalid legacy payloads are represented safely */ }
   return {
     id: row.id,
+    kind: row.notes.startsWith(creatureMarker + "\n") ? "creature" : "npc",
     name: row.name,
     hpMax: row.hpMax,
     armorClass: row.armorClass,
@@ -101,7 +109,7 @@ function toTemplate(row: NpcRow): CampaignNpcTemplate {
     friendly: row.friendly === 1,
     hitDice: row.hitDice,
     attacksPerMainAction: row.attacksPerMainAction,
-    notes: row.notes,
+    notes: row.notes.startsWith(creatureMarker + "\n") ? row.notes.slice(creatureMarker.length + 1) : row.notes,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -109,7 +117,9 @@ function toTemplate(row: NpcRow): CampaignNpcTemplate {
 
 function input(draft: CampaignNpcDraft, campaignPublicId: string, legacyAttacks: readonly CampaignNpcAttack[] = []): Omit<CampaignNpcTemplate, "id" | "createdAt" | "updatedAt"> {
   const threatStats = normalizeNpcThreatStats({ hitDice: draft.hitDice, attacksPerMainAction: draft.attacksPerMainAction });
+  const kind = draft.kind === "creature" ? "creature" : "npc";
   return {
+    kind,
     name: text(draft.name, "NPC name", 80),
     hpMax: integer(draft.hpMax, "Maximum HP", 1, 100000),
     armorClass: integer(draft.armorClass, "Armor Class", 0, 1000),
@@ -165,7 +175,7 @@ export async function createCampaignNpcTemplate(db: D1Database, actor: CampaignA
   await db.prepare(`INSERT INTO campaign_npc_templates
     (id, campaign_id, name, hp_max, armor_class, physical_save, evasion_save, mental_save, attacks_json, spells_json, arts_json, inventory_json, friendly, hit_dice, attacks_per_main_action, notes, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, campaign.id, value.name, value.hpMax, value.armorClass, value.physicalSave, value.evasionSave, value.mentalSave, JSON.stringify(value.attacks), JSON.stringify(value.spells), JSON.stringify(value.arts), JSON.stringify(value.inventory), value.friendly ? 1 : 0, value.hitDice, value.attacksPerMainAction, value.notes, now, now).run();
+    .bind(id, campaign.id, value.name, value.hpMax, value.armorClass, value.physicalSave, value.evasionSave, value.mentalSave, JSON.stringify(value.attacks), JSON.stringify(value.spells), JSON.stringify(value.arts), JSON.stringify(value.inventory), value.friendly ? 1 : 0, value.hitDice, value.attacksPerMainAction, storedNotes(value.kind, value.notes), now, now).run();
   return { id, ...value, createdAt: now, updatedAt: now };
 }
 
@@ -187,7 +197,7 @@ export async function updateCampaignNpcTemplate(db: D1Database, actor: CampaignA
   const result = await db.prepare(`UPDATE campaign_npc_templates SET name = ?, hp_max = ?, armor_class = ?,
     physical_save = ?, evasion_save = ?, mental_save = ?, attacks_json = ?, spells_json = ?, arts_json = ?, inventory_json = ?, friendly = ?, hit_dice = ?, attacks_per_main_action = ?, notes = ?, updated_at = ?
     WHERE campaign_id = ? AND id = ?`)
-    .bind(value.name, value.hpMax, value.armorClass, value.physicalSave, value.evasionSave, value.mentalSave, JSON.stringify(value.attacks), JSON.stringify(value.spells), JSON.stringify(value.arts), JSON.stringify(value.inventory), value.friendly ? 1 : 0, value.hitDice, value.attacksPerMainAction, value.notes, now, campaign.id, npcId).run();
+    .bind(value.name, value.hpMax, value.armorClass, value.physicalSave, value.evasionSave, value.mentalSave, JSON.stringify(value.attacks), JSON.stringify(value.spells), JSON.stringify(value.arts), JSON.stringify(value.inventory), value.friendly ? 1 : 0, value.hitDice, value.attacksPerMainAction, storedNotes(value.kind, value.notes), now, campaign.id, npcId).run();
   if (result.meta.changes !== 1) throw new CampaignServiceError("NPC template not found.", 404);
   return { id: npcId, ...value, createdAt: (await findNpc(db, campaign.id, npcId)).createdAt, updatedAt: now };
 }

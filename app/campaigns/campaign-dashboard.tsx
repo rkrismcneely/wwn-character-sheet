@@ -42,6 +42,8 @@ export function CampaignDashboard() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [busy, setBusy] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [renaming, setRenaming] = useState<CampaignSummary | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -209,6 +211,22 @@ export function CampaignDashboard() {
     }
   }
 
+  async function renameCampaign(event: React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!renaming)return;
+    const name=renameValue.trim();
+    if(!name){setError("Enter a campaign name.");return;}
+    setLifecycleBusy(renaming.id);setError("");setNotice("");
+    try{
+      const response=await fetch("/api/campaigns/"+encodeURIComponent(renaming.id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,version:renaming.version})});
+      const data=await response.json() as {campaign?:CampaignSummary;error?:string};
+      if(!response.ok||!data.campaign)throw new Error(data.error||"Campaign could not be renamed.");
+      setCampaigns(current=>current.map(item=>item.id===renaming.id?data.campaign!:item));
+      setRenaming(null);setNotice("Campaign name updated.");
+    }catch(cause){setError(cause instanceof Error?cause.message:"Campaign could not be renamed.");}
+    finally{setLifecycleBusy(null);}
+  }
+
   function campaignCard(campaign: CampaignSummary) {
     return <article className={`campaign-card${campaign.archivedAt ? " campaign-card-archived" : ""}`} key={campaign.id}>
       <div className="campaign-card-topline">
@@ -219,7 +237,7 @@ export function CampaignDashboard() {
       <p>Updated <time dateTime={campaign.updatedAt}>{formatCampaignDate(campaign.updatedAt)}</time></p>
       <div className="campaign-card-actions">
         <Link href={`/campaigns/${campaign.id}`} className="campaign-open">Open campaign <span aria-hidden="true">→</span></Link>
-        {campaign.permissions.canArchive && <details className="campaign-secondary-actions"><summary>More actions</summary><div><button type="button" className="campaign-quiet" onClick={() => void setCampaignArchived(campaign, true)} disabled={lifecycleBusy === campaign.id}>Archive campaign</button></div></details>}
+        {(campaign.permissions.canManageSettings||campaign.permissions.canArchive) && <details className="campaign-secondary-actions"><summary>More actions</summary><div>{campaign.permissions.canManageSettings && <button type="button" className="campaign-quiet" onClick={() => {setRenaming(campaign);setRenameValue(campaign.name);}}>Rename campaign</button>}{campaign.permissions.canArchive && <button type="button" className="campaign-quiet" onClick={() => void setCampaignArchived(campaign, true)} disabled={lifecycleBusy === campaign.id}>Archive campaign</button>}</div></details>}
         {campaign.permissions.canRestore && <button type="button" className="campaign-secondary" onClick={() => void setCampaignArchived(campaign, false)} disabled={lifecycleBusy === campaign.id}>Restore</button>}
       </div>
     </article>;
@@ -357,6 +375,13 @@ export function CampaignDashboard() {
         </aside>
       </div>
 
+      {renaming && <CampaignDialog title="Rename Campaign" onClose={()=>setRenaming(null)}>
+        <form className="campaign-dialog-form" onSubmit={renameCampaign}>
+          <label htmlFor="dashboard-rename-name">Campaign name</label>
+          <input id="dashboard-rename-name" maxLength={120} autoFocus value={renameValue} onChange={event=>setRenameValue(event.target.value)} />
+          <div className="campaign-dialog-actions"><button type="button" className="campaign-quiet" onClick={()=>setRenaming(null)}>Cancel</button><button type="submit" className="campaign-primary" disabled={lifecycleBusy===renaming.id}>{lifecycleBusy===renaming.id?"Saving…":"Save Name"}</button></div>
+        </form>
+      </CampaignDialog>}
       {createOpen && (
         <CampaignDialog
           title="Create Campaign"

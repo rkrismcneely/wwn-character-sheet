@@ -41,7 +41,6 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
   const detail = await source("app/campaigns/campaign-detail.tsx");
   for (const permission of [
     "canInviteMembers",
-    "canManageSettings",
     "canManageContent",
     "canUseGmConsole",
     "canRemovePlayers",
@@ -54,6 +53,8 @@ test("campaign detail consumes server permission flags for owner, player, GM, an
   ]) {
     assert.equal(detail.includes(`campaign.permissions.${permission}`), true, permission);
   }
+  const dashboard = await source("app/campaigns/campaign-dashboard.tsx");
+  assert.match(dashboard, /campaign\.permissions\.canManageSettings/u);
   assert.match(detail, /campaign\.permissions\.canUseGmConsole/u);
   assert.match(detail, /Campaign members/u);
   assert.match(detail, /Owner · Game Master/u);

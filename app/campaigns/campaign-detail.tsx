@@ -48,7 +48,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [renameOpen, setRenameOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState("");
   const [resourceOpen, setResourceOpen] = useState(false);
@@ -57,7 +56,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
   const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [changeCharacter, setChangeCharacter] = useState<CampaignCharacter | null>(null);
   const [replacementCharacterId, setReplacementCharacterId] = useState("");
-  const [renameValue, setRenameValue] = useState("");
   const [invite, setInvite] = useState<CreatedInvite | null>(null);
   const [inviteCopied, setInviteCopied] = useState<"link" | "code" | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -71,7 +69,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
       setMembers(Array.isArray(payload.members) ? payload.members : []);
       setCharacters(Array.isArray(payload.characters) ? payload.characters : []);
       setResources(Array.isArray(payload.resources) ? payload.resources : []);
-      setRenameValue(payload.campaign.name);
       setDescriptionValue(payload.campaign.description ?? "");
       setError("");
     } catch (loadError) {
@@ -106,40 +103,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
     // This route remounts for a different public campaign ID.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);
-
-  async function renameCampaign(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!campaign) return;
-    const name = renameValue.trim();
-    if (!name) {
-      setError("Enter a campaign name.");
-      return;
-    }
-    setActionBusy(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/campaigns/${campaign.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, version: campaign.version }),
-      });
-      const payload = await response.json() as {
-        campaign?: CampaignSummary;
-        error?: string;
-      };
-      if (!response.ok || !payload.campaign) {
-        throw new Error(payload.error || "The campaign could not be renamed.");
-      }
-      setCampaign(payload.campaign);
-      setRenameValue(payload.campaign.name);
-      setRenameOpen(false);
-      setNotice("Campaign name updated.");
-    } catch (renameError) {
-      setError(renameError instanceof Error ? renameError.message : "The campaign could not be renamed.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
 
   async function saveDescription(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -477,17 +440,14 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
             <div>
               <p className="campaign-kicker">PRIVATE CAMPAIGN · {campaignRoleLabel(campaign).toUpperCase()}</p>
               <h1 id="campaign-title">{campaign.name}</h1>
-              <p>{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
-              <div className="campaign-hero-actions">
-              {campaign.permissions.canInviteMembers && (
-                <button type="button" className="campaign-primary" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>
-              )}
-              {campaign.permissions.canManageSettings && (
-                <button type="button" className="campaign-secondary" onClick={() => setRenameOpen(true)}>Rename Campaign</button>
-              )}
-              </div>
+              <p className="campaign-hero-subtitle">{campaign.memberCount} {campaign.memberCount === 1 ? "member" : "members"} · Updated {formatCampaignDate(campaign.updatedAt)}</p>
             </div>
-            <CampaignAvailability campaignId={campaignId} />
+            <div className="campaign-hero-right">
+              {campaign.permissions.canInviteMembers && (
+                <button type="button" className="campaign-primary campaign-hero-invite" onClick={() => void createInvite()} disabled={actionBusy}>Invite Player</button>
+              )}
+              <CampaignAvailability campaignId={campaignId} />
+            </div>
           </section>
           </div>
 
@@ -648,19 +608,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
           </div>}
           </div>
         </>
-      )}
-
-      {renameOpen && campaign && (
-        <CampaignDialog title="Rename Campaign" onClose={() => setRenameOpen(false)}>
-          <form className="campaign-dialog-form" onSubmit={renameCampaign}>
-            <label htmlFor="rename-campaign-name">Campaign name</label>
-            <input id="rename-campaign-name" value={renameValue} onChange={event => setRenameValue(event.target.value)} maxLength={120} autoFocus />
-            <div className="campaign-dialog-actions">
-              <button type="button" className="campaign-quiet" onClick={() => setRenameOpen(false)}>Cancel</button>
-              <button type="submit" className="campaign-primary" disabled={actionBusy}>{actionBusy ? "Saving…" : "Save Name"}</button>
-            </div>
-          </form>
-        </CampaignDialog>
       )}
 
       {descriptionOpen && campaign && (

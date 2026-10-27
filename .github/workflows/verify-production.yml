@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  statuses: write
 concurrency:
   group: verify-twe-production
   cancel-in-progress: false
@@ -49,3 +50,27 @@ jobs:
           echo "### Production verification failed" >> "$GITHUB_STEP_SUMMARY"
           echo "Expected $EXPECTED_SHA, but could not confirm it or a newer descendant on the healthy live site." >> "$GITHUB_STEP_SUMMARY"
           exit 1
+
+      - name: Publish readable commit deployment status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          API_URL: ${{ github.api_url }}
+          VERIFICATION_RESULT: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          const state = process.env.VERIFICATION_RESULT === "success" ? "success" : "failure";
+          const description = state === "success"
+            ? "Production release verified on taleswithoutend.com"
+            : "Production release verification did not pass; inspect workflow run";
+          const response = await fetch(process.env.API_URL+"/repos/"+process.env.REPO+"/statuses/"+process.env.SHA,{
+            method:"POST",
+            headers:{"Authorization":"Bearer "+process.env.GH_TOKEN,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"},
+            body:JSON.stringify({state,context:"TWE Production",description,target_url:process.env.RUN_URL})
+          });
+          if(!response.ok)throw Error("Unable to publish commit status: HTTP "+response.status);
+          console.log("TWE Production commit status:",state);
+          NODE

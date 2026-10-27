@@ -567,3 +567,16 @@ test("Store edits synchronize only tagged Journal sections without overwriting c
  assert.match(store,/updateLinkedJournalStores\(stores\)/u);
  assert.match(store,/area:"journal"/u);
 });
+
+test("campaign My Character embeds a sheet without changing the full character route",async()=>{
+ const page=await source("app/campaigns/[id]/characters/[characterId]/page.tsx");
+ const frame=await source("app/campaigns/embedded-campaign-character.tsx");
+ const sizing=await source("app/campaigns/embedded-character-sizing.tsx");
+ const css=await source("app/campaigns/[id]/characters/[characterId]/embedded-character.css");
+ assert.match(page,/embeddedQuery === "1"/u);
+ assert.match(page,/!embedded && <CampaignCharacterSideTools/u);
+ assert.match(frame,/embedded=1/u);
+ assert.match(frame,/event.origin!==window.location.origin/u);
+ assert.match(sizing,/ResizeObserver/u);
+ assert.match(css,/\.twe-embedded-character \.app-header/u);
+});

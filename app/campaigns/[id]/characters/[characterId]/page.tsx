@@ -7,6 +7,8 @@ import CharacterSheet, {
 import { CampaignCharacterSideTools } from "@/app/campaigns/campaign-character-side-tools";
 import { CampaignMapLauncher } from "@/app/campaigns/campaign-map-launcher";
 import { CampaignStoreLauncher } from "@/app/campaigns/campaign-store-launcher";
+import { EmbeddedCharacterSizing } from "@/app/campaigns/embedded-character-sizing";
+import "./embedded-character.css";
 import { getSessionActor } from "@/lib/auth-session";
 import { readCampaignLinkedCharacter } from "@/lib/campaigns/characters";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
@@ -17,6 +19,7 @@ import "../../../campaign-character-side-tools.css";
 
 type RouteContext = {
   params: Promise<{ id: string; characterId: string }>;
+  searchParams: Promise<{embedded?: string}>;
 };
 
 export const metadata: Metadata = {
@@ -46,24 +49,29 @@ export default async function CampaignCharacterPage(context: RouteContext) {
   const actor = await getSessionActor({ headers: await headers() });
   if (!actor) redirect("/");
   const { id, characterId } = await context.params;
+  const { embedded: embeddedQuery } = await context.searchParams;
+  const embedded = embeddedQuery === "1";
   const payload = await loadCampaignCharacter(actor, id, characterId);
   const campaigns = [{ id, name: payload.campaignContext.name }];
   return <>
+    {embedded && <EmbeddedCharacterSizing />}
+    <div className={embedded ? "twe-embedded-character" : undefined}>
     <CharacterSheet
       initialCharacter={payload as InitialCharacterPayload}
       campaignContext={payload.campaignContext}
     />
-    <CampaignCharacterSideTools campaigns={campaigns} />
-    <CampaignMapLauncher
+    </div>
+    {!embedded && <CampaignCharacterSideTools campaigns={campaigns} />}
+    {!embedded && <CampaignMapLauncher
       campaignId={id}
       campaignName={payload.campaignContext.name}
       canManage={false}
       showFloatingButton={false}
-    />
-    <CampaignStoreLauncher
+    />}
+    {!embedded && <CampaignStoreLauncher
       campaignId={id}
       campaignName={payload.campaignContext.name}
       characterId={characterId}
-    />
+    />}
   </>;
 }

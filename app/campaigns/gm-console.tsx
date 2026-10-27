@@ -276,6 +276,31 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [journalNotice,setJournalNotice]=useState("");
+  async function addNpcToJournal(npc:CampaignNpcTemplate){
+    if(busy)return;
+    setBusy(true);setError("");setJournalNotice("");
+    try{
+      const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
+      const response=await fetch(url,{cache:"no-store"});
+      const data=await response.json() as {entries?:{id:string;kind:string;title:string;icon?:string;parentId?:string|null;content:string}[];error?:string};
+      if(!response.ok||!Array.isArray(data.entries))throw new Error(data.error||"Could not load Journal.");
+      const marker="{{twe-npc:"+npc.id+"}}";
+      const existing=data.entries.find(entry=>entry.kind==="page"&&entry.content.includes(marker));
+      if(existing){setJournalNotice('"'+""+'"'+"");return;}
+      const folder=data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
+        ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs");
+      const sameName=data.entries.find(entry=>entry.kind==="page"&&entry.parentId===(folder?.id??null)&&entry.title.trim().toLowerCase()===npc.name.trim().toLowerCase());
+      if(sameName&&!window.confirm('A Journal page named "'+npc.name+'" already exists here. Create a separate NPC page?'))return;
+      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:npc.name,content:marker,icon:"user-round",visibility:"gm",...(folder?{parentId:folder.id}:{})})});
+      const result=await created.json() as {entry?:{id:string};error?:string};
+      if(!created.ok||!result.entry)throw new Error(result.error||"Could not add NPC to Journal.");
+      window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+      setJournalNotice('Added "'+npc.name+'" to the Journal (GM only).');
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not add NPC to Journal.");}
+    finally{setBusy(false);}
+  }
+
 
   async function load() {
     const [npcResponse, itemResponse] = await Promise.all([
@@ -393,7 +418,8 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
       <label className="gm-npc-notes"><span>Notes</span><textarea maxLength={2000} value={draft.notes} onChange={event => setDraft(current => ({ ...current, notes: event.target.value }))} /></label><button type="submit" className="campaign-primary" disabled={busy}>{editing ? "Save NPC" : "Create NPC"}</button>
     </form>}
     {!npcs.length && !formOpen && <p className="campaign-empty-copy">Create reusable enemy and NPC templates for this campaign.</p>}
-    <div className="gm-npc-list">{npcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.inventory.length > 0 && <p><strong>Inventory:</strong> {npc.inventory.map(item => inventoryItemDisplayName(item)).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions">{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(npc.id).catch(() => {})}>Add to Encounter</button>}<button type="button" className="campaign-quiet" onClick={() => openEdit(npc)}>Edit</button><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void duplicate(npc)}>Duplicate</button>{deleteId === npc.id ? <span className="gm-npc-delete-confirm"><button type="button" className="campaign-danger" disabled={busy} onClick={() => void remove(npc.id)}>Confirm Delete</button><button type="button" className="campaign-quiet" onClick={() => setDeleteId(null)}>Cancel</button></span> : <button type="button" className="campaign-danger" onClick={() => setDeleteId(npc.id)}>Delete</button>}</div></article>)}</div>
+    {journalNotice&&<p className="campaign-notice" role="status">{journalNotice}</p>}
+    <div className="gm-npc-list">{npcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.inventory.length > 0 && <p><strong>Inventory:</strong> {npc.inventory.map(item => inventoryItemDisplayName(item)).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions"><button type="button" className="campaign-secondary" disabled={busy} onClick={()=>void addNpcToJournal(npc)}>Add to Journal</button>{activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(npc.id).catch(() => {})}>Add to Encounter</button>}<button type="button" className="campaign-quiet" onClick={() => openEdit(npc)}>Edit</button><button type="button" className="campaign-quiet" disabled={busy} onClick={() => void duplicate(npc)}>Duplicate</button>{deleteId === npc.id ? <span className="gm-npc-delete-confirm"><button type="button" className="campaign-danger" disabled={busy} onClick={() => void remove(npc.id)}>Confirm Delete</button><button type="button" className="campaign-quiet" onClick={() => setDeleteId(null)}>Cancel</button></span> : <button type="button" className="campaign-danger" onClick={() => setDeleteId(npc.id)}>Delete</button>}</div></article>)}</div>
   </section>;
 }
 

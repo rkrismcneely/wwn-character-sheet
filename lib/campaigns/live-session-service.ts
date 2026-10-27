@@ -58,7 +58,17 @@ function characterStatus(row: ParticipantRow): CampaignLiveSessionCharacter | nu
   });
 }
 
+/** All campaign members are included in the party automatically; connected remains a separate live-presence flag. */
+async function enrollCampaignMembers(db: D1Database, session: SessionRow): Promise<void> {
+  await db.prepare(`INSERT OR IGNORE INTO campaign_session_participants (session_id,user_id,joined_at)
+    SELECT ?, members.user_id, ?
+    FROM campaign_members members WHERE members.campaign_id=?
+    UNION SELECT ?, campaigns.owner_user_id, ? FROM campaigns WHERE campaigns.id=?`)
+    .bind(session.id, session.startedAt, session.campaignId, session.id, session.startedAt, session.campaignId).run();
+}
+
 async function payload(db: D1Database, session: SessionRow): Promise<CampaignLiveSession> {
+  await enrollCampaignMembers(db,session);
   const participants = await sessionParticipants(db, session.id, session.campaignId);
   return { id: session.id, startedAt: session.startedAt, recentRolls: [], encounter: null, participants: await Promise.all(participants.map(async participant => ({
     participantKey: await participantKey(session.id, participant.userId),

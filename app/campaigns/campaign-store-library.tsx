@@ -107,25 +107,6 @@ function storeManagedMarkdown(store:CampaignStore){
  lines.push(storeManagedEnd);
  return lines.join("\n");
 }
-function updateStoreManagedPage(content:string,store:CampaignStore){
- const fresh=storeManagedMarkdown(store);
- const start=content.indexOf(storeManagedStart),end=content.indexOf(storeManagedEnd);
- if(start>=0&&end>start)return content.slice(0,start)+fresh+content.slice(end+storeManagedEnd.length);
- // Only convert legacy generated articles with no added content after the inventory table.
- const legacy=content.match(/\n\n## Goods for sale\n\n\| Item \| Price \| Availability \|[\s\S]*$/u);
- if(!legacy)return content;
- const rows=legacy[0].trim().split("\n");
- const generated=rows.length>=4&&rows[2]==="| Item | Price | Availability |"&&rows[3]==="| :--- | ---: | :--- |"&&rows.slice(4).every(line=>line.startsWith("|")||line==="No inventory listed yet.");
- if(!generated)return content;
- const prefix=content.slice(0,legacy.index);
- const marker=prefix.match(/^<!-- twe-store:[^>]+ -->/u)?.[0];
- if(!marker)return content;
- // A legacy article's description and proprietor paragraphs may have been edited.
- // Preserve the original prefix instead of silently replacing it.
- const inventory=fresh.slice(fresh.indexOf("## Goods for sale"),fresh.indexOf(storeManagedEnd)).trimEnd();
- return prefix+"\n\n"+inventory;
-}
-
 export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [stores, setStores] = useState<CampaignStore[]>([]);
   const syncInitialized=useRef(false);
@@ -179,33 +160,6 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [journalNotice, setJournalNotice] = useState("");
-
-  const storeSyncStarted=useRef(false);
-  const storeSyncQueue=useRef<Promise<void>>(Promise.resolve());
-  async function syncManagedStorePages(updated:CampaignStore[]){
-    const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
-    const response=await fetch(url,{cache:"no-store"});
-    if(!response.ok)return;
-    const body=await response.json() as {entries?:{id:string;kind:string;content:string;updatedAt:string}[]};
-    if(!Array.isArray(body.entries))return;
-    let changed=false;
-    for(const store of updated){
-      const page=body.entries.find(e=>e.kind==="page"&&e.content.includes("<!-- twe-store:"+store.id+" -->"));
-      if(!page)continue;
-      const content=updateStoreManagedPage(page.content,store);
-      if(content===page.content)continue;
-      const update=await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:page.id,content,expectedContent:page.content,expectedUpdatedAt:page.updatedAt})});
-      if(!update.ok)throw new Error("Could not update the Journal article for "+store.name+".");
-      page.content=content;changed=true;
-    }
-    if(changed)window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
-  }
-  useEffect(()=>{
-    if(!storeSyncStarted.current){storeSyncStarted.current=true;return;}
-    storeSyncQueue.current=storeSyncQueue.current.catch(()=>{}).then(()=>syncManagedStorePages(stores)).catch(cause=>{
-      setJournalNotice(cause instanceof Error?cause.message:"Unable to refresh linked Store articles.");
-    });
-  },[stores,campaignId]);
 
   type Placement = {id:string;title:string;kind:string;parentId:string|null;content:string;icon?:string};
   const [placements,setPlacements]=useState<Placement[]>([]);

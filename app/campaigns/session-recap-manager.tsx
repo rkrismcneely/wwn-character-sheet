@@ -99,7 +99,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       if(duplicate){setJournalNotice("Already in the Journal as “"+duplicate.title+"”.");return;}
       const folder=data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:session notes")??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="session notes");
       if(!folder)throw new Error("Choose a Session Notes folder category in the Journal before adding this recap.");
-      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:editing.date.slice(2)+" — "+editing.title,content:marker+"\\n\\n"+editing.content,visibility:"gm",icon:"calendar-days",...(folder?{parentId:folder.id}:{})})});
+      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:editing.date.slice(2)+" — "+editing.title,content:marker+"\n\n"+editing.content,visibility:"gm",icon:"calendar-days",...(folder?{parentId:folder.id}:{})})});
       const result=await created.json() as {entry?:{id:string};error?:string};
       if(!created.ok||!result.entry)throw new Error(result.error||"Could not add recap to Journal.");
       setJournalNotice(folder?"Added to the Journal under "+folder.title+".":"Added to the Journal.");

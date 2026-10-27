@@ -5,6 +5,7 @@ import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
 import { normalizeNpcAttacks, normalizeNpcMagicReferences, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
 import { getPreparedEncounter } from "@/lib/campaigns/prepared-encounters";
+import { listCampaignCharacters } from "@/lib/campaigns/characters";
 import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
 import type { CampaignNpcCombatStats } from "@/lib/campaigns/live-session";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
@@ -64,14 +65,30 @@ export async function POST(request: Request, context: Context): Promise<Response
       const plan = await getPreparedEncounter(db, actor, id, body.preparedId);
       // Validate all referenced templates before starting to avoid partial deployments from missing records.
       const seeds = [];
+      const partyIds = new Set<string>();
+      const linkedParty = plan.entries.some(entry => entry.kind === "party" && entry.characterId === "all")
+        ? await listCampaignCharacters(db, actor, id) : [];
       for (const entry of plan.entries) {
+        if (entry.kind === "party") {
+          if (entry.characterId === "all") {
+            for (const character of linkedParty) partyIds.add(character.id);
+          } else {
+            partyIds.add(entry.characterId);
+          }
+          continue;
+        }
         const seed = entry.kind === "saved"
           ? await campaignNpcEncounterSeed(db, authorization.campaignId, entry.npcId)
           : builtInBestiaryEncounterSeed(entry.bestiaryId);
         if (!seed) throw new CampaignServiceError("A creature in this plan is no longer available.", 422);
         for (let count = 0; count < entry.quantity; count++) seeds.push(seed);
       }
+      const characters = [];
+      for (const characterId of partyIds) {
+        characters.push(await authorizeEncounterCharacter(db, authorization.campaignId, authorization.sessionId, characterId));
+      }
       encounter = await durable.startEncounter(authorization.sessionId);
+      for (const character of characters) encounter = await durable.addPc(authorization.sessionId, character.id, character.alertPriority);
       for (const seed of seeds) encounter = await durable.addNpc(authorization.sessionId, seed);
     }
     else if (body.action === "start") encounter = await durable.startEncounter(authorization.sessionId);

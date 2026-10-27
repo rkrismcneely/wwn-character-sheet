@@ -527,3 +527,16 @@ test("prepared encounters are private campaign plans and deploy only to an empty
  assert.match(plans, /campaign_id=\?/u);
  assert.match(migration, /campaign_prepared_encounters/u);
 });
+
+test("prepared encounters can select all or individual linked party characters", async () => {
+ const ui=await source("app/campaigns/prepared-encounter-library.tsx");
+ const route=await source("app/api/campaigns/[id]/session/encounter/route.ts");
+ const service=await source("lib/campaigns/prepared-encounters.ts");
+ assert.match(ui,/All Party Members/u);
+ assert.match(ui,/<option value="party">Party<\/option>/u);
+ assert.match(ui,/characterId:selection/u);
+ assert.match(route,/listCampaignCharacters\(db, actor, id\)/u);
+ assert.match(route,/authorizeEncounterCharacter\(db, authorization.campaignId/u);
+ assert.match(route,/durable.addPc\(authorization.sessionId/u);
+ assert.match(service,/v.kind==="party"/u);
+});

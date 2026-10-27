@@ -37,12 +37,13 @@ import { campaignInventoryKindLabel, campaignInventorySnapshot, campaignInventor
 export type ConsoleTab = "encounter" | "bestiary" | "npcs" | "items" | "stores" | "party" | "recaps";
 
 type NpcDraft = {
+  kind: "npc" | "creature";
   name: string; hpMax: number; armorClass: number;
   physicalSave: number; evasionSave: number; mentalSave: number;
   attacks: CampaignNpcAttack[]; spells: CampaignNpcMagicReference[]; arts: CampaignNpcMagicReference[]; inventory: string[]; friendly: boolean; hitDice: number | null; attacksPerMainAction: number | null; notes: string;
 };
 
-const blankNpc = (): NpcDraft => ({ name: "", hpMax: 1, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [], spells: [], arts: [], inventory: [], friendly: false, hitDice: null, attacksPerMainAction: null, notes: "" });
+const blankNpc = (): NpcDraft => ({ kind: "npc", name: "", hpMax: 1, armorClass: 10, physicalSave: 15, evasionSave: 15, mentalSave: 15, attacks: [], spells: [], arts: [], inventory: [], friendly: false, hitDice: null, attacksPerMainAction: null, notes: "" });
 const blankAttack = (): CampaignNpcAttack => ({ name: "", attackBonus: 0, damage: "", shock: "", description: "" });
 const blankMagic = (): CampaignNpcMagicReference => ({ name: "", summary: "" });
 const OTHER_MAGIC_VALUE = "__other__";
@@ -114,7 +115,7 @@ function rollNpcHitPoints(hitDice: number): number {
   }
   return Math.max(1, hp);
 }
-const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks.map(attack => ({ ...attack })), spells: npc.spells.map(spell => ({ ...spell })), arts: npc.arts.map(art => ({ ...art })), inventory: [...npc.inventory], friendly: npc.friendly, hitDice: npc.hitDice, attacksPerMainAction: npc.attacksPerMainAction, notes: npc.notes });
+const draftFor = (npc: CampaignNpcTemplate): NpcDraft => ({ kind: npc.kind ?? "npc", name: npc.name, hpMax: npc.hpMax, armorClass: npc.armorClass, physicalSave: npc.physicalSave, evasionSave: npc.evasionSave, mentalSave: npc.mentalSave, attacks: npc.attacks.map(attack => ({ ...attack })), spells: npc.spells.map(spell => ({ ...spell })), arts: npc.arts.map(art => ({ ...art })), inventory: [...npc.inventory], friendly: npc.friendly, hitDice: npc.hitDice, attacksPerMainAction: npc.attacksPerMainAction, notes: npc.notes });
 
 type CampaignThreatCharacter = { threatLevel: unknown };
 type GmPartyCharacter = {
@@ -267,7 +268,7 @@ function BuiltInBestiary({ partyLevels, partyLoaded, activeEncounter, busy, onAd
   </section>;
 }
 
-function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaignId: string; activeEncounter: boolean; onAddToEncounter: (npcId: string) => Promise<void> }) {
+function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter, kind = "npc" }: { campaignId: string; activeEncounter: boolean; onAddToEncounter: (npcId: string) => Promise<void>; kind?: "npc" | "creature" }) {
   const [npcs, setNpcs] = useState<CampaignNpcTemplate[]>([]);
   const [campaignItems, setCampaignItems] = useState<CampaignItem[]>([]);
   const [editing, setEditing] = useState<CampaignNpcTemplate | null>(null);
@@ -288,11 +289,15 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
       const marker="{{twe-npc:"+npc.id+"}}";
       const existing=data.entries.find(entry=>entry.kind==="page"&&entry.content.includes(marker));
       if(existing){setJournalNotice('"'+npc.name+'" is already in the Journal as "'+existing.title+'".');return;}
-      const folder=data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
-        ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs");
+      const folder=kind==="creature"
+        ? data.entries.find(entry=>entry.kind==="folder"&&["creatures","bestiary","monsters"].includes(entry.title.trim().toLowerCase()))
+          ??data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
+          ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs")
+        : data.entries.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:npcs")
+          ??data.entries.find(entry=>entry.kind==="folder"&&entry.title.trim().toLowerCase()==="npcs");
       const sameName=data.entries.find(entry=>entry.kind==="page"&&entry.parentId===(folder?.id??null)&&entry.title.trim().toLowerCase()===npc.name.trim().toLowerCase());
       if(sameName&&!window.confirm('A Journal page named "'+npc.name+'" already exists here. Create a separate NPC page?'))return;
-      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:npc.name,content:marker,icon:"user-round",visibility:"gm",...(folder?{parentId:folder.id}:{})})});
+      const created=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"page",title:npc.name,content:marker,icon:kind==="creature"?"paw-print":"user-round",visibility:"gm",...(folder?{parentId:folder.id}:{})})});
       const result=await created.json() as {entry?:{id:string};error?:string};
       if(!created.ok||!result.entry)throw new Error(result.error||"Could not add NPC to Journal.");
       window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
@@ -322,7 +327,7 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);
 
-  function openCreate() { setEditing(null); setDraft(blankNpc()); setFormOpen(true); setError(""); }
+  function openCreate() { setEditing(null); setDraft({ ...blankNpc(), kind }); setFormOpen(true); setError(""); }
   function openEdit(npc: CampaignNpcTemplate) { setEditing(npc); setDraft(draftFor(npc)); setFormOpen(true); setError(""); }
   function updateAttack(index: number, key: keyof CampaignNpcAttack, value: string | number) { setDraft(current => ({ ...current, attacks: current.attacks.map((attack, candidate) => candidate === index ? { ...attack, [key]: value } : attack) })); }
   function updateMagic(kind: "spells" | "arts", index: number, value: CampaignNpcMagicReference) { setDraft(current => ({ ...current, [kind]: current[kind].map((entry, candidate) => candidate === index ? value : entry) })); }
@@ -382,17 +387,18 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
     finally { setBusy(false); }
   }
 
-  return <section className="gm-console-section" aria-labelledby="gm-npcs-title">
-    <div className="campaign-section-heading"><div><p className="campaign-kicker">CAMPAIGN LIBRARY</p><h2 id="gm-npcs-title">NPCs</h2></div><button type="button" className="campaign-primary" onClick={openCreate}>Create NPC</button></div>
+  const visibleNpcs = npcs.filter(npc => (npc.kind ?? "npc") === kind);
+  return <section className="gm-console-section" aria-labelledby={kind === "creature" ? "gm-custom-creatures-title" : "gm-npcs-title"}>
+    <div className="campaign-section-heading"><div><p className="campaign-kicker">CAMPAIGN LIBRARY</p><h2 id={kind === "creature" ? "gm-custom-creatures-title" : "gm-npcs-title"}>{kind === "creature" ? "Custom Creatures" : "NPCs"}</h2></div><button type="button" className="campaign-primary" onClick={openCreate}>{kind === "creature" ? "Create Creature" : "Create NPC"}</button></div>
     {error && <p className="campaign-error" role="status">{error}</p>}
     {formOpen && <form className="gm-npc-form" onSubmit={save}>
-      <div className="gm-npc-form-heading"><h3>{editing ? `Edit ${editing.name}` : "New NPC"}</h3><button type="button" className="campaign-quiet" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</button></div>
+      <div className="gm-npc-form-heading"><h3>{editing ? `Edit ${editing.name}` : kind === "creature" ? "New Creature" : "New NPC"}</h3><button type="button" className="campaign-quiet" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</button></div>
       <label className="gm-npc-archetype">Start from Bestiary archetype <select defaultValue="" aria-label="Bestiary archetype" onChange={event=>{
        const creature=builtInBestiaryCreatures.find(item=>item.id===event.target.value);
        if(!creature)return;
        const archetype=builtInBestiaryCreatureDraft(creature.id);
        if(!archetype)return;
-       setDraft(current=>({...current,...archetype,
+       setDraft(current=>({...current,...archetype,kind:current.kind,
         name:String(archetype.name??creature.name),
         hpMax:Number(archetype.hpMax??creature.hpMax),
         armorClass:Number(archetype.armorClass??creature.armorClass),
@@ -417,9 +423,9 @@ function NpcLibrary({ campaignId, activeEncounter, onAddToEncounter }: { campaig
       <NpcInventoryPicker items={campaignItems} values={draft.inventory} onChange={inventory => setDraft(current => ({ ...current, inventory }))} />
       <label className="gm-npc-notes"><span>Notes</span><textarea maxLength={2000} value={draft.notes} onChange={event => setDraft(current => ({ ...current, notes: event.target.value }))} /></label><button type="submit" className="campaign-primary" disabled={busy}>{editing ? "Save NPC" : "Create NPC"}</button>
     </form>}
-    {!npcs.length && !formOpen && <p className="campaign-empty-copy">Create reusable enemy and NPC templates for this campaign.</p>}
+    {!visibleNpcs.length && !formOpen && <p className="campaign-empty-copy">Create reusable enemy and NPC templates for this campaign.</p>}
     {journalNotice&&<p className="campaign-notice" role="status">{journalNotice}</p>}
-    <div className="gm-npc-list">{npcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.inventory.length > 0 && <p><strong>Inventory:</strong> {npc.inventory.map(item => inventoryItemDisplayName(item)).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions">
+    <div className="gm-npc-list">{visibleNpcs.map(npc => <article key={npc.id} className="gm-npc-card"><div><h3>{npc.name}{npc.friendly ? <span className="gm-npc-friendly-badge">Friendly</span> : null}</h3><p>HP {npc.hpMax} · AC {npc.armorClass} · Saves P {npc.physicalSave} / E {npc.evasionSave} / M {npc.mentalSave}{npc.hitDice !== null && npc.attacksPerMainAction !== null ? ` · HD ${npc.hitDice} · ${npc.attacksPerMainAction} attacks/Main Action` : ""}</p>{npc.attacks.length > 0 && <ul>{npc.attacks.map((attack, index) => <li key={`${npc.id}-${index}`}><strong>{attack.name}</strong> +{attack.attackBonus} · {attack.damage}{attack.shock ? ` · Shock ${attack.shock}` : ""}{attack.description ? ` · ${attack.description}` : ""}</li>)}</ul>}{npc.spells.length > 0 && <p><strong>Spells:</strong> {npc.spells.map(spell => spell.name).join(", ")}</p>}{npc.arts.length > 0 && <p><strong>Arts:</strong> {npc.arts.map(art => art.name).join(", ")}</p>}{npc.inventory.length > 0 && <p><strong>Inventory:</strong> {npc.inventory.map(item => inventoryItemDisplayName(item)).join(", ")}</p>}{npc.notes && <small>{npc.notes}</small>}</div><div className="gm-npc-actions">
   {activeEncounter && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void onAddToEncounter(npc.id).catch(() => {})}>Add to Encounter</button>}
   <button type="button" className="campaign-quiet" disabled={busy} onClick={() => openEdit(npc)}>Edit</button>
   <details className="gm-npc-more">
@@ -615,7 +621,7 @@ export function GmConsole({ campaignId, campaignName, embedded = false, activeTa
       {tab === "encounter" && !session && <section className="gm-console-start"><h2>No live session is active</h2><p>Use Start Session above to run encounters and follow party activity here.</p></section>}
       {session && !state.permissions.joined && state.permissions.canJoin && <button type="button" className="campaign-primary" disabled={busy} onClick={() => void action("join").catch(() => {})}>Join Session</button>}
       {session && state.permissions.joined && tab === "encounter" && <EncounterTracker campaignId={campaignId} session={session} partyLevels={partyLevels} partyLoaded={partyLoaded} canManage={canManageEncounter} busy={busy || npcRollBusy} onAction={encounterAction} onNpcRoll={rollNpc} />}
-      {tab === "bestiary" && <BuiltInBestiary partyLevels={partyLevels} partyLoaded={partyLoaded} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} />}
+      {tab === "bestiary" && <><NpcLibrary campaignId={campaignId} kind="creature" activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} /><BuiltInBestiary partyLevels={partyLevels} partyLoaded={partyLoaded} activeEncounter={Boolean(session?.encounter)} busy={busy} onAddToEncounter={bestiaryId => encounterAction({ action: "add_bestiary_npc", bestiaryId })} onSaveAsNpc={saveBestiaryNpc} /></>}
       {tab === "npcs" && <NpcLibrary campaignId={campaignId} activeEncounter={Boolean(session?.encounter)} onAddToEncounter={npcId => encounterAction({ action: "add_saved_npc", npcId })} />}
       {tab === "items" && <CampaignItemLibrary campaignId={campaignId} />}
       {tab === "stores" && <StoreErrorBoundary><CampaignStoreLibrary campaignId={campaignId} /></StoreErrorBoundary>}

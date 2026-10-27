@@ -487,3 +487,15 @@ test("inventory acquisition and movement use an owned-item workflow", async () =
   assert.match(stored, /onReady\(index\)/u);
   assert.match(css, /\.inventory-dialog-backdrop/u);
 });
+
+test("custom Bestiary creatures use the shared NPC editor and linked Journal mechanism", async () => {
+  const consoleSource = await source("app/campaigns/gm-console.tsx");
+  const npcService = await source("lib/campaigns/npcs.ts");
+  assert.match(consoleSource, /kind="creature"/u);
+  assert.match(consoleSource, /Create Creature/u);
+  assert.match(consoleSource, /visibleNpcs = npcs\.filter/u);
+  assert.match(consoleSource, /notifyCampaignNpcChanged\(campaignId, saved\.id\)/u);
+  assert.match(consoleSource, /\{\{twe-npc:/u);
+  assert.match(npcService, /creatureMarker/u);
+  assert.match(npcService, /draft\.kind \?\? existing\.kind/u);
+});

@@ -29,7 +29,6 @@ const [creatingFolder,setCreatingFolder]=useState(false);
 const [parentId,setParentId]=useState<string|null>(null);
 const [search,setSearch]=useState("");
 const [mapChoices,setMapChoices]=useState<{id:string;name:string}[]>([]);
-const [mapPickerOpen,setMapPickerOpen]=useState(false);
 const [mapLinkBusy,setMapLinkBusy]=useState(false);
 const [chosenMapId,setChosenMapId]=useState("");
 
@@ -365,34 +364,23 @@ async function moveEntry(sourceId:string,targetId:string|null){
  }catch(e){setError(e instanceof Error?e.message:"Move failed.");await refresh();}
  finally{setDragged(null);setDropTarget(null);setMoveId("");}
 }
+function normalizeRecapContent(content:string){
+ if(!content.startsWith("<!-- twe-session-recap:"))return content;
+ return content.replace(/^(<!-- twe-session-recap:[^>]* -->)\\n\\n/, "$1\n\n");
+}
 const mapLinkPattern=/^<!-- twe-map:(map_[a-f0-9-]{36}) -->\s*$/gmu;
 function linkedMapId(entry:Entry){return /^<!-- twe-map:(map_[a-f0-9-]{36}) -->\s*$/mu.exec(entry.content)?.[1]??"";}
-async function openMapPicker(entry:Entry){
- if(!canEdit||preview||!discardDraft())return;
+async function loadMapChoices(){
  setMapLinkBusy(true);setError("");
  try{
   const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/map",{cache:"no-store"});
   const data=await response.json() as {maps?:{id:string;name:string}[];error?:string};
-  if(!response.ok||!Array.isArray(data.maps))throw new Error(data.error||"Unable to load campaign maps.");
-  setMapChoices(data.maps);setChosenMapId(linkedMapId(entry));setMapPickerOpen(true);
- }catch(cause){setError(cause instanceof Error?cause.message:"Unable to load campaign maps.");}
+  if(!response.ok||!Array.isArray(data.maps))throw new Error(data.error||"Unable to load maps.");
+  setMapChoices(data.maps);
+ }catch(cause){setError(cause instanceof Error?cause.message:"Unable to load maps.");}
  finally{setMapLinkBusy(false);}
 }
-async function saveMapLink(entry:Entry){
- if(mapLinkBusy||!canEdit||preview)return;
- if(chosenMapId&&!mapChoices.some(map=>map.id===chosenMapId)){setError("Choose an existing campaign map.");return;}
- setMapLinkBusy(true);setError("");
- try{
-  const cleaned=entry.content.replace(mapLinkPattern,"").trimEnd();
-  const content=chosenMapId?("<!-- twe-map:"+chosenMapId+" -->\n\n"+cleaned):cleaned;
-  const response=await fetch(endpoint,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:entry.id,content})});
-  const result=await response.json() as {entry?:Entry;error?:string};
-  if(!response.ok||!result.entry)throw new Error(result.error||"Unable to save linked map.");
-  setEntries(old=>old.map(item=>item.id===entry.id?result.entry!:item));
-  setMapPickerOpen(false);
- }catch(cause){setError(cause instanceof Error?cause.message:"Unable to save linked map.");}
- finally{setMapLinkBusy(false);}
-}
+useEffect(()=>{if(!editing||creatingFolder)return;const timer=window.setTimeout(()=>void loadMapChoices(),0);return()=>window.clearTimeout(timer);},[editing,creatingFolder,campaignId]); // eslint-disable-line react-hooks/exhaustive-deps
 function openLinkedMap(mapId:string){
  window.dispatchEvent(new CustomEvent(campaignMapOpenEvent,{detail:{campaignId,action:"open",mapId}}));
 }
@@ -478,8 +466,8 @@ async function save(e:React.FormEvent){
  if(uploading||savingRef.current)return;
  savingRef.current=true;setSaving(true);setError("");
  try{
-  const retainedMapId=current&&!creatingFolder?linkedMapId(current):"";
-  const savedDraft=retainedMapId&&!linkedMapId({...current!,content:draft.content})?{...draft,content:"<!-- twe-map:"+retainedMapId+" -->\n\n"+draft.content}:draft;
+  const cleaned=normalizeRecapContent(draft.content).replace(mapLinkPattern,"").trimStart();
+  const savedDraft={...draft,content:!creatingFolder&&chosenMapId?"<!-- twe-map:"+chosenMapId+" -->\n\n"+cleaned:cleaned};
   const entry=await saveJournalEditorDraft({endpoint,id:selected,kind:creatingFolder?"folder":"page",parentId,draft:savedDraft,attachments:pendingAttachments.current,onCreated:created=>{setSelected(created.id);setEntries(old=>[...old,created]);}});
   if(creatingFolder&&(folderRoleDraft!==""||Boolean(selected&&current?.kind==="folder"&&roleFor(current)))){await designateFolder(entry,folderRoleDraft);}
   setEntries(old=>old.some(item=>item.id===entry.id)?old.map(item=>item.id===entry.id?entry:item):[...old,entry]);setSelected(entry.id);setDraft({title:entry.title,content:entry.content,visibility:entry.visibility,icon:journalPageIcon(entry.icon)});setEditing(false);setCreatingFolder(false);clearRecoveredDraft();clearAttachments();setUploadNotice("");await refresh();window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
@@ -548,13 +536,13 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
   <main className="twe-workspace-document">
    <div className="twe-workspace-document-toolbar">
     <div className="twe-workspace-crumbs"><div className="twe-workspace-history"><button type="button" aria-label="Previous Journal page" title="Previous Journal page" disabled={!backStack.length} onClick={()=>travelJournal("back")}>←</button><button type="button" aria-label="Next Journal page" title="Next Journal page" disabled={!forwardStack.length} onClick={()=>travelJournal("forward")}>→</button></div>{!sidebarOpen&&<button type="button" className="twe-workspace-icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={()=>setSidebarOpen(true)}>☰</button>}<span>Journal</span>{current&&<>{ancestry(current).map(parent=><span key={parent.id}> / {parent.title}</span>)}<span className="twe-workspace-crumb-current"> / {current.title}</span></>}</div>
-    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" disabled={uploading||saving} className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(current.kind==="folder");setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setFolderRoleDraft(current.kind==="folder"?(roleFor(current)??""):"");setEditing(true);}}>{current.kind==="folder"?"Edit folder":"Edit page"}</button>}{canEdit&&editing&&<div className="twe-workspace-action-row"><button form="twe-journal-page-editor" type="submit" disabled={uploading||saving} className="twe-button twe-button-primary">{saving?"Saving…":"Save "+(creatingFolder?"folder":"page")}</button><button type="button" disabled={uploading||saving} className="twe-button" onClick={()=>{if(discardDraft())setEditing(false);}}>Cancel</button></div>}</div>}
+    {current&&<div className="twe-workspace-document-controls">{canEdit&&<span className={"twe-workspace-visibility twe-workspace-visibility-"+current.visibility}>{current.visibility==="gm"?"GM only":current.visibility==="selected"?"Selected players":"All players"}</span>}{canEdit&&!editing&&<button type="button" disabled={uploading||saving} className="twe-button twe-button-subtle" onClick={()=>{setCreatingFolder(current.kind==="folder");setDraft({title:current.title,content:current.content,visibility:current.visibility,icon:journalPageIcon(current.icon)});setFolderRoleDraft(current.kind==="folder"?(roleFor(current)??""):"");setChosenMapId(current.kind==="page"?linkedMapId(current):"");setEditing(true);}}>{current.kind==="folder"?"Edit folder":"Edit page"}</button>}{canEdit&&editing&&<div className="twe-workspace-action-row"><button form="twe-journal-page-editor" type="submit" disabled={uploading||saving} className="twe-button twe-button-primary">{saving?"Saving…":"Save "+(creatingFolder?"folder":"page")}</button><button type="button" disabled={uploading||saving} className="twe-button" onClick={()=>{if(discardDraft())setEditing(false);}}>Cancel</button></div>}</div>}
    </div>
    {editing&&canEdit?<form id="twe-journal-page-editor" className="twe-workspace-editor" onSubmit={save}>
     <div className="twe-workspace-editor-top"><span className="twe-workspace-eyebrow">{creatingFolder?"New folder":selected?"Edit page":"New page"}</span>{dirty&&<span className="journal-unsaved-indicator" role="status">● Unsaved changes</span>}{!current&&<div className="twe-workspace-action-row"><button className="twe-button twe-button-primary" type="submit" disabled={uploading||saving}>{saving?"Saving…":"Save "+(creatingFolder?"folder":"page")}</button><button className="twe-button" type="button" disabled={uploading||saving} onClick={()=>{if(discardDraft())setEditing(false);}}>Cancel</button></div>}</div>
     <label className="twe-workspace-field">Title<input autoFocus required disabled={saving} maxLength={160} placeholder={creatingFolder?"Folder name":"Untitled page"} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
     {creatingFolder&&<label className="twe-workspace-field">Folder category (optional)<select disabled={saving} value={folderRoleDraft} onChange={event=>setFolderRoleDraft(event.target.value)}><option value="">No category</option>{folderRoles.map(role=><option key={role} value={role.toLowerCase()}>{role}</option>)}</select></label>}
-    {!creatingFolder&&<><button type="button" className="twe-button journal-add-npc" disabled={saving||uploading} onClick={()=>setNpcCreatorOpen(open=>!open)}>+ Add NPC stat block</button>{npcCreatorOpen&&<JournalNpcCreator campaignId={campaignId} onCancel={()=>setNpcCreatorOpen(false)} onInserted={markdown=>{setDraft(old=>({...old,content:old.content.trimEnd()+"\n\n"+markdown+"\n"}));setEditorSession(value=>value+1);setNpcCreatorOpen(false);setUploadNotice("NPC saved to the campaign library. Save this page to keep the stat block.");}}/>}<JournalIconPicker value={draft.icon} onChange={icon=>setDraft(old=>({...old,icon}))} disabled={uploading||saving}/><JournalVisualEditor campaignId={campaignId} key={(selected||"new-page")+":"+editorSession} value={draft.content} onChange={content=>setDraft(old=>({...old,content}))} disabled={uploading||saving} pages={entries} current={current} onAttach={uploadJournalFile} localImageUrls={localImageUrls}/></>}
+    {!creatingFolder&&<><button type="button" className="twe-button journal-add-npc" disabled={saving||uploading} onClick={()=>setNpcCreatorOpen(open=>!open)}>+ Add NPC stat block</button>{npcCreatorOpen&&<JournalNpcCreator campaignId={campaignId} onCancel={()=>setNpcCreatorOpen(false)} onInserted={markdown=>{setDraft(old=>({...old,content:old.content.trimEnd()+"\n\n"+markdown+"\n"}));setEditorSession(value=>value+1);setNpcCreatorOpen(false);setUploadNotice("NPC saved to the campaign library. Save this page to keep the stat block.");}}/>}<label className="twe-workspace-field">Linked map<select disabled={saving||mapLinkBusy} value={chosenMapId} onChange={event=>setChosenMapId(event.target.value)}><option value="">No linked map</option>{mapChoices.map(map=><option key={map.id} value={map.id}>{map.name}</option>)}</select></label><button type="button" className="twe-button twe-button-subtle" disabled={mapLinkBusy} onClick={()=>void loadMapChoices()}>Refresh map list</button><JournalIconPicker value={draft.icon} onChange={icon=>setDraft(old=>({...old,icon}))} disabled={uploading||saving}/><JournalVisualEditor campaignId={campaignId} key={(selected||"new-page")+":"+editorSession} value={draft.content} onChange={content=>setDraft(old=>({...old,content}))} disabled={uploading||saving} pages={entries} current={current} onAttach={uploadJournalFile} localImageUrls={localImageUrls}/></>}
     <div className="twe-workspace-editor-bottom"><label className="twe-workspace-field">Who can read this?<select disabled={saving} value={draft.visibility} onChange={e=>setDraft({...draft,visibility:e.target.value})}><option value="gm">GM only</option><option value="players">All players</option><option value="selected">Selected players</option></select></label>{current&&<button className="twe-button twe-button-danger twe-workspace-delete-entry" type="button" disabled={uploading||saving} onClick={()=>void deleteEntry(current)}>Delete {current.kind==="folder"?"folder":"page"}…</button>}</div>
    </form>:current?<article className={"twe-workspace-page journal-article-"+(current.kind==="folder"?"folder":(/npc|character|people|person/i.test(ancestry(current).map(p=>p.title).join(" / "))?"npc":/monster|creature|bestiary|enemy/i.test(ancestry(current).map(p=>p.title).join(" / "))?"monster":/location|city|town|village|region|place|settlement/i.test(ancestry(current).map(p=>p.title).join(" / "))?"location":"general"))}>
     <div className="twe-workspace-page-heading"><span className="twe-workspace-eyebrow">{current.kind==="folder"?"Folder":(/npc|character|people|person/i.test(ancestry(current).map(p=>p.title).join(" / "))?"NPC":/monster|creature|bestiary|enemy/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Creature":/location|city|town|village|region|place|settlement/i.test(ancestry(current).map(p=>p.title).join(" / "))?"Location":"Journal entry")}</span><h3 className="twe-workspace-article-heading">{current.kind==="page"&&<JournalPageIconView icon={current.icon} size={30}/>}<span>{current.title}</span></h3><div className="twe-workspace-page-meta">{current.kind==="folder"?"Organize the pages in this folder":"Campaign knowledge"}</div></div>
@@ -562,10 +550,10 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     {canEdit&&current.kind==="folder"&&<div className="twe-workspace-page-tools"><button type="button" className="twe-button twe-button-primary" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setParentId(current.id);setCreatingFolder(false);setDraft({title:"",content:"",visibility:"gm",icon:newPageIconForFolder(current.id)});setEditing(true);}}>+ New page here</button></div>}
     {current.kind==="page"&&<div className="journal-map-link-bar">
     {canEdit&&!preview&&linkedMapId(current)&&<button type="button" className="twe-button twe-button-subtle" onClick={()=>openLinkedMap(linkedMapId(current))}>Open linked map</button>}
-    {canEdit&&!preview&&!editing&&<button type="button" className="twe-button twe-button-subtle" disabled={mapLinkBusy} onClick={()=>void openMapPicker(current)}>{linkedMapId(current)?"Change linked map":"Link to a map"}</button>}
-    {mapPickerOpen&&canEdit&&!preview&&!editing&&<div className="journal-map-link-picker"><label>Campaign map <select value={chosenMapId} disabled={mapLinkBusy} onChange={event=>setChosenMapId(event.target.value)}><option value="">No linked map</option>{mapChoices.map(map=><option key={map.id} value={map.id}>{map.name}</option>)}</select></label><button type="button" className="twe-button twe-button-primary" disabled={mapLinkBusy} onClick={()=>void saveMapLink(current)}>Save link</button><button type="button" className="twe-button" disabled={mapLinkBusy} onClick={()=>setMapPickerOpen(false)}>Cancel</button></div>}
+    
+
    </div>}
-    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={resolveJournalWikilinks(journalPropertiesMarkdown(current.content),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/></div>}
+    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={resolveJournalWikilinks(journalPropertiesMarkdown(normalizeRecapContent(current.content)),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/></div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>

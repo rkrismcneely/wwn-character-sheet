@@ -193,7 +193,7 @@ export async function createCampaignNpcTemplateFromBestiary(db: D1Database, acto
 export async function updateCampaignNpcTemplate(db: D1Database, actor: CampaignActor, campaignPublicId: string, npcId: string, draft: CampaignNpcDraft, now = new Date().toISOString()): Promise<CampaignNpcTemplate> {
   const campaign = await ownerCampaign(db, actor, campaignPublicId, true);
   const existing = await findNpc(db, campaign.id, npcId);
-  const value = input(draft, campaign.publicId, existing.attacks);
+  const value = input({ ...draft, kind: draft.kind ?? existing.kind }, campaign.publicId, existing.attacks);
   const result = await db.prepare(`UPDATE campaign_npc_templates SET name = ?, hp_max = ?, armor_class = ?,
     physical_save = ?, evasion_save = ?, mental_save = ?, attacks_json = ?, spells_json = ?, arts_json = ?, inventory_json = ?, friendly = ?, hit_dice = ?, attacks_per_main_action = ?, notes = ?, updated_at = ?
     WHERE campaign_id = ? AND id = ?`)

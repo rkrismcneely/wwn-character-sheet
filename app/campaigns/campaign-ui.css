@@ -725,3 +725,16 @@ html[data-theme="dark"] .gm-npc-magic-add label>span{color:#d3a75d}html[data-the
   .session-recap-heading-actions { justify-content: flex-start; width: 100%; }
   .session-recap-heading-actions button { flex: 1 1 10rem; }
 }
+
+/* Keep NPC cards readable: frequent actions inline, secondary actions in a menu. */
+.gm-npc-actions{flex-wrap:nowrap;max-width:none;align-items:flex-start}
+.gm-npc-more{position:relative;flex-shrink:0}
+.gm-npc-more>summary{display:flex;align-items:center;justify-content:center;list-style:none;cursor:pointer;min-width:32px;min-height:30px;padding:0 6px;border:1px solid #bca47d;background:#f9eed7;color:#584028;font:700 20px/1 var(--font-ui);border-radius:2px}
+.gm-npc-more>summary::-webkit-details-marker{display:none}
+.gm-npc-more>summary:focus-visible{outline:2px solid #a87524;outline-offset:2px}
+.gm-npc-more-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;display:grid;gap:2px;min-width:160px;padding:5px;border:1px solid #bea57e;background:#fff5df;box-shadow:0 5px 15px #35230c30}
+.gm-npc-more-menu button{display:block;width:100%;padding:8px 10px;text-align:left;border:0;background:transparent;color:#493520;font:600 11px/1.2 var(--font-ui);cursor:pointer}
+.gm-npc-more-menu button:hover,.gm-npc-more-menu button:focus-visible{background:#ecdbb9}
+.gm-npc-more-menu button.is-danger{color:#8e342a}
+.gm-npc-more-menu button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){.gm-npc-actions{align-self:stretch;justify-content:flex-start}.gm-npc-more-menu{left:0;right:auto}}

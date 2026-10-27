@@ -210,7 +210,7 @@ export function CampaignStoreLibrary({ campaignId }: { campaignId: string }) {
 
   const selectedStore = stores.find(store => store.id === selectedStoreId) ?? stores[0] ?? null;
   const linkedPage=placements.find(page=>page.kind==="page"&&!!selectedStore&&page.content.includes("<!-- twe-store:"+selectedStore.id+" -->"));
-  const locationId=pendingLocation?.storeId===selectedStore?.id?pendingLocation.id:(linkedPage&&locations.some(location=>location.id===linkedPage.parentId)?linkedPage.parentId!:"");
+  const locationId=pendingLocation&&selectedStore&&pendingLocation.storeId===selectedStore.id?pendingLocation.id:(linkedPage&&locations.some(location=>location.id===linkedPage.parentId)?linkedPage.parentId!:"");
   const categories = useMemo(
     () => Array.from(new Set(catalog.map(item => item.category))),
     [catalog],

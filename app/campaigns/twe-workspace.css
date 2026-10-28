@@ -389,3 +389,29 @@ html[data-theme="dark"] .campaign-journal input::placeholder{color:#796950;opaci
 html[data-theme="dark"] .campaign-journal .twe-button:not(.twe-button-primary){color:#51391e;background:#f9efdc;border-color:#bba17b}
 html[data-theme="dark"] .campaign-journal .twe-button-primary{color:#fff9ed;background:#80551f}
 html[data-theme="dark"] .campaign-journal .twe-workspace-icon-button{color:#6a4924}
+
+
+/* Real dark-mode workspace palette, rather than light parchment with darker ink. */
+html[data-theme="dark"] .campaign-journal.twe-workspace{
+ --twe-w-ink:#eee0c7;--twe-w-muted:#c4af8e;--twe-w-gold:#e0b36e;
+ --twe-w-line:#6e593b;--twe-w-paper:#231f19;--twe-w-surface:#1b1916;
+ --twe-w-sidebar:#29241c;--twe-w-focus:#edbd75;
+ background:var(--twe-w-surface);color:var(--twe-w-ink);color-scheme:dark;border-color:#79603d;
+}
+html[data-theme="dark"] .campaign-journal .twe-workspace-heading h2,
+html[data-theme="dark"] .campaign-journal .twe-workspace-heading p,
+html[data-theme="dark"] .campaign-journal .twe-workspace-nav-caption,
+html[data-theme="dark"] .campaign-journal .twe-workspace-section-label,
+html[data-theme="dark"] .campaign-journal .twe-workspace-search input,
+html[data-theme="dark"] .campaign-journal .twe-workspace-icon-search input{color:var(--twe-w-ink)}
+html[data-theme="dark"] .campaign-journal input::placeholder{color:#b9a88d}
+html[data-theme="dark"] .campaign-journal .twe-button:not(.twe-button-primary){background:#30291f;color:#f1dfc2;border-color:#86704e}
+html[data-theme="dark"] .campaign-journal .twe-button-primary{background:#94682e;color:#fff7e8}
+html[data-theme="dark"] .campaign-journal .twe-workspace-icon-button{color:#dec29a}
+html[data-theme="dark"] .campaign-journal .twe-workspace-header,
+html[data-theme="dark"] .campaign-journal .twe-workspace-sidebar,
+html[data-theme="dark"] .campaign-journal .twe-workspace-main,
+html[data-theme="dark"] .campaign-journal .twe-workspace-content,
+html[data-theme="dark"] .campaign-journal .twe-workspace-nav{background:var(--twe-w-surface);color:var(--twe-w-ink)}
+html[data-theme="dark"] .campaign-journal .twe-workspace-tree-row{color:#f0dfc2}
+html[data-theme="dark"] .campaign-journal .twe-workspace-tree-row.is-active{background:#51402a;color:#fff0cd}

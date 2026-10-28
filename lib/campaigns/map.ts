@@ -742,6 +742,7 @@ export interface CampaignMapEncounterTokenSeed {
   kind: "pc" | "npc";
   sourceId: string;
   name: string;
+  position?: { x: number; y: number };
 }
 
 export async function placeCampaignMapEncounterTokens(
@@ -758,7 +759,8 @@ export async function placeCampaignMapEncounterTokens(
   if (!seeds.length) throw new CampaignServiceError("The active encounter has no combatants to place.", 409);
   const count = await tokenCount(db, row.id);
   const statements = seeds.slice(0, 100).map((seed, index) => {
-    const position = defaultTokenPosition(row, count + index);
+    const proposed = seed.position;
+    const position = proposed && Number.isFinite(proposed.x) && Number.isFinite(proposed.y) && proposed.x >= 0 && proposed.y >= 0 && proposed.x <= (row.backgroundWidth as number) && proposed.y <= (row.backgroundHeight as number) ? proposed : defaultTokenPosition(row, count + index);
     return db.prepare(`INSERT OR IGNORE INTO campaign_map_tokens
       (id, campaign_id, map_id, kind, source_id, name, x, y, version, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)

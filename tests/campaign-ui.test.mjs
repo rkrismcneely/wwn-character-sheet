@@ -587,3 +587,13 @@ test("My Character panel reserves desktop width for the normal three-column char
  assert.match(campaignCss,/\.campaign-my-character-panel\{width:min\(1540px,calc\(100% - 32px\)\)/u);
  assert.match(responsive,/@media \(min-width: 721px\) and \(max-width: 1050px\)/u);
 });
+
+test("campaign store drawer can show no-active-store state without character selection",async()=>{
+ const service=await source("lib/campaigns/stores.ts");
+ const drawer=await source("app/campaigns/campaign-store-launcher.tsx");
+ const active=service.slice(service.indexOf("export async function readActiveCampaignStore"));
+ assert.match(active,/characterId == null \|\| characterId === ""/u);
+ assert.match(active,/canViewCampaign\(actor, access\.campaign, access\.membership\)/u);
+ assert.match(active,/viewerCampaign\(db, actor, campaignPublicId, characterId\)/u);
+ assert.match(drawer,/No store is currently open/u);
+});

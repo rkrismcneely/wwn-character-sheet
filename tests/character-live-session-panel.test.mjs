@@ -47,3 +47,11 @@ test("Live session refresh preserves websocket presence and resets it on disconn
  assert.match(hook,/latestPresence\.current = \{ sessionId, keys \}/u);
  assert.match(hook,/latestPresence\.current = null/u);
 });
+
+test("Live Session header separates connection status and displays at least four rolls",async()=>{
+ const panel=await readFile(new URL("../app/character-live-session-panel.tsx",import.meta.url),"utf8");
+ assert.match(panel,/character-live-connection/u);
+ assert.match(panel,/character-live-online-count/u);
+ assert.match(panel,/useState\(4\)/u);
+ assert.match(panel,/Math\.max\(4, Math\.min/u);
+});

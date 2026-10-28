@@ -48,6 +48,21 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   try{const response=await fetch(url,{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({id:plan.id})});if(!response.ok)throw new Error("Could not delete encounter.");await refresh();}
   catch(e){setError(e instanceof Error?e.message:"Could not delete encounter.");}finally{setWorking(false);}
  }
+ async function captureMapLayout(plan:Plan){
+  setWorking(true);setError("");setNotice("");
+  try{
+   const result=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/map",{cache:"no-store"});
+   const data=await result.json() as {map?:{id:string;name:string;tokens:{kind:string;name:string;x:number;y:number}[]};error?:string};
+   if(!result.ok)throw new Error(data.error||"Could not load the current map.");
+   if(!data.map)throw new Error("Create a campaign map before saving token positions.");
+   const positions=data.map.tokens.filter(token=>token.kind==="npc"||token.kind==="pc").map(token=>({kind:token.kind,name:token.name,x:token.x,y:token.y}));
+   if(!positions.length)throw new Error("Place your encounter tokens on the map before saving their positions.");
+   const saved=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"save_map_layout",id:plan.id,mapId:data.map.id,positions})});
+   const body=await saved.json() as {error?:string};
+   if(!saved.ok)throw new Error(body.error||"Could not save map positions.");
+   setNotice("Saved "+positions.length+" token positions from "+data.map.name+" for "+plan.name+".");
+  }catch(e){setError(e instanceof Error?e.message:"Could not save map positions.");}finally{setWorking(false);}
+ }
  async function deploy(plan:Plan){
   setWorking(true);setError("");setNotice("");
   try{await onDeploy(plan.id);setNotice("Deployed "+plan.name+".");}
@@ -71,7 +86,7 @@ export function PreparedEncounterLibrary({campaignId,activeEncounter,sessionActi
   {!plans.length&&!editing&&<p className="campaign-empty-copy">Save encounters ahead of time, then deploy one during a live session.</p>}
   <div className="prepared-encounter-list">{plans.map(plan=><details className="prepared-encounter-card" key={plan.id}>
    <summary className="prepared-encounter-summary"><span className="prepared-encounter-summary-text"><strong>{plan.name}</strong><span>{plan.entries.length} selections · {plan.entries.reduce((total,item)=>total+(item.kind==="party"?0:item.quantity),0)} creatures{plan.entries.some(item=>item.kind==="party")?" + party":""}</span></span><span className="prepared-encounter-summary-actions"><button className="campaign-primary" type="button" disabled={busy||working||activeEncounter||!sessionActive||!plan.entries.length} title={activeEncounter?"End the current encounter before deploying.":!sessionActive?"Start a live session before deploying.":undefined} onClick={event=>{event.preventDefault();void deploy(plan);}}>Deploy</button><span className="prepared-encounter-expand-hint">Details</span></span></summary>
-   <div className="prepared-encounter-expanded"><ul>{plan.entries.map((entry,i)=><li key={i}>{entry.kind==="party"?"":`${entry.quantity} × `}{label(entry)}</li>)}</ul><div className="prepared-encounter-card-actions"><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>edit(plan)}>Edit Encounter</button><button className="campaign-quiet" type="button" disabled={busy||working} onClick={()=>void remove(plan)}>Delete</button></div></div>
+   <div className="prepared-encounter-expanded"><ul>{plan.entries.map((entry,i)=><li key={i}>{entry.kind==="party"?"":`${entry.quantity} × `}{label(entry)}</li>)}</ul><div className="prepared-encounter-card-actions"><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>edit(plan)}>Edit Encounter</button><button className="campaign-secondary" type="button" disabled={busy||working} onClick={()=>void captureMapLayout(plan)}>Save Map Positions</button><button className="campaign-quiet" type="button" disabled={busy||working} onClick={()=>void remove(plan)}>Delete</button></div></div>
   </details>)}</div>
  </section>;
 }

@@ -69,3 +69,38 @@ export async function deletePreparedEncounter(db:D1Database,actor:CampaignActor,
  const result=await db.prepare("DELETE FROM campaign_prepared_encounters WHERE campaign_id=? AND id=?").bind(campaign.id,id).run();
  if(result.meta.changes!==1)throw new CampaignServiceError("Prepared encounter not found.",404);
 }
+
+export type PreparedEncounterMapLayout = {mapId:string;positions:{kind:"npc"|"pc";name:string;x:number;y:number}[]};
+async function ensurePreparedMapLayoutTable(db:D1Database){
+ await db.prepare("CREATE TABLE IF NOT EXISTS campaign_prepared_encounter_maps (campaign_id text NOT NULL,prepared_id text NOT NULL,map_id text NOT NULL,positions_json text NOT NULL,PRIMARY KEY(campaign_id,prepared_id))").run();
+ await db.prepare("CREATE TABLE IF NOT EXISTS campaign_prepared_encounter_deployments (campaign_id text NOT NULL,encounter_id text NOT NULL,prepared_id text NOT NULL,PRIMARY KEY(campaign_id,encounter_id))").run();
+}
+export async function savePreparedEncounterMapLayout(db:D1Database,actor:CampaignActor,publicId:string,id:string,mapId:string,positions:unknown){
+ const campaign=await access(db,actor,publicId,true);
+ await getPreparedEncounter(db,actor,publicId,id);
+ if(!/^map_[a-zA-Z0-9_-]{1,100}$/.test(mapId))throw new CampaignServiceError("Map ID is invalid.",422);
+ if(!Array.isArray(positions)||positions.length>100)throw new CampaignServiceError("Map layout is invalid.",422);
+ const checked=positions.map(value=>{
+  const p=value as Record<string,unknown>;
+  if(!p||(p.kind!=="pc"&&p.kind!=="npc")||typeof p.name!=="string"||p.name.length>100||typeof p.x!=="number"||typeof p.y!=="number"||!Number.isFinite(p.x)||!Number.isFinite(p.y)||(p.x as number)<0||(p.y as number)<0)throw new CampaignServiceError("Map token position is invalid.",422);
+  return {kind:p.kind,name:p.name,x:p.x as number,y:p.y as number};
+ });
+ await ensurePreparedMapLayoutTable(db);
+ await db.prepare("INSERT INTO campaign_prepared_encounter_maps (campaign_id,prepared_id,map_id,positions_json) VALUES (?,?,?,?) ON CONFLICT(campaign_id,prepared_id) DO UPDATE SET map_id=excluded.map_id,positions_json=excluded.positions_json").bind(campaign.id,id,mapId,JSON.stringify(checked)).run();
+ return {mapId,positions:checked};
+}
+export async function readPreparedEncounterMapLayout(db:D1Database,actor:CampaignActor,publicId:string,id:string):Promise<PreparedEncounterMapLayout|null>{
+ const campaign=await access(db,actor,publicId);
+ await ensurePreparedMapLayoutTable(db);
+ const row=await db.prepare("SELECT map_id AS mapId,positions_json AS positionsJson FROM campaign_prepared_encounter_maps WHERE campaign_id=? AND prepared_id=?").bind(campaign.id,id).first<{mapId:string;positionsJson:string}>();
+ return row?{mapId:row.mapId,positions:JSON.parse(row.positionsJson)}:null;
+}
+export async function trackPreparedEncounterDeployment(db:D1Database,campaignId:string,encounterId:string,preparedId:string){
+ await ensurePreparedMapLayoutTable(db);
+ await db.prepare("INSERT OR REPLACE INTO campaign_prepared_encounter_deployments (campaign_id,encounter_id,prepared_id) VALUES (?,?,?)").bind(campaignId,encounterId,preparedId).run();
+}
+export async function readDeployedEncounterMapLayout(db:D1Database,campaignId:string,encounterId:string):Promise<PreparedEncounterMapLayout|null>{
+ await ensurePreparedMapLayoutTable(db);
+ const row=await db.prepare("SELECT m.map_id AS mapId,m.positions_json AS positionsJson FROM campaign_prepared_encounter_deployments d JOIN campaign_prepared_encounter_maps m ON m.campaign_id=d.campaign_id AND m.prepared_id=d.prepared_id WHERE d.campaign_id=? AND d.encounter_id=?").bind(campaignId,encounterId).first<{mapId:string;positionsJson:string}>();
+ return row?{mapId:row.mapId,positions:JSON.parse(row.positionsJson)}:null;
+}

@@ -4,8 +4,9 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
 import { normalizeNpcAttacks, normalizeNpcMagicReferences, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
-import { getPreparedEncounter } from "@/lib/campaigns/prepared-encounters";
+import { getPreparedEncounter, trackPreparedEncounterDeployment, readPreparedEncounterMapLayout } from "@/lib/campaigns/prepared-encounters";
 import { listCampaignCharacters } from "@/lib/campaigns/characters";
+import { placeCampaignMapEncounterTokens, type CampaignMapEncounterTokenSeed } from "@/lib/campaigns/map";
 import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
 import type { CampaignNpcCombatStats } from "@/lib/campaigns/live-session";
 import { CampaignServiceError, getCampaignD1 } from "@/lib/campaigns/service";
@@ -90,6 +91,28 @@ export async function POST(request: Request, context: Context): Promise<Response
       encounter = await durable.startEncounter(authorization.sessionId);
       for (const character of characters) encounter = await durable.addPc(authorization.sessionId, character.id, character.alertPriority);
       for (const seed of seeds) encounter = await durable.addNpc(authorization.sessionId, seed);
+      await trackPreparedEncounterDeployment(db,authorization.campaignId,encounter.id,plan.id);
+      const layout = await readPreparedEncounterMapLayout(db,actor,id,plan.id);
+      if(layout && layout.positions.length){
+        // A stale or deleted map should never prevent the combat encounter itself.
+        try{
+          const allCharacters=await listCampaignCharacters(db,actor,id);
+          const names=new Map(allCharacters.map(character=>[character.id,character.name]));
+          const remaining=[...layout.positions];
+          const mapSeeds:CampaignMapEncounterTokenSeed[]=encounter.combatants.flatMap(combatant=>{
+            const kind=combatant.kind==="npc"?"npc" as const:"pc" as const;
+            const name=combatant.kind==="npc"?combatant.name:names.get(combatant.characterId);
+            if(!name)return [];
+            const positionIndex=remaining.findIndex(position=>position.kind===kind&&position.name===name);
+            const position=positionIndex>=0?remaining.splice(positionIndex,1)[0]:null;
+            return [{kind,sourceId:combatant.kind==="npc"?combatant.id:combatant.characterId,name,...(position?{position:{x:position.x,y:position.y}}:{})}];
+          });
+          if(mapSeeds.length){
+            const map=await placeCampaignMapEncounterTokens(db,actor,id,layout.mapId,mapSeeds);
+            if(map.isActive)await durable.announceMapChanged(authorization.sessionId);
+          }
+        }catch(error){console.error("Prepared encounter map placement failed; encounter remains active.",error);}
+      }
     }
     else if (body.action === "start") encounter = await durable.startEncounter(authorization.sessionId);
     else {

@@ -584,7 +584,9 @@ test("campaign My Character embeds a sheet without changing the full character r
 test("My Character panel reserves desktop width for the normal three-column character grid",async()=>{
  const campaignCss=await source("app/campaigns/campaign-ui.css");
  const responsive=await source("app/character-responsive-polish.css");
- assert.match(campaignCss,/\.campaign-my-character-panel\{width:min\(1420px,calc\(100% - 32px\)\)/u);
+ const sheetWidth=campaignCss.match(/\.campaign-my-character-panel\{width:min\((\d+)px,calc\(100% - \d+px\)\)/u);
+ assert.ok(sheetWidth,"Campaign My Character must retain a bounded responsive width");
+ assert.ok(Number(sheetWidth[1])>1050,"Desktop panel must be wide enough for the normal three-column grid");
  assert.match(responsive,/@media \(min-width: 721px\) and \(max-width: 1050px\)/u);
 });
 

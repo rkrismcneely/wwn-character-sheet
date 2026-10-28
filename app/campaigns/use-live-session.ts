@@ -31,6 +31,7 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
   const [busy, setBusy] = useState(false);
   const [connection, setConnection] = useState<LiveSessionConnectionState>("idle");
   const socket = useRef<WebSocket | null>(null);
+  const latestPresence = useRef<{ sessionId: string; keys: Set<string> } | null>(null);
   const retry = useRef(0);
   const retryTimer = useRef<number | null>(null);
   const activeCampaignId = useRef<string | null>(campaignId);
@@ -42,6 +43,7 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
 
   const load = useCallback(async () => {
     if (!campaignId) {
+      latestPresence.current = null;
       setState(emptyLiveSessionState);
       return emptyLiveSessionState;
     }
@@ -59,7 +61,16 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
     refreshInFlight.current = { campaignId: requestedCampaignId, promise };
     try {
       const liveSession = await promise;
-      if (activeCampaignId.current === requestedCampaignId) setState(liveSession);
+      if (activeCampaignId.current === requestedCampaignId) {
+        // HTTP session snapshots default every participant to offline. Preserve
+        // the websocket's authoritative presence across async refreshes.
+        const presence = latestPresence.current;
+        setState(presence && liveSession.session?.id === presence.sessionId
+          ? { ...liveSession, session: { ...liveSession.session, participants: liveSession.session.participants.map(participant => ({
+            ...participant, connected: presence.keys.has(participant.participantKey),
+          })) } }
+          : liveSession);
+      }
       return liveSession;
     } finally {
       if (refreshInFlight.current?.promise === promise) refreshInFlight.current = null;
@@ -97,7 +108,11 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
       ws.onmessage = event => {
         try {
           const message = JSON.parse(event.data) as CampaignLiveSessionEvent;
-          if (message.type === "session.presence" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => ({ ...participant, connected: message.connectedParticipantKeys.includes(participant.participantKey) })) } } : current);
+          if (message.type === "session.presence" && message.sessionId === sessionId) {
+            const keys = new Set(message.connectedParticipantKeys);
+            latestPresence.current = { sessionId, keys };
+            setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => ({ ...participant, connected: keys.has(participant.participantKey) })) } } : current);
+          }
           if (message.type === "session.participants-changed") void load().catch(() => setError("The participant list could not be refreshed."));
           if (message.type === "session.character-status" && message.sessionId === sessionId) setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => participant.participantKey === message.participantKey ? { ...participant, characterName: message.character.name, character: message.character } : participant) } } : current);
           if (message.type === "session.roll" && message.sessionId === sessionId) {
@@ -111,6 +126,8 @@ export function useCampaignLiveSession(campaignId: string | null, enabled = true
       };
       ws.onclose = () => {
         if (disposed) return;
+        latestPresence.current = null;
+        setState(current => current.session?.id === sessionId ? { ...current, session: { ...current.session, participants: current.session.participants.map(participant => ({ ...participant, connected: false })) } } : current);
         retry.current += 1;
         if (retry.current > 5) {
           setConnection("offline");

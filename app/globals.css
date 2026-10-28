@@ -3436,3 +3436,7 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
  .character-live-session-grid.has-encounter,.character-live-session-grid.no-encounter{grid-template-columns:minmax(0,1fr)}
  .character-live-heading-status{white-space:normal}
 }
+
+.character-live-session-grid{align-items:stretch}
+.character-live-session-grid .character-live-rolls{display:flex;flex-direction:column}
+.character-live-session-grid .character-live-rolls-body{flex:1;min-height:132px}

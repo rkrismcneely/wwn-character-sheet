@@ -100,3 +100,18 @@ html[data-theme="dark"] .campaign-availability-legend{color:#47351f}
 html[data-theme="dark"] .campaign-availability-month button:focus-visible,
 html[data-theme="dark"] .campaign-availability-group-toggle:focus-visible,
 html[data-theme="dark"] .campaign-availability-group-head button:focus-visible{outline:2px solid #705123;outline-offset:2px}
+
+
+/* Dark calendar panels with retained semantic availability colours. */
+html[data-theme="dark"] .campaign-availability,
+html[data-theme="dark"] .campaign-availability-gm{background:#29251e;color:#f1e0c3;color-scheme:dark;border-color:#816a48}
+html[data-theme="dark"] .campaign-availability-heading h2,
+html[data-theme="dark"] .campaign-availability-group-head h3,
+html[data-theme="dark"] .campaign-availability-gm li,
+html[data-theme="dark"] .campaign-availability-gm small,
+html[data-theme="dark"] .campaign-availability-legend{color:#efdfc5}
+html[data-theme="dark"] .campaign-availability-month button,
+html[data-theme="dark"] .campaign-availability-group-toggle,
+html[data-theme="dark"] .campaign-availability-group-head button{background:#3b3023;color:#f5e0bb;border-color:#947850}
+html[data-theme="dark"] .campaign-availability-weekday{color:#cbb691}
+html[data-theme="dark"] .campaign-availability-day:not(.yes):not(.maybe):not(.no){background:#332c23;color:#edddc2;border-color:#796449}

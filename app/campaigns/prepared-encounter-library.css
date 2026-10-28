@@ -63,3 +63,9 @@ html[data-theme="dark"] .prepared-encounter-form input::placeholder{color:#b9ab9
 html[data-theme="dark"] .prepared-encounter-form input:focus-visible,
 html[data-theme="dark"] .prepared-encounter-form select:focus-visible,
 html[data-theme="dark"] .prepared-encounter-summary:focus-visible{outline:2px solid #d9ae67;outline-offset:2px}
+
+
+html[data-theme="dark"] .prepared-encounter-roster,
+html[data-theme="dark"] .prepared-encounter-card{background:#25221c;color:#f2e1c7;border-color:#796348}
+html[data-theme="dark"] .prepared-encounter-summary-text strong,
+html[data-theme="dark"] .prepared-encounter-expanded li{color:#f2e1c7}

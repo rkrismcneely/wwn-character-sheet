@@ -758,3 +758,12 @@ html[data-theme="dark"] .gm-console-tabs a:not(.active):hover,
 html[data-theme="dark"] .gm-console-tabs button:not(.active):focus-visible,
 html[data-theme="dark"] .gm-console-tabs a:not(.active):focus-visible{background:#fff4d9;color:#251a0e;border-color:#dfb873}
 html[data-theme="dark"] .gm-console-tabs .active{color:#fff6df;opacity:1}
+
+
+/* In dark mode, preserve the tab's golden highlight but avoid light-mode tabs. */
+html[data-theme="dark"] .gm-console-tabs button:not(.active),
+html[data-theme="dark"] .gm-console-tabs a:not(.active),
+html[data-theme="dark"] .gm-console-tabs span:not(.active){background:#2a251e;color:#ead7b6;border-color:#78613e}
+html[data-theme="dark"] .gm-console-tabs button:not(.active):hover,
+html[data-theme="dark"] .gm-console-tabs a:not(.active):hover{background:#3b3022;color:#fff0d1}
+html[data-theme="dark"] .gm-console-tabs .active{background:#805b28;color:#fff5df}

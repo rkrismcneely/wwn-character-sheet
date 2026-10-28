@@ -298,3 +298,25 @@ html[data-theme="dark"] .campaign-store-catalog-filters input,
 html[data-theme="dark"] .campaign-store-catalog-filters select{background:#28231c;color:#f5e8d1;border:1px solid #8e7552}
 html[data-theme="dark"] .campaign-store-catalog-filters input::placeholder{color:#b9aa93;opacity:1}
 html[data-theme="dark"] .campaign-store-catalog-card.is-stocked{opacity:1;background:#e7ddcd}
+
+
+/* True dark inventory surfaces; do not use parchment cards in dark mode. */
+html[data-theme="dark"] .campaign-store-stock{background:#25221c;color:#eee0c7;border-color:#756044}
+html[data-theme="dark"] .campaign-store-stock-heading h3,
+html[data-theme="dark"] .campaign-store-current-stock-heading h3,
+html[data-theme="dark"] .campaign-store-catalog-card-heading>label strong{color:#f1dfbe}
+html[data-theme="dark"] .campaign-store-stock-heading p,
+html[data-theme="dark"] .campaign-store-catalog-toolbar,
+html[data-theme="dark"] .campaign-store-catalog-card-heading>label small{color:#c7b697}
+html[data-theme="dark"] .campaign-store-catalog-filters,
+html[data-theme="dark"] .campaign-store-catalog-card,
+html[data-theme="dark"] .campaign-store-catalog-toolbar{background:#2b261f;color:#ebdcc3;border-color:#776346}
+html[data-theme="dark"] .campaign-store-catalog-card.is-selected{background:#433521;border-color:#c39856}
+html[data-theme="dark"] .campaign-store-catalog-card.is-stocked{opacity:1;background:#302b24}
+html[data-theme="dark"] .campaign-store-catalog-filters label>span,
+html[data-theme="dark"] .campaign-store-hide-stocked,
+html[data-theme="dark"] .campaign-store-catalog-details,
+html[data-theme="dark"] .campaign-store-catalog-card .campaign-store-catalog-badges span{color:#d7c3a3}
+html[data-theme="dark"] .campaign-store-catalog-badges span{background:#382f23;border-color:#796244}
+html[data-theme="dark"] .campaign-store-catalog-filters input,
+html[data-theme="dark"] .campaign-store-catalog-filters select{background:#171714;color:#f2e3c9}

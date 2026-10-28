@@ -636,3 +636,15 @@ test("Dark Campaign tabs and parchment surfaces retain readable ink",async()=>{
  assert.match(store,/html\[data-theme="dark"\] \.campaign-store-stock\{color:#3e2f1e/u);
  assert.match(store,/campaign-store-catalog-card\.is-stocked\{opacity:1/u);
 });
+
+test("Campaign dark mode uses dark surfaces rather than parchment for core workspaces",async()=>{
+ const journal=await source("app/campaigns/twe-workspace.css");
+ const navigation=await source("app/campaigns/campaign-ui.css");
+ const store=await source("app/campaigns/campaign-store.css");
+ const calendar=await source("app/campaigns/campaign-availability.css");
+ assert.match(journal,/--twe-w-paper:#231f19/u);
+ assert.match(journal,/\.twe-workspace-document\{background:linear-gradient\(#211e19/u);
+ assert.match(navigation,/\.gm-console-tabs button:not\(\.active\)[\s\S]*?background:#2a251e/u);
+ assert.match(store,/\.campaign-store-stock\{background:#25221c/u);
+ assert.match(calendar,/\.campaign-availability-gm\{background:#29251e/u);
+});

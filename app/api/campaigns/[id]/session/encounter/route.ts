@@ -101,11 +101,11 @@ export async function POST(request: Request, context: Context): Promise<Response
           const remaining=[...layout.positions];
           const mapSeeds:CampaignMapEncounterTokenSeed[]=encounter.combatants.flatMap(combatant=>{
             const kind=combatant.kind==="npc"?"npc" as const:"pc" as const;
-            const name=kind==="npc"?combatant.name:names.get(combatant.characterId);
+            const name=combatant.kind==="npc"?combatant.name:names.get(combatant.characterId);
             if(!name)return [];
             const positionIndex=remaining.findIndex(position=>position.kind===kind&&position.name===name);
             const position=positionIndex>=0?remaining.splice(positionIndex,1)[0]:null;
-            return [{kind,sourceId:kind==="npc"?combatant.id:combatant.characterId,name,...(position?{position:{x:position.x,y:position.y}}:{})}];
+            return [{kind,sourceId:combatant.kind==="npc"?combatant.id:combatant.characterId,name,...(position?{position:{x:position.x,y:position.y}}:{})}];
           });
           if(mapSeeds.length){
             const map=await placeCampaignMapEncounterTokens(db,actor,id,layout.mapId,mapSeeds);

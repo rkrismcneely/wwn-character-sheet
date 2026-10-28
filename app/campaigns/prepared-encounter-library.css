@@ -45,3 +45,21 @@
 .prepared-encounter-expanded ul{padding-left:18px;margin:0 0 12px;line-height:1.6}
 .prepared-encounter-expanded .prepared-encounter-card-actions{justify-content:flex-end}
 @media(max-width:700px){.prepared-encounter-summary{align-items:center}.prepared-encounter-summary-actions{gap:8px}.prepared-encounter-expand-hint{font-size:.78em}.prepared-encounter-expanded .prepared-encounter-card-actions{width:100%}}
+
+
+/* Dark mode: give plan cards and the encounter picker legible surfaces and controls. */
+html[data-theme="dark"] .prepared-encounter-card,
+html[data-theme="dark"] .prepared-encounter-roster{background:#25231d;border-color:#766343;color:#f0e4ce}
+html[data-theme="dark"] .prepared-encounter-summary-text>span,
+html[data-theme="dark"] .prepared-encounter-roster-heading span,
+html[data-theme="dark"] .prepared-encounter-expand-hint{color:#d0bd9d;opacity:1}
+html[data-theme="dark"] .prepared-encounter-roster li,
+html[data-theme="dark"] .prepared-encounter-expanded,
+html[data-theme="dark"] .prepared-encounter-form-actions{border-color:#6b593d}
+html[data-theme="dark"] .prepared-encounter-entry-count{border-color:#95764d;color:#f2e3c8}
+html[data-theme="dark"] .prepared-encounter-form input,
+html[data-theme="dark"] .prepared-encounter-form select{background:#171713;border:1px solid #8d764f;color:#f4e7cf;color-scheme:dark}
+html[data-theme="dark"] .prepared-encounter-form input::placeholder{color:#b9ab92;opacity:1}
+html[data-theme="dark"] .prepared-encounter-form input:focus-visible,
+html[data-theme="dark"] .prepared-encounter-form select:focus-visible,
+html[data-theme="dark"] .prepared-encounter-summary:focus-visible{outline:2px solid #d9ae67;outline-offset:2px}

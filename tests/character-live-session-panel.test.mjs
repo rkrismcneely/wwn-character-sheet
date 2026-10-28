@@ -17,7 +17,7 @@ test("character-sheet Live Session panel reuses the campaign transport and keeps
   assert.match(panel, />Encounter/u);
   assert.match(panel, />Recent Rolls</u);
   assert.doesNotMatch(panel, /Open Full Session/u);
-  assert.match(panel, /visibleEncounterCount = Math.max\(3, session\?\.participants\.length \?\? 0\)/u);
+  assert.match(panel, /groupedCombatants\.map/u);
   assert.match(panel, /character-live-session-grid/u);
   assert.match(panel, /onJoinedSessionChange/u);
   assert.match(panel, /activeCampaigns\.length > 1/u);

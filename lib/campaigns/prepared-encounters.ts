@@ -78,11 +78,11 @@ async function ensurePreparedMapLayoutTable(db:D1Database){
 export async function savePreparedEncounterMapLayout(db:D1Database,actor:CampaignActor,publicId:string,id:string,mapId:string,positions:unknown){
  const campaign=await access(db,actor,publicId,true);
  await getPreparedEncounter(db,actor,publicId,id);
- if(!/^cmpmap_[a-zA-Z0-9_-]{1,100}$/.test(mapId))throw new CampaignServiceError("Map ID is invalid.",422);
+ if(!/^map_[a-zA-Z0-9_-]{1,100}$/.test(mapId))throw new CampaignServiceError("Map ID is invalid.",422);
  if(!Array.isArray(positions)||positions.length>100)throw new CampaignServiceError("Map layout is invalid.",422);
  const checked=positions.map(value=>{
   const p=value as Record<string,unknown>;
-  if(!p||(p.kind!=="pc"&&p.kind!=="npc")||typeof p.name!=="string"||p.name.length>100||!Number.isFinite(p.x)||!Number.isFinite(p.y)||(p.x as number)<0||(p.y as number)<0)throw new CampaignServiceError("Map token position is invalid.",422);
+  if(!p||(p.kind!=="pc"&&p.kind!=="npc")||typeof p.name!=="string"||p.name.length>100||typeof p.x!=="number"||typeof p.y!=="number"||!Number.isFinite(p.x)||!Number.isFinite(p.y)||(p.x as number)<0||(p.y as number)<0)throw new CampaignServiceError("Map token position is invalid.",422);
   return {kind:p.kind,name:p.name,x:p.x as number,y:p.y as number};
  });
  await ensurePreparedMapLayoutTable(db);

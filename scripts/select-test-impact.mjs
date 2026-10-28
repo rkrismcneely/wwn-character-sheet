@@ -70,7 +70,9 @@ if (process.argv.includes("--audit")) {
  for(const file of [...affected].sort())console.log("  "+file);
  for(const warning of [...new Set(flagged)])console.warn("REVIEW: "+warning);
  if(run&&affected.size){
-  const command=["--experimental-strip-types","--test",...[...affected].sort()];
+  const focused=[...affected].filter(file=>file!=="tests/rendered-html.test.mjs").sort();
+  if(!focused.length){console.log("Affected tests require the built Worker and run in Production build and tests.");process.exit(0);}
+  const command=["--experimental-strip-types","--test",...focused];
   console.log("Running targeted tests before PR...");
   try{execFileSync("node",command,{stdio:"inherit"});}catch{process.exit(1);}
  }

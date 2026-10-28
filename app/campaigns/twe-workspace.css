@@ -374,3 +374,18 @@
 /* The append hit zone stays available while dragging; the line is shown only while hovered. */
 .twe-workspace .twe-workspace-end-line::after{opacity:0}
 .twe-workspace .twe-workspace-end-line.is-active::after{opacity:1}
+
+
+/* The Journal remains an intentional light parchment canvas even in dark mode.
+   Isolate its ink and controls from inherited dark-theme text styles. */
+html[data-theme="dark"] .campaign-journal.twe-workspace{color:#332a20;color-scheme:light}
+html[data-theme="dark"] .campaign-journal .twe-workspace-heading h2{color:#332a20}
+html[data-theme="dark"] .campaign-journal .twe-workspace-heading p,
+html[data-theme="dark"] .campaign-journal .twe-workspace-nav-caption,
+html[data-theme="dark"] .campaign-journal .twe-workspace-section-label{color:#625038}
+html[data-theme="dark"] .campaign-journal .twe-workspace-search input,
+html[data-theme="dark"] .campaign-journal .twe-workspace-icon-search input{color:#332a20}
+html[data-theme="dark"] .campaign-journal input::placeholder{color:#796950;opacity:1}
+html[data-theme="dark"] .campaign-journal .twe-button:not(.twe-button-primary){color:#51391e;background:#f9efdc;border-color:#bba17b}
+html[data-theme="dark"] .campaign-journal .twe-button-primary{color:#fff9ed;background:#80551f}
+html[data-theme="dark"] .campaign-journal .twe-workspace-icon-button{color:#6a4924}

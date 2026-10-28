@@ -1,3 +1,4 @@
+import {readDeployedEncounterMapLayout} from "@/lib/campaigns/prepared-encounters";
 import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
@@ -32,7 +33,7 @@ async function announceMapChanged(db: D1Database, campaignId: string): Promise<v
   }
 }
 
-async function encounterSeeds(db: D1Database, campaignId: string): Promise<CampaignMapEncounterTokenSeed[]> {
+async function encounterSeeds(db: D1Database, campaignId: string, mapId: unknown): Promise<CampaignMapEncounterTokenSeed[]> {
   const sessionId = await activeSessionId(db, campaignId);
   if (!sessionId) throw new CampaignServiceError("Start a live session before placing an encounter on the map.", 409);
   const encounter = await env.CAMPAIGN_LIVE_SESSION.getByName(`campaign:${campaignId}`).encounter(sessionId);
@@ -49,6 +50,17 @@ async function encounterSeeds(db: D1Database, campaignId: string): Promise<Campa
     }
     const name = characterNames.get(combatant.characterId);
     if (name) seeds.push({ kind: "pc", sourceId: combatant.characterId, name });
+  }
+  const layout=await readDeployedEncounterMapLayout(db,campaignId,encounter.id);
+  if(layout && layout.mapId === mapId){
+    const remaining=[...layout.positions];
+    for(const seed of seeds){
+      const index=remaining.findIndex(position=>position.kind===seed.kind && position.name===seed.name);
+      if(index>=0){
+        const [position]=remaining.splice(index,1);
+        seed.position={x:position.x,y:position.y};
+      }
+    }
   }
   return seeds;
 }
@@ -69,7 +81,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       map = await placeCampaignMapCompanionToken(db, actor, id, body.mapId, body.companionId);
     } else if (body.action === "place_encounter") {
       if (!access.canManage) throw new CampaignServiceError("Not permitted.", 403);
-      map = await placeCampaignMapEncounterTokens(db, actor, id, body.mapId, await encounterSeeds(db, access.campaignInternalId));
+      map = await placeCampaignMapEncounterTokens(db, actor, id, body.mapId, await encounterSeeds(db, access.campaignInternalId, body.mapId));
     } else if (body.action === "move") {
       map = await moveCampaignMapToken(db, actor, id, await snapCampaignMapTokenMove(db, actor, id, body));
     } else if (body.action === "remove") {

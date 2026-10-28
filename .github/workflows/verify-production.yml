@@ -33,11 +33,14 @@ jobs:
           API_URL: ${{ github.api_url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          curl -fsS --retry 2 -X POST "$API_URL/repos/$REPO/statuses/$SHA" \\
-            -H "Authorization: Bearer $GH_TOKEN" \\
-            -H "Accept: application/vnd.github+json" \\
-            -H "Content-Type: application/json" \\
-            -d "{\\"state\\":\\"pending\\",\\"context\\":\\"TWE Production\\",\\"description\\":\\"Checking Cloudflare production release\\",\\"target_url\\":\\"$RUN_URL\\"}"
+          node --input-type=module <<'NODE'
+          const response = await fetch(process.env.API_URL+"/repos/"+process.env.REPO+"/statuses/"+process.env.SHA,{
+            method:"POST",
+            headers:{"Authorization":"Bearer "+process.env.GH_TOKEN,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+            body:JSON.stringify({state:"pending",context:"TWE Production",description:"Checking Cloudflare production release",target_url:process.env.RUN_URL})
+          });
+          if(!response.ok)throw Error("Failed to set pending status: "+response.status);
+          NODE
       - name: Wait for Cloudflare and verify live release
         env:
           EXPECTED_SHA: ${{ github.sha }}

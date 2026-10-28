@@ -35,7 +35,7 @@ export function CharacterLiveSessionPanel({
   onJoinedSessionChange?: (campaignId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [rollLimit, setRollLimit] = useState(3);
+  const [rollLimit, setRollLimit] = useState(4);
   const [rollArea, setRollArea] = useState<HTMLDivElement | null>(null);
   const [activeCampaigns, setActiveCampaigns] = useState<ActiveCampaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export function CharacterLiveSessionPanel({
       const target = rollArea.parentElement?.getBoundingClientRect().height ?? 0;
       const rows = [...rollArea.querySelectorAll("li")];
       const average = rows.length ? rows.reduce((sum, row) => sum + row.getBoundingClientRect().height + 5, 0) / rows.length : 43;
-      setRollLimit(Math.max(3, Math.min(100, Math.floor(Math.max(0, target - 32) / Math.max(average, 1)))));
+      setRollLimit(Math.max(4, Math.min(100, Math.floor(Math.max(0, target - 32) / Math.max(average, 1)))));
     };
     const observer = new ResizeObserver(update);
     observer.observe(rollArea);
@@ -107,7 +107,7 @@ export function CharacterLiveSessionPanel({
       {status}
     </button>
     {open && <section className="character-live-session-panel" id="character-live-session-panel" aria-label="Live Session">
-      <div className="character-live-session-heading"><div><span>LIVE SESSION</span><strong>{selectedCampaign?.name || "Campaign session"}</strong></div>{session && <div className="character-live-heading-status"><span className={live.connection === "connected" ? "campaign-session-connected" : "campaign-session-away"} aria-hidden="true" /> <small>{live.connection === "connected" ? "Connected" : live.connection === "offline" ? "Offline" : "Connecting"} · {session.participants.filter(participant => participant.connected).length} online / {session.participants.length} party</small></div>}<button type="button" className="character-live-session-close" aria-label="Close Live Session" onClick={() => setOpen(false)}>×</button></div>
+      <div className="character-live-session-heading"><div><span>LIVE SESSION</span><strong>{selectedCampaign?.name || "Campaign session"}</strong></div>{session && <div className="character-live-heading-status"><span className="character-live-connection"><span className={live.connection === "connected" ? "campaign-session-connected" : "campaign-session-away"} aria-hidden="true" /><small>{live.connection === "connected" ? "Connected" : live.connection === "offline" ? "Offline" : "Connecting"}</small></span><small className="character-live-online-count">{session.participants.filter(participant => participant.connected).length} online / {session.participants.length} party</small></div>}<button type="button" className="character-live-session-close" aria-label="Close Live Session" onClick={() => setOpen(false)}>×</button></div>
       {discoveryError && <p className="character-live-session-error" role="status">{discoveryError}</p>}
       {activeCampaigns.length > 1 && <label className="character-live-session-select"><span>Active campaign</span><select value={selectedCampaignId || ""} onChange={event => setSelectedCampaignId(event.target.value || null)}><option value="">Choose a live session</option>{activeCampaigns.map(campaign => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>}
       {!activeCampaigns.length && <p className="character-live-session-empty">No linked campaign has an active session.</p>}

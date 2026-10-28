@@ -4,7 +4,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { authorizeEncounterCharacter, authorizeEncounterManagement } from "@/lib/campaigns/live-session-service";
 import { campaignNpcEncounterSeed } from "@/lib/campaigns/npcs";
 import { normalizeNpcAttacks, normalizeNpcMagicReferences, normalizeNpcThreatStats } from "@/lib/campaigns/npc-combat";
-import { getPreparedEncounter } from "@/lib/campaigns/prepared-encounters";
+import { getPreparedEncounter, trackPreparedEncounterDeployment } from "@/lib/campaigns/prepared-encounters";
 import { listCampaignCharacters } from "@/lib/campaigns/characters";
 import { builtInBestiaryEncounterSeed } from "@/lib/campaigns/bestiary";
 import type { CampaignNpcCombatStats } from "@/lib/campaigns/live-session";
@@ -90,6 +90,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       encounter = await durable.startEncounter(authorization.sessionId);
       for (const character of characters) encounter = await durable.addPc(authorization.sessionId, character.id, character.alertPriority);
       for (const seed of seeds) encounter = await durable.addNpc(authorization.sessionId, seed);
+      await trackPreparedEncounterDeployment(db,authorization.campaignId,encounter.id,plan.id);
     }
     else if (body.action === "start") encounter = await durable.startEncounter(authorization.sessionId);
     else {

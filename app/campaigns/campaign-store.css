@@ -276,3 +276,25 @@ html[data-theme="dark"] .campaign-store-proprietor textarea{background:#211d17;b
 html[data-theme="dark"] .campaign-store-proprietor select:focus-visible,
 html[data-theme="dark"] .campaign-store-proprietor input:focus-visible,
 html[data-theme="dark"] .campaign-store-proprietor textarea:focus-visible{outline:2px solid #e3b46c;outline-offset:2px}
+
+
+/* Store inventory intentionally uses parchment cards. Preserve dark text on
+   those cards rather than inheriting the surrounding dark workspace palette. */
+html[data-theme="dark"] .campaign-store-stock{color:#3e2f1e;background:#cbbda3}
+html[data-theme="dark"] .campaign-store-stock-heading h3,
+html[data-theme="dark"] .campaign-store-current-stock-heading h3{color:#382819}
+html[data-theme="dark"] .campaign-store-stock-heading p,
+html[data-theme="dark"] .campaign-store-catalog-toolbar{color:#5c4a32}
+html[data-theme="dark"] .campaign-store-catalog-filters,
+html[data-theme="dark"] .campaign-store-catalog-card{color:#3b2c1b;background:#fff8e8}
+html[data-theme="dark"] .campaign-store-catalog-card-heading>label strong{color:#392817}
+html[data-theme="dark"] .campaign-store-catalog-card-heading>label small,
+html[data-theme="dark"] .campaign-store-catalog-details,
+html[data-theme="dark"] .campaign-store-catalog-card .campaign-store-catalog-badges span{color:#62513b}
+html[data-theme="dark"] .campaign-store-catalog-filters label>span,
+html[data-theme="dark"] .campaign-store-catalog-toolbar,
+html[data-theme="dark"] .campaign-store-hide-stocked{color:#57432a}
+html[data-theme="dark"] .campaign-store-catalog-filters input,
+html[data-theme="dark"] .campaign-store-catalog-filters select{background:#28231c;color:#f5e8d1;border:1px solid #8e7552}
+html[data-theme="dark"] .campaign-store-catalog-filters input::placeholder{color:#b9aa93;opacity:1}
+html[data-theme="dark"] .campaign-store-catalog-card.is-stocked{opacity:1;background:#e7ddcd}

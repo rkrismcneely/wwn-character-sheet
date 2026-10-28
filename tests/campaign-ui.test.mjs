@@ -625,3 +625,14 @@ test("Campaign dark theme keeps encounter plans and contextual controls readable
  assert.match(availability,/color-scheme:light/u);
  assert.match(store,/html\[data-theme="dark"\] \.campaign-store-proprietor select/u);
 });
+
+test("Dark Campaign tabs and parchment surfaces retain readable ink",async()=>{
+ const ui=await source("app/campaigns/campaign-ui.css");
+ const journal=await source("app/campaigns/twe-workspace.css");
+ const store=await source("app/campaigns/campaign-store.css");
+ assert.match(ui,/html\[data-theme="dark"\] \.gm-console-tabs button:not\(\.active\)/u);
+ assert.match(journal,/html\[data-theme="dark"\] \.campaign-journal\.twe-workspace\{color:#332a20/u);
+ assert.match(journal,/campaign-journal input::placeholder/u);
+ assert.match(store,/html\[data-theme="dark"\] \.campaign-store-stock\{color:#3e2f1e/u);
+ assert.match(store,/campaign-store-catalog-card\.is-stocked\{opacity:1/u);
+});

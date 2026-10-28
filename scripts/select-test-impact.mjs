@@ -35,6 +35,19 @@ if (process.argv.includes("--audit")) {
    const compact=body.replace(/[-_]/g,"");
    const references=body.includes(name)||compact.includes(oldName)||body.includes(source);
    if(references) affected.add(file);
+   // Detect required source identifiers removed by the patch, including regex
+   // escaped assertions such as /visibleEncounterCount = Math.max.../.
+   const currentSource=existsSync(source)?readFileSync(source,"utf8"):"";
+   const removedIdentifiers=[...new Set(removed.flatMap(text=>[...text.matchAll(/\b[A-Za-z_$][\w$]{9,}\b/g)].map(match=>match[0])))];
+   const oldRequired=body.split("\n").filter(line=>/assert\.match\(/.test(line));
+   for(const line of oldRequired){
+    for(const identifier of removedIdentifiers){
+     if(!currentSource.includes(identifier)&&line.includes(identifier)){
+      affected.add(file);
+      flagged.push(file+" requires removed identifier "+identifier+" from "+source);
+     }
+    }
+   }
    // Check whether the test still requires exact text that the patch removed.
    const assertionLines=body.split("\n").filter(line=>/assert\.(?:match|equal|ok)/.test(line));
    for(const line of assertionLines){

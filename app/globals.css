@@ -3451,3 +3451,8 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
  .character-live-session-panel{width:min(590px,calc(100vw - 32px))}
  .character-live-session-grid.has-encounter{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 }
+
+.character-live-connection{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.character-live-connection .campaign-session-connected,.character-live-connection .campaign-session-away{display:inline-block;flex:none}
+.character-live-heading-status{gap:15px}
+.character-live-online-count{white-space:nowrap}

@@ -456,7 +456,6 @@ export function CampaignDetail({ campaignId, initialTab = "campaign" }: { campai
           </nav>
           <section className="campaign-my-character-panel" hidden={campaignTab!=="my-character"} aria-label="My Character">
             {characters.find(character=>character.isMine) ? <>
-              <div className="campaign-my-character-toolbar"><strong>{characters.find(character=>character.isMine)?.name}</strong><Link href={`/campaigns/${campaign.id}/characters/${characters.find(character=>character.isMine)?.id}`}>Open full character sheet</Link></div>
               {campaignTab==="my-character"&&<EmbeddedCampaignCharacter campaignId={campaign.id} characterId={characters.find(character=>character.isMine)!.id}/>}
             </> : <div className="campaign-page-state"><p>No character is linked to your account in this campaign.</p><button type="button" className="campaign-secondary" onClick={()=>navigateCampaignTab("campaign")}>Go to Campaign to link a character</button></div>}
           </section>

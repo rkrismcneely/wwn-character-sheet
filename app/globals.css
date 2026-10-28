@@ -3440,3 +3440,14 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 .character-live-session-grid{align-items:stretch}
 .character-live-session-grid .character-live-rolls{display:flex;flex-direction:column}
 .character-live-session-grid .character-live-rolls-body{flex:1;min-height:132px}
+
+/* Keep the entire live-session dashboard compact, not just its first columns. */
+@media(min-width:1181px){
+ .character-live-session-panel{width:min(670px,calc(100vw - 32px))}
+ .character-live-session-grid.has-encounter{grid-template-columns:minmax(0,1fr) minmax(0,1.08fr) minmax(0,1.25fr);gap:10px}
+ .character-live-session-grid.no-encounter{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:10px}
+}
+@media(min-width:721px) and (max-width:1180px){
+ .character-live-session-panel{width:min(590px,calc(100vw - 32px))}
+ .character-live-session-grid.has-encounter{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+}

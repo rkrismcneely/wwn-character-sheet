@@ -39,3 +39,11 @@ test("Live Session compact dashboard shows full order, adaptive rolls, and clear
  assert.match(panel,/character-live-presence-offline/u);
  assert.match(css,/character-live-presence-offline\{background:transparent/u);
 });
+
+test("Live session refresh preserves websocket presence and resets it on disconnect",async()=>{
+ const hook=await readFile(new URL("../app/campaigns/use-live-session.ts",import.meta.url),"utf8");
+ assert.match(hook,/latestPresence = useRef/u);
+ assert.match(hook,/presence\.keys\.has\(participant\.participantKey\)/u);
+ assert.match(hook,/latestPresence\.current = \{ sessionId, keys \}/u);
+ assert.match(hook,/latestPresence\.current = null/u);
+});

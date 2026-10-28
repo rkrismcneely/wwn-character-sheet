@@ -614,3 +614,14 @@ test("prepared encounters can persist and deploy map-linked token layouts",async
  assert.match(deploy,/readPreparedEncounterMapLayout/u);
  assert.match(map,/seed\.position/u);
 });
+
+test("Campaign dark theme keeps encounter plans and contextual controls readable",async()=>{
+ const plans=await source("app/campaigns/prepared-encounter-library.css");
+ const availability=await source("app/campaigns/campaign-availability.css");
+ const store=await source("app/campaigns/campaign-store.css");
+ assert.match(plans,/html\[data-theme="dark"\] \.prepared-encounter-card/u);
+ assert.match(plans,/prepared-encounter-form input:focus-visible/u);
+ assert.match(availability,/html\[data-theme="dark"\] \.campaign-availability-gm/u);
+ assert.match(availability,/color-scheme:light/u);
+ assert.match(store,/html\[data-theme="dark"\] \.campaign-store-proprietor select/u);
+});

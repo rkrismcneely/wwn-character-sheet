@@ -86,3 +86,17 @@
   .campaign-availability {max-width:100%}
   .campaign-availability-gm {right:auto;left:0;max-width:calc(100vw - 40px)}
 }
+
+
+/* The calendar intentionally remains parchment-coloured in both themes:
+   explicitly carry its dark ink through nested GM detail popovers. */
+html[data-theme="dark"] .campaign-availability,
+html[data-theme="dark"] .campaign-availability-gm{color:#47351f;color-scheme:light}
+html[data-theme="dark"] .campaign-availability-heading h2,
+html[data-theme="dark"] .campaign-availability-group-head h3,
+html[data-theme="dark"] .campaign-availability-gm li,
+html[data-theme="dark"] .campaign-availability-gm small,
+html[data-theme="dark"] .campaign-availability-legend{color:#47351f}
+html[data-theme="dark"] .campaign-availability-month button:focus-visible,
+html[data-theme="dark"] .campaign-availability-group-toggle:focus-visible,
+html[data-theme="dark"] .campaign-availability-group-head button:focus-visible{outline:2px solid #705123;outline-offset:2px}

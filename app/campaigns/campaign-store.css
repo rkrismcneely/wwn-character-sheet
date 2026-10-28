@@ -263,3 +263,16 @@
 .campaign-store-proprietor select{width:100%;min-height:38px}
 .campaign-store-proprietor details{min-width:0;max-height:55vh;overflow:auto;border:1px solid #dfd0b4;border-radius:5px;padding:10px}
 .campaign-store-proprietor summary{cursor:pointer;font-weight:600}
+
+
+/* Store drawers use a dark canvas even when their form details are parchment.
+   Keep the proprietor controls and legend readable in either site theme. */
+html[data-theme="dark"] .campaign-store-proprietor{border-color:#93764d;color:#f4e7cf}
+html[data-theme="dark"] .campaign-store-proprietor legend{color:#f2d39b}
+html[data-theme="dark"] .campaign-store-proprietor details{border-color:#806a48;color:#f0e1c7}
+html[data-theme="dark"] .campaign-store-proprietor select,
+html[data-theme="dark"] .campaign-store-proprietor input,
+html[data-theme="dark"] .campaign-store-proprietor textarea{background:#211d17;border:1px solid #967e56;color:#fff0d5;color-scheme:dark}
+html[data-theme="dark"] .campaign-store-proprietor select:focus-visible,
+html[data-theme="dark"] .campaign-store-proprietor input:focus-visible,
+html[data-theme="dark"] .campaign-store-proprietor textarea:focus-visible{outline:2px solid #e3b46c;outline-offset:2px}

@@ -12,7 +12,6 @@ import path from "node:path";
  * Usage: node scripts/select-test-impact.mjs --audit [--run]
  */
 if (process.argv.includes("--audit")) {
- const root=process.cwd();
  const run=process.argv.includes("--run");
  let compare=process.env.BASE_SHA;
  if (!compare) {
@@ -40,7 +39,11 @@ if (process.argv.includes("--audit")) {
    for(const line of assertionLines){
     if(removed.some(text=>{
      const quoted=[...text.matchAll(/["']([^"']{7,})["']/g)].map(m=>m[1]);
-     return quoted.some(value=>line.includes(value)&&line.includes("assert."));
+     const textTokens=[...line.matchAll(/([A-Za-z][A-Za-z ]{8,})/g)].map(m=>m[1].trim());
+     const pixelTokens=[...line.matchAll(/\d{2,4}px/g)].map(m=>m[0]);
+     return quoted.some(value=>line.includes(value))
+       || textTokens.some(value=>value.includes(" ")&&removedText.includes(value))
+       || pixelTokens.some(value=>removedText.includes(value));
     })){
      affected.add(file);
      flagged.push(file+" may expect removed source text from "+source+": "+line.trim().slice(0,160));

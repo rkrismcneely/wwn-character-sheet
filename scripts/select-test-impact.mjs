@@ -29,6 +29,7 @@ if (process.argv.includes("--audit")) {
   const diff=execFileSync("git",["diff","--unified=0",compare,"HEAD","--",source],{encoding:"utf8"});
   const removed=diff.split("\n").filter(line=>line.startsWith("-")&&!line.startsWith("---"))
    .map(line=>line.slice(1)).filter(line=>line.length>=8);
+  const removedText=removed.join("\n");
   for(const file of tests){
    const body=readFileSync(file,"utf8");
    const compact=body.replace(/[-_]/g,"");

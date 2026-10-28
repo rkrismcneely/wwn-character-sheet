@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '13,43 * * * *'
 permissions:
   contents: read
   statuses: write
@@ -23,13 +25,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Publish pending deployment status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          API_URL: ${{ github.api_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch(process.env.API_URL+"/repos/"+process.env.REPO+"/statuses/"+process.env.SHA,{
+            method:"POST",
+            headers:{"Authorization":"Bearer "+process.env.GH_TOKEN,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+            body:JSON.stringify({state:"pending",context:"TWE Production",description:"Checking Cloudflare production release",target_url:process.env.RUN_URL})
+          });
+          if(!response.ok)throw Error("Failed to set pending status: "+response.status);
+          NODE
       - name: Wait for Cloudflare and verify live release
         env:
           EXPECTED_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 90); do
+          max_attempts=90
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then max_attempts=1; fi
+          for attempt in $(seq 1 "$max_attempts"); do
             if node scripts/verify-live-release.mjs "$EXPECTED_SHA"; then
               echo "### Production verified" >> "$GITHUB_STEP_SUMMARY"
               echo "Commit $EXPECTED_SHA is live on taleswithoutend.com." >> "$GITHUB_STEP_SUMMARY"
@@ -47,7 +67,7 @@ jobs:
                 fi
               fi
             fi
-            sleep 10
+            if (( attempt < max_attempts )); then sleep 10; fi
           done
           echo "### Production verification failed" >> "$GITHUB_STEP_SUMMARY"
           echo "Expected $EXPECTED_SHA, but could not confirm it or a newer descendant on the healthy live site." >> "$GITHUB_STEP_SUMMARY"

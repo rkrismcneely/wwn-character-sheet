@@ -27,3 +27,15 @@ test("character-sheet Live Session panel reuses the campaign transport and keeps
   assert.match(hook, /recentRolls\.some\(roll => roll\.id === message\.roll\.id\)/u);
   assert.match(discoveryRoute, /listActiveCharacterLiveSessionCampaigns/u);
 });
+
+test("Live Session compact dashboard shows full order, adaptive rolls, and clear presence",async()=>{
+ const panel=await readFile(new URL("../app/character-live-session-panel.tsx",import.meta.url),"utf8");
+ const css=await readFile(new URL("../app/globals.css",import.meta.url),"utf8");
+ assert.match(panel,/groupedCombatants\.map/u);
+ assert.doesNotMatch(panel,/visibleEncounterCount/u);
+ assert.match(panel,/ResizeObserver/u);
+ assert.match(panel,/recentRolls\.slice\(0, rollLimit\)/u);
+ assert.match(panel,/character-live-heading-status/u);
+ assert.match(panel,/character-live-presence-offline/u);
+ assert.match(css,/character-live-presence-offline\{background:transparent/u);
+});

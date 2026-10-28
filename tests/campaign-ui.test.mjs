@@ -599,3 +599,18 @@ test("campaign store drawer can show no-active-store state without character sel
  assert.match(active,/viewerCampaign\(db, actor, campaignPublicId, characterId\)/u);
  assert.match(drawer,/No store is currently open/u);
 });
+
+test("prepared encounters can persist and deploy map-linked token layouts",async()=>{
+ const plans=await source("lib/campaigns/prepared-encounters.ts");
+ const library=await source("app/campaigns/prepared-encounter-library.tsx");
+ const api=await source("app/api/campaigns/[id]/prepared-encounters/route.ts");
+ const deploy=await source("app/api/campaigns/[id]/session/encounter/route.ts");
+ const map=await source("lib/campaigns/map.ts");
+ assert.match(plans,/campaign_prepared_encounter_maps/u);
+ assert.match(plans,/campaign_prepared_encounter_deployments/u);
+ assert.match(library,/Save Map Positions/u);
+ assert.match(api,/save_map_layout/u);
+ assert.match(deploy,/placeCampaignMapEncounterTokens/u);
+ assert.match(deploy,/readPreparedEncounterMapLayout/u);
+ assert.match(map,/seed\.position/u);
+});

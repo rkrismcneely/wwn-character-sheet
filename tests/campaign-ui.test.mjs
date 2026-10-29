@@ -667,3 +667,12 @@ test("Journal records internal links in browser history for mouse Back and Forwa
  assert.match(journal,/addEventListener\("popstate",onPopState\)/u);
  assert.match(journal,/setSelected\(journal\.id\)/u);
 });
+
+test("Journal navigation uses URL page IDs and preserves Campaign Journal tab in browser history",async()=>{
+ const journal=await source("app/campaigns/campaign-journal.tsx");
+ assert.match(journal,/url\.searchParams\.set\("tab","journal"\)/u);
+ assert.match(journal,/url\.searchParams\.set\("journalPage",id\)/u);
+ assert.match(journal,/url\.searchParams\.get\("journalPage"\)/u);
+ assert.match(journal,/window\.history\.pushState/u);
+ assert.match(journal,/window\.addEventListener\("popstate",restore\)/u);
+});

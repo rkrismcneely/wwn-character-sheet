@@ -37,7 +37,7 @@ const searchRef=useRef<HTMLInputElement>(null);
 const [backStack,setBackStack]=useState<string[]>([]);
 const [forwardStack,setForwardStack]=useState<string[]>([]);
 const journalHistoryKey="tweJournalPage";
-const browserHistoryRestoring=useRef(false);
+
 const [dragged,setDragged]=useState<string|null>(null);
 const [dropTarget,setDropTarget]=useState<string|null>(null);
 const [reorderTarget,setReorderTarget]=useState<string|null>(null);
@@ -224,11 +224,9 @@ const current=entries.find(e=>e.id===selected);
 useEffect(()=>{
  const onPopState=(event:PopStateEvent)=>{
   const journal=event.state?.[journalHistoryKey] as {campaignId?:string;id?:string}|undefined;
-  if(!journal||journal.campaignId!==campaignId||!journal.id||!entries.some(entry=>entry.id===journal.id))return;
-  browserHistoryRestoring.current=true;
+  if(!journal||journal.campaignId!==campaignId||typeof journal.id!=="string"||(journal.id&&!entries.some(entry=>entry.id===journal.id)))return;
   setSelected(journal.id);
   setEditing(false);
-  browserHistoryRestoring.current=false;
  };
  window.addEventListener("popstate",onPopState);
  return()=>window.removeEventListener("popstate",onPopState);
@@ -238,7 +236,9 @@ function openJournalEntry(id:string){
  if(id===selected||!entries.some(entry=>entry.id===id)||!discardDraft())return;
  if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);
  setForwardStack([]);
- if(!browserHistoryRestoring.current)window.history.pushState({...(window.history.state??{}),[journalHistoryKey]:{campaignId,id}}, "",window.location.href);
+ const previous=window.history.state as Record<string,unknown>|null;
+ if(!previous?.[journalHistoryKey])window.history.replaceState({...previous,[journalHistoryKey]:{campaignId,id:selected}}, "",window.location.href);
+ window.history.pushState({...window.history.state,[journalHistoryKey]:{campaignId,id}}, "",window.location.href);
  setSelected(id);setEditing(false);
 }
 function travelJournal(direction:"back"|"forward"){

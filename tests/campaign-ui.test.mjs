@@ -659,3 +659,11 @@ test("Journal backlinks and sidebar clicks use the shared back-forward navigatio
  assert.match(journal,/setBackStack\(stack=>\[\.\.\.stack\.slice\(-29\),selected\]\)/u);
  assert.match(journal,/setForwardStack\(\[\]\)/u);
 });
+
+test("Journal records internal links in browser history for mouse Back and Forward",async()=>{
+ const journal=await source("app/campaigns/campaign-journal.tsx");
+ assert.match(journal,/window\.history\.replaceState/u);
+ assert.match(journal,/window\.history\.pushState/u);
+ assert.match(journal,/addEventListener\("popstate",onPopState\)/u);
+ assert.match(journal,/setSelected\(journal\.id\)/u);
+});

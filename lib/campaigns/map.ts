@@ -59,6 +59,8 @@ export interface CampaignMapToken {
   y: number;
   version: number;
   canMove: boolean;
+  tokenPortrait?: string;
+  tokenCrop?: {cx:number;cy:number;size:number};
 }
 
 export interface CampaignMapFogCell {
@@ -226,11 +228,21 @@ async function campaignMapTokens(
       .bind(access.campaignInternalId, actor.userId).all<CampaignMapCompanionCharacterRow>()).results
       .flatMap(character => campaignMapCompanionsFromCharacterData(character.id, character.name, character.data))
       .map(companion => companion.id));
+  const characterRows=await db.prepare(`SELECT ch.public_id AS publicId,ch.data FROM campaign_characters cc JOIN characters ch ON ch.id=cc.character_id WHERE cc.campaign_id=?`).bind(access.campaignInternalId).all<{publicId:string;data:string}>();
+  const artwork=new Map(characterRows.results.map(character=>{
+    try{
+      const data=JSON.parse(character.data) as {portrait?:unknown;tokenCrop?:{cx?:number;cy?:number;size?:number}};
+      const crop=data.tokenCrop;
+      const valid=Boolean(crop&&[crop.cx,crop.cy,crop.size].every(value=>typeof value==="number"&&Number.isFinite(value))&&(crop.size as number)>=0.2&&(crop.size as number)<=1);
+      return [character.publicId,{portrait:typeof data.portrait==="string"&&data.portrait.startsWith("/api/portraits/")?data.portrait:undefined,crop:valid?crop:undefined}] as const;
+    }catch{return [character.publicId,{portrait:undefined,crop:undefined}] as const;}
+  }));
   return result.results.map(token => ({
     id: token.id,
     kind: token.kind,
     sourceId: token.sourceId,
     name: token.name,
+    ...(token.kind==="pc"&&artwork.get(token.sourceId)?.portrait?{tokenPortrait:artwork.get(token.sourceId)!.portrait,tokenCrop:artwork.get(token.sourceId)!.crop as {cx:number;cy:number;size:number}|undefined}:{}),
     x: token.x,
     y: token.y,
     version: token.version,

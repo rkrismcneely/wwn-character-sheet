@@ -442,3 +442,8 @@ html[data-theme="dark"] .campaign-journal .twe-workspace-visibility{background:#
 html[data-theme="dark"] .campaign-journal .twe-workspace .journal-import input[type="file"],
 html[data-theme="dark"] .campaign-journal .twe-workspace .journal-import select,
 html[data-theme="dark"] .campaign-journal .twe-workspace .journal-import button{background:#26211a;color:#f2dec0;border-color:#806a48}
+
+.journal-backlinks{border-top:1px solid var(--twe-w-line);padding:15px 24px;color:var(--twe-w-ink);background:var(--twe-w-surface)}
+.journal-backlinks h3{margin:0 0 7px;font:700 12px var(--font-ui);letter-spacing:.04em}
+.journal-backlinks ul{display:flex;flex-wrap:wrap;gap:7px 16px;margin:0;padding:0;list-style:none}
+.journal-backlinks button{cursor:pointer}

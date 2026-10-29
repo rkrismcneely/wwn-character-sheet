@@ -10,6 +10,7 @@ import { JournalIconPicker } from "./journal-icon-picker";
 import { JournalPageIconView } from "./journal-page-icon";
 import { journalPropertiesMarkdown } from "@/lib/campaigns/journal-properties";
 import { resolveJournalWikilinks } from "@/lib/campaigns/journal-links";
+import { autoLinkJournalTitles, journalBacklinks } from "@/lib/campaigns/journal-auto-links";
 import { JournalImport } from "./journal-import";
 import { JournalDocument } from "./journal-document";
 import { campaignMapOpenEvent } from "./campaign-map-events";
@@ -553,7 +554,7 @@ return <section className="campaign-panel campaign-journal twe-workspace" aria-l
     
 
    </div>}
-    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={resolveJournalWikilinks(journalPropertiesMarkdown(normalizeRecapContent(current.content)),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/></div>}
+    {current.kind==="page"&&<div className="twe-workspace-prose"><JournalDocument campaignId={campaignId} gmView={canEdit&&!preview} content={autoLinkJournalTitles(resolveJournalWikilinks(journalPropertiesMarkdown(normalizeRecapContent(current.content)),current,entries),current,entries)} onJournalNavigate={id=>{if(!uploading&&!saving&&entries.some(entry=>entry.id===id&&entry.kind==="page")){openJournalEntry(id);}}}/>{journalBacklinks(current,entries).length>0&&<aside className="journal-backlinks"><h3>Referenced By</h3><ul>{journalBacklinks(current,entries).map(page=><li key={page.id}><button type="button" className="journal-inline-link" onClick={()=>openJournalEntry(page.id)}>{page.title}</button></li>)}</ul></aside>}</div>}
    </article>:<div className="twe-workspace-welcome"><div className="twe-workspace-welcome-icon" aria-hidden="true">✦</div><h3>Your campaign, one page at a time</h3><p>Select a page from the library to read it{canEdit?", or create a page to begin building your world":"."}.</p>{canEdit&&<button className="twe-button twe-button-primary" type="button" onClick={()=>{if(!discardDraft())return;setEditorSession(value=>value+1);setSelected("");setChosenMapId("");setCreatingFolder(false);setParentId(null);setDraft({title:"",content:"",visibility:"gm",icon:"file-text"});setEditing(true);}}>Create a page</button>}</div>}
   </main>
  </div>

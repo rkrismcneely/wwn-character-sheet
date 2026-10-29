@@ -138,3 +138,14 @@ test("character token crop is preserved separately from portrait and used on map
  assert.match(renderer,/clipPath/u);
  assert.match(renderer,/token\.tokenCrop/u);
 });
+
+
+test("token editor is viewport-level and portrait options are bottom-left",async()=>{
+ const sheet=await readFile(new URL("../app/character-sheet.tsx",import.meta.url),"utf8");
+ const styles=await readFile(new URL("../app/globals.css",import.meta.url),"utf8");
+ assert.match(sheet,/Set Token<\/button>/u);
+ assert.match(sheet,/createPortal\(<div className="token-crop-backdrop"/u);
+ assert.match(sheet,/document\.body\)\}/u);
+ assert.match(styles,/\.portrait-frame \.portrait-action-menu\{left:5px;right:auto\}/u);
+ assert.match(styles,/\.token-crop-preview\{width:min\(320px,100%,calc\(100dvh - 225px\)\)/u);
+});

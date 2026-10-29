@@ -3478,3 +3478,12 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 .token-crop-actions button{padding:8px 14px;border:1px solid #ad8b53;background:#fff4db;color:#3d2b17;cursor:pointer}
 .token-crop-actions button:last-child{background:#8c6028;color:#fff8e9}
 html[data-theme="dark"] .token-crop-dialog{background:#262019;color:#f2dec0;border-color:#9e7b4a}
+
+
+/* Viewport-level token editor: keep all controls visible at typical browser heights. */
+.portrait-frame .portrait-action-menu{left:5px;right:auto}
+.portrait-action-list{left:0;right:auto}
+.token-crop-backdrop{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:12px;overflow:auto}
+.token-crop-dialog{box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto;width:min(430px,100%);padding:14px 18px}
+.token-crop-preview{width:min(320px,100%,calc(100dvh - 225px));min-width:0;aspect-ratio:1}
+@media(max-height:550px){.token-crop-preview{width:min(220px,100%,calc(100dvh - 180px))}.token-crop-dialog{padding:10px 14px}.token-crop-dialog p{margin-bottom:6px}}

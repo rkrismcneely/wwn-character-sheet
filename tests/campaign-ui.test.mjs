@@ -648,3 +648,14 @@ test("Campaign dark mode uses dark surfaces rather than parchment for core works
  assert.match(store,/\.campaign-store-stock\{background:#25221c/u);
  assert.match(calendar,/\.campaign-availability-gm\{background:#29251e/u);
 });
+
+test("Journal backlinks and sidebar clicks use the shared back-forward navigation history",async()=>{
+ const journal=await source("app/campaigns/campaign-journal.tsx");
+ assert.match(journal,/function openJournalEntry\(id:string\)/u);
+ assert.match(journal,/function travelJournal\(direction:"back"\|"forward"\)/u);
+ assert.match(journal,/if\(entry\.id!==selected\)openJournalEntry\(entry\.id\)/u);
+ assert.match(journal,/onJournalNavigate=\{id=>\{/u);
+ assert.match(journal,/openJournalEntry\(page\.id\)/u);
+ assert.match(journal,/setBackStack\(stack=>\[\.\.\.stack\.slice\(-29\),selected\]\)/u);
+ assert.match(journal,/setForwardStack\(\[\]\)/u);
+});

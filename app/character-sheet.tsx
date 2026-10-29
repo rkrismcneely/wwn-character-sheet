@@ -3538,7 +3538,7 @@ export default function Home({
         {signedIn && canEdit && cloudId && !cloudArchivedAt && creationEntry !== "choose" && sheet.level === 1 && !levelOneStatus.canFinish && <div className="character-sheet-guided-action" data-readonly-interactive="true">
           <button type="button" onClick={() => { setCreationEntry("guided"); setGuidedCreationMode(true); }}>Guided Creation</button>
         </div>}
-        {!sessionPending && !canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
+        {(!sessionPending || (initialCharacter && !initialCharacter.permissions.canEdit)) && !canEdit && !campaignContext?.readOnly && <div className="read-only-banner" role="status">
           <strong>{cloudAdminReadOnly ? "Viewing as administrator · Read only" : "Read-only character"}</strong>
           <span>{cloudAdminReadOnly ? "Administrator access allows viewing; only the owner can change this character." : signedIn ? "Only the owner can change this character." : "Sign in with Google to create or manage your own characters."}</span>
           {!signedIn && <button type="button" data-readonly-interactive="true" onClick={signInWithGoogle}>Sign in with Google</button>}

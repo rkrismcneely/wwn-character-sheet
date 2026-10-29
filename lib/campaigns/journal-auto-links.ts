@@ -17,7 +17,7 @@ export function autoLinkJournalTitles(markdown:string,current:LinkedPage,pages:r
  let fenced=false;
  return markdown.split("\n").map(line=>{
   if(/^\s*(?:`{3}|~{3})/u.test(line)){fenced=!fenced;return line;}
-  if(fenced||/^\s*(?:#{1,6}\s|>\s|[-*+]\s|\d+\.\s|<|!?\[[^\]]+\]:)/u.test(line))return line;
+  if(fenced||/^\s*(?:#{1,6}\s|!?\[[^\]]+\]:)/u.test(line))return line;
   // Do not interpret existing links, images, inline code, or HTML as prose.
   const protectedPattern=/(!?\[[^\]\n]*\]\([^)]+\)|!?\[\[[^\]\n]+\]\]|`[^`\n]*`|<[^>]*>|https?:\/\/\S+)/gu;
   const parts=line.split(protectedPattern);

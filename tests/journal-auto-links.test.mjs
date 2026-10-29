@@ -23,3 +23,17 @@ test("ambiguous titles and self references are not linked",()=>{
  const duplicate={...pages[1],id:"44444444-4444-4444-4444-444444444444"};
  assert.equal(autoLinkJournalTitles("Rotthold",pages[0],[pages[0],pages[1],duplicate]),"Rotthold");
 });
+
+test("auto-links existing names inside lists, quotes and inline HTML",()=>{
+ const current=pages[2];
+ const input="- Thomas Morley visited Rotthold.\n> Thomas Morley returned.\n<p>Thomas Morley passed through the harbour.</p>";
+ const linked=autoLinkJournalTitles(input,current,pages);
+ assert.match(linked,/^- \[Thomas Morley\]\(\/journal-page\//mu);
+ assert.match(linked,/Rotthold\]\(\/journal-page\//u);
+ assert.match(linked,/<p>Thomas Morley passed through the harbour.<\/p>/u);
+});
+test("backlinks discover title mentions in imported lists",()=>{
+ const target=pages[1];
+ const imported={...pages[0],content:"- The expedition stopped in Rotthold."};
+ assert.deepEqual(journalBacklinks(target,[target,imported]).map(page=>page.id),[imported.id]);
+});

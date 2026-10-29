@@ -447,3 +447,18 @@ html[data-theme="dark"] .campaign-journal .twe-workspace .journal-import button{
 .journal-backlinks h3{margin:0 0 7px;font:700 12px var(--font-ui);letter-spacing:.04em}
 .journal-backlinks ul{display:flex;flex-wrap:wrap;gap:7px 16px;margin:0;padding:0;list-style:none}
 .journal-backlinks button{cursor:pointer}
+
+
+/* Internal Journal links are buttons (for in-place navigation), not anchors.
+   Make them unmistakably clickable in both themes and in imported layouts. */
+.campaign-journal .journal-inline-link{
+ appearance:none;display:inline;padding:0;margin:0;border:0;border-radius:0;
+ background:transparent;color:#86541e;font:inherit;line-height:inherit;
+ text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;
+ cursor:pointer;vertical-align:baseline;text-align:left;
+}
+.campaign-journal .journal-inline-link:hover{color:#5f3910;text-decoration-thickness:2px}
+.campaign-journal .journal-inline-link:focus-visible{outline:2px solid #9e6d30;outline-offset:2px;border-radius:2px}
+html[data-theme="dark"] .campaign-journal .journal-inline-link{color:#efbf79}
+html[data-theme="dark"] .campaign-journal .journal-inline-link:hover{color:#ffdc9f}
+html[data-theme="dark"] .campaign-journal .journal-inline-link:focus-visible{outline-color:#f7c877}

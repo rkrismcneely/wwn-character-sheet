@@ -37,3 +37,19 @@ test("backlinks discover title mentions in imported lists",()=>{
  const imported={...pages[0],content:"- The expedition stopped in Rotthold."};
  assert.deepEqual(journalBacklinks(target,[target,imported]).map(page=>page.id),[imported.id]);
 });
+
+
+test("existing import text links named NPCs visibly and ignores hidden metadata",()=>{
+ const npc={id:"55555555-5555-5555-5555-555555555555",title:"Doolan Tversky",parentId:null,kind:"page",content:""};
+ const current={...pages[2],content:""};
+ const result=autoLinkJournalTitles("<!-- Doolan Tversky hidden metadata -->\\n**Allegiances:**\\n- Doolan Tversky",current,[current,npc]);
+ assert.match(result,/<!-- Doolan Tversky hidden metadata -->/u);
+ assert.ok(result.includes("[Doolan Tversky](/journal-page/55555555"));
+});
+test("Journal internal links have visible underline and keyboard focus styling",async()=>{
+ const {readFile}=await import("node:fs/promises");
+ const css=await readFile(new URL("../app/campaigns/twe-workspace.css",import.meta.url),"utf8");
+ assert.ok(css.includes(".campaign-journal .journal-inline-link{"));
+ assert.match(css,/text-decoration:underline/u);
+ assert.match(css,/journal-inline-link:focus-visible/u);
+});

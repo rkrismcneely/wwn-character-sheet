@@ -147,5 +147,7 @@ test("token editor is viewport-level and portrait options are bottom-left",async
  assert.match(sheet,/createPortal\(<div className="token-crop-backdrop"/u);
  assert.match(sheet,/document\.body\)\}/u);
  assert.match(styles,/\.portrait-frame \.portrait-action-menu\{left:5px;right:auto\}/u);
- assert.match(styles,/\.token-crop-preview\{width:min\(320px,100%,calc\(100dvh - 225px\)\)/u);
+ assert.match(styles,/--portrait-aspect/u);
+ assert.match(styles,/object-fit:fill/u);
+ assert.match(sheet,/naturalWidth\/image.naturalHeight/u);
 });

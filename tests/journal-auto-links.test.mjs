@@ -44,12 +44,12 @@ test("existing import text links named NPCs visibly and ignores hidden metadata"
  const current={...pages[2],content:""};
  const result=autoLinkJournalTitles("<!-- Doolan Tversky hidden metadata -->\\n**Allegiances:**\\n- Doolan Tversky",current,[current,npc]);
  assert.match(result,/<!-- Doolan Tversky hidden metadata -->/u);
- assert.match(result,/\\[Doolan Tversky\\]\\(\\/journal-page\\/55555555/u);
+ assert.ok(result.includes("[Doolan Tversky](/journal-page/55555555"));
 });
 test("Journal internal links have visible underline and keyboard focus styling",async()=>{
  const {readFile}=await import("node:fs/promises");
  const css=await readFile(new URL("../app/campaigns/twe-workspace.css",import.meta.url),"utf8");
- assert.match(css,/\\.campaign-journal \\.journal-inline-link\\{/u);
+ assert.ok(css.includes(".campaign-journal .journal-inline-link{"));
  assert.match(css,/text-decoration:underline/u);
  assert.match(css,/journal-inline-link:focus-visible/u);
 });

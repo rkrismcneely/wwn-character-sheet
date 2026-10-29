@@ -125,3 +125,16 @@ test("campaign map tokens are durable per map, permissioned, encounter-placeable
   assert.match(css, /campaign-map-token-disc/u);
   assert.match(css, /campaign-map-token-npc/u);
 });
+
+test("character token crop is preserved separately from portrait and used on map",async()=>{
+ const {readFile}=await import("node:fs/promises");
+ const sheet=await readFile(new URL("../app/character-sheet.tsx",import.meta.url),"utf8");
+ const map=await readFile(new URL("../lib/campaigns/map.ts",import.meta.url),"utf8");
+ const renderer=await readFile(new URL("../app/campaigns/campaign-map-launcher.tsx",import.meta.url),"utf8");
+ assert.match(sheet,/portrait-action-menu/u);
+ assert.match(sheet,/Map Token/u);
+ assert.match(sheet,/patch\("tokenCrop",tokenCropDraft\)/u);
+ assert.match(map,/tokenPortrait/u);
+ assert.match(renderer,/clipPath/u);
+ assert.match(renderer,/token\.tokenCrop/u);
+});

@@ -233,12 +233,12 @@ function tokenInitials(name: string): string {
 // The token's visual SVG only depends on its label and radius. Keep these
 // nodes stable while the map viewBox, toolbar or unrelated tokens update.
 const MapTokenArtwork = memo(function MapTokenArtwork({
-  name, radius, distance,
-}: { name: string; radius: number; distance?: string }) {
+  name, radius, distance, portrait, crop, tokenId,
+}: { name: string; radius: number; distance?: string; portrait?:string;crop?:{cx:number;cy:number;size:number};tokenId?:string }) {
   return <>
     <title>{name}</title>
     <circle r={radius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
-    <text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={radius * 0.72}>{tokenInitials(name)}</text>
+    {portrait&&crop&&tokenId ? <><defs><clipPath id={"token-crop-"+tokenId}><circle r={radius}/></clipPath></defs><image href={portrait} x={-radius-((crop.cx-crop.size/2)*(2*radius/crop.size))} y={-radius-((crop.cy-crop.size/2)*(2*radius/crop.size))} width={2*radius/crop.size} height={2*radius/crop.size} preserveAspectRatio="xMidYMid slice" clipPath={"url(#token-crop-"+tokenId+")"}/><circle r={radius} fill="none" stroke="currentColor" strokeWidth="2" pointerEvents="none"/></>:<text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={radius * 0.72}>{tokenInitials(name)}</text>}
     {distance !== undefined && <text className="campaign-map-token-distance" textAnchor="middle" y={-(radius + Math.max(14, radius * 0.5))} fontSize={Math.max(12, radius * 0.44)}>{distance}</text>}
     <text className="campaign-map-token-name" textAnchor="middle" y={radius + Math.max(12, radius * 0.48)} fontSize={Math.max(11, radius * 0.42)}>{name}</text>
   </>;
@@ -1263,7 +1263,7 @@ export function CampaignMapWorkspace({
           {map.tokens.map(token => { const sizeCells = tokenSizes[token.id] ?? 1; const tokenVisualRadius = gridTokenRadius(map.grid.size, sizeCells); return <g key={token.id} className={`campaign-map-token campaign-map-token-${token.kind}${!playerPreview && token.canMove ? " is-movable" : ""}${!playerPreview && selectedTokenId === token.id ? " is-selected" : ""}`} transform={`translate(${token.x} ${token.y})`} onPointerDown={playerPreview ? undefined : event => handleTokenPointerDown(event, token)}
              onPointerMove={playerPreview ? undefined : handleTokenPointerMove}
              onPointerUp={playerPreview ? undefined : handleTokenPointerEnd}
-             onPointerCancel={playerPreview ? undefined : handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${!playerPreview && token.canMove ? ", draggable" : ""}`}><MapTokenArtwork name={token.name} radius={tokenVisualRadius} distance={tokenDragMeasurement?.tokenId === token.id ? tokenDragMeasurement.distance : undefined} /></g>; })}</g>
+             onPointerCancel={playerPreview ? undefined : handleTokenPointerEnd} role="img" aria-label={`${token.name} ${tokenAriaKind(token.kind)} token, ${sizeCells} by ${sizeCells} grid cells${!playerPreview && token.canMove ? ", draggable" : ""}`}><MapTokenArtwork name={token.name} radius={tokenVisualRadius} portrait={token.tokenPortrait} crop={token.tokenCrop} tokenId={token.id} distance={tokenDragMeasurement?.tokenId === token.id ? tokenDragMeasurement.distance : undefined} /></g>; })}</g>
       </svg>}
         <div className="campaign-map-viewport-tools" role="group" aria-label="Map view and window controls">
           {map?.backgroundUrl && <>

@@ -3456,3 +3456,10 @@ html[data-theme="dark"] .rule-result-kind.confidence-low{
 .character-live-connection .campaign-session-connected,.character-live-connection .campaign-session-away{display:inline-block;flex:none}
 .character-live-heading-status{gap:15px}
 .character-live-online-count{white-space:nowrap}
+
+
+/* Expanded roll history remains in its own scroll area inside the popover. */
+.character-live-rolls-body.is-expanded{overflow-y:auto;max-height:min(55vh,480px);min-height:132px;flex:0 1 auto;overscroll-behavior:contain}
+.character-live-rolls-toggle{display:block;width:100%;margin-top:8px;padding:7px 8px;border:1px solid #b69762;background:#ead7af;color:#503819;font:700 10px var(--font-ui);cursor:pointer;text-align:center}
+.character-live-rolls-toggle:hover,.character-live-rolls-toggle:focus-visible{background:#f6e7c9;border-color:#926b35;outline-offset:2px}
+html[data-theme="dark"] .character-live-rolls-toggle{background:#33291d;color:#f1d8b1;border-color:#8c7047}

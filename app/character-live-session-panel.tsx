@@ -36,6 +36,7 @@ export function CharacterLiveSessionPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [rollLimit, setRollLimit] = useState(4);
+  const [rollsExpanded, setRollsExpanded] = useState(false);
   const [rollArea, setRollArea] = useState<HTMLDivElement | null>(null);
   const [activeCampaigns, setActiveCampaigns] = useState<ActiveCampaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
@@ -79,7 +80,7 @@ export function CharacterLiveSessionPanel({
     return rows;
   }, []);
   useEffect(() => {
-    if (!rollArea) return;
+    if (!rollArea || rollsExpanded) return;
     const update = () => {
       const target = rollArea.parentElement?.getBoundingClientRect().height ?? 0;
       const rows = [...rollArea.querySelectorAll("li")];
@@ -91,7 +92,7 @@ export function CharacterLiveSessionPanel({
     if (rollArea.parentElement) observer.observe(rollArea.parentElement);
     update();
     return () => observer.disconnect();
-  }, [rollArea, groupedCombatants.length, session?.recentRolls.length]);
+  }, [rollArea, rollsExpanded, groupedCombatants.length, session?.recentRolls.length]);
   useEffect(() => {
     onJoinedSessionChange?.(session && live.state.permissions.joined ? selectedCampaignId : null);
   }, [live.state.permissions.joined, onJoinedSessionChange, selectedCampaignId, session]);
@@ -119,7 +120,7 @@ export function CharacterLiveSessionPanel({
         <div className={session.encounter ? "character-live-session-grid has-encounter" : "character-live-session-grid no-encounter"}>
           <section className="character-live-session-section character-live-party-section"><h3>Party</h3><ul className="character-live-party">{session.participants.map(participant => <li key={participant.participantKey}><span className={participant.connected ? "campaign-session-connected character-live-presence-online" : "campaign-session-away character-live-presence-offline"} aria-label={participant.connected ? "Online" : "Offline"} title={participant.connected ? "Online" : "Offline"} /><div>{participant.character ? <a href={`/campaigns/${selectedCampaign.id}/characters/${participant.character.id}`}>{participant.character.name}</a> : <strong>{participant.name}</strong>}{participant.character ? <span>HP {participant.character.hpCurrent}/{participant.character.hpMax} <b>AC {participant.character.armorClass}</b></span> : <small>No linked character</small>}</div></li>)}</ul></section>
           {session.encounter && <section className="character-live-session-section character-live-encounter"><h3>Encounter <span>Round {session.encounter.round}</span></h3><ol>{groupedCombatants.map(({ combatant, count }) => { const summary = encounterCombatant(combatant, session.participants); const current = session.encounter?.currentCombatantId === combatant.id; return <li key={combatant.id} className={current ? "is-current" : undefined}><b aria-label={current ? "Current turn" : undefined}>{current ? "→" : ""}</b><span>{summary.name}{count > 1 ? ` × ${count}` : ""}</span><small>Init {combatant.initiative} · {summary.hp}{summary.armorClass === null ? "" : ` · AC ${summary.armorClass}`}</small></li>; })}</ol></section>}
-          <section className="character-live-session-section character-live-rolls"><h3>Recent Rolls</h3><div className="character-live-rolls-body" ref={setRollArea}>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.slice(0, rollLimit).map(roll => <li key={roll.id}><div><strong>{roll.character.name} — {roll.label}</strong><span>{rollSummary(roll)}</span></div><b>{roll.total}</b></li>)}</ol> : <p>No contextual rolls have been shared yet.</p>}</div></section>
+          <section className="character-live-session-section character-live-rolls"><h3>Recent Rolls</h3><div className={"character-live-rolls-body"+(rollsExpanded?" is-expanded":"")} ref={setRollArea}>{session.recentRolls.length ? <ol aria-live="polite">{session.recentRolls.slice(0, rollsExpanded ? session.recentRolls.length : rollLimit).map(roll => <li key={roll.id}><div><strong>{roll.character.name} — {roll.label}</strong><span>{rollSummary(roll)}</span></div><b>{roll.total}</b></li>)}</ol> : <p>No contextual rolls have been shared yet.</p>}</div>{(rollsExpanded || session.recentRolls.length > rollLimit) && <button type="button" className="character-live-rolls-toggle" aria-expanded={rollsExpanded} onClick={()=>setRollsExpanded(value=>!value)}>{rollsExpanded ? "Show fewer rolls" : `Show more rolls (${session.recentRolls.length-rollLimit} more)`}</button>}</section>
         </div>
       </>}
     </section>}

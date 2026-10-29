@@ -55,3 +55,12 @@ test("Live Session header separates connection status and displays at least four
  assert.match(panel,/useState\(4\)/u);
  assert.match(panel,/Math\.max\(4, Math\.min/u);
 });
+
+test("Live Session recent rolls can expand and collapse without changing adaptive default",async()=>{
+ const panel=await readFile(new URL("../app/character-live-session-panel.tsx",import.meta.url),"utf8");
+ assert.match(panel,/rollsExpanded/);
+ assert.match(panel,/Show more rolls/);
+ assert.match(panel,/Show fewer rolls/);
+ assert.match(panel,/aria-expanded=\{rollsExpanded\}/);
+ assert.match(panel,/if \(!rollArea \|\| rollsExpanded\) return/);
+});

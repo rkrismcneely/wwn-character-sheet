@@ -233,7 +233,7 @@ async function campaignMapTokens(
     try{
       const data=JSON.parse(character.data) as {portrait?:unknown;tokenCrop?:{cx?:number;cy?:number;size?:number}};
       const crop=data.tokenCrop;
-      const valid=Boolean(crop&&[crop.cx,crop.cy,crop.size].every(value=>typeof value==="number"&&Number.isFinite(value))&&crop!.size!>=0.2&&crop!.size!<=1);
+      const valid=Boolean(crop&&[crop.cx,crop.cy,crop.size].every(value=>typeof value==="number"&&Number.isFinite(value))&&(crop.size as number)>=0.2&&(crop.size as number)<=1);
       return [character.publicId,{portrait:typeof data.portrait==="string"&&data.portrait.startsWith("/api/portraits/")?data.portrait:undefined,crop:valid?crop:undefined}] as const;
     }catch{return [character.publicId,{portrait:undefined,crop:undefined}] as const;}
   }));

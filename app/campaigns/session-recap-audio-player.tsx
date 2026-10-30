@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RecapAudioForPlayer } from "@/lib/campaigns/recap-audio-assets";
+import { parseRecapTranscript } from "@/lib/campaigns/recap-transcript-display";
 
 /** Extract explicit chapter headings only; ordinary narrative timestamps are not chapters. */
 export function recapAudioChapters(content: string): { seconds: number; label: string; timestamp: string }[] {
@@ -30,6 +31,8 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content}:{campaignId
   const audioRef=useRef<HTMLAudioElement>(null);
   const pendingSeek=useRef<number|null>(null);
   const chapters=recapAudioChapters(content??"");
+  const transcript=parseRecapTranscript(content??"");
+  const [filter,setFilter]=useState("");
   function seekTo(seconds:number) {
     const audio=audioRef.current;
     if (!audio) return;
@@ -87,6 +90,22 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content}:{campaignId
         </button>
       </li>)}</ol>
     </nav>}
+    {selected && transcript.length>0 && <section aria-label="Timestamped transcript">
+      <h5>Transcript</h5>
+      <label><span className="sr-only">Search transcript</span>
+        <input type="search" value={filter} onChange={event=>setFilter(event.target.value)}
+          placeholder="Search spoken dialogue" aria-label="Search transcript" />
+      </label>
+      <div className="session-recap-transcript" style={{maxHeight:360,overflowY:"auto"}}>
+        {transcript.filter(line=>(line.speaker+" "+line.text).toLocaleLowerCase().includes(filter.toLocaleLowerCase())).slice(0,500).map((line,index)=>
+          <p key={line.seconds+":"+index}>
+            <button type="button" className="journal-inline-link" onClick={()=>seekTo(line.seconds)}
+              aria-label={"Play from "+line.timestamp}>{line.timestamp}</button>
+            {" "}<strong>{line.speaker}:</strong> {line.text}
+          </p>)}
+      </div>
+      {transcript.length>500 && <p className="campaign-empty-copy">Showing up to 500 matching lines. Search to find another moment.</p>}
+    </section>}
     {selected && <audio ref={audioRef} key={selected.id} controls preload="metadata"
       onLoadedMetadata={()=>{if(pendingSeek.current!==null){const seconds=pendingSeek.current;pendingSeek.current=null;seekTo(seconds);}}}
       aria-label={selected.label||"Session recording"}

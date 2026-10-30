@@ -55,8 +55,8 @@ export async function PUT(request: Request, context: Context) {
         return Response.json({ error: "Each track must have one confirmed speaker." }, { status: 422 });
       }
       const track = await env.BUCKET.head("recap-tracks/" + campaignId + "/" + importId + "/" + index);
-      if (!track || track.httpMetadata?.contentType !== "audio/flac") {
-        return Response.json({ error: "Extract each FLAC track before assigning it." }, { status: 409 });
+      if (!track || !["audio/flac", "audio/aac"].includes(track.httpMetadata?.contentType || "")) {
+        return Response.json({ error: "Extract the audio track before assigning it." }, { status: 409 });
       }
       indexes.add(index as number);
       assigned.push({ index: index as number, ...byName.get(discordName)! });

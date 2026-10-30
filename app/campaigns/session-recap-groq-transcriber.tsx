@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import type { RecapSpeakerAssociation } from "@/lib/campaigns/recap-imports";
+import type { RecapSpeakerAssociation, RecapRecordingImport } from "@/lib/campaigns/recap-imports";
 import { GROQ_AUDIO_MODELS,MAX_GROQ_AUDIO_BYTES } from "@/lib/campaigns/recap-groq-audio";
 import {
   inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload,
@@ -16,10 +16,18 @@ export function parseSessionAudioStart(value:string):number|null {
   return seconds<=8*3600?seconds*1000:null;
 }
 type TranscriptionResult={saved?:boolean;duplicate?:boolean;added?:number;total?:number;error?:string};
+type CraigTrack={index:number;filename:string;bytes:number;speakerLabel:string;discordName:string};
+
 export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
   campaignId:string;recapId:string;onSaved:()=>void;
 }) {
   const [speakers,setSpeakers]=useState<RecapSpeakerAssociation[]>([]);
+  const [craigImports,setCraigImports]=useState<RecapRecordingImport[]>([]);
+  const [craigImportId,setCraigImportId]=useState("");
+  const [craigTracks,setCraigTracks]=useState<CraigTrack[]>([]);
+  const [craigTrackIndex,setCraigTrackIndex]=useState("");
+  const [craigLoading,setCraigLoading]=useState(false);
+  const [craigSpeakerHint,setCraigSpeakerHint]=useState("");
   const [mode,setMode]=useState<"clip"|"wav">("clip");
   const [file,setFile]=useState<File|null>(null);
   const [wavInfo,setWavInfo]=useState<PcmWav|null>(null);
@@ -46,16 +54,98 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
     void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/recap-imports",
       {cache:"no-store",signal:controller.signal})
       .then(async response=>{
-        const data=await response.json() as {speakers?:RecapSpeakerAssociation[];error?:string};
+        const data=await response.json() as {speakers?:RecapSpeakerAssociation[];imports?:RecapRecordingImport[];error?:string};
         if(!response.ok)throw new Error(data.error||"Cannot load campaign speakers.");
-        return data.speakers??[];
-      }).then(rows=>{if(!controller.signal.aborted)setSpeakers(rows);})
+        return {speakers:data.speakers??[],imports:data.imports??[]};
+      }).then(data=>{if(!controller.signal.aborted){setSpeakers(data.speakers);setCraigImports(data.imports.filter(item=>item.sourceType==="craig"&&item.status==="ready"));}})
       .catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:"Speakers unavailable.");});
     return ()=>{disposed.current=true;stopAfterCurrent.current=true;controller.abort();};
   },[campaignId]);
 
+  async function inspectSavedCraig(importId:string) {
+    setCraigImportId(importId);setCraigTracks([]);setCraigTrackIndex("");
+    setFile(null);setDuration("");setError("");setNotice("");setCraigSpeakerHint("");
+    if(!importId)return;
+    setCraigLoading(true);
+    try {
+      const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/recap-imports/";
+      const suffix="?importId="+encodeURIComponent(importId);
+      const [trackResponse,manifestResponse]=await Promise.all([
+        fetch(base+"craig-track-speakers"+suffix,{cache:"no-store"}),
+        fetch(base+"craig-manifest"+suffix,{cache:"no-store"}),
+      ]);
+      const association=await trackResponse.json() as {
+        assignments?:{index:number;displayName:string;discordName:string}[];error?:string;
+      };
+      const manifest=await manifestResponse.json() as {
+        entries?:{filename:string;uncompressedBytes:number}[];error?:string;
+      };
+      if(!trackResponse.ok||!manifestResponse.ok)
+        throw new Error(association.error||manifest.error||"Could not inspect Craig track inventory.");
+      const byIndex=new Map((association.assignments??[]).map(part=>[part.index,part]));
+      const eligible=(manifest.entries??[]).flatMap((entry,index)=>{
+        const mapping=byIndex.get(index);
+        if(!mapping||!mapping.displayName||!mapping.discordName||entry.uncompressedBytes<128||
+          entry.uncompressedBytes>MAX_GROQ_AUDIO_BYTES||!/\.(?:flac|m4a)$/iu.test(entry.filename))return [];
+        return [{index,filename:entry.filename,bytes:entry.uncompressedBytes,
+          speakerLabel:mapping.displayName,discordName:mapping.discordName}];
+      });
+      setCraigTracks(eligible);
+      setNotice(eligible.length? "Select an extracted short Craig track; confirm its speaker below.":
+        "No confirmed, extracted FLAC/M4A track under 16 MB is ready. Larger tracks need proper audio-aware conversion.");
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not inspect Craig recording.");}
+    finally{setCraigLoading(false);}
+  }
+  function readDuration(chosen:File) {
+    const localUrl=URL.createObjectURL(chosen);
+    const audio=new Audio();
+    audio.preload="metadata";
+    audio.onloadedmetadata=()=>{
+      if(Number.isFinite(audio.duration)&&audio.duration>0)
+        setDuration(String(Math.round(audio.duration*100)/100));
+      audio.src="";URL.revokeObjectURL(localUrl);
+    };
+    audio.onerror=()=>{
+      audio.src="";URL.revokeObjectURL(localUrl);
+      setNotice("Browser could not detect duration. Verify this isolated track is under 30 minutes and enter the real length.");
+    };
+    audio.src=localUrl;
+  }
+  async function loadSavedCraigTrack(indexString:string) {
+    setCraigTrackIndex(indexString);setFile(null);setDuration("");setError("");setCraigSpeakerHint("");
+    if(indexString==="")return;
+    const index=Number(indexString);
+    const track=craigTracks.find(item=>item.index===index);
+    if(!track||!craigImportId)return;
+    setCraigLoading(true);
+    try {
+      const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+
+        "/recap-imports/craig-track-audio?importId="+encodeURIComponent(craigImportId)+
+        "&entryIndex="+index;
+      const response=await fetch(endpoint,{cache:"no-store"});
+      if(!response.ok){
+        const detail=await response.json() as {error?:string};
+        throw new Error(detail.error||"Craig track not available.");
+      }
+      const blob=await response.blob();
+      if(blob.size<128||blob.size>MAX_GROQ_AUDIO_BYTES)
+        throw new Error("Craig track exceeded the supported 16 MB upload limit.");
+      const ext=track.filename.toLowerCase().endsWith(".flac")?"flac":"m4a";
+      const audio=new File([blob],"craig-track-"+index+"."+ext,{
+        type:ext==="flac"?"audio/flac":"audio/mp4",
+      });
+      setMode("clip");setFile(audio);setSpeakerId("");
+      setCraigSpeakerHint(track.speakerLabel+" (Craig track: "+track.discordName+")");
+      setNotice("Loaded "+track.filename+" privately. Confirm "+track.speakerLabel+
+        " as the speaker, review the real clip duration, and approve Groq transcription.");
+      readDuration(audio);
+    }catch(cause){setError(cause instanceof Error?cause.message:"Craig audio could not be loaded.");}
+    finally{setCraigLoading(false);}
+  }
+
   function resetFile(nextMode:"clip"|"wav") {
     setMode(nextMode);setFile(null);setDuration("");setWavInfo(null);setWavChunks([]);
+    setCraigTrackIndex("");setCraigSpeakerHint("");
     setProgress(0);setDuplicates(0);setError("");setNotice("");
   }
   async function chooseFile(event:ChangeEvent<HTMLInputElement>) {
@@ -78,16 +168,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       if(!/\.(flac|mp3|mp4|m4a|mpeg|mpga|ogg|wav|webm)$/iu.test(chosen.name))
         throw new Error("Unsupported audio format.");
       setFile(chosen);
-      const localUrl=URL.createObjectURL(chosen);
-      const audio=new Audio();
-      audio.preload="metadata";
-      audio.onloadedmetadata=()=>{
-        if(Number.isFinite(audio.duration)&&audio.duration>0)
-          setDuration(String(Math.round(audio.duration*100)/100));
-        audio.src="";URL.revokeObjectURL(localUrl);
-      };
-      audio.onerror=()=>{audio.src="";URL.revokeObjectURL(localUrl);};
-      audio.src=localUrl;
+      readDuration(chosen);
     }catch(cause){setError(cause instanceof Error?cause.message:"Audio could not be read.");}
   }
   async function sendClip(clip:File,clipStartMs:number,clipDurationMs:number):Promise<TranscriptionResult>{
@@ -164,6 +245,37 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       Compressed full-length FLAC/MP3/M4A recordings still require conversion to PCM WAV.
       Your key is never stored. TWE does not pay for the provider requests.
     </p>
+    {craigImports.length>0 && <div className="session-recap-reading" aria-label="Import saved Craig audio">
+      <h5>Use an existing Craig recording</h5>
+      <p className="campaign-empty-copy">
+        Import a short extracted FLAC/M4A speaker track without downloading it manually.
+        Only previously confirmed and private Craig tracks are listed. Long compressed tracks
+        will need an audio-aware conversion step.
+      </p>
+      <label>Craig recording
+        <select value={craigImportId} disabled={loading||craigLoading}
+          onChange={event=>void inspectSavedCraig(event.target.value)}>
+          <option value="">Choose a saved recording</option>
+          {craigImports.map(item=><option key={item.id} value={item.id}>
+            {item.sourceLabel} — {item.sessionDate}
+          </option>)}
+        </select>
+      </label>
+      {craigImportId && <label>Confirmed, extracted audio track
+        <select value={craigTrackIndex} disabled={loading||craigLoading}
+          onChange={event=>void loadSavedCraigTrack(event.target.value)}>
+          <option value="">Choose an isolated voice</option>
+          {craigTracks.map(track=><option value={track.index} key={track.index}>
+            {track.speakerLabel} — {track.filename} ({(track.bytes/1048576).toFixed(1)} MB)
+          </option>)}
+        </select>
+      </label>}
+      {craigLoading&&<p role="status">Loading private Craig track information…</p>}
+      {craigSpeakerHint&&<p className="session-recap-import-notice">
+        Craig identifies this voice as <strong>{craigSpeakerHint}</strong>.
+        Confirm the matching campaign speaker below before transcription.
+      </p>}
+    </div>}
     <div className="session-recap-form-actions" role="group" aria-label="Audio transcription source">
       <button type="button" className={mode==="clip"?"campaign-primary":"campaign-secondary"}
         disabled={loading} onClick={()=>resetFile("clip")}>Prepared short clip</button>

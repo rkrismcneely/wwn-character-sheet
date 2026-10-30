@@ -36,11 +36,26 @@ export function RecapStorageConnections() {
   }
 
   useEffect(() => {
-    void refresh().then(() => {
-      const result = new URLSearchParams(window.location.search).get("drive");
-      if (result === "connected") setMessage("Google Drive connected for your session recordings.");
-      if (result === "error") setError("Drive connection wasn't completed. Please try again.");
-    });
+    let active = true;
+    void fetch("/api/account/storage/google-drive", {cache:"no-store"})
+      .then(async response => {
+        const data = await response.json() as {available?: boolean;connections?: StorageConnection[];error?: string};
+        if (!response.ok || !Array.isArray(data.connections)) {
+          throw new Error(data.error || "Could not load storage connections.");
+        }
+        return data;
+      })
+      .then(data => {
+        if (!active) return;
+        setConnections(data.connections ?? []);
+        setAvailable(Boolean(data.available));
+        const result = new URLSearchParams(window.location.search).get("drive");
+        if (result === "connected") setMessage("Google Drive connected for your session recordings.");
+        if (result === "error") setError("Drive connection wasn't completed. Please try again.");
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Storage connections unavailable."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   async function disconnect(connectionId: string) {

@@ -71,16 +71,17 @@ export async function POST(request: Request, context: Context): Promise<Response
     const entries = await directory(archiveKey, archive.size);
     const index = body.entryIndex as number;
     const entry = entries[index];
-    if (!entry || !/\.flac$/iu.test(entry.filename)) {
-      return Response.json({ error: "Select an audio FLAC track from the archive." }, { status: 422 });
+    if (!entry || !/\.(?:flac|aac|m4a)$/iu.test(entry.filename)) {
+      return Response.json({ error: "Select a FLAC or AAC audio track from the archive." }, { status: 422 });
     }
     const outputKey = "recap-tracks/" + row.campaignId + "/" + body.importId + "/" + index;
     const stream = await trackData(archiveKey, archive.size, entry);
+    const contentType = /\.flac$/iu.test(entry.filename) ? "audio/flac" : "audio/aac";
     // Decompression is streamed and bounded. A failed transfer cannot leave
     // an earlier or partially written track masquerading as the new output.
     await env.BUCKET.delete(outputKey);
     const saved = await env.BUCKET.put(outputKey, stream, {
-      httpMetadata: { contentType: "audio/flac" },
+      httpMetadata: { contentType },
       customMetadata: { filename: entry.filename, importId: body.importId as string, index: String(index) },
     });
     if (!saved || saved.size !== entry.uncompressedBytes) {

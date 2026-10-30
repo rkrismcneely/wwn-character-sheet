@@ -34,6 +34,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [activeImport, setActiveImport] = useState<string | null>(null);
   const [trackSpeakerChoices, setTrackSpeakerChoices] = useState<Record<number,string>>({});
   const [inspectedTracks, setInspectedTracks] = useState<{ recordingId: string; entries: { filename: string; uncompressedBytes: number }[] } | null>(null);
+  const [reviewTranscript, setReviewTranscript] = useState<{ recordingId: string; segments: { startMs: number; endMs: number; text: string; speakerName: string; characterName: string | null; trackIndex: number }[] } | null>(null);
   const [craigJob, setCraigJob] = useState<{status:string;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -208,6 +209,25 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function loadTranscript(recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/transcript?importId=" + encodeURIComponent(recordingId), { cache: "no-store" });
+      const result = await response.json() as { segments?: { startMs:number; endMs:number; text:string; speakerName:string; characterName:string|null; trackIndex:number }[]; error?:string };
+      if (!response.ok || !Array.isArray(result.segments)) throw new Error(result.error || "Transcript unavailable.");
+      setReviewTranscript({ recordingId, segments: result.segments });
+      setNotice(result.segments.length ? "Showing the saved timestamped transcript." : "No transcript segments saved for this recording yet.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Transcript could not be loaded."); }
+    finally { setBusy(false); }
+  }
+
+  function transcriptTime(ms: number) {
+    const seconds = Math.floor(ms / 1000);
+    return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
+      .map(value => String(value).padStart(2, "0")).join(":");
+  }
+
   async function transcribeShortTrack(recordingId: string, entryIndex: number) {
     if (busy || !window.confirm("Transcribe this short track with Cloudflare Workers AI? This uses your Workers AI quota and may incur usage charges on a paid Cloudflare account.")) return;
     setBusy(true); setError(""); setNotice("");
@@ -368,6 +388,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transferCraigArchive(recording.id)}>Save Craig Archive</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void inspectCraigArchive(recording.id)}>Inspect Tracks</button>
+          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void loadTranscript(recording.id)}>Review Transcript</button>
         </>}
       </div>
     </div>)}</div>
@@ -389,6 +410,20 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       </div>)}
       <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveTrackSpeakers(inspectedTracks.recordingId)}>Save Track Speakers</button>
     </div>}
+    {reviewTranscript && <section className="session-recap-speaker-list" aria-label="Timestamped transcript">
+      <div className="session-recap-form-actions">
+        <strong>Transcript · {reviewTranscript.segments.length} segment(s)</strong>
+        <button type="button" className="campaign-secondary" onClick={() => setReviewTranscript(null)}>Close Transcript</button>
+      </div>
+      {reviewTranscript.segments.slice(0, 250).map((segment, index) =>
+        <div className="session-recap-speaker-entry" key={segment.trackIndex + "-" + segment.startMs + "-" + index}>
+          <div><strong>{transcriptTime(segment.startMs)}–{transcriptTime(segment.endMs)} · {segment.speakerName}</strong>
+            {segment.characterName && <span> ({segment.characterName})</span>}
+            <p>{segment.text}</p>
+          </div>
+        </div>)}
+      {reviewTranscript.segments.length > 250 && <p className="session-recap-editor-help">Showing the first 250 segments. Larger transcript paging will follow.</p>}
+    </section>}
     {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · FLAC ready to retrieve" : ""}</p>}
     {activeImport && <div className="session-recap-recording-confirm">
       <h4>Confirm speakers before transcription</h4>

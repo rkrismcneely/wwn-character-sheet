@@ -6,6 +6,7 @@ import { SessionRecapMarkdown } from "./session-recap-markdown";
 import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
+import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcript-manager";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
 type Draft = { date: string; title: string; content: string };
@@ -160,11 +161,14 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           : <textarea id="session-recap-body" required rows={14} maxLength={30000} value={draft.content}
               placeholder={"## The adventure continues…\n\n- A discovery\n- An unexpected encounter\n\n**Next time:** …"}
               onChange={event => setDraft(current => ({ ...current, content: event.target.value }))} />}
-        <p className="session-recap-editor-help">Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Players see the formatted recap after you save it.</p>
+        <p className="session-recap-editor-help">Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Players see the formatted recap after you save it. For full Craig captions, save this recap first, then use Full session transcript below.</p>
         {error && <p className="campaign-error" role="alert">{error}</p>}
         <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
       </form>}
-      {editing !== "new" && <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />}
+      {editing !== "new" && <>
+        <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
+        <SessionRecapFullTranscriptManager key={"transcript-"+editing.id} campaignId={campaignId} recapId={editing.id} />
+      </>}
     </> : <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">CAMPAIGN JOURNAL</p><h2 id="gm-session-recaps-title">Session Recaps</h2></div>

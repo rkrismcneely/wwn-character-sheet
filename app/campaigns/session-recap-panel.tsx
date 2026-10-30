@@ -61,7 +61,7 @@ export function SessionRecapPanel({ campaignId }: { campaignId: string }) {
       <p className="campaign-kicker">{formatRecapDate(selected.date)}</p>
       <h3>{selected.title}</h3>
       <SessionRecapMarkdown content={selected.content} />
-      <SessionRecapAudioPlayer key={selected.id} campaignId={campaignId} recapId={selected.id} />
+      <SessionRecapAudioPlayer key={selected.id} campaignId={campaignId} recapId={selected.id} content={selected.content} />
     </article>}
   </section>;
 }

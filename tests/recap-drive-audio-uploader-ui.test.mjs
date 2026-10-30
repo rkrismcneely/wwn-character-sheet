@@ -32,7 +32,9 @@ test("existing GM recap editor hosts independent direct Drive uploader",async()=
     read("../app/campaigns/session-recap-audio-uploader.tsx"),
     read("../lib/campaigns/recap-drive-upload-browser.ts"),
   ]);
-  assert.match(manager,/editing !== "new" && <SessionRecapAudioUploader/u);
+  assert.match(manager,/editing !== "new" && <>/u);
+  assert.match(manager,/<SessionRecapAudioUploader/u);
+  assert.match(manager,/<SessionRecapFullTranscriptManager/u);
   assert.match(ui,/fetch\("\/api\/account\/storage\/google-drive"/u);
   assert.match(ui,/uploadRecordingToDrive\(file,session\.uploadSessionUrl/u);
   assert.match(ui,/base\+"\/upload\/start"/u);

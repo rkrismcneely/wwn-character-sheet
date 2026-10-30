@@ -120,7 +120,12 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     if(raw.length>320_000)return reply("Groq response is too large for one clip.",502);
     let data:unknown;
     try{data=JSON.parse(raw);}catch{return reply("Groq returned invalid transcript JSON.",502);}
-    const segments=normalizeGroqAudioSegments((data as {segments?:unknown}).segments,input.startMs,input.durationMs);
+    const responseData=data as {segments?:unknown;text?:unknown};
+    // A genuinely empty timestamped transcription is a completed silent clip,
+    // not permission to fabricate dialogue or rerun the charged request.
+    const silent=Array.isArray(responseData.segments)&&responseData.segments.length===0&&
+      typeof responseData.text==="string"&&!responseData.text.trim();
+    const segments=silent?[]:normalizeGroqAudioSegments(responseData.segments,input.startMs,input.durationMs);
     // Re-read AFTER the external request. Conditional R2 write protects against
     // two clients overwriting another clip or changing publication state.
     const latest=await previousTranscript(key);
@@ -135,7 +140,7 @@ export async function POST(request:Request,context:Context):Promise<Response> {
       onlyIf,httpMetadata:{contentType:"application/json"},
     });
     if(!stored)return reply("Transcript was updated in another tab. Reload and verify before retrying. Groq may have charged for this clip.",409);
-    return Response.json({saved:true,duplicate:false,added:segments.length,total:appended.transcript.cues.length,
+    return Response.json({saved:true,duplicate:false,added:segments.length,silent,total:appended.transcript.cues.length,
       published:false,notice:"Saved to private GM draft. Review and publish separately."},{headers});
   }catch(error){
     if(error instanceof CampaignServiceError)return campaignErrorResponse(error,"Transcription unavailable.");

@@ -2,10 +2,10 @@
 
 import { useEffect, useState, type ChangeEvent } from "react";
 import { parseFullCraigCaptions } from "@/lib/campaigns/recap-full-caption-import";
-import type { CaptionCue } from "@/lib/campaigns/recap-full-transcript";
+import type { CaptionCue, StoredCaptionCue } from "@/lib/campaigns/recap-full-transcript";
 import type { RecapSpeakerAssociation } from "@/lib/campaigns/recap-imports";
 
-type Remote = {exists:boolean;published?:boolean;updatedAt?:string;cues?:CaptionCue[]};
+type Remote = {exists:boolean;published?:boolean;updatedAt?:string;cues?:StoredCaptionCue[]};
 export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaignId:string;recapId:string}) {
   const api="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/transcript";
   const [speakers,setSpeakers]=useState<RecapSpeakerAssociation[]>([]);
@@ -22,7 +22,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
   const labels=[...new Set(pending.map(cue=>cue.rawSpeaker))];
   const savedCues=stored.cues??[];
   const reviewMatches=savedCues.filter(cue=>
-    (cue.rawSpeaker+" "+cue.text).toLowerCase().includes(previewQuery.toLowerCase()));
+    (cue.rawSpeaker+" "+cue.speakerName+" "+(cue.characterName??"")+" "+cue.text).toLowerCase().includes(previewQuery.toLowerCase()));
   const reviewPageCues=reviewMatches.slice(previewPage*100,previewPage*100+100);
   const url=api+"?recapId="+encodeURIComponent(recapId);
   useEffect(()=>{
@@ -65,7 +65,10 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
         body:JSON.stringify({recapId,cues:pending,assignments:mapped})});
       const result=await response.json() as {error?:string;updatedAt?:string;count?:number};
       if(!response.ok||!result.updatedAt)throw new Error(result.error||"Transcript could not be saved.");
-      setStored({exists:true,published:false,updatedAt:result.updatedAt,cues:pending});
+      const fresh=await fetch(url,{cache:"no-store"});
+      const detail=await fresh.json() as Remote & {error?:string};
+      if(!fresh.ok||!detail.exists)throw new Error(detail.error||"Transcript saved, but its review copy could not be loaded. Reload this recap.");
+      setStored(detail);
       setPending([]);setReviewed(false);setPreviewPage(0);setPreviewQuery("");
       setNotice("Saved "+(result.count??pending.length)+" captions privately. Review and publish when ready.");
     }catch(cause){setError(cause instanceof Error?cause.message:"Transcript could not be saved.");}
@@ -124,7 +127,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
         </label>
         <div style={{maxHeight:350,overflowY:"auto"}}>
           {reviewPageCues.map((cue,index)=><p key={cue.startMs+":"+index}>
-            <strong>{cue.rawSpeaker}:</strong> {cue.text}
+            <strong>{cue.speakerName}{cue.characterName?" ("+cue.characterName+")":""}:</strong> {cue.text}
           </p>)}
         </div>
         {reviewMatches.length>100 && <div className="session-recap-form-actions">

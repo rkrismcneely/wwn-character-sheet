@@ -32,6 +32,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [sessionDate, setSessionDate] = useState(date);
   const [activeImport, setActiveImport] = useState<string | null>(null);
+  const [trackSpeakerChoices, setTrackSpeakerChoices] = useState<Record<number,string>>({});
   const [inspectedTracks, setInspectedTracks] = useState<{ recordingId: string; entries: { filename: string; uncompressedBytes: number }[] } | null>(null);
   const [craigJob, setCraigJob] = useState<{status:string;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -185,6 +186,28 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function saveTrackSpeakers(recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const confirmed = imports.find(item => item.id === recordingId)?.speakerIds || [];
+      const assignments = Object.entries(trackSpeakerChoices).filter(([, speakerId]) => Boolean(speakerId))
+        .map(([index, speakerId]) => {
+          const speaker = speakers.find(item => item.id === speakerId && confirmed.includes(item.id));
+          if (!speaker) throw new Error("Confirm the selected speakers on this recording first.");
+          return { index: Number(index), discordName: speaker.discordName };
+        });
+      const response = await fetch(api + "/recap-imports/craig-track-speakers?importId=" + encodeURIComponent(recordingId), {
+        method: "PUT", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ assignments }),
+      });
+      const result = await response.json() as {error?: string; assignments?: unknown[]};
+      if (!response.ok) throw new Error(result.error || "Track assignments could not be saved.");
+      setNotice("Saved " + (result.assignments?.length || 0) + " track-to-speaker associations for this recording.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Track associations could not be saved."); }
+    finally { setBusy(false); }
+  }
+
   async function extractCraigTrack(recordingId: string, entryIndex: number) {
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
@@ -208,6 +231,16 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       const result = await response.json() as { entries?: { filename: string; uncompressedBytes: number }[]; error?: string };
       if (!response.ok || !result.entries) throw new Error(result.error || "Craig track inventory unavailable.");
       setInspectedTracks({ recordingId, entries: result.entries });
+      const prior = await fetch(api + "/recap-imports/craig-track-speakers?importId=" + encodeURIComponent(recordingId), { cache: "no-store" });
+      if (prior.ok) {
+        const data = await prior.json() as { assignments?: {index:number;discordName:string}[] };
+        const chosen: Record<number,string> = {};
+        for (const row of data.assignments || []) {
+          const match = speakers.find(item => item.discordName === row.discordName);
+          if (match) chosen[row.index] = match.id;
+        }
+        setTrackSpeakerChoices(chosen);
+      }
       setNotice("Archive inspected. Choose a FLAC track below to extract it.");
     } catch (error) { setError(error instanceof Error ? error.message : "Unable to inspect Craig archive."); }
     finally { setBusy(false); }
@@ -327,9 +360,18 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       <strong>Audio tracks in saved Craig archive</strong>
       {inspectedTracks.entries.map((entry, index) => <div className="session-recap-speaker-entry" key={index}>
         <span>{entry.filename} · {(entry.uncompressedBytes / 1048576).toFixed(1)} MB</span>
-        {entry.filename.toLowerCase().endsWith(".flac") && <button type="button" className="campaign-secondary" disabled={busy}
-          onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>}
+        {entry.filename.toLowerCase().endsWith(".flac") && <>
+          <button type="button" className="campaign-secondary" disabled={busy}
+            onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>
+          <label><span>Speaker</span><select aria-label={"Speaker for " + entry.filename} value={trackSpeakerChoices[index] || ""}
+            onChange={event => setTrackSpeakerChoices(current => ({...current, [index]: event.target.value}))}>
+            <option value="">Unassigned</option>
+            {speakers.filter(speaker => imports.find(item => item.id === inspectedTracks.recordingId)?.speakerIds.includes(speaker.id))
+              .map(speaker => <option key={speaker.id} value={speaker.id}>{speaker.displayName} ({speaker.discordName})</option>)}
+          </select></label>
+        </>}
       </div>)}
+      <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveTrackSpeakers(inspectedTracks.recordingId)}>Save Track Speakers</button>
     </div>}
     {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · FLAC ready to retrieve" : ""}</p>}
     {activeImport && <div className="session-recap-recording-confirm">

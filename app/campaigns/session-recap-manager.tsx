@@ -6,6 +6,7 @@ import { SessionRecapMarkdown } from "./session-recap-markdown";
 import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
+import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcript-manager";
 import { captionsToRecapTranscript } from "@/lib/campaigns/recap-caption-import";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
@@ -176,7 +177,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           <label><span>Title</span><input type="text" required maxLength={120} placeholder="What happened this session?" value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} /></label>
         </div>
         <div className="session-recap-editor-heading"><label htmlFor="session-recap-body">Recap (Markdown)</label><button type="button" className="campaign-secondary" disabled={saving||importing}
-          onClick={()=>captionsFileRef.current?.click()}>{importing?"Importing…":"Import Craig captions (.vtt/.srt)"}</button><button type="button" className="campaign-quiet" aria-pressed={preview} onClick={() => setPreview(v => !v)}>{preview ? "Edit Markdown" : "Preview Markdown"}</button></div>
+          onClick={()=>captionsFileRef.current?.click()}>{importing?"Importing…":"Import short Craig captions into Markdown (.vtt/.srt)"}</button><button type="button" className="campaign-quiet" aria-pressed={preview} onClick={() => setPreview(v => !v)}>{preview ? "Edit Markdown" : "Preview Markdown"}</button></div>
         {preview ? <div className="session-recap-editor-preview" aria-label="Markdown preview"><SessionRecapMarkdown content={draft.content} /></div>
           : <textarea id="session-recap-body" required rows={14} maxLength={30000} value={draft.content}
               placeholder={"## The adventure continues…\n\n- A discovery\n- An unexpected encounter\n\n**Next time:** …"}
@@ -185,7 +186,10 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         {error && <p className="campaign-error" role="alert">{error}</p>}
         <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
       </form>}
-      {editing !== "new" && <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />}
+      {editing !== "new" && <>
+        <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
+        <SessionRecapFullTranscriptManager key={"transcript-"+editing.id} campaignId={campaignId} recapId={editing.id} />
+      </>}
     </> : <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">CAMPAIGN JOURNAL</p><h2 id="gm-session-recaps-title">Session Recaps</h2></div>

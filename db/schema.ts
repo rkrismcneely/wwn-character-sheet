@@ -429,3 +429,48 @@ export const campaignRecapRecordingSpeakers = sqliteTable("campaign_recap_record
 }, table => [
   primaryKey({ columns: [table.importId, table.discordName] }),
 ]);
+
+
+/** Durable multi-hour Session Recap v2 jobs; this schema does not activate processing. */
+export const campaignRecapProcessingJobs = sqliteTable("campaign_recap_processing_jobs", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  importId: text("import_id").notNull().references(() => campaignRecapRecordingImports.id, { onDelete: "cascade" }),
+  requestedBy: text("requested_by").notNull().references(() => user.id),
+  sourceLane: text("source_lane", { enum: ["craig-multitrack", "audio-upload", "timed-captions"] }).notNull(),
+  status: text("status", { enum: ["awaiting_source", "queued", "preparing", "transcribing", "assembling", "awaiting_review", "completed", "failed", "cancelled"] }).notNull().default("awaiting_source"),
+  provider: text("provider").notNull().default("none"),
+  durationMs: integer("duration_ms"),
+  speakerTracks: integer("speaker_tracks"),
+  totalChunks: integer("total_chunks").notNull().default(0),
+  completedChunks: integer("completed_chunks").notNull().default(0),
+  failedChunks: integer("failed_chunks").notNull().default(0),
+  maxCostMicrousd: integer("max_cost_microusd").notNull().default(0),
+  spentCostMicrousd: integer("spent_cost_microusd").notNull().default(0),
+  sourceCheckedAt: text("source_checked_at"),
+  failureCode: text("failure_code"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  uniqueIndex("campaign_recap_processing_jobs_import_idx").on(table.importId),
+  index("campaign_recap_processing_jobs_campaign_idx").on(table.campaignId, table.createdAt),
+  index("campaign_recap_processing_jobs_status_idx").on(table.status, table.updatedAt),
+]);
+
+export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_processing_chunks", {
+  jobId: text("job_id").notNull().references(() => campaignRecapProcessingJobs.id, { onDelete: "cascade" }),
+  trackIndex: integer("track_index").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  startMs: integer("start_ms").notNull(),
+  endMs: integer("end_ms").notNull(),
+  status: text("status", { enum: ["pending", "leased", "completed", "failed", "skipped"] }).notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: text("lease_expires_at"),
+  transcriptKey: text("transcript_key"),
+  errorCode: text("error_code"),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  primaryKey({ columns: [table.jobId, table.trackIndex, table.chunkIndex] }),
+  index("campaign_recap_processing_chunks_work_idx").on(table.jobId, table.status, table.trackIndex, table.chunkIndex),
+]);

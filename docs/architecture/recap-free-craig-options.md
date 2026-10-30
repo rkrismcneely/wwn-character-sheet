@@ -1,6 +1,6 @@
-# Session Recap: $0-only Craig workflow
+# Session Recap: zero-cost site operation with GM-selected Craig plans
 
-**Hard requirement: no new paid subscriptions, infrastructure, paid transcription or usage-based charges.** This supersedes the paid-Container proposal in the earlier multi-hour architecture. This document separates available free exports from future work. Do not imply full multi-hour transcription is already implemented.
+**Hard requirement: no site-owner-funded subscriptions, paid infrastructure or usage-based bills.** Individual GMs may choose Craig supporter features or other paid provider tiers at their own expense. This supersedes the site-paid Container proposal. Full multi-hour transcription is not yet implemented.
 
 ## Confirmed from Craig's actual free download page
 
@@ -14,13 +14,13 @@
 | raw.dat and info.txt | Yes; included in normal multitrack ZIP | Raw source metadata, timestamps and note events; info.txt is also directly downloadable |
 | /note commands | Yes | Timestamped human gameplay highlights without AI |
 | /webapp on | Yes | Higher-quality separate microphone tracks via browser, with VAD |
-| Craig server transcriptions: VTT, SRT, TXT | **No; Tier 3** | Accept *user-supplied* transcripts when they already have them, but do not assume Craig produces them free |
-| Craig automatic upload to personal cloud storage | **No; supporter feature** | Do not depend on it |
-| Craig Smart Mix on servers | **No; supporter feature** | Do not depend on it |
+| Craig server transcriptions: VTT, SRT, TXT | **Craig Tier 3 (GM-paid)** | First-class direct transcript import for subscribed GMs. Prefer timestamped VTT/SRT; bypass TWE speech-to-text entirely |
+| Craig automatic upload to personal cloud storage | **Craig supporter feature (GM-paid)** | Optional GM-owned storage ingestion integration later; not required for free use |
+| Craig Smart Mix on servers | **Craig supporter feature (GM-paid)** | Accept the prepared audio when available; preserve free alternatives |
 
 Sources: https://craig.chat/ , https://craig.chat/commands/ , https://craig.chat/docs/webapp/ , https://craig.chat/primer/ , https://craig.chat/get-started/ ; CraigChat/craig source files apps/ferret/src/lib/recording/sections.ts and apps/ferret/src/routes/rec/[id=recording]/DownloadModal.svelte.
 
-## Confirmed $0 Cloudflare allocations (October 2026)
+## Cloudflare free allocations for site-owner infrastructure (October 2026)
 
 - Workers AI: **10,000 neurons/day total per account**. @cf/openai/whisper-large-v3-turbo currently costs **46.63 neurons/min** and @cf/openai/whisper **41.14 neurons/min**. The theoretical maximum is ~214 or ~243 minutes/day respectively, *before any other model usage*. No paid overage is permitted.
 - Workers Free: 100,000 requests/day, only 10 ms CPU per invocation (not enough for server-side FFmpeg or heavy compression).
@@ -28,22 +28,27 @@ Sources: https://craig.chat/ , https://craig.chat/commands/ , https://craig.chat
 - D1 Free: 5 GB total storage, 5 million rows read/day and 100,000 rows written/day.
 - Queues Free: 10,000 operations/day and 24-hour message retention. D1 keeps durable jobs for multi-day continuation.
 - Workflows Free: daily step quota; orchestration must batch work. Do not use one Workflow step per 30-second chunk.
-- Cloudflare Containers require a paid account; **do not enable**. Craig's tiered paid transcription and auto-upload are also excluded.
+- Cloudflare Containers require a paid account; **do not enable**. Craig's tiered paid transcription and auto-upload are allowed when the individual GM pays Craig directly.
 
 Source: https://developers.cloudflare.com/workers-ai/platform/pricing/ , https://developers.cloudflare.com/workers/platform/pricing/ .
 
-## Recommended no-charge strategy
+## Recommended owner-free, GM-flexible strategy
 
-1. Prioritize **Craig source link, speaker metadata and info.txt notes**. The TWE GM should not need a paid Craig subscription.
+1. Prioritize **Craig source link, speaker metadata and info.txt notes**. The TWE GM should not be required to subscribe to Craig.
 2. Prefer **AAC multitrack export** to reduce transfer/storage while retaining speaker tracks; offer FLAC when needed.
 3. Prepare **two possible transcription paths** without promising a 3-hour single-pass Whisper call:
    - **Mixed audio path**, potentially fits one daily free AI allocation, but loses per-speaker labels. Useful when dialogue attribution is optional.
    - **Craig separate tracks path**, preserves speakers, but may take multiple days on the daily free AI allocation, especially 6 × 3 hours. Speech-only segmentation could lower demand but must be measured, not assumed.
 4. Use browser-based/native audio conversion *only where tested* (the current PCM WAV planner cannot decode FLAC or AAC). An optional locally run open-source FFmpeg or Whisper pipeline may be needed for offline zero-cloud-AI use; it is NOT an installed or operational service in TWE.
-5. Persist work in D1/R2 with resumable jobs, avoid loading entire session audio in a Worker. Let free quotas pause jobs rather than upgrading or charging.
+5. Persist work in D1/R2 with resumable jobs, avoid loading entire session audio in a Worker. Let TWE platform free quotas pause jobs instead of upgrading the site owner's infrastructure; individual GM-owned provider paid tiers can be used with consent.
 6. Implement a **hard account-wide free quota gate** verified against Cloudflare's usage before enabling automatic inference. The legacy short-track prototype now fails closed unless a not-yet-configured server-side free-quota verification setting is explicitly enabled. The UI button is disabled. No inference is permitted under the new default. A robust daily free-neuron reservation/check still needs implementation; do not enable this flag before that work and a verified zero-billing account plan.
 7. Improve source-data imports: accept existing SRT/VTT/other text provided by GMs and display Craig /note events, independent of AI. Plain text is not a substitute for timestamps unless available.
 8. Respect 7-day Craig expiry and user privacy, create an audio-retention policy with size quotas, and provide no-cost manual recap/journal editing throughout.
+
+
+## Optional GM-paid services
+
+Craig Tier 3 currently supplies VTT, SRT and TXT transcription downloads to supporter accounts. If a GM has that plan, TWE should ingest the resulting transcript directly, align speakers where possible, and skip cloud transcription. Subscription setup and payment happen entirely on Craig/Patreon, never through TWE. Free Craig users retain the separate AAC/FLAC and local transcription paths. Any paid Groq/Gemini API usage is tied to each GM's own credential and their explicit per-job selection; it never uses a TWE account.
 
 ## Major no-cost opportunity: Craig already has a browser media processor
 
@@ -69,4 +74,4 @@ This can allow user-selected source tracks and speech windows where supported, r
 - Validate free plan R2 transfer >90 MB: current endpoint still limits Craig archives to 90 MB; resumable multipart or browser-local processing is required.
 - Confirm browser/device CPU/memory before attempting 3-hour on-device decoding.
 - Test whether Workers AI accepts long AAC/FLAC directly and whether timing output is correct; never assume arbitrary byte cuts are valid chunks.
-- Verify real account plan and live Workers AI neuron usage. No paid fallback.
+- Verify the site's own Cloudflare plan and live Workers AI neuron usage. No site-owner-paid fallback.

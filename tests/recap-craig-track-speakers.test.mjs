@@ -6,7 +6,7 @@ test("Craig track speaker assignments persist privately and use confirmed speake
  assert.match(route,/campaign_recap_recording_speakers WHERE import_id=\?/u);
  assert.match(route,/recap-track-speakers\//u);
  assert.match(route,/BUCKET\.head\("recap-tracks\//u);
- assert.match(route,/httpMetadata\?\.contentType !== "audio\/flac"/u);
+ assert.match(route,/\["audio\/flac", "audio\/aac"\]/u);
  assert.match(route,/byName\.get\(discordName\)/u);
  assert.match(route,/cache-control": "no-store"/u);
  assert.match(ui,/Save Track Speakers/u);

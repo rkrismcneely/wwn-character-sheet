@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CampaignSessionRecap, SessionRecapSummary } from "@/lib/campaigns/session-recaps";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
+import { SessionRecapAudioPlayer } from "./session-recap-audio-player";
 import { formatRecapDate } from "./session-recap-date";
 
 export function SessionRecapPanel({ campaignId }: { campaignId: string }) {
@@ -60,6 +61,7 @@ export function SessionRecapPanel({ campaignId }: { campaignId: string }) {
       <p className="campaign-kicker">{formatRecapDate(selected.date)}</p>
       <h3>{selected.title}</h3>
       <SessionRecapMarkdown content={selected.content} />
+      <SessionRecapAudioPlayer key={selected.id} campaignId={campaignId} recapId={selected.id} />
     </article>}
   </section>;
 }

@@ -58,7 +58,7 @@ export async function POST(request: Request, context: Context): Promise<Response
     // This route remains GM-only; the deterministic R2 object is not publicly exposed.
     const stored = await env.BUCKET.put(key, download.body, {
       httpMetadata: { contentType: "application/zip" },
-      customMetadata: { source: "craig", recordingId, filename: job.outputFileName, format: String(job.options.format) },
+      customMetadata: { source: "craig", recordingId, filename: job.outputFileName, format: String(job.options?.format) },
     });
     if (!stored) return Response.json({ error: "Craig archive storage failed." }, { status: 502 });
     return Response.json({ saved: true, bytes: stored.size, filename: "craig-" + recordingId + ".zip" },

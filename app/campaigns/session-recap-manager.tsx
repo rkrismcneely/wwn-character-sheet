@@ -7,6 +7,7 @@ import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
 import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcript-manager";
+import { SessionRecapAIWriter } from "./session-recap-ai-writer";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
 type Draft = { date: string; title: string; content: string };
@@ -168,6 +169,13 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       {editing !== "new" && <>
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
         <SessionRecapFullTranscriptManager key={"transcript-"+editing.id} campaignId={campaignId} recapId={editing.id} />
+        <SessionRecapAIWriter key={"ai-"+editing.id} campaignId={campaignId} recapId={editing.id}
+          onDraft={content=>{
+            if(draft.content.trim() && !window.confirm("Replace the unsaved Markdown editor text with this AI draft?"))return false;
+            setDraft(current=>({...current,content}));setPreview(false);
+            setImportNotice("AI draft added to the editor. Review it and Save Session Recap when satisfied.");
+            return true;
+          }}/>
       </>}
     </> : <>
       <div className="campaign-section-heading">

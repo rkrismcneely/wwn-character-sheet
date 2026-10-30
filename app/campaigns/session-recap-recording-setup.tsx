@@ -28,6 +28,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [characters, setCharacters] = useState<CharacterChoice[]>([]);
   const [draft, setDraft] = useState<Draft>(blank);
   const [link, setLink] = useState("");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [sessionDate, setSessionDate] = useState(date);
   const [activeImport, setActiveImport] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -96,6 +97,28 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function uploadRecording(event: FormEvent) {
+    event.preventDefault();
+    if (busy || !audioFile) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (audioFile.size > 90 * 1024 * 1024) throw new Error("Use a file under 90 MB. Larger recordings will be supported with resumable uploads.");
+      const response = await fetch(api + "/recap-imports/audio", {
+        method: "POST",
+        headers: { "content-type": audioFile.type || (audioFile.name.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : audioFile.name.toLowerCase().endsWith(".m4a") ? "audio/mp4" : "audio/wav"),
+          "x-recap-filename": audioFile.name, "x-recap-date": sessionDate },
+        body: audioFile,
+      });
+      const result = await receive(response);
+      setAudioFile(null);
+      await refresh();
+      setActiveImport(result.recording?.id ?? null);
+      setSelectedIds([]);
+      setNotice("Audio saved privately. Confirm the speakers before transcription becomes available.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Audio upload failed."); }
+    finally { setBusy(false); }
+  }
+
   async function saveRecording(event: FormEvent) {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError(""); setNotice("");
@@ -137,7 +160,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       <div><p className="campaign-kicker">RECORDING SETUP</p><h3>Import a Session Recording</h3></div>
       <button type="button" className="campaign-secondary" onClick={onBack}>Back to Recaps</button>
     </div>
-    <p>Save a Craig link, set up Discord speaker names and confirm which people were present. Transcription, audio uploading and automatic summaries are coming in later phases.</p>
+    <p>Save a Craig link or upload audio, then confirm the participants. Transcription and automatic summaries are coming in later phases.</p>
     <form className="session-recap-form" onSubmit={event => void saveRecording(event)}>
       <div className="session-recap-form-fields">
         <label><span>Session date</span><input type="date" required value={sessionDate} onChange={event => setSessionDate(event.target.value)}/></label>
@@ -145,7 +168,12 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       </div>
       <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={busy || !link.trim()}>Save Recording Link</button></div>
     </form>
-    <p className="session-recap-editor-help">MP3/M4A/WAV uploads and importing recordings already in Google Drive will be added later. Recording access keys are kept private.</p>
+    <form className="session-recap-form" onSubmit={event => void uploadRecording(event)}>
+      <label><span>Or upload MP3, M4A or WAV</span><input type="file" accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/wav" onChange={event => setAudioFile(event.target.files?.[0] || null)}/></label>
+      <p className="session-recap-editor-help">Audio is saved privately in temporary TWE storage (up to 90 MB). Larger recordings and Google Drive storage will be added in later phases.</p>
+      <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={busy || !audioFile}>Save Audio Recording</button></div>
+    </form>
+    <p className="session-recap-editor-help">Craig recording keys stay private. Direct Craig downloading and transcription are not enabled yet.</p>
 
     <h3>Saved Speaker Associations</h3>
     <p className="session-recap-editor-help">Associate each Discord user with a real person, guest or GM. Optionally assign a campaign character. The GM can portray multiple NPCs without assigning each one.</p>

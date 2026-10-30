@@ -35,7 +35,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [trackSpeakerChoices, setTrackSpeakerChoices] = useState<Record<number,string>>({});
   const [inspectedTracks, setInspectedTracks] = useState<{ recordingId: string; entries: { filename: string; uncompressedBytes: number }[] } | null>(null);
   const [reviewTranscript, setReviewTranscript] = useState<{ recordingId: string; segments: { startMs: number; endMs: number; text: string; speakerName: string; characterName: string | null; trackIndex: number }[] } | null>(null);
-  const [craigJob, setCraigJob] = useState<{status:string;outputReady:boolean;outputSize:number|null}|null>(null);
+  const [craigJob, setCraigJob] = useState<{status:string;format:string|null;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -170,7 +170,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
-  async function runCraigJob(method: "GET" | "POST", recordingId: string) {
+  async function runCraigJob(method: "GET" | "POST", recordingId: string, format: "aac" | "flac" = "aac") {
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
@@ -384,7 +384,8 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         <button type="button" className="campaign-secondary" disabled={busy || (recording.status !== "ready" && recording.status !== "awaiting_speakers")}
           onClick={() => chooseRecording(recording)}>{activeImport === recording.id ? "Selected" : "Review speakers"}</button>
         {recording.sourceType === "craig" && recording.status === "ready" && <>
-          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio</button>
+          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio (AAC)</button>
+          <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("POST",recording.id,"flac")}>Prepare Lossless FLAC</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transferCraigArchive(recording.id)}>Save Craig Archive</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void inspectCraigArchive(recording.id)}>Inspect Tracks</button>
@@ -396,10 +397,10 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       <strong>Audio tracks in saved Craig archive</strong>
       {inspectedTracks.entries.map((entry, index) => <div className="session-recap-speaker-entry" key={index}>
         <span>{entry.filename} · {(entry.uncompressedBytes / 1048576).toFixed(1)} MB</span>
-        {entry.filename.toLowerCase().endsWith(".flac") && <>
+        {/\.(flac|aac|m4a)$/i.test(entry.filename) && <>
           <button type="button" className="campaign-secondary" disabled={busy}
             onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>
-          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transcribeShortTrack(inspectedTracks.recordingId, index)}>Transcribe Short Track (AI)</button>
+          {entry.filename.toLowerCase().endsWith(".flac") && <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transcribeShortTrack(inspectedTracks.recordingId, index)}>Transcribe Short Track (AI)</button>}
           <label><span>Speaker</span><select aria-label={"Speaker for " + entry.filename} value={trackSpeakerChoices[index] || ""}
             onChange={event => setTrackSpeakerChoices(current => ({...current, [index]: event.target.value}))}>
             <option value="">Unassigned</option>

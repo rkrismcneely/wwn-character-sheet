@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEv
 import type { CampaignSessionRecap, SessionRecapPage } from "@/lib/campaigns/session-recaps";
 import { SessionRecapMarkdown } from "./session-recap-markdown";
 import { formatRecapDate } from "./session-recap-date";
+import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
 type Draft = { date: string; title: string; content: string };
@@ -25,6 +26,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [editing, setEditing] = useState<CampaignSessionRecap | "new" | null>(null);
   const [draft, setDraft] = useState<Draft>({ date: localToday(), title: "", content: "" });
   const [preview, setPreview] = useState(false);
+  const [createMethod, setCreateMethod] = useState<"manual" | "recording">("manual");
   const [loading, setLoading] = useState(() => !cachedPage(campaignId));
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -54,7 +56,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }, [campaignId, loadPage]);
 
   function startNew() {
-    setEditing("new"); setDraft({ date: localToday(), title: "", content: "" });
+    setEditing("new"); setCreateMethod("manual"); setDraft({ date: localToday(), title: "", content: "" });
     setError(""); setPreview(false); setImportNotice(""); setJournalNotice("");
   }
 
@@ -141,7 +143,13 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       </div>
       {importNotice && <p className="session-recap-import-notice" role="status">{importNotice}</p>}
       {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}
-      <form className="session-recap-form" onSubmit={event => void save(event)}>
+      {editing === "new" && <div className="session-recap-creation-method" role="group" aria-label="Create recap from">
+        <button type="button" className={createMethod === "manual" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("manual")}>Write recap</button>
+        <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("recording")}>Import recording</button>
+      </div>}
+      {editing === "new" && createMethod === "recording"
+        ? <SessionRecapRecordingSetup campaignId={campaignId} date={draft.date} onBack={cancelEdit} />
+        : <form className="session-recap-form" onSubmit={event => void save(event)}>
         <div className="session-recap-form-fields">
           <label><span>Session date</span><input type="date" required value={draft.date} onChange={event => setDraft(current => ({ ...current, date: event.target.value }))} /></label>
           <label><span>Title</span><input type="text" required maxLength={120} placeholder="What happened this session?" value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} /></label>
@@ -154,7 +162,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         <p className="session-recap-editor-help">Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Players see the formatted recap after you save it.</p>
         {error && <p className="campaign-error" role="alert">{error}</p>}
         <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
-      </form>
+      </form>}
     </> : <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">CAMPAIGN JOURNAL</p><h2 id="gm-session-recaps-title">Session Recaps</h2></div>

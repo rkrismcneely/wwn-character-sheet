@@ -2,7 +2,7 @@
  * This deliberately does not decompress potentially untrusted archive entries.
  * Supports ordinary ZIP; ZIP64 and encrypted archives are rejected.
  */
-export type CraigArchiveEntry = { filename: string; compressedBytes: number; uncompressedBytes: number; compression: number };
+export type CraigArchiveEntry = { filename: string; compressedBytes: number; uncompressedBytes: number; compression: number; localOffset: number };
 const MAX_ENTRIES = 128;
 const MAX_DIRECTORY = 1024 * 1024;
 function ensure(condition: unknown, message: string): asserts condition {
@@ -56,7 +56,7 @@ export function parseZipDirectory(bytes: Uint8Array, count: number): CraigArchiv
     const filename = decode(bytes.subarray(at + 46, at + 46 + nameLength));
     ensure(filename.length <= 240 && !filename.startsWith("/") && !filename.includes("\\") &&
       !filename.split("/").includes("..") && !/[\u0000-\u001f\u007f]/u.test(filename), "Unsafe archive filename.");
-    if (filename && !filename.endsWith("/")) entries.push({ filename, compressedBytes, uncompressedBytes, compression });
+    if (filename && !filename.endsWith("/")) entries.push({ filename, compressedBytes, uncompressedBytes, compression, localOffset });
     at = end;
   }
   ensure(at === bytes.length, "Unexpected ZIP directory trailing data.");

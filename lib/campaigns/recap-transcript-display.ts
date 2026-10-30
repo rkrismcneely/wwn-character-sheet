@@ -5,8 +5,8 @@ export function parseRecapTranscript(content:string):RecapTranscriptLine[] {
   let inside=false;
   for(const sourceLine of content.split(/\r?\n/u)){
     const line=sourceLine.trim();
-    if(/^\`{3,}\s*transcript\s*$/iu.test(line)){inside=true;continue;}
-    if(/^\`{3,}/u.test(line)){inside=false;continue;}
+    if(/^`{3,}\s*transcript\s*$/iu.test(line)){inside=true;continue;}
+    if(/^`{3,}/u.test(line)){inside=false;continue;}
     if(!inside)continue;
     const match=/^\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s+([^:\n]{1,80}):\s+(.{1,2000})$/u.exec(line);
     if(!match)continue;

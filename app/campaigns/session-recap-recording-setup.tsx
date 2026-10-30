@@ -414,7 +414,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         {/\.(flac|aac|m4a)$/i.test(entry.filename) && <>
           <button type="button" className="campaign-secondary" disabled={busy}
             onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>
-          {entry.filename.toLowerCase().endsWith(".flac") && <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transcribeShortTrack(inspectedTracks.recordingId, index)}>Transcribe Short Track (AI)</button>}
+          {entry.filename.toLowerCase().endsWith(".flac") && <button type="button" className="campaign-secondary" disabled title="Free-only AI quota protection is not yet configured">Transcribe Short Track (AI)</button>}
           <label><span>Speaker</span><select aria-label={"Speaker for " + entry.filename} value={trackSpeakerChoices[index] || ""}
             onChange={event => setTrackSpeakerChoices(current => ({...current, [index]: event.target.value}))}>
             <option value="">Unassigned</option>

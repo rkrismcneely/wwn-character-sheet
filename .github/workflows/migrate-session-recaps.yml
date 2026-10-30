@@ -7,9 +7,11 @@ on:
       - "drizzle/0032_campaign_session_recaps.sql"
       - "drizzle/0033_recap_recording_foundation.sql"
       - "drizzle/0034_recap_processing_jobs.sql"
+      - "drizzle/0035_recap_user_audio_storage.sql"
       - "scripts/migrate-session-recaps.mjs"
       - "scripts/migrate-recap-imports.mjs"
       - "scripts/migrate-recap-processing.mjs"
+      - "scripts/migrate-recap-audio-storage.mjs"
       - ".github/workflows/migrate-session-recaps.yml"
   workflow_dispatch:
 
@@ -47,6 +49,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Apply and verify recap processing D1 migration
         run: node scripts/migrate-recap-processing.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Apply and verify GM-owned audio storage D1 migration
+        run: node scripts/migrate-recap-audio-storage.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

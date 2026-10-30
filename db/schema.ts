@@ -474,3 +474,61 @@ export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_process
   primaryKey({ columns: [table.jobId, table.trackIndex, table.chunkIndex] }),
   index("campaign_recap_processing_chunks_work_idx").on(table.jobId, table.status, table.trackIndex, table.chunkIndex),
 ]);
+
+
+/** Typed mirror of the existing 0032 session recaps migration. */
+export const campaignSessionRecaps = sqliteTable("campaign_session_recaps", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  sessionDate: text("session_date").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  index("campaign_session_recaps_date_idx").on(table.campaignId, table.sessionDate, table.createdAt, table.id),
+]);
+
+/** Per-user connected storage, never shared as a campaign credential. */
+export const userRecapStorageConnections = sqliteTable("user_recap_storage_connections", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["google-drive", "dropbox", "onedrive"] }).notNull(),
+  displayName: text("display_name").notNull().default(""),
+  grantedScopes: text("granted_scopes").notNull().default(""),
+  status: text("status", { enum: ["disconnected", "connected", "reconnect_required"] }).notNull().default("disconnected"),
+  credentialCiphertext: text("credential_ciphertext"),
+  credentialNonce: text("credential_nonce"),
+  credentialVersion: integer("credential_version"),
+  connectedAt: text("connected_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  uniqueIndex("user_recap_storage_connections_id_owner_idx").on(table.id, table.userId),
+  index("user_recap_storage_connections_owner_idx").on(table.userId, table.provider),
+]);
+
+/** Stable, provider-neutral audio association. Remote file IDs are server-only. */
+export const campaignRecapAudioAssets = sqliteTable("campaign_recap_audio_assets", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  recapId: text("recap_id").references(() => campaignSessionRecaps.id, { onDelete: "set null" }),
+  recordingImportId: text("recording_import_id").references(() => campaignRecapRecordingImports.id, { onDelete: "set null" }),
+  connectionId: text("connection_id").notNull(),
+  storageOwnerUserId: text("storage_owner_user_id").notNull(),
+  remoteFileId: text("remote_file_id"),
+  label: text("label").notNull().default(""),
+  mimeType: text("mime_type"),
+  byteSize: integer("byte_size"),
+  durationMs: integer("duration_ms"),
+  trackIndex: integer("track_index").notNull().default(0),
+  offsetMs: integer("offset_ms").notNull().default(0),
+  primaryAudio: integer("primary_audio", { mode: "boolean" }).notNull().default(false),
+  status: text("status", { enum: ["preparing", "ready", "auth_required", "unavailable"] }).notNull().default("preparing"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  index("campaign_recap_audio_assets_recap_idx").on(table.campaignId, table.recapId, table.primaryAudio, table.createdAt),
+  index("campaign_recap_audio_assets_connection_idx").on(table.connectionId, table.status),
+  uniqueIndex("campaign_recap_audio_assets_one_primary_idx").on(table.recapId).where(sql`${table.recapId} IS NOT NULL AND ${table.primaryAudio} = 1`),
+]);

@@ -117,7 +117,7 @@ export async function POST(request:Request,context:Context){
         {status,headers:privateHeaders});
     }
     const raw=await upstream.text();
-    if(raw.length>150_000)throw new CampaignServiceError("Provider response exceeds the safe size.",502);
+    if(raw.length>150_000)return Response.json({error:"Provider response exceeds the safe size."},{status:502,headers:privateHeaders});
     const result=boundedGroqResponse(JSON.parse(raw) as unknown);
     return Response.json({text:result,phase:body.phase,index:body.phase==="section"?body.partIndex:null},
       {headers:privateHeaders});

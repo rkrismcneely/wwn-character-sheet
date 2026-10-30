@@ -208,6 +208,21 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function transcribeShortTrack(recordingId: string, entryIndex: number) {
+    if (busy || !window.confirm("Transcribe this short track with Cloudflare Workers AI? This uses your Workers AI quota and may incur usage charges on a paid Cloudflare account.")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/transcribe-short", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ importId: recordingId, entryIndex }),
+      });
+      const result = await response.json() as { saved?: boolean; added?: number; error?: string };
+      if (!response.ok || !result.saved) throw new Error(result.error || "Transcription failed.");
+      setNotice("Saved " + (result.added || 0) + " timestamped speech segments. Existing other tracks remain intact.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Transcription failed."); }
+    finally { setBusy(false); }
+  }
+
   async function extractCraigTrack(recordingId: string, entryIndex: number) {
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
@@ -363,6 +378,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         {entry.filename.toLowerCase().endsWith(".flac") && <>
           <button type="button" className="campaign-secondary" disabled={busy}
             onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>
+          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transcribeShortTrack(inspectedTracks.recordingId, index)}>Transcribe Short Track (AI)</button>
           <label><span>Speaker</span><select aria-label={"Speaker for " + entry.filename} value={trackSpeakerChoices[index] || ""}
             onChange={event => setTrackSpeakerChoices(current => ({...current, [index]: event.target.value}))}>
             <option value="">Unassigned</option>

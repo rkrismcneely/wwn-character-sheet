@@ -16,9 +16,9 @@ export function parseFullCraigCaptions(source: string, filename: string): Captio
     const i=lines.findIndex(line=>line.includes("-->"));
     if(i<0)continue;
     const timing=/^\s*(\S+)\s*-->\s*(\S+)/u.exec(lines[i]);
-    if(!timing)continue;
+    if(!timing)throw new Error("Unsupported caption time range.");
     const startMs=timestamp(timing[1]),endMs=timestamp(timing[2]);
-    if(startMs===null||endMs===null||endMs<=startMs)continue;
+    if(startMs===null||endMs===null||endMs<=startMs)throw new Error("Invalid caption time range.");
     const content=lines.slice(i+1).join(" ").trim();
     if(!content)continue;
     const voice=/<v\s+([^>]{1,80})>/iu.exec(content);

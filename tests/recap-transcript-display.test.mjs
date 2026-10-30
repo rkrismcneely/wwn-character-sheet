@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { parseRecapTranscript } from "../lib/campaigns/recap-transcript-display.ts";
 const read=path=>readFile(new URL(path,import.meta.url),"utf8");
 test("timestamped transcript blocks support long sessions and speaker names",()=>{
-  const transcript=parseRecapTranscript("Prose 00:05:00 nobody\\n\`\`\`transcript\n[00:42:15] GM: The door opens.\n01:20:07 Hero: We run.\n\`\`\`");
+  const transcript=parseRecapTranscript("Prose 00:05:00 nobody\n\`\`\`transcript\n[00:42:15] GM: The door opens.\n01:20:07 Hero: We run.\n\`\`\`");
   assert.equal(transcript.length,2);
   assert.deepEqual(transcript.map(line=>line.seconds),[2535,4807]);
   assert.deepEqual(transcript.map(line=>line.speaker),["GM","Hero"]);

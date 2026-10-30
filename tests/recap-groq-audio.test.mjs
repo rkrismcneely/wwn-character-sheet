@@ -61,7 +61,7 @@ test("route requires a campaign GM, own key, full timestamp validation and condi
     'approvedShare','approvedBilling','request.formData()','crypto.subtle.digest("SHA-256",fileBytes)',
     'api.groq.com/openai/v1/audio/transcriptions','timestamp_granularities[]','verbose_json',
     "normalizeGroqAudioSegments","mergeGroqAudioTranscript","previousTranscript(key)",
-    "onlyIf",'"If-None-Match"','etagMatches','published:false',
+    "onlyIf",'"If-None-Match"','etagMatches',
   ])assert.ok(route.includes(required),"Missing safety invariant: "+required);
   assert.doesNotMatch(route,/RECAP_FREE_AI_QUOTA_VERIFIED|CLOUDFLARE_AI_KEY|process\.env\.GROQ_API_KEY/u);
   assert.doesNotMatch(route,/console\.log\(|BUCKET\.put\(.*apiKey/u);

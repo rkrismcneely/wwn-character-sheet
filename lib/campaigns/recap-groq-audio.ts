@@ -80,7 +80,7 @@ export function mergeGroqAudioTranscript(
   const all:StoredCaptionCue[]=[...(existing?.cues??[]),...more]
     .sort((a,b)=>a.startMs-b.startMs||a.endMs-b.endMs);
   // Revalidate ALL entries and preserve their speaker snapshots; do not silently truncate.
-  validateRecapCaptionCues(all);
+  if(all.length>0)validateRecapCaptionCues(all);
   return {transcript:{version:1,published:false,cues:all,updatedAt,
     processedClips:[...receipts,receipt]},duplicate:false};
 }

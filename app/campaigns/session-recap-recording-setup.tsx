@@ -35,6 +35,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [trackSpeakerChoices, setTrackSpeakerChoices] = useState<Record<number,string>>({});
   const [inspectedTracks, setInspectedTracks] = useState<{ recordingId: string; entries: { filename: string; uncompressedBytes: number }[] } | null>(null);
   const [reviewTranscript, setReviewTranscript] = useState<{ recordingId: string; segments: { startMs: number; endMs: number; text: string; speakerName: string; characterName: string | null; trackIndex: number }[] } | null>(null);
+  const [craigInfo, setCraigInfo] = useState<{ recordingId: string; info: string } | null>(null);
   const [craigJob, setCraigJob] = useState<{status:string;format:string|null;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -206,6 +207,18 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       if (!response.ok) throw new Error(result.error || "Track assignments could not be saved.");
       setNotice("Saved " + (result.assignments?.length || 0) + " track-to-speaker associations for this recording.");
     } catch (error) { setError(error instanceof Error ? error.message : "Track associations could not be saved."); }
+    finally { setBusy(false); }
+  }
+
+  async function loadCraigInfo(recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/craig-info?importId=" + encodeURIComponent(recordingId), {cache:"no-store"});
+      const data = await response.json() as {info?:string;error?:string};
+      if (!response.ok || typeof data.info !== "string") throw new Error(data.error || "Craig notes unavailable.");
+      setCraigInfo({recordingId,info:data.info});
+    } catch(error) { setError(error instanceof Error ? error.message : "Craig notes unavailable."); }
     finally { setBusy(false); }
   }
 
@@ -389,6 +402,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transferCraigArchive(recording.id)}>Save Craig Archive</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void inspectCraigArchive(recording.id)}>Inspect Tracks</button>
+          <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void loadCraigInfo(recording.id)}>Craig Notes &amp; Info</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void loadTranscript(recording.id)}>Review Transcript</button>
         </>}
       </div>
@@ -411,6 +425,12 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       </div>)}
       <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveTrackSpeakers(inspectedTracks.recordingId)}>Save Track Speakers</button>
     </div>}
+    {craigInfo && <section className="session-recap-speaker-list" aria-label="Craig recording notes">
+      <div className="session-recap-form-actions"><strong>Craig session notes &amp; recording information</strong>
+        <button type="button" className="campaign-secondary" onClick={() => setCraigInfo(null)}>Close Notes</button>
+      </div>
+      <pre style={{whiteSpace:"pre-wrap", overflowWrap:"anywhere", maxHeight:400, overflowY:"auto"}}>{craigInfo.info}</pre>
+    </section>}
     {reviewTranscript && <section className="session-recap-speaker-list" aria-label="Timestamped transcript">
       <div className="session-recap-form-actions">
         <strong>Transcript · {reviewTranscript.segments.length} segment(s)</strong>

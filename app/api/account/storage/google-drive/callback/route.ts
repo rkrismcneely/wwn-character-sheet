@@ -4,7 +4,7 @@ import { getSessionActor } from "@/lib/auth-session";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import {
-  consumeDriveState, decryptDriveRefreshToken, driveAccountLabel, encryptDriveRefreshToken,
+  consumeDriveState, driveAccountLabel, encryptDriveRefreshToken,
   exchangeDriveCode, hasDriveStateCookie, requireDriveConfiguration, stateCookie,
 } from "@/lib/account/recap-google-drive-oauth";
 

@@ -20,6 +20,7 @@
     "binding": "ASSETS",
     "directory": "dist/client"
   },
+  "ai": { "binding": "AI" },
   "images": {
     "binding": "IMAGES"
   },

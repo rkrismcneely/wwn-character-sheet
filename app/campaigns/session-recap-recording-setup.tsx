@@ -35,7 +35,8 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [trackSpeakerChoices, setTrackSpeakerChoices] = useState<Record<number,string>>({});
   const [inspectedTracks, setInspectedTracks] = useState<{ recordingId: string; entries: { filename: string; uncompressedBytes: number }[] } | null>(null);
   const [reviewTranscript, setReviewTranscript] = useState<{ recordingId: string; segments: { startMs: number; endMs: number; text: string; speakerName: string; characterName: string | null; trackIndex: number }[] } | null>(null);
-  const [craigJob, setCraigJob] = useState<{status:string;outputReady:boolean;outputSize:number|null}|null>(null);
+  const [craigInfo, setCraigInfo] = useState<{ recordingId: string; info: string } | null>(null);
+  const [craigJob, setCraigJob] = useState<{status:string;format:string|null;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -170,16 +171,16 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
-  async function runCraigJob(method: "GET" | "POST", recordingId: string) {
+  async function runCraigJob(method: "GET" | "POST", recordingId: string, format: "aac" | "flac" = "aac") {
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const url = api + "/recap-imports/craig-job" + (method === "GET" ? "?importId=" + encodeURIComponent(recordingId) : "");
       const response = await fetch(url, {
         method,
-        ...(method === "POST" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ importId: recordingId }) } : {}),
+        ...(method === "POST" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ importId: recordingId, format }) } : {}),
       });
-      const result = await response.json() as { job?: {status:string;outputReady:boolean;outputSize:number|null}|null; error?:string };
+      const result = await response.json() as { job?: {status:string;format:string|null;outputReady:boolean;outputSize:number|null}|null; error?:string };
       if (!response.ok) throw new Error(result.error || "Craig job unavailable.");
       setCraigJob(result.job ?? null);
       setNotice(result.job ? "Craig conversion status: " + result.job.status + (result.job.outputReady ? ". Audio is ready for the future download step." : ".") : "No Craig conversion job is active.");
@@ -206,6 +207,18 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       if (!response.ok) throw new Error(result.error || "Track assignments could not be saved.");
       setNotice("Saved " + (result.assignments?.length || 0) + " track-to-speaker associations for this recording.");
     } catch (error) { setError(error instanceof Error ? error.message : "Track associations could not be saved."); }
+    finally { setBusy(false); }
+  }
+
+  async function loadCraigInfo(recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/craig-info?importId=" + encodeURIComponent(recordingId), {cache:"no-store"});
+      const data = await response.json() as {info?:string;error?:string};
+      if (!response.ok || typeof data.info !== "string") throw new Error(data.error || "Craig notes unavailable.");
+      setCraigInfo({recordingId,info:data.info});
+    } catch(error) { setError(error instanceof Error ? error.message : "Craig notes unavailable."); }
     finally { setBusy(false); }
   }
 
@@ -384,10 +397,12 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         <button type="button" className="campaign-secondary" disabled={busy || (recording.status !== "ready" && recording.status !== "awaiting_speakers")}
           onClick={() => chooseRecording(recording)}>{activeImport === recording.id ? "Selected" : "Review speakers"}</button>
         {recording.sourceType === "craig" && recording.status === "ready" && <>
-          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio</button>
+          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio (AAC)</button>
+          <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("POST",recording.id,"flac")}>Prepare Lossless FLAC</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transferCraigArchive(recording.id)}>Save Craig Archive</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void inspectCraigArchive(recording.id)}>Inspect Tracks</button>
+          <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void loadCraigInfo(recording.id)}>Craig Notes &amp; Info</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void loadTranscript(recording.id)}>Review Transcript</button>
         </>}
       </div>
@@ -396,10 +411,10 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       <strong>Audio tracks in saved Craig archive</strong>
       {inspectedTracks.entries.map((entry, index) => <div className="session-recap-speaker-entry" key={index}>
         <span>{entry.filename} · {(entry.uncompressedBytes / 1048576).toFixed(1)} MB</span>
-        {entry.filename.toLowerCase().endsWith(".flac") && <>
+        {/\.(flac|aac|m4a)$/i.test(entry.filename) && <>
           <button type="button" className="campaign-secondary" disabled={busy}
             onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>
-          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transcribeShortTrack(inspectedTracks.recordingId, index)}>Transcribe Short Track (AI)</button>
+          {entry.filename.toLowerCase().endsWith(".flac") && <button type="button" className="campaign-secondary" disabled title="Free-only AI quota protection is not yet configured" onClick={() => void transcribeShortTrack(inspectedTracks.recordingId, index)}>Transcribe Short Track (AI)</button>}
           <label><span>Speaker</span><select aria-label={"Speaker for " + entry.filename} value={trackSpeakerChoices[index] || ""}
             onChange={event => setTrackSpeakerChoices(current => ({...current, [index]: event.target.value}))}>
             <option value="">Unassigned</option>
@@ -410,6 +425,12 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       </div>)}
       <button type="button" className="campaign-primary" disabled={busy} onClick={() => void saveTrackSpeakers(inspectedTracks.recordingId)}>Save Track Speakers</button>
     </div>}
+    {craigInfo && <section className="session-recap-speaker-list" aria-label="Craig recording notes">
+      <div className="session-recap-form-actions"><strong>Craig session notes &amp; recording information</strong>
+        <button type="button" className="campaign-secondary" onClick={() => setCraigInfo(null)}>Close Notes</button>
+      </div>
+      <pre style={{whiteSpace:"pre-wrap", overflowWrap:"anywhere", maxHeight:400, overflowY:"auto"}}>{craigInfo.info}</pre>
+    </section>}
     {reviewTranscript && <section className="session-recap-speaker-list" aria-label="Timestamped transcript">
       <div className="session-recap-form-actions">
         <strong>Transcript · {reviewTranscript.segments.length} segment(s)</strong>
@@ -424,7 +445,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         </div>)}
       {reviewTranscript.segments.length > 250 && <p className="session-recap-editor-help">Showing the first 250 segments. Larger transcript paging will follow.</p>}
     </section>}
-    {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · FLAC ready to retrieve" : ""}</p>}
+    {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · " + (craigJob.format?.toUpperCase() || "Audio") + " ready to retrieve" : ""}</p>}
     {activeImport && <div className="session-recap-recording-confirm">
       <h4>Confirm speakers before transcription</h4>
       <p>Select the participants for this recording. These associations will be saved with the recording even if a player changes characters later.</p>

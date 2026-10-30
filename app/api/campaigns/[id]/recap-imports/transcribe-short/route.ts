@@ -11,6 +11,11 @@ type Context = { params: Promise<{ id: string }> };
 const MAX_SAMPLE_BYTES = 2 * 1024 * 1024;
 type WhisperOutput = { text?: string; segments?: Array<{ start?: number; end?: number; text?: string }> };
 export async function POST(request: Request, context: Context) {
+  // No-cost-only policy: there is not yet an account-wide free-neuron meter or
+  // verified billing guard. Fail closed until both are implemented and verified.
+  if ((env as unknown as { RECAP_FREE_AI_QUOTA_VERIFIED?: string }).RECAP_FREE_AI_QUOTA_VERIFIED !== "true") {
+    return Response.json({ error: "Automatic transcription is paused while TWE implements verified free-only AI quotas. No paid AI usage is permitted." }, { status: 503 });
+  }
   try {
     const actor = await getSessionActor(request);
     if (!actor) return Response.json({ error: "Sign in required." }, { status: 401 });

@@ -36,10 +36,10 @@ export async function POST(request: Request, context: Context): Promise<Response
     let job: { status?: unknown; outputFileName?: unknown; outputSize?: unknown; type?: unknown; options?: { format?: unknown } } | null;
     try { ({ job } = JSON.parse(raw) as { job: typeof job }); }
     catch { return Response.json({ error: "Craig job metadata invalid." }, { status: 502 }); }
-    if (!job || job.status !== "complete" || job.type !== "recording" || job.options?.format !== "flac"
+    if (!job || job.status !== "complete" || job.type !== "recording" || !["flac", "aac"].includes(String(job.options?.format))
       || typeof job.outputFileName !== "string" || !/^[A-Za-z0-9._-]{1,180}$/u.test(job.outputFileName)
       || job.outputFileName.startsWith(".")) {
-      return Response.json({ error: "Prepare and complete the Craig FLAC archive first." }, { status: 409 });
+      return Response.json({ error: "Prepare and complete the Craig multitrack AAC or FLAC archive first." }, { status: 409 });
     }
     // Provider output filenames only; never use a user-supplied URL or redirect destination.
     const download = await fetch(upstreamRoot + "/dl/" + encodeURIComponent(job.outputFileName), {
@@ -58,7 +58,7 @@ export async function POST(request: Request, context: Context): Promise<Response
     // This route remains GM-only; the deterministic R2 object is not publicly exposed.
     const stored = await env.BUCKET.put(key, download.body, {
       httpMetadata: { contentType: "application/zip" },
-      customMetadata: { source: "craig", recordingId, filename: job.outputFileName },
+      customMetadata: { source: "craig", recordingId, filename: job.outputFileName, format: String(job.options?.format) },
     });
     if (!stored) return Response.json({ error: "Craig archive storage failed." }, { status: 502 });
     return Response.json({ saved: true, bytes: stored.size, filename: "craig-" + recordingId + ".zip" },

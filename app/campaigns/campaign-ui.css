@@ -767,3 +767,16 @@ html[data-theme="dark"] .gm-console-tabs span:not(.active){background:#2a251e;co
 html[data-theme="dark"] .gm-console-tabs button:not(.active):hover,
 html[data-theme="dark"] .gm-console-tabs a:not(.active):hover{background:#3b3022;color:#fff0d1}
 html[data-theme="dark"] .gm-console-tabs .active{background:#805b28;color:#fff5df}
+
+
+/* Phase 1 session recording setup: compact and consistent with GM recap editor. */
+.session-recap-creation-method{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.session-recap-recording-setup{display:grid;gap:12px;min-width:0}
+.session-recap-recording-setup h3,.session-recap-recording-setup h4{margin:4px 0 0}
+.session-recap-recording-setup p{margin:0}
+.session-recap-speaker-list{display:grid;gap:6px}
+.session-recap-speaker-entry{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:4px}
+.session-recap-speaker-entry>div:last-child{display:flex;gap:6px}
+.session-recap-recording-confirm{display:grid;gap:8px;border:1px solid var(--line);padding:12px;border-radius:4px}
+.session-recap-recording-choice{display:flex;align-items:center;gap:8px}
+.session-recap-recording-setup input[type="url"]{width:100%;min-width:0}

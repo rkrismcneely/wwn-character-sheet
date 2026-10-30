@@ -3494,3 +3494,7 @@ html[data-theme="dark"] .token-crop-dialog{background:#262019;color:#f2dec0;bord
 .token-crop-preview{width:fit-content;max-width:100%;height:auto;aspect-ratio:auto;max-height:none;overflow:hidden;line-height:0}
 .token-crop-preview img{display:block;width:auto;height:auto;max-width:100%;max-height:min(58dvh,550px);object-fit:contain}
 .token-crop-circle{aspect-ratio:1;box-sizing:border-box}
+
+/* Anchor Set Token to the top of the header portrait, not the viewport middle. */
+.token-crop-backdrop{align-items:flex-start;padding-bottom:12px}
+.token-crop-dialog{margin:0 auto;max-height:calc(100dvh - 24px)}

@@ -12,7 +12,8 @@ test("Craig conversion job is restricted to GMs and does not reveal access keys 
  assert.match(service,/gmAccess\(db, actor, campaignId, true\)/u);
  assert.match(service,/row\.status !== "ready"/u);
  assert.match(route,/https:\/\/craig\.horse\/api\/v1\/recordings\//u);
- assert.match(route,/JSON\.stringify\(\{ type: "recording", options: \{ format: "flac" \} \}\)/u);
+ assert.match(route,/JSON\.stringify\(\{ type: "recording", options: \{ format \} \}\)/u);
+ assert.match(route,/body\?\.format === "aac"/u);
  assert.match(route,/outputReady/u);
  assert.match(route,/AbortSignal\.timeout\(12000\)/u);
  assert.doesNotMatch(route,/Response\.json\(\{[^\n]*outputFileName/u);

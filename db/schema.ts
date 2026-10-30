@@ -381,3 +381,51 @@ export const campaignPreparedEncounters=sqliteTable("campaign_prepared_encounter
  createdAt:text("created_at").notNull(),
  updatedAt:text("updated_at").notNull(),
 },table=>[index("campaign_prepared_encounters_campaign_idx").on(table.campaignId,table.updatedAt)]);
+
+
+// Recording ingestion foundation. Craig access keys are private; never
+// return sourceReference through a client API response.
+export const campaignRecapSpeakers = sqliteTable("campaign_recap_speakers", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  speakerKey: text("speaker_key").notNull(),
+  discordUserId: text("discord_user_id"),
+  discordName: text("discord_name").notNull(),
+  displayName: text("display_name").notNull(),
+  role: text("role", { enum: ["player", "gm", "guest"] }).notNull(),
+  characterId: text("character_id").references(() => characters.id, { onDelete: "set null" }),
+  characterName: text("character_name"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  uniqueIndex("campaign_recap_speakers_campaign_key_unique").on(table.campaignId, table.speakerKey),
+  index("campaign_recap_speakers_campaign_idx").on(table.campaignId, table.updatedAt),
+]);
+
+export const campaignRecapRecordingImports = sqliteTable("campaign_recap_recording_imports", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  createdBy: text("created_by").notNull().references(() => user.id),
+  sourceType: text("source_type", { enum: ["craig", "upload", "drive"] }).notNull(),
+  sourceReference: text("source_reference").notNull(),
+  sourceLabel: text("source_label").notNull(),
+  sessionDate: text("session_date").notNull(),
+  status: text("status", { enum: ["awaiting_speakers", "ready", "processing", "failed", "completed"] }).notNull().default("awaiting_speakers"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, table => [
+  index("campaign_recap_recordings_campaign_idx").on(table.campaignId, table.createdAt),
+]);
+
+export const campaignRecapRecordingSpeakers = sqliteTable("campaign_recap_recording_speakers", {
+  importId: text("import_id").notNull().references(() => campaignRecapRecordingImports.id, { onDelete: "cascade" }),
+  associationId: text("association_id"),
+  discordUserId: text("discord_user_id"),
+  discordName: text("discord_name").notNull(),
+  displayName: text("display_name").notNull(),
+  role: text("role", { enum: ["player", "gm", "guest"] }).notNull(),
+  characterId: text("character_id"),
+  characterName: text("character_name"),
+}, table => [
+  primaryKey({ columns: [table.importId, table.discordName] }),
+]);

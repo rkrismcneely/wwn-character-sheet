@@ -38,7 +38,7 @@ export async function streamAuthorizedRecapAudio(
   if(audio.provider!=="google-drive" || audio.status!=="ready" ||
      audio.connectionStatus!=="connected" || !audio.remoteFileId ||
      !/^[a-zA-Z0-9_-]{5,256}$/u.test(audio.remoteFileId) ||
-     !audio.mimeType || !Number.isSafeInteger(audio.byteSize) || audio.byteSize!<=0) {
+     !audio.mimeType || !Number.isSafeInteger(audio.byteSize) || (audio.byteSize ?? 0) <= 0) {
     throw new CampaignServiceError("Recording unavailable. Ask the GM to reconnect storage.",409);
   }
   const range=validateAudioRangeHeader(rangeHeader,audio.byteSize!);

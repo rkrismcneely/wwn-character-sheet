@@ -32,6 +32,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [sessionDate, setSessionDate] = useState(date);
   const [activeImport, setActiveImport] = useState<string | null>(null);
+  const [craigJob, setCraigJob] = useState<{status:string;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -166,8 +167,26 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function runCraigJob(method: "GET" | "POST", recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const url = api + "/recap-imports/craig-job" + (method === "GET" ? "?importId=" + encodeURIComponent(recordingId) : "");
+      const response = await fetch(url, {
+        method,
+        ...(method === "POST" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ importId: recordingId }) } : {}),
+      });
+      const result = await response.json() as { job?: {status:string;outputReady:boolean;outputSize:number|null}|null; error?:string };
+      if (!response.ok) throw new Error(result.error || "Craig job unavailable.");
+      setCraigJob(result.job ?? null);
+      setNotice(result.job ? "Craig conversion status: " + result.job.status + (result.job.outputReady ? ". Audio is ready for the future download step." : ".") : "No Craig conversion job is active.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Craig job could not be checked."); }
+    finally { setBusy(false); }
+  }
+
   function chooseRecording(recording: RecapRecordingImport) {
     setActiveImport(recording.id);
+    setCraigJob(null);
     setSelectedIds(recording.speakerIds);
     setNotice(""); setError("");
   }
@@ -249,9 +268,16 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     <div className="session-recap-speaker-list">{imports.map(recording => <div className="session-recap-speaker-entry" key={recording.id}>
       <div><strong>{recording.sourceLabel}</strong> · {recording.sessionDate} · {recording.status === "ready" ? "Speakers confirmed" : "Needs speaker confirmation"}
         <small> · {recording.speakerCount} speaker(s)</small></div>
-      <button type="button" className="campaign-secondary" disabled={busy || (recording.status !== "ready" && recording.status !== "awaiting_speakers")}
-        onClick={() => chooseRecording(recording)}>{activeImport === recording.id ? "Selected" : "Review speakers"}</button>
+      <div className="session-recap-form-actions">
+        <button type="button" className="campaign-secondary" disabled={busy || (recording.status !== "ready" && recording.status !== "awaiting_speakers")}
+          onClick={() => chooseRecording(recording)}>{activeImport === recording.id ? "Selected" : "Review speakers"}</button>
+        {recording.sourceType === "craig" && recording.status === "ready" && <>
+          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio</button>
+          <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
+        </>}
+      </div>
     </div>)}</div>
+    {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · FLAC ready to retrieve" : ""}</p>}
     {activeImport && <div className="session-recap-recording-confirm">
       <h4>Confirm speakers before transcription</h4>
       <p>Select the participants for this recording. These associations will be saved with the recording even if a player changes characters later.</p>

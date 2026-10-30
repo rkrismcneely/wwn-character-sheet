@@ -45,6 +45,23 @@ Source: https://developers.cloudflare.com/workers-ai/platform/pricing/ , https:/
 7. Improve source-data imports: accept existing SRT/VTT/other text provided by GMs and display Craig /note events, independent of AI. Plain text is not a substitute for timestamps unless available.
 8. Respect 7-day Craig expiry and user privacy, create an audio-retention policy with size quotas, and provide no-cost manual recap/journal editing throughout.
 
+## Major no-cost opportunity: Craig already has a browser media processor
+
+Craig's current free **Minizel** implementation handles the raw recording stream (`/raw.dat`) in the user's browser. It supports synchronized separate-track exports and a mixed output, decodes raw Opus/FLAC source packets using browser/WASM audio decoders, uses MediaBunny for AAC/FLAC/WAV output, and has bounded queues and resilient network download/resume handling. This is closer to our needs than running server-side FFmpeg in a CPU-limited free Worker.
+
+Verified in CraigChat/craig:
+- apps/ferret/src/routes/rec/[id=recording]/MinizelModal.svelte
+- apps/ferret/src/lib/minizel/index.ts
+- apps/ferret/src/lib/minizel/processor.ts
+- apps/ferret/src/lib/minizel/resilientFetch.ts
+- apps/ferret/src/lib/recording/sections.ts
+
+Craig's repository uses the **ISC license** (retain copyright notices if reusing code); independently review third-party dependency licences.
+
+**Preferred next experiment (not yet implemented):** prototype TWE browser-local, bounded streaming media preparation using this open-source approach, creating independently playable chunks and uploading only the chunks free quotas permit. Do not copy Craig's processor blindly: it currently targets locally created files and browser-specific File System Access APIs. Verify iOS Safari, Mac Safari, and Chrome/Edge support, memory, formats, CORS, and privacy before integration. Unsupported browsers need an optional free desktop export path.
+
+This can allow user-selected source tracks and speech windows where supported, rather than blindly transcribe all 3 hours of all 6 tracks.
+
 ## Unresolved technical proof points
 
 - Confirm the actual shape of Craig's info.txt content with a real recording before automatically parsing notes (current UI displays raw text).

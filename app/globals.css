@@ -3487,3 +3487,10 @@ html[data-theme="dark"] .token-crop-dialog{background:#262019;color:#f2dec0;bord
 .token-crop-dialog{box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto;width:min(430px,100%);padding:14px 18px}
 .token-crop-preview{width:min(320px,100%,calc(100dvh - 225px));min-width:0;aspect-ratio:1}
 @media(max-height:550px){.token-crop-preview{width:min(220px,100%,calc(100dvh - 180px))}.token-crop-dialog{padding:10px 14px}.token-crop-dialog p{margin-bottom:6px}}
+
+/* Display the complete native-aspect portrait inside a viewport-centered token editor. */
+.token-crop-backdrop{display:flex;align-items:center;justify-content:center;overflow-y:auto}
+.token-crop-dialog{flex:none;margin:auto;max-height:calc(100dvh - 24px);overflow-y:auto}
+.token-crop-preview{width:fit-content;max-width:100%;height:auto;aspect-ratio:auto;max-height:none;overflow:hidden;line-height:0}
+.token-crop-preview img{display:block;width:auto;height:auto;max-width:100%;max-height:min(58dvh,550px);object-fit:contain}
+.token-crop-circle{aspect-ratio:1;box-sizing:border-box}

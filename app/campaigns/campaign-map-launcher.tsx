@@ -235,10 +235,33 @@ function tokenInitials(name: string): string {
 const MapTokenArtwork = memo(function MapTokenArtwork({
   name, radius, distance, portrait, crop, tokenId,
 }: { name: string; radius: number; distance?: string; portrait?:string;crop?:{cx:number;cy:number;size:number};tokenId?:string }) {
+  const [portraitDimensions, setPortraitDimensions] = useState({ width: 1, height: 1 });
+  useEffect(() => {
+    if (!portrait || !crop) return;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled && img.naturalWidth && img.naturalHeight) {
+        setPortraitDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      }
+    };
+    img.src = portrait;
+    return () => { cancelled = true; };
+  }, [portrait, crop]);
+
+  // Crop size is a fraction of the portrait's shorter dimension, not both dimensions.
+  // Match the circular selection in the full-portrait editor pixel-for-pixel.
+  const { width: portraitWidth, height: portraitHeight } = portraitDimensions;
+  const cropPixelSize = Math.max(0.01, crop?.size ?? 0.72) * Math.min(portraitWidth, portraitHeight);
+  const tokenScale = 2 * radius / cropPixelSize;
+  const imageWidth = portraitWidth * tokenScale;
+  const imageHeight = portraitHeight * tokenScale;
+  const imageX = radius - (crop?.cx ?? 0.5) * imageWidth;
+  const imageY = radius - (crop?.cy ?? 0.5) * imageHeight;
   return <>
     <title>{name}</title>
     <circle r={radius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />
-    {portrait&&crop&&tokenId ? <><defs><clipPath id={"token-crop-"+tokenId}><circle r={radius}/></clipPath></defs><image href={portrait} x={-radius-((crop.cx-crop.size/2)*(2*radius/crop.size))} y={-radius-((crop.cy-crop.size/2)*(2*radius/crop.size))} width={2*radius/crop.size} height={2*radius/crop.size} preserveAspectRatio="xMidYMid slice" clipPath={"url(#token-crop-"+tokenId+")"}/><circle r={radius} fill="none" stroke="currentColor" strokeWidth="2" pointerEvents="none"/></>:<text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={radius * 0.72}>{tokenInitials(name)}</text>}
+    {portrait&&crop&&tokenId ? <><defs><clipPath id={"token-crop-"+tokenId}><circle r={radius}/></clipPath></defs><image href={portrait} x={imageX} y={imageY} width={imageWidth} height={imageHeight} preserveAspectRatio="none" clipPath={"url(#token-crop-"+tokenId+")"}/><circle r={radius} fill="none" stroke="currentColor" strokeWidth="2" pointerEvents="none"/></>:<text className="campaign-map-token-initials" textAnchor="middle" dominantBaseline="central" fontSize={radius * 0.72}>{tokenInitials(name)}</text>}
     {distance !== undefined && <text className="campaign-map-token-distance" textAnchor="middle" y={-(radius + Math.max(14, radius * 0.5))} fontSize={Math.max(12, radius * 0.44)}>{distance}</text>}
     <text className="campaign-map-token-name" textAnchor="middle" y={radius + Math.max(12, radius * 0.48)} fontSize={Math.max(11, radius * 0.42)}>{name}</text>
   </>;

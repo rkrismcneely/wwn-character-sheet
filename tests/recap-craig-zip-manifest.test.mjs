@@ -22,7 +22,7 @@ test("Craig ZIP inventory parses a minimal ordinary ZIP directory", () => {
   const loc = zipDirectoryLocation(end, directory.length + end.length);
   assert.deepEqual(loc, { offset: 0, length: directory.length, entries: 1 });
   assert.deepEqual(parseZipDirectory(directory, loc.entries), [
-    { filename: "track-1.flac", compressedBytes: 12, uncompressedBytes: 20, compression: 8 },
+    { filename: "track-1.flac", compressedBytes: 12, uncompressedBytes: 20, compression: 8, localOffset: 0 },
   ]);
   directory.set(new TextEncoder().encode("../evil.flac"), 46);
   assert.throws(() => parseZipDirectory(directory, 1));

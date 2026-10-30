@@ -532,3 +532,13 @@ export const campaignRecapAudioAssets = sqliteTable("campaign_recap_audio_assets
   index("campaign_recap_audio_assets_connection_idx").on(table.connectionId, table.status),
   uniqueIndex("campaign_recap_audio_assets_one_primary_idx").on(table.recapId).where(sql`${table.recapId} IS NOT NULL AND ${table.primaryAudio} = 1`),
 ]);
+
+
+export const userRecapStorageOAuthStates = sqliteTable("user_recap_storage_oauth_states", {
+  stateHash: text("state_hash").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, table => [
+  index("user_recap_storage_oauth_states_owner_idx").on(table.userId, table.expiresAt),
+]);

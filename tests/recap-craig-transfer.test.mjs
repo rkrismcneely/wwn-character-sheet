@@ -13,7 +13,7 @@ test("Craig archives transfer only after confirmed speaker mapping and verified 
  assert.match(service,/row\.status !== "ready"/u);
  assert.match(route,/job\.status !== "complete"/u);
  assert.match(route,/\["flac", "aac"\]\.includes/u);
- assert.match(route,/format: String\(job\.options\.format\)/u);
+ assert.match(route,/format: String\(job\.options\?\.format\)/u);
  assert.match(route,/redirect: "manual"/u);
  assert.match(route,/length > MAX_ARCHIVE_BYTES/u);
  assert.match(route,/env\.BUCKET\.put\(key, download\.body/u);

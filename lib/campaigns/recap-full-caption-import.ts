@@ -1,4 +1,4 @@
-import { validateRecapCaptionCues, type CaptionCue } from "./recap-full-transcript";
+import { validateRecapCaptionCues, type CaptionCue } from "./recap-full-transcript.ts";
 
 /** Parses Craig supporter SRT/WebVTT locally; never uploads original subtitle files. */
 export function parseFullCraigCaptions(source: string, filename: string): CaptionCue[] {

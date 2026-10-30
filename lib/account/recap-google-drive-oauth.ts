@@ -67,6 +67,13 @@ export async function decryptDriveRefreshToken(
 }
 export function newDriveState(): string { return randomBase64URL(32); }
 export async function storeDriveState(db: D1Database, userId: string, state: string, now = Date.now()): Promise<void> {
+  await db.prepare("DELETE FROM user_recap_storage_oauth_states WHERE user_id=? AND expires_at<=?")
+    .bind(userId, now).run();
+  const pending = await db.prepare("SELECT COUNT(*) AS count FROM user_recap_storage_oauth_states WHERE user_id=?")
+    .bind(userId).first<{ count: number }>();
+  if (Number(pending?.count ?? 0) >= 5) {
+    throw new CampaignServiceError("Too many pending Drive connections. Try again shortly.", 409);
+  }
   await db.prepare("INSERT INTO user_recap_storage_oauth_states (state_hash,user_id,expires_at,created_at) VALUES (?,?,?,?)")
     .bind(await hashOpaqueToken(state), userId, now + DRIVE_STATE_LIFETIME_MS, now).run();
 }

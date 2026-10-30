@@ -4,3 +4,9 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
+
+# Separate Google Drive consent (not the sign-in OAuth client)
+GOOGLE_DRIVE_CLIENT_ID=
+GOOGLE_DRIVE_CLIENT_SECRET=
+# 32 random bytes, encoded as 43 base64url characters; never commit a real value
+RECAP_STORAGE_ENCRYPTION_KEY=

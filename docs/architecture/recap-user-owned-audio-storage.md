@@ -59,4 +59,4 @@ References:
 - https://developers.google.com/workspace/drive/api/guides/manage-downloads
 - https://support.google.com/drive/answer/2423534
 
-**Status:** Architectural requirement recorded. OAuth, storage uploads and session-recap audio player are **not yet implemented**.
+**Status (2026-10-30):** The per-user Google Drive OAuth connector, encrypted refresh-token storage, owner-only status/disconnect controls and one-use consent state are implemented in source; they remain disabled until Google OAuth credentials and a separate encryption secret are configured. See [Drive OAuth setup](../operations/recap-google-drive-oauth.md). Large-file uploads and in-page playback are **not yet implemented**.

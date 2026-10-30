@@ -13,14 +13,15 @@ function responseJob(job: CraigJob | null) {
   if (!job) return null;
   const status = typeof job.status === "string" && ["queued","running","complete","failed","cancelled","idle"].includes(job.status) ? job.status : "unknown";
   const size = typeof job.outputSize === "number" && Number.isSafeInteger(job.outputSize) && job.outputSize >= 0 ? job.outputSize : null;
-  return { status, outputReady: status === "complete" && typeof job.outputFileName === "string" && job.outputFileName.length > 0, outputSize: size };
+  return { status, format: job.options?.format === "aac" ? "aac" : job.options?.format === "flac" ? "flac" : null, outputReady: status === "complete" && typeof job.outputFileName === "string" && job.outputFileName.length > 0, outputSize: size };
 }
 async function jobRequest(request: Request, context: Context, method: "GET" | "POST"): Promise<Response> {
   try {
     const actor = await getSessionActor(request);
     if (!actor) return Response.json({ error: "Sign in required." }, { status: 401 });
     const { id } = await context.params;
-    const body = method === "POST" ? await readBoundedJson(request, 2048) as { importId?: unknown } : null;
+    const body = method === "POST" ? await readBoundedJson(request, 2048) as { importId?: unknown; format?: unknown } : null;
+    const format = method === "POST" && (body?.format === "flac" || body?.format === "aac") ? body.format : "aac";
     const importId = method === "GET" ? new URL(request.url).searchParams.get("importId") : body?.importId;
     const record = await getCraigRecordingForDownloadJob(await getCampaignD1(), actor, id, importId);
     const source = new URL(record.reference);
@@ -28,7 +29,7 @@ async function jobRequest(request: Request, context: Context, method: "GET" | "P
     const url = "https://craig.horse/api/v1/recordings/" + encodeURIComponent(recordingId) + "/job?key=" + encodeURIComponent(source.searchParams.get("key")!);
     const upstream = await fetch(url, {
       method, headers: method === "POST" ? { "content-type": "application/json", accept: "application/json" } : { accept: "application/json" },
-      body: method === "POST" ? JSON.stringify({ type: "recording", options: { format: "flac" } }) : undefined,
+      body: method === "POST" ? JSON.stringify({ type: "recording", options: { format } }) : undefined,
       signal: AbortSignal.timeout(12000),
     });
     if (!upstream.ok) return Response.json({ error: upstream.status === 409

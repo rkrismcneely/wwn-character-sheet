@@ -81,3 +81,42 @@ export function pcmWavChunkHeader(wav: PcmWav, dataBytes: number): Uint8Array {
   name(36,"data");v.setUint32(40,dataBytes,true);
   return bytes;
 }
+
+/**
+ * Bounded **upload** chunks for long PCM recordings: unlike the 30-second
+ * processing planner above, this targets Groq's 16 MiB in-app safety limit.
+ * It never decodes the entire recording and never splits compressed formats.
+ */
+export function planPcmWavUploadChunks(wav:PcmWav,maxFileBytes=12*1024*1024):WavChunk[] {
+  check(Number.isSafeInteger(maxFileBytes)&&maxFileBytes>=1024&&maxFileBytes<=16*1024*1024,
+    "Invalid WAV upload limit.");
+  check(wav.blockAlign>0&&wav.sampleRate>0&&wav.dataBytes>0&&
+    wav.dataBytes%wav.blockAlign===0, "Invalid PCM audio metadata.");
+  const frames=wav.dataBytes/wav.blockAlign;
+  check(frames/wav.sampleRate<=8*60*60,"WAV session cannot exceed eight hours.");
+  const maxFrames=Math.min(Math.floor((maxFileBytes-44)/wav.blockAlign),wav.sampleRate*20*60);
+  check(maxFrames>0,"WAV upload limit is too small.");
+  const chunks:WavChunk[]=[];
+  for(let at=0;at<frames;at+=maxFrames){
+    check(chunks.length<2500,"Recording would require too many provider requests.");
+    const end=Math.min(frames,at+maxFrames);
+    chunks.push({startMs:Math.round(at*1000/wav.sampleRate),
+      endMs:Math.round(end*1000/wav.sampleRate),
+      dataOffset:wav.dataOffset+at*wav.blockAlign,
+      dataBytes:(end-at)*wav.blockAlign});
+  }
+  return chunks;
+}
+export async function inspectPcmWavUpload(file:File):Promise<PcmWav>{
+  if(!/\.wav$/iu.test(file.name))throw new Error("Choose a standard PCM WAV file.");
+  const header=new Uint8Array(await file.slice(0,256*1024).arrayBuffer());
+  return parsePcmWavHeader(header,file.size);
+}
+export function buildPcmWavUpload(file:File,wav:PcmWav,part:WavChunk,index:number):File {
+  check(part.dataOffset>=wav.dataOffset && part.dataBytes>0 &&
+    part.dataOffset+part.dataBytes<=wav.dataOffset+wav.dataBytes,
+    "Audio chunk exceeds verified WAV data.");
+  const name=file.name.replace(/\.wav$/iu,"") + "-part-"+String(index+1).padStart(3,"0")+".wav";
+  return new File([pcmWavChunkHeader(wav,part.dataBytes).buffer as ArrayBuffer,
+    file.slice(part.dataOffset,part.dataOffset+part.dataBytes)],name,{type:"audio/wav"});
+}

@@ -7,6 +7,7 @@ import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
 import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcript-manager";
+import { SessionRecapGroqTranscriber } from "./session-recap-groq-transcriber";
 import { SessionRecapAIWriter } from "./session-recap-ai-writer";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
@@ -34,6 +35,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [addingToJournal,setAddingToJournal]=useState(false);
+  const [transcriptRefresh,setTranscriptRefresh]=useState(0);
   const [journalNotice,setJournalNotice]=useState("");
   const [importNotice, setImportNotice] = useState("");
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -168,7 +170,10 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       </form>}
       {editing !== "new" && <>
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
-        <SessionRecapFullTranscriptManager key={"transcript-"+editing.id} campaignId={campaignId} recapId={editing.id} />
+        <SessionRecapGroqTranscriber key={"asr-"+editing.id} campaignId={campaignId}
+          recapId={editing.id} onSaved={()=>setTranscriptRefresh(n=>n+1)} />
+        <SessionRecapFullTranscriptManager key={"transcript-"+editing.id+"-"+transcriptRefresh}
+          campaignId={campaignId} recapId={editing.id} />
         <SessionRecapAIWriter key={"ai-"+editing.id} campaignId={campaignId} recapId={editing.id}
           onDraft={content=>{
             if(draft.content.trim() && !window.confirm("Replace the unsaved Markdown editor text with this AI draft?"))return false;

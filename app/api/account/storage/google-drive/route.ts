@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import type { DriveSettings } from "@/lib/account/recap-google-drive-oauth";
 import { getSessionActor } from "@/lib/auth-session";
 import { driveConfiguration } from "@/lib/account/recap-google-drive-oauth";
 import { getCampaignD1 } from "@/lib/campaigns/service";
@@ -16,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
     status: "connected" | "disconnected" | "reconnect_required"; connectedAt: string | null;
   }>();
   return Response.json({
-    available: driveConfiguration(env as CloudflareEnv & { RECAP_STORAGE_ENCRYPTION_KEY?: string }),
+    available: driveConfiguration(env as unknown as DriveSettings),
     connections: rows.results,
   }, { headers: { "cache-control": "private, no-store" } });
 }

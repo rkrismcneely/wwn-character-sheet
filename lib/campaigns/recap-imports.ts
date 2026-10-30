@@ -187,6 +187,21 @@ export async function createUploadedRecapRecording(
     status: "awaiting_speakers", speakerCount: 0, speakerIds: [], createdAt: now };
 }
 
+
+/** Only a server-side caller may read a Craig key. Never return this in a route. */
+export async function getCraigRecordingForDownloadJob(
+  db: D1Database, actor: CampaignActor | null, campaignId: string, rawId: unknown,
+): Promise<{ reference: string; status: RecapRecordingImport["status"] }> {
+  const campaign = await gmAccess(db, actor, campaignId, true);
+  const id = idValue(rawId);
+  const row = await db.prepare("SELECT source_reference AS reference,status FROM campaign_recap_recording_imports " +
+    "WHERE campaign_id=? AND id=? AND source_type='craig'")
+    .bind(campaign, id).first<{ reference: string; status: RecapRecordingImport["status"] }>();
+  if (!row) throw new CampaignServiceError("Craig recording not found.", 404);
+  if (row.status !== "ready") throw new CampaignServiceError("Confirm the recording speakers before preparing audio.", 409);
+  return row;
+}
+
 export async function confirmRecapRecordingSpeakers(
   db: D1Database, actor: CampaignActor | null, campaignId: string, input: unknown,
 ): Promise<void> {

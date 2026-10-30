@@ -45,6 +45,12 @@ test("transcription persists one speaker snapshot, sorts clips and prevents dupl
   assert.deepEqual(earlier.transcript.cues.map(c=>c.text),["Earlier speech.","Later speech."]);
   assert.deepEqual(earlier.transcript.processedClips,[receipt,"b".repeat(64)]);
 });
+test("verified silence can be recorded once without fabricating dialogue or retrying charges",()=>{
+ const silence=mergeGroqAudioTranscript(null,[],speaker,receipt,"now");
+ assert.equal(silence.transcript.cues.length,0);
+ assert.deepEqual(silence.transcript.processedClips,[receipt]);
+ assert.equal(mergeGroqAudioTranscript(silence.transcript,[],speaker,receipt,"later").duplicate,true);
+});
 test("re-import returns transcript to private draft, preserving other sessions",()=>{
   const source={version:1,published:true,updatedAt:"old",cues:[],processedClips:[]};
   const added=mergeGroqAudioTranscript(source,[
@@ -61,6 +67,7 @@ test("route requires a campaign GM, own key, full timestamp validation and condi
     'approvedShare','approvedBilling','request.formData()','crypto.subtle.digest("SHA-256",fileBytes)',
     'api.groq.com/openai/v1/audio/transcriptions','timestamp_granularities[]','verbose_json',
     "normalizeGroqAudioSegments","mergeGroqAudioTranscript","previousTranscript(key)",
+    "responseData.segments.length===0",
     "onlyIf",'"If-None-Match"','etagMatches',
   ])assert.ok(route.includes(required),"Missing safety invariant: "+required);
   assert.doesNotMatch(route,/RECAP_FREE_AI_QUOTA_VERIFIED|CLOUDFLARE_AI_KEY|process\.env\.GROQ_API_KEY/u);

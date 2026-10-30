@@ -28,6 +28,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [characters, setCharacters] = useState<CharacterChoice[]>([]);
   const [draft, setDraft] = useState<Draft>(blank);
   const [link, setLink] = useState("");
+  const [craigSpeakers, setCraigSpeakers] = useState<{discordUserId:string|null;discordName:string;displayName:string|null;track:number|null}[] | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [sessionDate, setSessionDate] = useState(date);
   const [activeImport, setActiveImport] = useState<string | null>(null);
@@ -94,6 +95,22 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       setSelectedIds(ids => ids.filter(value => value !== id));
       setNotice("Saved association removed; recording history remains unchanged.");
     } catch (err) { setError(err instanceof Error ? err.message : "Speaker could not be removed."); }
+    finally { setBusy(false); }
+  }
+
+  async function checkCraigRecording() {
+    if (busy || !link.trim()) return;
+    setBusy(true); setError(""); setNotice(""); setCraigSpeakers(null);
+    try {
+      const response = await fetch(api + "/recap-imports/craig-check", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ link }),
+      });
+      const result = await response.json() as { error?: string; speakers?: {discordUserId:string|null;discordName:string;displayName:string|null;track:number|null}[]; live?: boolean };
+      if (!response.ok || !result.speakers) throw new Error(result.error || "Craig metadata unavailable.");
+      setCraigSpeakers(result.speakers);
+      setNotice(result.live ? "Recording is still live. Import after it ends." : "Craig recording found. Review the speakers below before saving.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Craig recording could not be checked."); }
     finally { setBusy(false); }
   }
 
@@ -166,7 +183,26 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         <label><span>Session date</span><input type="date" required value={sessionDate} onChange={event => setSessionDate(event.target.value)}/></label>
         <label><span>Craig recording link</span><input type="url" required value={link} placeholder="https://craig.horse/rec/..." onChange={event => setLink(event.target.value)} autoComplete="off"/></label>
       </div>
-      <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={busy || !link.trim()}>Save Recording Link</button></div>
+      <div className="session-recap-form-actions">
+        <button type="button" className="campaign-secondary" disabled={busy || !link.trim()} onClick={() => void checkCraigRecording()}>Check Craig Recording</button>
+        <button type="submit" className="campaign-primary" disabled={busy || !link.trim()}>Save Recording Link</button>
+      </div>
+      {craigSpeakers && <div className="session-recap-speaker-list" aria-label="Craig detected speakers">
+        <strong>{craigSpeakers.length} speaker(s) detected</strong>
+        {craigSpeakers.map((speaker, index) => {
+          const matched = speakers.find(saved => speaker.discordUserId
+            ? saved.discordUserId === speaker.discordUserId
+            : saved.discordName.toLowerCase() === speaker.discordName.toLowerCase());
+          return <div className="session-recap-speaker-entry" key={speaker.discordUserId || speaker.discordName + index}>
+            <span>{speaker.displayName || speaker.discordName}{speaker.track !== null ? " · Track " + speaker.track : ""}</span>
+            {matched ? <span>Recognized: {matched.displayName}</span>
+              : <button type="button" className="campaign-secondary" onClick={() => setDraft({
+                  ...blank, discordUserId: speaker.discordUserId || "", discordName: speaker.discordName,
+                  displayName: speaker.displayName || speaker.discordName,
+                })}>Remember this speaker</button>}
+          </div>;
+        })}
+      </div>}
     </form>
     <form className="session-recap-form" onSubmit={event => void uploadRecording(event)}>
       <label><span>Or upload MP3, M4A or WAV</span><input type="file" accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/wav" onChange={event => setAudioFile(event.target.files?.[0] || null)}/></label>

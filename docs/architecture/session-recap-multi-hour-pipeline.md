@@ -1,6 +1,7 @@
 # Session Recap v2 — 2–3 hour recording architecture
 
 Status: **design and capacity guardrails; not a deployed long-recording processor**.
+**Billing clarification (2026-10-30): TWE's operator pays $0. An individual GM may use their own paid Craig, Groq, Gemini, or other provider plan. This document's previous paid-Container discussion is superseded by the browser-local media processing strategy and [bring-your-own-provider policy](recap-bring-your-own-provider.md).**
 The earlier Craig import and short-track review remain available independently.
 This plan intentionally avoids turning on new background transcription or paid infrastructure.
 
@@ -11,7 +12,7 @@ This plan intentionally avoids turning on new background transcription or paid i
 - 3 hours × 6 tracks × 30-second boundaries = **2,160 potential windows** before voice activity detection.
 - Do **not** create 2,160 sequential Workflow steps: Cloudflare Free allows 3,000 Workflow steps/day, and even the paid step count would introduce needless orchestration overhead.
 - One GM click queues an **idempotent** run with visible progress, failure/retry controls and a usable browser-independent state. Never start AI processing implicitly.
-- Approval and a conservative **estimated spending ceiling** precede paid inference. Stop before exceeding a GM's configured cap.
+- A GM explicitly opts into their own paid provider, if desired, with a conservative **per-job spending ceiling** shown wherever measurable; TWE never sponsors inference charges. Stop before exceeding a GM's configured cap.
 - Show a truthful processing status; never report an import as transcribed or published until its stages are verified.
 - Never store Craig access keys or private audio object URLs in client responses or log entries.
 
@@ -32,7 +33,7 @@ First two lanes need a real audio decoder such as FFmpeg. The existing PCM WAV p
 | R2 | Private original audio, immutable normalized chunks, timestamped segment output per chunk, source captions and draft artifacts |
 | Workflows | Durable **stage-level** orchestration (not a step for every 30 seconds), recovery and bounded retries |
 | Queues or a bounded task dispatcher | At most 1–4 concurrent chunk inference calls per job, with back-pressure and replay safety |
-| Media processor | Explicitly configured FFmpeg execution on a paid Container or an alternative auditable processing service; this is a **cost and operations gate**, not automatically enabled by this PR |
+| Media processor | Browser-local Craig-compatible decoder / open-source local tools; no site-owner-paid Container |
 | Transcription provider adapter | Whisper / imported captions / future alternatives; normalized timings and safe provider swapping |
 | Recap generator | Multi-pass event extraction, character/location resolution, synthesis with timestamp citations, GM review |
 

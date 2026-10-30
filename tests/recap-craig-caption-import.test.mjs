@@ -16,10 +16,14 @@ test("reject wrong extension and empty captions",()=>{
  assert.throws(()=>captionsToRecapTranscript("hello","note.txt"));
  assert.throws(()=>captionsToRecapTranscript("WEBVTT\n\nno cue","note.vtt"));
 });
-test("GM editor requires explicit review and save before publishing",async()=>{
- const source=await readFile(new URL("../app/campaigns/session-recap-manager.tsx",import.meta.url),"utf8");
- assert.match(source,/captionsToRecapTranscript\(await file\.text\(\),file\.name\)/u);
- assert.match(source,/Import Craig captions/u);
- assert.match(source,/setDraft\(current=>/u);
- assert.match(source,/30,000-character limit/u);
+test("GM editor uses full-caption importer instead of the old 30k Markdown path",async()=>{
+ const [editor,manager]=await Promise.all([
+   readFile(new URL("../app/campaigns/session-recap-manager.tsx",import.meta.url),"utf8"),
+   readFile(new URL("../app/campaigns/session-recap-full-transcript-manager.tsx",import.meta.url),"utf8"),
+ ]);
+ assert.match(editor,/SessionRecapFullTranscriptManager/u);
+ assert.doesNotMatch(editor,/onClick=\{\(\)=>captionsFileRef/u);
+ assert.match(manager,/parseFullCraigCaptions\(await file\.text\(\),file\.name\)/u);
+ assert.match(manager,/Save private transcript draft/u);
+ assert.match(manager,/Publish transcript/u);
 });

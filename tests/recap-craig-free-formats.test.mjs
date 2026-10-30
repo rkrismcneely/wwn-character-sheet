@@ -30,3 +30,13 @@ test("Craig info text is GM-only, bounded, and never leaks the Craig secret", as
   assert.doesNotMatch(route, /Response\.json\(\{\s*key\b/u);
   assert.match(setup, /Craig Notes &amp; Info/u);
 });
+
+test("no paid inference can run without explicit verified free-only guard", async () => {
+ const [route,ui] = await Promise.all([
+   read("../app/api/campaigns/[id]/recap-imports/transcribe-short/route.ts"),
+   read("../app/campaigns/session-recap-recording-setup.tsx"),
+ ]);
+ assert.match(route, /RECAP_FREE_AI_QUOTA_VERIFIED/u);
+ assert.match(route, /No paid AI usage is permitted/u);
+ assert.match(ui, /disabled title="Free-only AI quota protection is not yet configured"/u);
+});

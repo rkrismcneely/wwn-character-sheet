@@ -6,6 +6,7 @@ import { SessionRecapMarkdown } from "./session-recap-markdown";
 import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
+import { captionsToRecapTranscript } from "@/lib/campaigns/recap-caption-import";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
 type Draft = { date: string; title: string; content: string };
@@ -35,6 +36,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [journalNotice,setJournalNotice]=useState("");
   const [importNotice, setImportNotice] = useState("");
   const importFileRef = useRef<HTMLInputElement>(null);
+  const captionsFileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
   const loadPage = useCallback(async (p: number) => {
@@ -85,6 +87,22 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       setImporting(false);
     }
   }
+  async function importCaptions(event: ChangeEvent<HTMLInputElement>) {
+    const file=event.currentTarget.files?.[0];
+    event.currentTarget.value="";
+    if(!file||saving||importing)return;
+    setImporting(true);setError("");setImportNotice("");
+    try{
+      if(file.size>500_000)throw new Error("Caption file is too large (maximum 500 KB).");
+      const result=captionsToRecapTranscript(await file.text(),file.name);
+      const next=draft.content.trim()+"\n\n"+result.block;
+      if(next.length>30000)throw new Error("Transcript exceeds the recap's 30,000-character limit. Import a shorter file or split the captions.");
+      setDraft(current=>({...current,content:current.content.trim()+"\n\n"+result.block}));
+      setPreview(false);
+      setImportNotice("Imported "+result.count+" caption cues from "+file.name+". Review the speakers and save the recap.");
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not import captions.");}
+    finally{setImporting(false);}
+  }
   function openRecap(recap: CampaignSessionRecap) {
     setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.content });
     setError(""); setPreview(false); setImportNotice("");
@@ -134,6 +152,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }
 
   return <section className="gm-console-section session-recap-manager" aria-labelledby="gm-session-recaps-title">
+    <input ref={captionsFileRef} type="file" accept=".vtt,.srt,text/vtt,application/x-subrip" hidden
+      aria-label="Choose Craig WebVTT or SRT captions" onChange={event=>void importCaptions(event)} />
     <input ref={importFileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain"
       aria-label="Choose an Obsidian Markdown note" hidden
       onChange={event => void importObsidianNote(event)} />
@@ -155,7 +175,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           <label><span>Session date</span><input type="date" required value={draft.date} onChange={event => setDraft(current => ({ ...current, date: event.target.value }))} /></label>
           <label><span>Title</span><input type="text" required maxLength={120} placeholder="What happened this session?" value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} /></label>
         </div>
-        <div className="session-recap-editor-heading"><label htmlFor="session-recap-body">Recap (Markdown)</label><button type="button" className="campaign-quiet" aria-pressed={preview} onClick={() => setPreview(v => !v)}>{preview ? "Edit Markdown" : "Preview Markdown"}</button></div>
+        <div className="session-recap-editor-heading"><label htmlFor="session-recap-body">Recap (Markdown)</label><button type="button" className="campaign-secondary" disabled={saving||importing}
+          onClick={()=>captionsFileRef.current?.click()}>{importing?"Importing…":"Import Craig captions (.vtt/.srt)"}</button><button type="button" className="campaign-quiet" aria-pressed={preview} onClick={() => setPreview(v => !v)}>{preview ? "Edit Markdown" : "Preview Markdown"}</button></div>
         {preview ? <div className="session-recap-editor-preview" aria-label="Markdown preview"><SessionRecapMarkdown content={draft.content} /></div>
           : <textarea id="session-recap-body" required rows={14} maxLength={30000} value={draft.content}
               placeholder={"## The adventure continues…\n\n- A discovery\n- An unexpected encounter\n\n**Next time:** …"}

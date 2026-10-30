@@ -425,7 +425,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         </div>)}
       {reviewTranscript.segments.length > 250 && <p className="session-recap-editor-help">Showing the first 250 segments. Larger transcript paging will follow.</p>}
     </section>}
-    {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · FLAC ready to retrieve" : ""}</p>}
+    {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · {craigJob.format?.toUpperCase() || "Audio"} ready to retrieve" : ""}</p>}
     {activeImport && <div className="session-recap-recording-confirm">
       <h4>Confirm speakers before transcription</h4>
       <p>Select the participants for this recording. These associations will be saved with the recording even if a player changes characters later.</p>

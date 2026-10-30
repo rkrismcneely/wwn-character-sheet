@@ -10,7 +10,8 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 export const DRIVE_CALLBACK = CANONICAL_ORIGIN + "/api/account/storage/google-drive/callback";
 export const DRIVE_STATE_LIFETIME_MS = 10 * 60 * 1000;
 const OAUTH_STATE_COOKIE = "twe_drive_oauth";
-type Settings = { GOOGLE_DRIVE_CLIENT_ID: string; GOOGLE_DRIVE_CLIENT_SECRET: string; RECAP_STORAGE_ENCRYPTION_KEY?: string };
+export type DriveSettings = { GOOGLE_DRIVE_CLIENT_ID: string; GOOGLE_DRIVE_CLIENT_SECRET: string; RECAP_STORAGE_ENCRYPTION_KEY?: string };
+type Settings = DriveSettings;
 const textEncoder = new TextEncoder();
 
 function base64url(bytes: Uint8Array): string {

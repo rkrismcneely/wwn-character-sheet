@@ -37,7 +37,7 @@ export async function POST(request: Request, context: Context) {
     if (!audio) return Response.json({ error: "Extracted track unavailable." }, { status: 404 });
     const bytes = new Uint8Array(await audio.arrayBuffer());
     // This action is explicit. AI inference may consume Cloudflare Workers AI quota.
-    const model = env.AI as unknown as { run: (name: string, input: { audio: number[]; task: string }) => Promise<WhisperOutput> };
+    const model = (env as unknown as { AI: unknown }).AI as { run: (name: string, input: { audio: number[]; task: string }) => Promise<WhisperOutput> };
     const output = await model.run("@cf/openai/whisper-large-v3-turbo", { audio: Array.from(bytes), task: "transcribe" });
     if (!Array.isArray(output.segments) || output.segments.length === 0) {
       return Response.json({ error: "No timestamped speech detected; transcript was not changed." }, { status: 422 });

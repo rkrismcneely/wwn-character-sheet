@@ -256,8 +256,8 @@ const MapTokenArtwork = memo(function MapTokenArtwork({
   const tokenScale = 2 * radius / cropPixelSize;
   const imageWidth = portraitWidth * tokenScale;
   const imageHeight = portraitHeight * tokenScale;
-  const imageX = radius - (crop?.cx ?? 0.5) * imageWidth;
-  const imageY = radius - (crop?.cy ?? 0.5) * imageHeight;
+  const imageX = -(crop?.cx ?? 0.5) * imageWidth;
+  const imageY = -(crop?.cy ?? 0.5) * imageHeight;
   return <>
     <title>{name}</title>
     <circle r={radius} className="campaign-map-token-disc" vectorEffect="non-scaling-stroke" />

@@ -184,6 +184,18 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function inspectCraigArchive(recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/craig-manifest?importId=" + encodeURIComponent(recordingId), { cache: "no-store" });
+      const result = await response.json() as { entries?: { filename: string; uncompressedBytes: number }[]; error?: string };
+      if (!response.ok || !result.entries) throw new Error(result.error || "Craig track inventory unavailable.");
+      setNotice("Archive contains " + result.entries.length + " file(s): " + result.entries.slice(0, 12).map(entry => entry.filename).join(", ") + (result.entries.length > 12 ? "…" : ""));
+    } catch (error) { setError(error instanceof Error ? error.message : "Unable to inspect Craig archive."); }
+    finally { setBusy(false); }
+  }
+
   async function transferCraigArchive(recordingId: string) {
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
@@ -290,6 +302,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transferCraigArchive(recording.id)}>Save Craig Archive</button>
+          <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void inspectCraigArchive(recording.id)}>Inspect Tracks</button>
         </>}
       </div>
     </div>)}</div>

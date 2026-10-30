@@ -86,13 +86,13 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       const eligible=(manifest.entries??[]).flatMap((entry,index)=>{
         const mapping=byIndex.get(index);
         if(!mapping||!mapping.displayName||!mapping.discordName||entry.uncompressedBytes<128||
-          entry.uncompressedBytes>MAX_GROQ_AUDIO_BYTES||!/\.(?:flac|m4a)$/iu.test(entry.filename))return [];
+          entry.uncompressedBytes>MAX_GROQ_AUDIO_BYTES||!/\.(?:flac|m4a|aac)$/iu.test(entry.filename))return [];
         return [{index,filename:entry.filename,bytes:entry.uncompressedBytes,
           speakerLabel:mapping.displayName,discordName:mapping.discordName}];
       });
       setCraigTracks(eligible);
       setNotice(eligible.length? "Select an extracted short Craig track; confirm its speaker below.":
-        "No confirmed, extracted FLAC/M4A track under 16 MB is ready. Larger tracks need proper audio-aware conversion.");
+        "No confirmed, extracted FLAC or AAC track under 16 MB is ready. Larger tracks need proper audio-aware conversion.");
     }catch(cause){setError(cause instanceof Error?cause.message:"Could not inspect Craig recording.");}
     finally{setCraigLoading(false);}
   }
@@ -248,7 +248,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
     {craigImports.length>0 && <div className="session-recap-reading" aria-label="Import saved Craig audio">
       <h5>Use an existing Craig recording</h5>
       <p className="campaign-empty-copy">
-        Import a short extracted FLAC/M4A speaker track without downloading it manually.
+        Import a short extracted FLAC/M4A (or MPEG-4 AAC) speaker track without downloading it manually.
         Only previously confirmed and private Craig tracks are listed. Long compressed tracks
         will need an audio-aware conversion step.
       </p>

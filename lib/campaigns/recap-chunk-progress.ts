@@ -43,7 +43,7 @@ export function validateChunkProgress(raw: unknown, totalMs: number): ChunkProgr
   check(typeof r.updatedAt === "string" && !Number.isNaN(Date.parse(r.updatedAt)), "Invalid update time.");
   check(r.errorCode === undefined || ["audio","provider","timeout","invalid_result"].includes(r.errorCode as string),
     "Invalid chunk failure code.");
-  return r as ChunkProgress;
+  return r as unknown as ChunkProgress;
 }
 export function newChunkProgress(trackIndex: number, chunkIndex: number, totalMs: number): ChunkProgress {
   const w = chunkWindow(chunkIndex, totalMs);

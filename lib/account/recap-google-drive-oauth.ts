@@ -10,7 +10,7 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 export const DRIVE_CALLBACK = CANONICAL_ORIGIN + "/api/account/storage/google-drive/callback";
 export const DRIVE_STATE_LIFETIME_MS = 10 * 60 * 1000;
 const OAUTH_STATE_COOKIE = "twe_drive_oauth";
-type Settings = { GOOGLE_CLIENT_ID: string; GOOGLE_CLIENT_SECRET: string; RECAP_STORAGE_ENCRYPTION_KEY?: string };
+type Settings = { GOOGLE_DRIVE_CLIENT_ID: string; GOOGLE_DRIVE_CLIENT_SECRET: string; RECAP_STORAGE_ENCRYPTION_KEY?: string };
 const textEncoder = new TextEncoder();
 
 function base64url(bytes: Uint8Array): string {
@@ -24,7 +24,7 @@ function fromBase64url(value: string): Uint8Array {
   return Uint8Array.from(raw, char => char.charCodeAt(0));
 }
 export function driveConfiguration(settings: Settings): boolean {
-  return Boolean(settings.GOOGLE_CLIENT_ID && settings.GOOGLE_CLIENT_SECRET &&
+  return Boolean(settings.GOOGLE_DRIVE_CLIENT_ID && settings.GOOGLE_DRIVE_CLIENT_SECRET &&
     settings.RECAP_STORAGE_ENCRYPTION_KEY && /^[a-zA-Z0-9_-]{43}$/u.test(settings.RECAP_STORAGE_ENCRYPTION_KEY));
 }
 export function requireDriveConfiguration(settings: Settings): void {
@@ -91,7 +91,7 @@ export function authorizationUrl(settings: Settings, state: string): string {
   requireDriveConfiguration(settings);
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   const query = url.searchParams;
-  query.set("client_id", settings.GOOGLE_CLIENT_ID);
+  query.set("client_id", settings.GOOGLE_DRIVE_CLIENT_ID);
   query.set("redirect_uri", DRIVE_CALLBACK);
   query.set("response_type", "code");
   query.set("scope", DRIVE_SCOPE);
@@ -105,7 +105,7 @@ export async function exchangeDriveCode(settings: Settings, code: string): Promi
   requireDriveConfiguration(settings);
   if (code.length < 1 || code.length > 2048) throw new Error("Invalid OAuth code.");
   const body = new URLSearchParams({
-    code, client_id: settings.GOOGLE_CLIENT_ID, client_secret: settings.GOOGLE_CLIENT_SECRET,
+    code, client_id: settings.GOOGLE_DRIVE_CLIENT_ID, client_secret: settings.GOOGLE_DRIVE_CLIENT_SECRET,
     redirect_uri: DRIVE_CALLBACK, grant_type: "authorization_code",
   });
   const response = await fetch("https://oauth2.googleapis.com/token", {

@@ -184,6 +184,21 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function transferCraigArchive(recordingId: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/craig-transfer", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ importId: recordingId }),
+      });
+      const result = await response.json() as { saved?: boolean; bytes?: number; error?: string };
+      if (!response.ok || !result.saved) throw new Error(result.error || "Craig archive transfer failed.");
+      setNotice("Craig archive saved privately (" + Math.round((result.bytes || 0) / 1048576) + " MB). Audio extraction will come next.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Archive transfer failed."); }
+    finally { setBusy(false); }
+  }
+
   function chooseRecording(recording: RecapRecordingImport) {
     setActiveImport(recording.id);
     setCraigJob(null);
@@ -274,6 +289,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         {recording.sourceType === "craig" && recording.status === "ready" && <>
           <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void runCraigJob("POST",recording.id)}>Prepare Craig Audio</button>
           <button type="button" className="campaign-quiet" disabled={busy} onClick={() => void runCraigJob("GET",recording.id)}>Check Job</button>
+          <button type="button" className="campaign-secondary" disabled={busy} onClick={() => void transferCraigArchive(recording.id)}>Save Craig Archive</button>
         </>}
       </div>
     </div>)}</div>

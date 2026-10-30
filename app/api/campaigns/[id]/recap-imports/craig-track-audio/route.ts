@@ -4,6 +4,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCraigRecordingForDownloadJob } from "@/lib/campaigns/recap-imports";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { MAX_GROQ_AUDIO_BYTES } from "@/lib/campaigns/recap-groq-audio";
+import { sniffCraigGroqFormat } from "@/lib/campaigns/recap-craig-groq-format";
 
 type Context={params:Promise<{id:string}>};
 type AssignmentStore={version:1;assignments:{index:number;displayName:string;discordName:string}[]};
@@ -49,21 +50,21 @@ export async function GET(request:Request,context:Context):Promise<Response> {
       return Response.json({error:"This track exceeds the 16 MB Groq import limit. Long Craig tracks need audio-aware splitting."},
         {status:413,headers:privateHeaders});
     const originalName=head.customMetadata?.filename??"";
-    const ext=/\.([a-zA-Z0-9]{1,5})$/u.exec(originalName)?.[1]?.toLowerCase();
-    // Craig raw .aac is not a Groq-supported file format. An MP4/M4A AAC
-    // container is eligible, never rename or misrepresent raw AAC bytes.
-    const isFlac=ext==="flac"&&head.httpMetadata?.contentType==="audio/flac";
-    const isM4a=ext==="m4a"&&head.httpMetadata?.contentType==="audio/aac";
-    if(!isFlac&&!isM4a)
-      return Response.json({error:"Choose an extracted FLAC or M4A track. Raw AAC is not accepted by Groq."},
+    const header=await env.BUCKET.get(key,{range:{offset:0,length:32}});
+    if(!header)return Response.json({error:"Craig audio header unavailable."},
+      {status:404,headers:privateHeaders});
+    const format=sniffCraigGroqFormat(originalName,head.httpMetadata?.contentType??null,
+      new Uint8Array(await header.arrayBuffer()));
+    if(!format)
+      return Response.json({error:"Choose genuine FLAC or MPEG-4 AAC audio. Raw AAC or incorrectly labelled audio is unsupported."},
         {status:415,headers:privateHeaders});
     const asset=await env.BUCKET.get(key);
     if(!asset?.body)return Response.json({error:"Craig track could not be read."},{status:404,headers:privateHeaders});
     return new Response(asset.body,{status:200,headers:{
       ...privateHeaders,
-      "content-type":isFlac?"audio/flac":"audio/mp4",
+      "content-type":format.mimeType,
       "content-length":String(head.size),
-      "content-disposition":'attachment; filename="craig-track-'+index+(isFlac?'.flac':'.m4a')+'"',
+      "content-disposition":'attachment; filename="craig-track-'+index+'.'+format.extension+'"',
       "x-recap-speaker-label":encodeURIComponent(assignment.displayName.slice(0,80)),
     }});
   }catch(error){return campaignErrorResponse(error,"Craig audio unavailable.");}

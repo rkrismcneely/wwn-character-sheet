@@ -24,7 +24,7 @@ test("Craig ZIP inventory parses a minimal ordinary ZIP directory", () => {
   assert.deepEqual(parseZipDirectory(directory, loc.entries), [
     { filename: "track-1.flac", compressedBytes: 12, uncompressedBytes: 20, compression: 8 },
   ]);
-  directory.set(new TextEncoder().encode("../unsafe.flac"), 46);
+  directory.set(new TextEncoder().encode("../evil.flac"), 46);
   assert.throws(() => parseZipDirectory(directory, 1));
 });
 test("manifest requires a GM and reads bounded R2 ranges, not archive body", async () => {

@@ -46,7 +46,8 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([
+    const timer = window.setTimeout(() => {
+      void Promise.all([
       refresh(),
       fetch(api + "/characters").then(async response => {
         if (!response.ok) return;
@@ -55,7 +56,8 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       }),
     ]).catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load setup."); })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    }, 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [api, refresh]);
 
   function editSpeaker(speaker: RecapSpeakerAssociation) {

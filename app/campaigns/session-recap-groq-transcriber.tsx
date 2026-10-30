@@ -35,6 +35,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
   const [loading,setLoading]=useState(false);
   const [progress,setProgress]=useState(0);
   const [duplicates,setDuplicates]=useState(0);
+  const [stopRequested,setStopRequested]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const stopAfterCurrent=useRef(false);
@@ -120,7 +121,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       "This WAV will use up to "+wavChunks.length+" Groq transcription requests on YOUR account. "+
       "Your provider may charge for each request. Start now?"))return;
     setLoading(true);setError("");setNotice("");setProgress(0);setDuplicates(0);
-    stopAfterCurrent.current=false;
+    stopAfterCurrent.current=false;setStopRequested(false);
     let finished=0, skipped=0, lastTotal=0;
     try {
       if(mode==="clip") {
@@ -221,8 +222,8 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
         onClick={()=>void transcribe()}>{loading?"Transcribing…":
           mode==="wav"?"Transcribe full WAV and save private draft":"Transcribe and save private draft"}</button>
       {loading&&mode==="wav"&&
-        <button type="button" className="campaign-secondary" disabled={stopAfterCurrent.current}
-          onClick={()=>{stopAfterCurrent.current=true;setNotice("Stopping after the current clip.");}}>
+        <button type="button" className="campaign-secondary" disabled={stopRequested}
+          onClick={()=>{stopAfterCurrent.current=true;setStopRequested(true);setNotice("Stopping after the current clip.");}}>
           Stop after current clip</button>}
     </div>
     {loading&&<p role="status">Processed {progress} of {mode==="wav"?wavChunks.length:1} clips

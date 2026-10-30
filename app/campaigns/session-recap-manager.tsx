@@ -177,7 +177,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           <label><span>Title</span><input type="text" required maxLength={120} placeholder="What happened this session?" value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} /></label>
         </div>
         <div className="session-recap-editor-heading"><label htmlFor="session-recap-body">Recap (Markdown)</label><button type="button" className="campaign-secondary" disabled={saving||importing}
-          onClick={()=>captionsFileRef.current?.click()}>{importing?"Importing…":"Import short Craig captions into Markdown (.vtt/.srt)"}</button><button type="button" className="campaign-quiet" aria-pressed={preview} onClick={() => setPreview(v => !v)}>{preview ? "Edit Markdown" : "Preview Markdown"}</button></div>
+          onClick={()=>captionsFileRef.current?.click()}>{importing?"Importing…":"Import Craig captions (short Markdown only)"}</button><button type="button" className="campaign-quiet" aria-pressed={preview} onClick={() => setPreview(v => !v)}>{preview ? "Edit Markdown" : "Preview Markdown"}</button></div>
         {preview ? <div className="session-recap-editor-preview" aria-label="Markdown preview"><SessionRecapMarkdown content={draft.content} /></div>
           : <textarea id="session-recap-body" required rows={14} maxLength={30000} value={draft.content}
               placeholder={"## The adventure continues…\n\n- A discovery\n- An unexpected encounter\n\n**Next time:** …"}

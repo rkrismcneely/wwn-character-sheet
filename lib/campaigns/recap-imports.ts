@@ -23,10 +23,11 @@ export type RecapRecordingImport = {
   sessionDate: string;
   status: "awaiting_speakers" | "ready" | "processing" | "failed" | "completed";
   speakerCount: number;
+  speakerIds: string[];
   createdAt: string;
 };
 type SpeakerRow = RecapSpeakerAssociation & { speakerKey: string; internalCharacterId: string | null };
-type ImportRow = Omit<RecapRecordingImport, "speakerCount"> & { speakerCount: number };
+type ImportRow = Omit<RecapRecordingImport, "speakerCount" | "speakerIds"> & { speakerCount: number; speakerIdsRaw: string | null };
 
 function invalid(cause: unknown): never {
   if (cause instanceof CampaignServiceError) throw cause;
@@ -68,7 +69,8 @@ export async function getRecapImportSetup(
       "ORDER BY lower(s.discord_name)").bind(id).all<SpeakerRow>(),
     db.prepare("SELECT r.id, r.source_type AS sourceType, r.source_label AS sourceLabel, " +
       "r.session_date AS sessionDate, r.status, r.created_at AS createdAt, " +
-      "(SELECT count(*) FROM campaign_recap_recording_speakers WHERE import_id=r.id) AS speakerCount " +
+      "(SELECT count(*) FROM campaign_recap_recording_speakers WHERE import_id=r.id) AS speakerCount, " +
+      "(SELECT group_concat(association_id) FROM campaign_recap_recording_speakers WHERE import_id=r.id) AS speakerIdsRaw " +
       "FROM campaign_recap_recording_imports r WHERE r.campaign_id=? " +
       "ORDER BY r.created_at DESC LIMIT 50").bind(id).all<ImportRow>(),
   ]);
@@ -76,6 +78,7 @@ export async function getRecapImportSetup(
   return { speakers: speakers.results.map(publicSpeaker), imports: imports.results.map(row => ({
     id: row.id, sourceType: row.sourceType, sourceLabel: row.sourceLabel,
     sessionDate: row.sessionDate, status: row.status, speakerCount: Number(row.speakerCount),
+    speakerIds: row.speakerIdsRaw?.split(",").filter(Boolean) ?? [],
     createdAt: row.createdAt,
   })) };
 }
@@ -153,7 +156,7 @@ export async function createRecapRecordingImport(
     "VALUES (?,?,?,?,?,? ,?,'awaiting_speakers',?,?)")
     .bind(id, campaign, actor!.userId, "craig", reference, label, sessionDate, now, now).run();
   return { id, sourceType: "craig", sourceLabel: label, sessionDate,
-    status: "awaiting_speakers", speakerCount: 0, createdAt: now };
+    status: "awaiting_speakers", speakerCount: 0, speakerIds: [], createdAt: now };
 }
 
 export async function confirmRecapRecordingSpeakers(

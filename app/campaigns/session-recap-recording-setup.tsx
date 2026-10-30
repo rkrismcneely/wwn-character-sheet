@@ -178,9 +178,9 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       const url = api + "/recap-imports/craig-job" + (method === "GET" ? "?importId=" + encodeURIComponent(recordingId) : "");
       const response = await fetch(url, {
         method,
-        ...(method === "POST" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ importId: recordingId }) } : {}),
+        ...(method === "POST" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ importId: recordingId, format }) } : {}),
       });
-      const result = await response.json() as { job?: {status:string;outputReady:boolean;outputSize:number|null}|null; error?:string };
+      const result = await response.json() as { job?: {status:string;format:string|null;outputReady:boolean;outputSize:number|null}|null; error?:string };
       if (!response.ok) throw new Error(result.error || "Craig job unavailable.");
       setCraigJob(result.job ?? null);
       setNotice(result.job ? "Craig conversion status: " + result.job.status + (result.job.outputReady ? ". Audio is ready for the future download step." : ".") : "No Craig conversion job is active.");

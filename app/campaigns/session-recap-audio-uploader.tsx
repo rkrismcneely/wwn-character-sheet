@@ -27,6 +27,7 @@ export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:stri
   const [error,setError] = useState("");
   const [awaitingVerification,setAwaitingVerification] = useState<AwaitingVerification|null>(null);
   const controller=useRef<AbortController|null>(null);
+  const fileInputRef=useRef<HTMLInputElement|null>(null);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio";
 
   useEffect(()=>{
@@ -75,12 +76,16 @@ export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:stri
       throw new Error(result.error||"Google Drive has the file, but TWE could not verify it.");
     }
     setAwaitingVerification(null);
+    setFile(null);
+    if(fileInputRef.current)fileInputRef.current.value="";
     setNotice("Recording saved to your Google Drive and linked to this recap.");
-    const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
-    if(updated.ok){
-      const data=await updated.json() as {assets?:AudioAsset[]};
-      if(Array.isArray(data.assets))setAssets(data.assets);
-    }
+    try {
+      const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
+      if(updated.ok){
+        const data=await updated.json() as {assets?:AudioAsset[]};
+        if(Array.isArray(data.assets))setAssets(data.assets);
+      }
+    } catch { /* The verified upload remains attached even if refreshing the list fails. */ }
   }
 
   async function retryVerification() {
@@ -156,7 +161,7 @@ export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:stri
           {activeConnections.map(c=><option key={c.id} value={c.id}>{c.displayName||"Google Drive"}</option>)}
         </select>
         <label htmlFor="recap-audio-file">Audio file</label>
-        <input id="recap-audio-file" type="file" accept={fileExtensions} disabled={busy || Boolean(awaitingVerification)}
+        <input id="recap-audio-file" ref={fileInputRef} type="file" accept={fileExtensions} disabled={busy || Boolean(awaitingVerification)}
           onChange={pickFile}/>
         {file && <p className="session-recap-editor-help">
           {file.name} · {formatAudioUploadSize(file.size)}

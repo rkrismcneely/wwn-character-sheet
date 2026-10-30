@@ -213,7 +213,10 @@ test("auth build configuration references runtime binding names without secret v
   assert.match(auth, /runtimeEnv\.GOOGLE_CLIENT_ID/u);
   assert.match(auth, /runtimeEnv\.GOOGLE_CLIENT_SECRET/u);
   assert.doesNotMatch(client, /SECRET|CLIENT_ID/u);
-  assert.equal(example, "BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:5173\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nDISCORD_CLIENT_ID=\nDISCORD_CLIENT_SECRET=\n");
+  assert.ok(example.startsWith("BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:5173\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nDISCORD_CLIENT_ID=\nDISCORD_CLIENT_SECRET=\n"));
+  for (const name of ["GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET", "RECAP_STORAGE_ENCRYPTION_KEY"]) {
+    assert.match(example, new RegExp("^" + name + "=$", "mu"));
+  }
   assert.match(
     wrangler,
     /"vars":\s*\{\s*"BETTER_AUTH_URL":\s*"https:\/\/taleswithoutend\.com"\s*\}/u,

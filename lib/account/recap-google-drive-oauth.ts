@@ -19,10 +19,12 @@ function base64url(bytes: Uint8Array): string {
   for (const byte of bytes) raw += String.fromCharCode(byte);
   return btoa(raw).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
 }
-function fromBase64url(value: string): Uint8Array {
+function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
   if (!/^[a-zA-Z0-9_-]{43}$/u.test(value)) throw new Error("Invalid credential key.");
   const raw = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-  return Uint8Array.from(raw, char => char.charCodeAt(0));
+  const output = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i=0; i<raw.length; i++) output[i] = raw.charCodeAt(i);
+  return output;
 }
 export function driveConfiguration(settings: Settings): boolean {
   return Boolean(settings.GOOGLE_DRIVE_CLIENT_ID && settings.GOOGLE_DRIVE_CLIENT_SECRET &&
@@ -35,7 +37,7 @@ async function encryptionKey(settings: Settings): Promise<CryptoKey> {
   requireDriveConfiguration(settings);
   return crypto.subtle.importKey("raw", fromBase64url(settings.RECAP_STORAGE_ENCRYPTION_KEY!), "AES-GCM", false, ["encrypt", "decrypt"]);
 }
-function associatedData(userId: string, connectionId: string): Uint8Array {
+function associatedData(userId: string, connectionId: string): Uint8Array<ArrayBuffer> {
   return textEncoder.encode("twe-recap-storage:v1:google-drive:" + userId + ":" + connectionId);
 }
 export async function encryptDriveRefreshToken(
@@ -56,9 +58,11 @@ export async function decryptDriveRefreshToken(
   if (encrypted.version !== 1) throw new Error("Unsupported credential version.");
   const nonce = encrypted.nonce;
   if (!/^[a-zA-Z0-9_-]{16}$/u.test(nonce)) throw new Error("Invalid credential nonce.");
-  const bytes = (value: string): Uint8Array => {
+  const bytes = (value: string): Uint8Array<ArrayBuffer> => {
     const raw = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-    return Uint8Array.from(raw, char => char.charCodeAt(0));
+    const output = new Uint8Array(new ArrayBuffer(raw.length));
+    for (let i=0; i<raw.length; i++) output[i] = raw.charCodeAt(i);
+    return output;
   };
   const plain = await crypto.subtle.decrypt({
     name: "AES-GCM", iv: bytes(nonce), additionalData: associatedData(userId, connectionId),

@@ -1,0 +1,11 @@
+# GM-owned Google Drive upload start and finish endpoints
+
+- **Start**: `POST /api/campaigns/:id/session-recaps/audio/upload/start` with `{recapId,connectionId,filename,mimeType,byteSize,durationMs}` from an authenticated GM. The route checks recap ownership/authorization and refreshes **only the current GM's encrypted Drive token**. It creates a Google Drive resumable upload session containing appProperties with the TWE asset and campaign IDs, and adds an unready D1 audio asset reference. Response provides `{assetId,uploadSessionUrl,chunkBytes}` only to that GM.
+- **Transfer**: the browser uploads slices directly to the supplied Google HTTPS session URL using `uploadRecordingToDrive`. The returned URL is a short-lived **bearer capability**; do not log, persist in public metadata, share with campaign players, or send through analytics. The Google file itself is never routed through R2 or the TWE Worker.
+- **Finish**: `POST /api/campaigns/:id/session-recaps/audio/upload/finish` with `{assetId,remoteFileId}`. The server checks the current GM owns the pending asset, retrieves file metadata through that GM's own Drive access token, verifies byte size, media type and private TWE campaign/asset markers, and only then changes `status` to `ready`.
+- Both POST routes require the signed-in GM's same-origin request, not just a valid file ID. The size and 8h duration limits come from the source upload validator.
+- Missing or invalid Google Drive OAuth credentials fail closed. A GM may reconnect; no site-owned provider account or paid backend service is used.
+- An unfinished Google upload session expires after one week. The current browser protocol handles brief interruptions but **does not yet resume after closing the tab**. The site stores only the unready asset, not the upload session capability.
+- **Not yet user-facing:** after validation, add the GM upload control in Session Recap editor using these endpoints, followed by the authorized Drive-backed player and timestamps.
+
+This protocol must be tested with real Google Drive credentials and 2–3-hour recordings before claiming successful audio upload or playback. Google: https://developers.google.com/workspace/drive/api/guides/manage-uploads

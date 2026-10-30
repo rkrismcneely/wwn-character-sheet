@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import type { DriveSettings } from "@/lib/account/recap-google-drive-oauth";
 import { getSessionActor } from "@/lib/auth-session";
 import { decryptDriveRefreshToken } from "@/lib/account/recap-google-drive-oauth";
 import { getCampaignD1 } from "@/lib/campaigns/service";
@@ -35,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
   // Revoke with Google if possible; local removal and player-access disabling are authoritative.
   if (row.ciphertext && row.nonce && row.version) {
     try {
-      const settings = env as CloudflareEnv & { RECAP_STORAGE_ENCRYPTION_KEY?: string };
+      const settings = env as unknown as DriveSettings;
       const token = await decryptDriveRefreshToken(settings, actor.userId, id, {
         ciphertext: row.ciphertext, nonce: row.nonce, version: row.version,
       });

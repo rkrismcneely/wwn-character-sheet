@@ -14,10 +14,16 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
   const [filename,setFilename]=useState("");
   const [assignments,setAssignments]=useState<Record<string,string>>({});
   const [reviewed,setReviewed]=useState(false);
+  const [previewQuery,setPreviewQuery]=useState("");
+  const [previewPage,setPreviewPage]=useState(0);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const labels=[...new Set(pending.map(cue=>cue.rawSpeaker))];
+  const savedCues=stored.cues??[];
+  const reviewMatches=savedCues.filter(cue=>
+    (cue.rawSpeaker+" "+cue.text).toLowerCase().includes(previewQuery.toLowerCase()));
+  const reviewPageCues=reviewMatches.slice(previewPage*100,previewPage*100+100);
   const url=api+"?recapId="+encodeURIComponent(recapId);
   useEffect(()=>{
     const controller=new AbortController();
@@ -42,7 +48,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
     const file=event.currentTarget.files?.[0];
     event.currentTarget.value="";
     if(!file)return;
-    setError("");setNotice("");setReviewed(false);
+    setError("");setNotice("");setReviewed(false);setPreviewPage(0);setPreviewQuery("");
     try {
       if(file.size>2_000_000)throw new Error("Choose a caption file smaller than 2 MB.");
       const cues=parseFullCraigCaptions(await file.text(),file.name);
@@ -60,7 +66,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
       const result=await response.json() as {error?:string;updatedAt?:string;count?:number};
       if(!response.ok||!result.updatedAt)throw new Error(result.error||"Transcript could not be saved.");
       setStored({exists:true,published:false,updatedAt:result.updatedAt,cues:pending});
-      setPending([]);setReviewed(false);
+      setPending([]);setReviewed(false);setPreviewPage(0);setPreviewQuery("");
       setNotice("Saved "+(result.count??pending.length)+" captions privately. Review and publish when ready.");
     }catch(cause){setError(cause instanceof Error?cause.message:"Transcript could not be saved.");}
     finally{setBusy(false);}
@@ -109,6 +115,27 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
     {stored.exists && <div>
       <p><strong>{stored.published?"Published to campaign members":"Private GM draft"}</strong>
         {" · "}{stored.cues?.length.toLocaleString()??"Saved"} captions</p>
+      {!pending.length && savedCues.length>0 && <div className="session-recap-reading" aria-label="Review saved transcript">
+        <h5>Review saved transcript ({savedCues.length.toLocaleString()} captions)</h5>
+        <label>Find dialogue
+          <input type="search" value={previewQuery}
+            onChange={event=>{setPreviewQuery(event.target.value);setPreviewPage(0);}}
+            placeholder="Search speaker or dialogue"/>
+        </label>
+        <div style={{maxHeight:350,overflowY:"auto"}}>
+          {reviewPageCues.map((cue,index)=><p key={cue.startMs+":"+index}>
+            <strong>{cue.rawSpeaker}:</strong> {cue.text}
+          </p>)}
+        </div>
+        {reviewMatches.length>100 && <div className="session-recap-form-actions">
+          <button type="button" className="campaign-secondary" disabled={previewPage===0}
+            onClick={()=>setPreviewPage(p=>p-1)}>Previous</button>
+          <span>Page {previewPage+1} / {Math.ceil(reviewMatches.length/100)}</span>
+          <button type="button" className="campaign-secondary"
+            disabled={(previewPage+1)*100>=reviewMatches.length}
+            onClick={()=>setPreviewPage(p=>p+1)}>Next</button>
+        </div>}
+      </div>}
       {!stored.published && !pending.length && <>
         <label><input type="checkbox" checked={reviewed} onChange={event=>setReviewed(event.target.checked)}/>
           I have reviewed the speaker assignments and transcript and approve player access.</label>

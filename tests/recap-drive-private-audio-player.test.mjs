@@ -50,8 +50,24 @@ test("recap streaming enforces campaign and specific recap access, never shares 
   assert.match(route,/getSessionActor\(request\)/u);
   assert.match(route,/request\.headers\.get\("range"\)/u);
   assert.match(route,/status:416/u);
-  assert.match(player,/<audio key=\{selected\.id\} controls preload="metadata"/u);
+  assert.match(player,/<audio ref=\{audioRef\} key=\{selected\.id\} controls preload="metadata"/u);
   assert.match(player,/\/stream/u);
   assert.match(panel,/<SessionRecapAudioPlayer key=\{selected\.id\}/u);
   assert.doesNotMatch(player,/remote_file_id|refresh_token|access_token|GOOGLE_DRIVE_CLIENT_SECRET/u);
+});
+
+test("recap chapters are explicit, bounded, and seek through the private audio element",async()=>{
+  const [player,panel]=await Promise.all([
+    read("../app/campaigns/session-recap-audio-player.tsx"),
+    read("../app/campaigns/session-recap-panel.tsx"),
+  ]);
+  assert.match(player,/function recapAudioChapters\(content: string\)/u);
+  assert.match(player,/inCode = !inCode/u);
+  assert.match(player,/seen\.has\(seconds\)/u);
+  assert.match(player,/chapters\.length >= 100/u);
+  assert.match(player,/chapters\.sort\(\(a,b\) => a\.seconds - b\.seconds\)/u);
+  assert.match(player,/onClick=\{\(\)=>seekTo\(chapter\.seconds\)\}/u);
+  assert.match(player,/audio\.currentTime=/u);
+  assert.match(player,/onLoadedMetadata=/u);
+  assert.match(panel,/content=\{selected\.content\}/u);
 });

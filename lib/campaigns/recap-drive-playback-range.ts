@@ -1,18 +1,16 @@
-import { CampaignServiceError } from "./service.ts";
-
 /** Browser playback accepts only one bounded HTTP byte-range request at a time. */
 export function validateAudioRangeHeader(raw: string | null, byteSize: number): string | null {
   if (raw === null) return null;
   if (!Number.isSafeInteger(byteSize) || byteSize <= 0 || raw.length > 80) {
-    throw new CampaignServiceError("Invalid audio range.", 416);
+    throw new RangeError("Invalid audio range.");
   }
   const match = /^bytes=(\d+)-(\d*)$/u.exec(raw);
   const suffix = /^bytes=-(\d+)$/u.exec(raw);
-  if (!match && !suffix) throw new CampaignServiceError("Only one audio byte range is supported.", 416);
+  if (!match && !suffix) throw new RangeError("Only one audio byte range is supported.");
   if (suffix) {
     const size = Number(suffix[1]);
     if (!Number.isSafeInteger(size) || size < 1) {
-      throw new CampaignServiceError("Invalid audio suffix range.", 416);
+      throw new RangeError("Invalid audio suffix range.");
     }
     return "bytes=-" + size;
   }
@@ -20,7 +18,7 @@ export function validateAudioRangeHeader(raw: string | null, byteSize: number): 
   const end = match![2] ? Number(match![2]) : null;
   if (!Number.isSafeInteger(start) || start < 0 || start >= byteSize ||
       (end !== null && (!Number.isSafeInteger(end) || end < start))) {
-    throw new CampaignServiceError("Audio range is not satisfiable.", 416);
+    throw new RangeError("Audio range is not satisfiable.");
   }
   return "bytes=" + start + "-" + (end === null ? "" : Math.min(end,byteSize-1));
 }

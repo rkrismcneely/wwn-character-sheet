@@ -108,7 +108,7 @@ export function planPcmWavUploadChunks(wav:PcmWav,maxFileBytes=12*1024*1024):Wav
   return chunks;
 }
 export async function inspectPcmWavUpload(file:File):Promise<PcmWav>{
-  if(!/\\.wav$/iu.test(file.name))throw new Error("Choose a standard PCM WAV file.");
+  if(!/\.wav$/iu.test(file.name))throw new Error("Choose a standard PCM WAV file.");
   const header=new Uint8Array(await file.slice(0,256*1024).arrayBuffer());
   return parsePcmWavHeader(header,file.size);
 }
@@ -116,7 +116,7 @@ export function buildPcmWavUpload(file:File,wav:PcmWav,part:WavChunk,index:numbe
   check(part.dataOffset>=wav.dataOffset && part.dataBytes>0 &&
     part.dataOffset+part.dataBytes<=wav.dataOffset+wav.dataBytes,
     "Audio chunk exceeds verified WAV data.");
-  const name=file.name.replace(/\\.wav$/iu,"") + "-part-"+String(index+1).padStart(3,"0")+".wav";
-  return new File([pcmWavChunkHeader(wav,part.dataBytes),
+  const name=file.name.replace(/\.wav$/iu,"") + "-part-"+String(index+1).padStart(3,"0")+".wav";
+  return new File([pcmWavChunkHeader(wav,part.dataBytes).buffer as ArrayBuffer,
     file.slice(part.dataOffset,part.dataOffset+part.dataBytes)],name,{type:"audio/wav"});
 }

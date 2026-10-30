@@ -32,6 +32,7 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [sessionDate, setSessionDate] = useState(date);
   const [activeImport, setActiveImport] = useState<string | null>(null);
+  const [inspectedTracks, setInspectedTracks] = useState<{ recordingId: string; entries: { filename: string; uncompressedBytes: number }[] } | null>(null);
   const [craigJob, setCraigJob] = useState<{status:string;outputReady:boolean;outputSize:number|null}|null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -184,6 +185,21 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
     finally { setBusy(false); }
   }
 
+  async function extractCraigTrack(recordingId: string, entryIndex: number) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(api + "/recap-imports/craig-extract", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ importId: recordingId, entryIndex }),
+      });
+      const result = await response.json() as { extracted?: boolean; filename?: string; error?: string };
+      if (!response.ok || !result.extracted) throw new Error(result.error || "Track extraction failed.");
+      setNotice("Private audio track extracted: " + result.filename + ". It is ready for future transcription.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Track extraction failed."); }
+    finally { setBusy(false); }
+  }
+
   async function inspectCraigArchive(recordingId: string) {
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
@@ -191,7 +207,8 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
       const response = await fetch(api + "/recap-imports/craig-manifest?importId=" + encodeURIComponent(recordingId), { cache: "no-store" });
       const result = await response.json() as { entries?: { filename: string; uncompressedBytes: number }[]; error?: string };
       if (!response.ok || !result.entries) throw new Error(result.error || "Craig track inventory unavailable.");
-      setNotice("Archive contains " + result.entries.length + " file(s): " + result.entries.slice(0, 12).map(entry => entry.filename).join(", ") + (result.entries.length > 12 ? "…" : ""));
+      setInspectedTracks({ recordingId, entries: result.entries });
+      setNotice("Archive inspected. Choose a FLAC track below to extract it.");
     } catch (error) { setError(error instanceof Error ? error.message : "Unable to inspect Craig archive."); }
     finally { setBusy(false); }
   }
@@ -306,6 +323,14 @@ export function SessionRecapRecordingSetup({ campaignId, date, onBack }: {
         </>}
       </div>
     </div>)}</div>
+    {inspectedTracks && <div className="session-recap-speaker-list">
+      <strong>Audio tracks in saved Craig archive</strong>
+      {inspectedTracks.entries.map((entry, index) => <div className="session-recap-speaker-entry" key={index}>
+        <span>{entry.filename} · {(entry.uncompressedBytes / 1048576).toFixed(1)} MB</span>
+        {entry.filename.toLowerCase().endsWith(".flac") && <button type="button" className="campaign-secondary" disabled={busy}
+          onClick={() => void extractCraigTrack(inspectedTracks.recordingId, index)}>Extract Track</button>}
+      </div>)}
+    </div>}
     {craigJob && <p role="status">Craig conversion: {craigJob.status}{craigJob.outputReady ? " · FLAC ready to retrieve" : ""}</p>}
     {activeImport && <div className="session-recap-recording-confirm">
       <h4>Confirm speakers before transcription</h4>

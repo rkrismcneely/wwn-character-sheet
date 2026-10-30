@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import type { DriveSettings } from "@/lib/account/recap-google-drive-oauth";
 import { getSessionActor } from "@/lib/auth-session";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 import { getCampaignD1 } from "@/lib/campaigns/service";
@@ -27,7 +28,7 @@ export async function GET(request: Request): Promise<Response> {
     if (!state || !code || !hasDriveStateCookie(request, state)) return end("error");
     const db = await getCampaignD1();
     if (!await consumeDriveState(db, actor.userId, state)) return end("error");
-    const config = env as CloudflareEnv & { RECAP_STORAGE_ENCRYPTION_KEY?: string };
+    const config = env as unknown as DriveSettings;
     requireDriveConfiguration(config);
     const token = await exchangeDriveCode(config, code);
     const label = await driveAccountLabel(token.access_token);

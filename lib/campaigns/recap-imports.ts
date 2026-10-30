@@ -159,6 +159,34 @@ export async function createRecapRecordingImport(
     status: "awaiting_speakers", speakerCount: 0, speakerIds: [], createdAt: now };
 }
 
+
+/**
+ * A media file has already been placed in campaign-private R2 by the upload
+ * handler. Never accept an R2 key from a caller-controlled JSON body.
+ */
+export async function createUploadedRecapRecording(
+  db: D1Database, actor: CampaignActor | null, campaignId: string,
+  input: { storageKey: string; filename: string; sessionDate: unknown },
+): Promise<RecapRecordingImport> {
+  const internalId = await gmAccess(db, actor, campaignId, true);
+  let sessionDate: string;
+  try { sessionDate = parseRecapSessionDate(input.sessionDate); } catch (error) { invalid(error); }
+  if (!/^recap-audio\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/iu.test(input.storageKey)) {
+    throw new CampaignServiceError("Invalid recording storage key.", 422);
+  }
+  if (typeof input.filename !== "string" || !input.filename.trim() || input.filename.length > 150) {
+    throw new CampaignServiceError("Enter a valid recording filename.", 422);
+  }
+  const id = crypto.randomUUID(), now = new Date().toISOString();
+  await db.prepare("INSERT INTO campaign_recap_recording_imports " +
+    "(id,campaign_id,created_by,source_type,source_reference,source_label,session_date,status,created_at,updated_at) " +
+    "VALUES (?,?,?,?,?,?,?,'awaiting_speakers',?,?)")
+    .bind(id, internalId, actor!.userId, "upload", input.storageKey,
+      input.filename.trim(), sessionDate, now, now).run();
+  return { id, sourceType: "upload", sourceLabel: input.filename.trim(), sessionDate,
+    status: "awaiting_speakers", speakerCount: 0, speakerIds: [], createdAt: now };
+}
+
 export async function confirmRecapRecordingSpeakers(
   db: D1Database, actor: CampaignActor | null, campaignId: string, input: unknown,
 ): Promise<void> {

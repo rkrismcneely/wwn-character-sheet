@@ -89,5 +89,6 @@ test("GM-only routes and new session creation mode coexist with manual recaps", 
   assert.match(setup, /Guest/u);
   assert.match(setup, /Game Master \(may play multiple NPCs\)/u);
   assert.match(setup, /Confirm Speakers/u);
-  assert.match(setup, /Transcription, audio uploading and automatic summaries are coming in later phases/u);
+  assert.match(setup, /Transcription and automatic summaries are coming in later phases/u);
+  assert.match(setup, /Save Audio Recording/u);
 });

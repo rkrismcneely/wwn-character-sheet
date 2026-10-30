@@ -80,8 +80,8 @@ export function SessionRecapAIWriter({campaignId,recapId,onDraft}:{
   return <section className="session-recap-reading" aria-label="Generate recap from transcript">
     <h4>Draft a recap with your own AI account</h4>
     <p className="campaign-empty-copy">
-      Uses your personal Groq API key for this request only. The key stays in this page's memory
-      and is sent securely to TWE's server for each request, then forwarded to Groq.
+      Uses your personal Groq API key for this request only. The key stays in this page memory
+      and is sent securely to the TWE server for each request, then forwarded to Groq.
       It is not saved as an account connection. Audio is never sent.
       Your provider may charge you; TWE cannot verify remaining free quota.
     </p>

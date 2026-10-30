@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import type { DriveSettings } from "@/lib/account/recap-google-drive-oauth";
 import { getSessionActor } from "@/lib/auth-session";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 import { getCampaignD1 } from "@/lib/campaigns/service";
@@ -16,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
     }
     const actor = await getSessionActor(request);
     if (!actor) return Response.redirect(CANONICAL_ORIGIN + "/account", 303);
-    const config = env as CloudflareEnv & { RECAP_STORAGE_ENCRYPTION_KEY?: string };
+    const config = env as unknown as DriveSettings;
     requireDriveConfiguration(config);
     const state = newDriveState();
     await storeDriveState(await getCampaignD1(), actor.userId, state);

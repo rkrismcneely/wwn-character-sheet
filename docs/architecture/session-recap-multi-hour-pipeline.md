@@ -1,6 +1,7 @@
 # Session Recap v2 — 2–3 hour recording architecture
 
 Status: **design and capacity guardrails; not a deployed long-recording processor**.
+**Recording playback requirement:** audio files live in the GM's connected Google Drive or other supported storage and are playable on authorized Session Recap pages, with seeking and timestamp jump links. See [user-owned audio storage design](recap-user-owned-audio-storage.md).
 **Billing clarification (2026-10-30): TWE's operator pays $0. An individual GM may use their own paid Craig, Groq, Gemini, or other provider plan. This document's previous paid-Container discussion is superseded by the browser-local media processing strategy and [bring-your-own-provider policy](recap-bring-your-own-provider.md).**
 The earlier Craig import and short-track review remain available independently.
 This plan intentionally avoids turning on new background transcription or paid infrastructure.
@@ -30,7 +31,7 @@ First two lanes need a real audio decoder such as FFmpeg. The existing PCM WAV p
 | --- | --- |
 | Worker routes | GM authorization, consent, job start/status/cancel, short JSON responses only |
 | D1 | Authoritative job state, progress counters, idempotent chunk IDs, leases, concurrency, cost ceilings and retention policy |
-| R2 | Private original audio, immutable normalized chunks, timestamped segment output per chunk, source captions and draft artifacts |
+| R2 | Temporary, quota-bounded processing artifacts, immutable transcript chunks and draft results; permanent listenable recording storage belongs to the GM's connected cloud account |
 | Workflows | Durable **stage-level** orchestration (not a step for every 30 seconds), recovery and bounded retries |
 | Queues or a bounded task dispatcher | At most 1–4 concurrent chunk inference calls per job, with back-pressure and replay safety |
 | Media processor | Browser-local Craig-compatible decoder / open-source local tools; no site-owner-paid Container |

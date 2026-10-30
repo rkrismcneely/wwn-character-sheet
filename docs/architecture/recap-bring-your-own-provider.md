@@ -10,7 +10,7 @@ The GM independently selects:
 - **Speech-to-text**: Groq Whisper using the GM's own key, or local Whisper running on their device. Gemini audio transcription remains experimental and is not an enabled transcription choice until real timestamp quality and account behavior are tested.
 - **Recap writer**: Groq text model, Gemini text model, or manual editing without an AI provider.
 - **Audio preparation**: locally in the browser, based on the existing Craig raw.dat/Minizel decoding investigation.
-- **Storage**: short-lived server-owned R2 with limits by default; optional personal Google Drive is a separate later feature with its own consent/scopes.
+- **Storage and recap playback**: GM-owned Google Drive is the initial target, with Dropbox/OneDrive adapters planned. Recordings must play inside authorized Session Recap pages with timestamps; R2 is at most temporary processing storage. This is a core requirement; see [user-owned audio storage design](recap-user-owned-audio-storage.md).
 
 ## How connection works
 

@@ -1,9 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RecapAudioForPlayer } from "@/lib/campaigns/recap-audio-assets";
 
-export function SessionRecapAudioPlayer({campaignId,recapId}:{campaignId:string;recapId:string}) {
+/** Extract explicit chapter headings only; ordinary narrative timestamps are not chapters. */
+export function recapAudioChapters(content: string): { seconds: number; label: string; timestamp: string }[] {
+  const chapters: { seconds: number; label: string; timestamp: string }[] = [];
+  const seen = new Set<number>();
+  let inCode = false;
+  for (const line of content.split(/\r?\n/u)) {
+    if (/^\s*```/u.test(line)) { inCode = !inCode; continue; }
+    if (inCode) continue;
+    const match = /^#{1,6}\s+\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*(?:[-–—:]\s*)?(.+)$/u.exec(line.trim());
+    if (!match) continue;
+    const parts = match[1].split(":").map(Number);
+    const seconds = parts.length === 3
+      ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+      : parts[0] * 60 + parts[1];
+    if ((parts.length === 3 && (parts[1] > 59 || parts[2] > 59)) ||
+        (parts.length === 2 && parts[1] > 59) || seen.has(seconds)) continue;
+    seen.add(seconds);
+    chapters.push({ seconds, timestamp: match[1], label: match[2].trim() });
+    if (chapters.length >= 100) break;
+  }
+  return chapters.sort((a,b) => a.seconds - b.seconds);
+}
+
+export function SessionRecapAudioPlayer({campaignId,recapId,content}:{campaignId:string;recapId:string;content?:string}) {
+  const audioRef=useRef<HTMLAudioElement>(null);
+  const pendingSeek=useRef<number|null>(null);
+  const chapters=recapAudioChapters(content??"");
+  function seekTo(seconds:number) {
+    const audio=audioRef.current;
+    if (!audio) return;
+    if (audio.readyState < 1) { pendingSeek.current=seconds; audio.load(); return; }
+    audio.currentTime=Number.isFinite(audio.duration)?Math.min(seconds,audio.duration):seconds;
+    void audio.play().catch(()=>{/* Playback may require a second user gesture. */});
+  }
   const [assets,setAssets]=useState<RecapAudioForPlayer[]>([]);
   const [selectedId,setSelectedId]=useState("");
   const [error,setError]=useState("");
@@ -46,7 +79,16 @@ export function SessionRecapAudioPlayer({campaignId,recapId}:{campaignId:string;
         </option>)}
       </select>
     </label>}
-    {selected && <audio key={selected.id} controls preload="metadata"
+    {selected && chapters.length>0 && <nav aria-label="Recording chapters">
+      <h5>Chapters</h5>
+      <ol>{chapters.map(chapter=><li key={chapter.seconds}>
+        <button type="button" className="journal-inline-link" onClick={()=>seekTo(chapter.seconds)}>
+          {chapter.timestamp} — {chapter.label}
+        </button>
+      </li>)}</ol>
+    </nav>}
+    {selected && <audio ref={audioRef} key={selected.id} controls preload="metadata"
+      onLoadedMetadata={()=>{if(pendingSeek.current!==null){const seconds=pendingSeek.current;pendingSeek.current=null;seekTo(seconds);}}}
       aria-label={selected.label||"Session recording"}
       src={"/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio/"+
         encodeURIComponent(selected.id)+"/stream"}

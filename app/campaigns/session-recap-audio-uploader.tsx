@@ -1,0 +1,185 @@
+"use client";
+
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-browser";
+import { describeAudioUploadFile, formatAudioUploadSize, uploadPercent } from "@/lib/campaigns/recap-audio-upload-ui";
+
+type StorageConnection = {
+  id:string;provider:string;displayName:string;
+  status:"connected"|"disconnected"|"reconnect_required";
+};
+type AudioAsset = {
+  id:string;label:string;provider:string;status:string;primaryAudio:boolean;
+};
+type AwaitingVerification = {assetId:string;remoteFileId:string};
+const fileExtensions = ".mp3,.m4a,.mp4,.wav,.flac,.aac";
+
+export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:string;recapId:string}) {
+  const [connections,setConnections] = useState<StorageConnection[]>([]);
+  const [driveConfigured,setDriveConfigured] = useState(false);
+  const [connectionId,setConnectionId] = useState("");
+  const [assets,setAssets] = useState<AudioAsset[]>([]);
+  const [file,setFile] = useState<File|null>(null);
+  const [loading,setLoading] = useState(true);
+  const [busy,setBusy] = useState(false);
+  const [progress,setProgress] = useState(0);
+  const [notice,setNotice] = useState("");
+  const [error,setError] = useState("");
+  const [awaitingVerification,setAwaitingVerification] = useState<AwaitingVerification|null>(null);
+  const controller=useRef<AbortController|null>(null);
+  const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio";
+
+  useEffect(()=>{
+    let active=true;
+    const account=fetch("/api/account/storage/google-drive",{cache:"no-store"})
+      .then(async response=>{
+        const result=await response.json() as {connections?:StorageConnection[];available?:boolean;error?:string};
+        if(!response.ok || !Array.isArray(result.connections)) throw new Error(result.error||"Storage connections unavailable.");
+        return result;
+      });
+    const linked=fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"})
+      .then(async response=>{
+        const result=await response.json() as {assets?:AudioAsset[];error?:string};
+        if(!response.ok || !Array.isArray(result.assets)) throw new Error(result.error||"Recording references unavailable.");
+        return result.assets;
+      });
+    void Promise.all([account,linked])
+      .then(([details,found])=>{
+        if(!active)return;
+        setDriveConfigured(Boolean(details.available));
+        setConnections(details.connections ?? []);
+        setAssets(found);
+        const connected=details.connections?.find(c=>c.provider==="google-drive" && c.status==="connected");
+        setConnectionId(connected?.id ?? "");
+      })
+      .catch(cause=>{if(active)setError(cause instanceof Error?cause.message:"Could not load recordings.");})
+      .finally(()=>{if(active)setLoading(false);});
+    return ()=>{active=false;controller.current?.abort();};
+  },[base,recapId]);
+
+  function pickFile(event:ChangeEvent<HTMLInputElement>) {
+    const picked=event.target.files?.[0]??null;
+    setError("");setNotice("");setProgress(0);setAwaitingVerification(null);
+    if(!picked){setFile(null);return;}
+    try {describeAudioUploadFile(picked);setFile(picked);}
+    catch(cause) {setFile(null);setError(cause instanceof Error?cause.message:"Unsupported recording file.");}
+  }
+
+  async function verifyAsset(pending:AwaitingVerification):Promise<void> {
+    const response=await fetch(base+"/upload/finish",{
+      method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify(pending),
+    });
+    const result=await response.json() as {ready?:boolean;error?:string};
+    if(!response.ok || result.ready!==true) {
+      throw new Error(result.error||"Google Drive has the file, but TWE could not verify it.");
+    }
+    setAwaitingVerification(null);
+    setNotice("Recording saved to your Google Drive and linked to this recap.");
+    const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
+    if(updated.ok){
+      const data=await updated.json() as {assets?:AudioAsset[]};
+      if(Array.isArray(data.assets))setAssets(data.assets);
+    }
+  }
+
+  async function retryVerification() {
+    if(!awaitingVerification || busy)return;
+    setBusy(true);setError("");setNotice("");
+    try{await verifyAsset(awaitingVerification);}
+    catch(cause){setError(cause instanceof Error?cause.message:"Verification failed.");}
+    finally{setBusy(false);}
+  }
+
+  async function upload() {
+    if(!file || !connectionId || busy || awaitingVerification)return;
+    setBusy(true);setProgress(0);setNotice("");setError("");
+    const abort=new AbortController();controller.current=abort;
+    let uploaded:AwaitingVerification|null=null;
+    try{
+      const draft=describeAudioUploadFile(file);
+      const response=await fetch(base+"/upload/start",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({...draft,recapId,connectionId}),
+        signal:abort.signal,
+      });
+      const session=await response.json() as {
+        assetId?:string;uploadSessionUrl?:string;chunkBytes?:number;error?:string;
+      };
+      if(!response.ok || !session.assetId || !session.uploadSessionUrl || !session.chunkBytes){
+        throw new Error(session.error||"Could not start Google Drive upload.");
+      }
+      const remote=await uploadRecordingToDrive(file,session.uploadSessionUrl,
+        (sent,total)=>setProgress(uploadPercent(sent,total)),
+        {chunkBytes:session.chunkBytes,signal:abort.signal});
+      uploaded={assetId:session.assetId,remoteFileId:remote.id};
+      setAwaitingVerification(uploaded);
+      await verifyAsset(uploaded);
+    }catch(cause){
+      if(abort.signal.aborted){
+        setNotice("Upload stopped. Any partial file remains in your own Drive upload session.");
+      }else{
+        setError(cause instanceof Error?cause.message:"Audio upload failed.");
+        if(uploaded)setNotice("Your file reached Google Drive. Use Retry verification to link it without uploading again.");
+      }
+    }finally{controller.current=null;setBusy(false);}
+  }
+
+  const activeConnections=connections.filter(c=>c.provider==="google-drive" && c.status==="connected");
+
+  return <section className="session-recap-form" aria-label="Audio recording for this recap">
+    <div className="session-recap-editor-heading">
+      <strong>Session audio</strong>
+      <a href="/account">Manage storage accounts</a>
+    </div>
+    <p className="session-recap-editor-help">
+      Save an MP3, M4A, WAV, FLAC or AAC recording in your own Google Drive.
+      Large 2–3-hour recordings upload in chunks directly from this browser.
+      Keep this page open while uploading.
+    </p>
+    {assets.length>0 && <div aria-label="Attached recordings">
+      {assets.map(asset=><p className="session-recap-editor-help" key={asset.id}>
+        {asset.label} — {asset.status==="ready"?"Saved in your storage account":asset.status==="auth_required"?"Reconnect storage to access":"Upload not ready"}
+      </p>)}
+    </div>}
+    {loading ? <p role="status">Loading recording storage…</p> : <>
+      {!driveConfigured && <p className="session-recap-editor-help">
+        TWE&apos;s Google Drive connection is not configured yet. Recording uploads are unavailable until setup is completed.
+      </p>}
+      {driveConfigured && activeConnections.length===0 && <p className="session-recap-editor-help">
+        Connect your Google Drive from <a href="/account">Account settings</a> to attach audio.
+      </p>}
+      {driveConfigured && activeConnections.length>0 && <>
+        <label htmlFor="recap-audio-storage-account">Your storage account</label>
+        <select id="recap-audio-storage-account" value={connectionId}
+          onChange={event=>setConnectionId(event.target.value)} disabled={busy}>
+          {activeConnections.map(c=><option key={c.id} value={c.id}>{c.displayName||"Google Drive"}</option>)}
+        </select>
+        <label htmlFor="recap-audio-file">Audio file</label>
+        <input id="recap-audio-file" type="file" accept={fileExtensions} disabled={busy || Boolean(awaitingVerification)}
+          onChange={pickFile}/>
+        {file && <p className="session-recap-editor-help">
+          {file.name} · {formatAudioUploadSize(file.size)}
+        </p>}
+        {busy && !awaitingVerification && <div role="status" aria-live="polite">
+          <progress max={100} value={progress} aria-label="Recording upload progress"/>
+          <span> {progress}% uploaded to your Drive</span>
+        </div>}
+        {busy && awaitingVerification && <p role="status">Verifying the saved recording…</p>}
+        <div className="session-recap-form-actions">
+          {awaitingVerification
+            ? <button type="button" className="campaign-primary" disabled={busy} onClick={()=>void retryVerification()}>
+                {busy?"Verifying…":"Retry verification"}
+              </button>
+            : <button type="button" className="campaign-primary" disabled={!file||!connectionId||busy}
+                onClick={()=>void upload()}>{busy?"Uploading…":"Upload recording"}</button>}
+          {busy && <button type="button" className="campaign-secondary" onClick={()=>controller.current?.abort()}>
+            Stop upload
+          </button>}
+        </div>
+      </>}
+    </>}
+    {error && <p className="campaign-error" role="alert">{error}</p>}
+    {notice && <p className="session-recap-import-notice" role="status">{notice}</p>}
+  </section>;
+}

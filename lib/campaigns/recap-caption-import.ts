@@ -11,11 +11,11 @@ export function captionsToRecapTranscript(source:string,filename:string):{block:
     if(timing<0)continue;
     const match=/(\d{2}):(\d{2}):(\d{2})[.,]\d{3}\s*-->/u.exec(lines[timing]);
     if(!match||Number(match[2])>59||Number(match[3])>59)continue;
-    const caption=lines.slice(timing+1).join(" ").replace(/<[^>]*>/gu,"").replace(/\s+/gu," ").trim();
+    const caption=lines.slice(timing+1).join(" ").replace(/\s+/gu," ").trim();
     if(!caption)continue;
     const speakerMatch=/^(?:<v\s+([^>]+)>|([^:]{1,80}):)\s*(.*)$/iu.exec(caption);
     const speaker=(speakerMatch?.[1]??speakerMatch?.[2]??"Unassigned").trim().replace(/[\[\]\r\n:]/gu,"");
-    const dialogue=(speakerMatch?.[3]??caption).replace(/[\r\n]/gu," ").trim();
+    const dialogue=(speakerMatch?.[3]??caption).replace(/<[^>]*>/gu,"").replace(/[\r\n]/gu," ").trim();
     if(!dialogue)continue;
     output.push("["+match[1]+":"+match[2]+":"+match[3]+"] "+speaker+": "+dialogue);
     if(output.length>=1000)break;

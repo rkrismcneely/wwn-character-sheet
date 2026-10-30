@@ -35,12 +35,13 @@ export function RecapStorageConnections() {
     } finally { setLoading(false); }
   }
 
-  useEffect(()=>{
-    const result = new URLSearchParams(window.location.search).get("drive");
-    if(result === "connected") setMessage("Google Drive connected for your session recordings.");
-    if(result === "error") setError("Drive connection wasn't completed. Please try again.");
-    void refresh();
-  },[]);
+  useEffect(() => {
+    void refresh().then(() => {
+      const result = new URLSearchParams(window.location.search).get("drive");
+      if (result === "connected") setMessage("Google Drive connected for your session recordings.");
+      if (result === "error") setError("Drive connection wasn't completed. Please try again.");
+    });
+  }, []);
 
   async function disconnect(connectionId: string) {
     setBusy(connectionId); setError(""); setMessage("");
@@ -65,7 +66,7 @@ export function RecapStorageConnections() {
     </div></div>
     <p className="account-explanation">
       Connect your own Google Drive for future Session Recap recordings.
-      Your files stay in your account. Players won't need to connect their own Drive.
+      Your files stay in your account. Players won&apos;t need to connect their own Drive.
     </p>
     {message && <p className="account-notice" role="status">{message}</p>}
     {error && <p className="account-error" role="alert">{error}</p>}
@@ -88,6 +89,6 @@ export function RecapStorageConnections() {
         ? <div className="account-actions"><a href="/api/account/storage/google-drive/start" className="account-secondary">Connect Google Drive</a></div>
         : <p className="account-explanation">Google Drive connections are not configured on TWE yet.</p>}
     </>}
-    <p className="account-explanation">Disconnecting removes TWE's access, not the recordings in your Drive. Uploading and in-page playback will be added separately.</p>
+    <p className="account-explanation">Disconnecting removes TWE&apos;s access, not the recordings in your Drive. Uploading and in-page playback will be added separately.</p>
   </section>;
 }

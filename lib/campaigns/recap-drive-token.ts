@@ -1,4 +1,4 @@
-import { decryptDriveRefreshToken, type DriveSettings } from "../account/recap-google-drive-oauth.ts";
+import { decryptDriveRefreshToken, requireDriveConfiguration, type DriveSettings } from "../account/recap-google-drive-oauth.ts";
 import { CampaignServiceError } from "./service.ts";
 
 type StoredConnection = {
@@ -8,6 +8,7 @@ type StoredConnection = {
 export async function getGmDriveAccessToken(
   db: D1Database, settings: DriveSettings, userId: string, connectionId: string,
 ): Promise<string> {
+  requireDriveConfiguration(settings);
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/iu.test(connectionId)) {
     throw new CampaignServiceError("Choose a valid Google Drive connection.", 422);
   }

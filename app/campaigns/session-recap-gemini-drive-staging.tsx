@@ -12,6 +12,7 @@ import { openPrivateCraigRangeReader,inspectCraigFlacStreamInfo,
   type CraigLongSourceMetadata } from "@/lib/campaigns/recap-craig-range-browser";
 import { CRAIG_RANGE_WINDOW_BYTES } from "@/lib/campaigns/recap-craig-audio-ranges";
 import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES } from "@/lib/campaigns/recap-craig-flac-stream";
+import { inspectCraigAacMp4 } from "@/lib/campaigns/recap-craig-aac-demux";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
@@ -73,6 +74,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [uploadBytes,setUploadBytes]=useState({sent:0,total:0});
   const [longSource,setLongSource]=useState<{
     meta:CraigLongSourceMetadata;durationMs:number|null;sampleRate:number|null;
+    aacPackets:number|null;
   }|null>(null);
   const [sourceTransfer,setSourceTransfer]=useState({bytes:0,total:0});
   const [sourceBusy,setSourceBusy]=useState(false);
@@ -250,18 +252,26 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         onProgress:progress=>setSourceTransfer({bytes:progress.receivedBytes,
           total:progress.totalSourceBytes}),
       });
-      const prefix=await stream.read(0,Math.min(64,stream.metadata.bytes));
       let durationMs:null|number=null,sampleRate:null|number=null;
+      let aacPackets:null|number=null;
       if(stream.metadata.mimeType==="audio/flac"){
+        const prefix=await stream.read(0,Math.min(64,stream.metadata.bytes));
         const header=inspectCraigFlacStreamInfo(prefix);
         durationMs=header.durationMs;sampleRate=header.sampleRate;
-      }else if(prefix.byteLength<12||
-        String.fromCharCode(...prefix.subarray(4,8))!=="ftyp"){
-        throw new Error("Craig MPEG-4 file header is not valid.");
+        setSourceMessage("FLAC header inspected. Only "+prefix.byteLength+
+          " header bytes were read; the original recording was not decoded.");
+      }else{
+        // MP4 may store its packet index after hours of media data.
+        // Read only bounded metadata ranges, never the full mdat payload.
+        const index=await inspectCraigAacMp4(stream);
+        durationMs=index.durationMs;sampleRate=index.sampleRate;
+        aacPackets=index.sampleCount;
+        setSourceMessage("AAC metadata verified: "+index.sampleCount+
+          " AAC-LC packets mapped to their original byte offsets. "+
+          "Only bounded container metadata was downloaded. "+
+          "AAC decoding/Drive upload is not yet implemented.");
       }
-      setLongSource({meta:stream.metadata,durationMs,sampleRate});
-      setSourceMessage("Source verified. Only "+prefix.byteLength+
-        " header bytes were downloaded; the full recording was not decoded.");
+      setLongSource({meta:stream.metadata,durationMs,sampleRate,aacPackets});
     }catch(e){setError(errorMessage(e));}
     finally{longAbort.current=null;setSourceBusy(false);}
   }
@@ -705,7 +715,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             and uploads them to your connected Drive. This uses Cloudflare R2 reads,
             your device&apos;s CPU and Google Drive space. Keep the page open; closing it
             stops local decoding, but completed clips stay saved. Reopening must
-            re-decode the source to verify earlier clip checksums. AAC is not yet supported.
+            re-decode the source to verify earlier clip checksums. Long AAC/M4A can be inspected but not decoded or uploaded yet.
           </p>
           <p className="campaign-empty-copy">
             Inspect this Craig speaker track without opening the whole file.
@@ -713,7 +723,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
             The inspection button only checks metadata. <strong>Prepare entire FLAC</strong>
             performs local decoding and Drive uploads; it does not transcribe.
-            Full-length AAC remains unsupported.
+            Full-length AAC packet metadata is now inspected with bounded reads, but decoding and Drive upload are not yet available. Inspection uses hosting R2 reads; quota remaining is unknown.
           </p>
           <div className="session-recap-form-actions">
             <button type="button" className="campaign-primary"
@@ -737,7 +747,10 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             Verified {longSource.meta.mimeType==="audio/flac"?"FLAC":"MPEG-4 AAC"}
             {" "}· {bytesLabel(longSource.meta.bytes)}.
             {longSource.durationMs!==null?
-              " FLAC duration: "+(longSource.durationMs/60000).toFixed(1)+" min.":" Duration not available from this header."}
+              " Duration: "+(longSource.durationMs/60000).toFixed(1)+" min.":" Duration not available from this header."}
+            {longSource.sampleRate!==null?" "+longSource.sampleRate+" Hz.":""}
+            {longSource.aacPackets!==null?
+              " "+longSource.aacPackets+" AAC packets indexed; no audio decoded.":""}
           </p>}
           {sourceTransfer.total>0&&<div role="status">
             <p>Source bytes retrieved: {bytesLabel(sourceTransfer.bytes)} /

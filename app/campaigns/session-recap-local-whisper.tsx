@@ -5,6 +5,8 @@ import type { RecapSpeakerAssociation } from "@/lib/campaigns/recap-imports";
 import { inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload,
   type PcmWav,type WavChunk } from "@/lib/campaigns/recap-wav-chunks";
 import type { CaptionCue } from "@/lib/campaigns/recap-full-transcript";
+import { localHandleKey,rememberLocalRecapFile,readRememberedLocalRecapFile,
+  clearRememberedLocalRecapFile,requestLocalRecapFileHandle } from "@/lib/campaigns/recap-local-file-access";
 
 // Pinned third-party inference library, fetched only after explicit GM activation.
 // Audio remains in the browser; model JS and weights download from public CDNs.
@@ -59,9 +61,74 @@ export function SessionRecapLocalWhisper({campaignId,recapId,onSaved}:{
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
   const [approved,setApproved]=useState(false);
+  const [autoResume,setAutoResume]=useState(false);
+  const [restored,setRestored]=useState(false);
+  const resumedOnce=useRef(false);
   const stop=useRef(false);
   const abort=useRef<AbortController|null>(null);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/transcript/local";
+  const savedKey=localHandleKey(campaignId,recapId);
+  useEffect(()=>{
+    let disposed=false;
+    void (async()=>{
+      try{
+        const prefs=localStorage.getItem("twe-local-resume:"+savedKey);
+        if(!prefs)return;
+        const parsed=JSON.parse(prefs) as {speakerId?:string;enabled?:boolean};
+        if(!parsed.enabled||!parsed.speakerId)return;
+        setAutoResume(true);setSpeakerId(parsed.speakerId);setApproved(true);
+        const handle=await readRememberedLocalRecapFile(savedKey);
+        if(!handle||disposed)return;
+        if(await handle.queryPermission({mode:"read"})!=="granted"){
+          setMessage("The browser needs you to reauthorize the saved WAV file to resume.");
+          return;
+        }
+        const original=await handle.getFile();
+        const format=await inspectPcmWavUpload(original);
+        const parts=planPcmWavUploadChunks(format,4*1024*1024);
+        if(disposed)return;
+        setFile(original);setWav(format);setChunks(parts);setRestored(true);
+        setMessage("Saved recording was reopened. Local transcription will resume from verified checkpoints.");
+      }catch{
+        if(!disposed)setMessage("Could not automatically access the earlier audio. Re-select the file to resume.");
+      }
+    })();
+    return ()=>{disposed=true;};
+  },[savedKey]);
+  useEffect(()=>{
+    if(restored&&autoResume&&!resumedOnce.current&&file&&wav&&chunks.length&&speakerId&&approved&&!busy){
+      resumedOnce.current=true;
+      void process();
+    }
+    // This resumes once per mount only after the recording handle is reauthorized.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[restored,autoResume,file,wav,chunks,speakerId,approved,busy]);
+  async function rememberFile(){
+    if(!speakerId||!approved)return;
+    try{
+      const handle=await requestLocalRecapFileHandle();
+      if(!handle){
+        setMessage("Persistent file handles aren't supported by this browser. Choose the WAV manually next time.");
+        return;
+      }
+      const next=await handle.getFile();
+      const format=await inspectPcmWavUpload(next);
+      const parts=planPcmWavUploadChunks(format,4*1024*1024);
+      await rememberLocalRecapFile(savedKey,handle);
+      localStorage.setItem("twe-local-resume:"+savedKey,
+        JSON.stringify({speakerId,enabled:true}));
+      setAutoResume(true);setFile(next);setWav(format);setChunks(parts);
+      setRestored(false);setMessage("Local file handle remembered. TWE will try resuming automatically next visit.");
+    }catch(cause){
+      setError(cause instanceof Error?cause.message:"Could not remember the recording.");
+    }
+  }
+  async function forgetFile(){
+    await clearRememberedLocalRecapFile(savedKey);
+    localStorage.removeItem("twe-local-resume:"+savedKey);
+    setAutoResume(false);setRestored(false);setMessage("Saved local file permission was cleared.");
+  }
+
   useEffect(()=>{
     const controller=new AbortController();
     void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/recap-imports",
@@ -134,13 +201,20 @@ export function SessionRecapLocalWhisper({campaignId,recapId,onSaved}:{
       Runs on this device using a small open-source Whisper model. No API key, inference billing,
       or audio upload. The model and JavaScript load from third-party CDNs on first use.
       Keep this browser and computer awake. Finished chunks are saved privately to TWE.
-      If you leave, select the same WAV when you return; completed chunks are skipped.
-      Automatic restoration of a local file without permission is not supported yet.
+      If you leave, TWE skips previously completed chunks. On compatible browsers,
+      opt in to remembering a file handle; TWE can restart on return if read permission persists.
+      Otherwise it will ask you to select or reauthorize the WAV.
     </p>
     <label>Uncompressed PCM WAV recording
       <input type="file" accept=".wav,audio/wav" disabled={busy}
         onChange={event=>void choose(event)}/></label>
     {file&&<p className="campaign-empty-copy">{file.name} · {chunks.length} small chunks</p>}
+    <div className="session-recap-form-actions">
+      <button type="button" className="campaign-secondary" disabled={busy||!speakerId||!approved}
+        onClick={()=>void rememberFile()}>Choose WAV and remember for auto-resume</button>
+      {autoResume&&<button type="button" className="campaign-quiet" disabled={busy}
+        onClick={()=>void forgetFile()}>Forget saved file permission</button>}
+    </div>
     <label>Speaker for this isolated recording
       <select value={speakerId} disabled={busy} onChange={event=>setSpeakerId(event.target.value)}>
         <option value="">Select a confirmed voice</option>

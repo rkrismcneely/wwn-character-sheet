@@ -5,6 +5,7 @@ import { CANONICAL_ORIGIN, FALLBACK_WORKER_HOST } from "../lib/auth-constants";
 import { getSessionActor } from "../lib/auth-session";
 import { authorizeLiveSessionConnection } from "../lib/campaigns/live-session-service";
 import { CampaignServiceError } from "../lib/campaigns/service";
+import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler";
 import {
   CLIENT_ERROR_REPORT_PATH,
   OBSERVABILITY_EVENT_VERSION,
@@ -131,6 +132,15 @@ async function handleClientErrorReport(request: Request, url: URL): Promise<Resp
 }
 
 const worker = {
+  async scheduled(_controller: ScheduledController, env: CloudflareEnv,
+    ctx: ExecutionContext): Promise<void> {
+    // No external AI usage unless a verified, explicit rollout flag is enabled.
+    // Errors never disclose OAuth/API credentials or raw transcription content.
+    ctx.waitUntil(runGeminiScheduledTick(env as unknown as Parameters<typeof runGeminiScheduledTick>[0])
+      .catch(() => {
+        console.error({event:"twe_gemini_cron_failed",category:"transcription-scheduler"});
+      }));
+  },
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 

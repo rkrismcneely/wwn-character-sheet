@@ -20,6 +20,7 @@
     "binding": "ASSETS",
     "directory": "dist/client"
   },
+  "triggers": { "crons": ["*/5 * * * *"] },
   "ai": { "binding": "AI" },
   "images": {
     "binding": "IMAGES"

@@ -3,6 +3,8 @@ import type {DriveSettings} from "../account/recap-google-drive-oauth.ts";
 import {getGmDriveAccessToken} from "./recap-drive-token.ts";
 import {redactJournalSecrets} from "./journal.ts";
 import {RecapStagingFailure,stageRecapAudioChunked} from "./recap-gemini-chunked-staging.ts";
+import {geminiAudioMime} from "./recap-gemini-audio-mime.ts";
+import {classifyRecapInteraction} from "./recap-interaction-status.ts";
 
 export type RecapOnlyEnvironment=DriveSettings&RecapAIEncryptionSettings&{DB:D1Database};
 export const RECAP_ONLY_MODEL="gemini-3.8-flash";
@@ -34,12 +36,6 @@ async function keyFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
   if(!key||key.version!==1)throw Error("Gemini connection or explicit processing approval missing.");
   return decryptGeminiUserKey(env,job.requestedBy,key.id,
     {ciphertext:key.ciphertext,nonce:key.nonce,version:1});
-}
-function audioMime(raw:string):string{
-  if(raw==="audio/mp4")return "audio/mp4";
-  if(raw==="audio/mpeg")return "audio/mpeg";
-  if(["audio/aac","audio/flac","audio/wav","audio/m4a","audio/mp3"].includes(raw))return raw;
-  throw new Error("Audio format not supported by Gemini.");
 }
 async function readSmall(response:Response,max=700_000):Promise<unknown>{
   if(!response.ok||response.redirected)throw Error("Provider request failed (HTTP "+response.status+").");
@@ -118,7 +114,8 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
       "WHERE id=? AND status='uploaded'").bind(now(),job.id).run();
     return;
   }
-  if(file.state!=="ACTIVE")throw Error("Gemini audio is not ready for analysis.");
+  if(file.state==="FAILED")throw new RecapStagingFailure("gemini_file_processing_failed");
+  if(file.state!=="ACTIVE")throw new RecapStagingFailure("gemini_file_not_active");
   const claimed=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET status='submitting',claimed_at=?,updated_at=? WHERE id=? AND status='uploaded'")
     .bind(now(),now(),job.id).run();
@@ -130,7 +127,7 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
       headers:{"x-goog-api-key":secret,"content-type":"application/json","Api-Revision":"2026-05-20"},
       body:JSON.stringify({model:RECAP_ONLY_MODEL,background:true,store:true,
         input:[{type:"text",text:prompt(job.detail,await contextFor(env,job))},
-          {type:"audio",uri:job.fileUri,mime_type:audioMime(original.mimeType)}]})
+          {type:"audio",uri:job.fileUri,mime_type:geminiAudioMime(original.mimeType)}]})
     });
     interaction=await readSmall(request,250_000) as Interaction;
   }catch{
@@ -175,13 +172,30 @@ async function poll(env:RecapOnlyEnvironment,job:Job){
     signal:AbortSignal.timeout(12000),
   });
   const result=await readSmall(response,350_000) as Interaction;
-  if(result.status==="in_progress"||result.status==="requires_action"){
-    await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET updated_at=? WHERE id=? AND status='submitted'")
-      .bind(now(),job.id).run();
+  const lifecycle=classifyRecapInteraction(result.status);
+  if(lifecycle.kind==="waiting"){
+    await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET updated_at=? "+
+      "WHERE id=? AND status='submitted'").bind(now(),job.id).run();
     return;
   }
-  if(result.status!=="completed")throw Error("Gemini interaction ended without a completed recap.");
-  const markdown=cleanGeneratedRecap(resultText(result));
+  if(lifecycle.kind==="attention"){
+    // Preserve any partial text for GM review, but never auto-publish it or
+    // create an unapproved continuation request that may consume extra quota.
+    const partial=lifecycle.keepPartial?resultText(result).slice(0,MAX_TEXT):"";
+    await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET "+
+      "status='needs_attention',error_code=?,generated_markdown=?,updated_at=? "+
+      "WHERE id=? AND status='submitted'")
+      .bind(lifecycle.code,partial||null,now(),job.id).run();
+    return;
+  }
+  let markdown:string;
+  try{markdown=cleanGeneratedRecap(resultText(result));}
+  catch{
+    await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET "+
+      "status='needs_attention',error_code='interaction_invalid_output',updated_at=? "+
+      "WHERE id=? AND status='submitted'").bind(now(),job.id).run();
+    return;
+  }
   const updated=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET status='ready',generated_markdown=?,updated_at=? WHERE id=? AND status='submitted'")
     .bind(markdown,now(),job.id).run();
@@ -213,8 +227,9 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
     "FROM campaign_recap_audio_summary_jobs "+
     "WHERE confirmed_at IS NOT NULL AND (status IN ('submitted','uploaded','pending_upload') "+
     "OR (status='transferring' AND claimed_at<?)) "+
-    "ORDER BY CASE status WHEN 'submitted' THEN 0 WHEN 'uploaded' THEN 1 "+
-    "WHEN 'transferring' THEN 2 ELSE 3 END,updated_at LIMIT 1")
+    // Oldest job first: otherwise repeated result polling can starve all new
+    // uploads indefinitely. Each tick runs one bounded provider operation.
+    "ORDER BY updated_at ASC,id ASC LIMIT 1")
     .bind(stamped(Date.now()-90_000)).first<Job>();
   if(!job)return;
   try{
@@ -243,7 +258,9 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
         "WHERE id=? AND status IN ('transferring','uploaded')")
         .bind(stageError,now(),job.id).run();
     }else{
-      // A status GET is safe to retry; keep original interaction ID.
+      // A transient GET is safe to retry, but do not silently spin forever.
+      // On next tick the oldest-status scheduling allows other jobs to advance.
+      // Keep original interaction ID so no second generation is submitted.
       await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET updated_at=? "+
         "WHERE id=? AND status='submitted'").bind(now(),job.id).run();
     }

@@ -98,17 +98,25 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       const restored=(saved.jobs??[]).find(row=>row.status!=="cancelled")??null;
       if(restored){
         setJob(restored);setImportId(restored.importId);
-        const [voices,progress]=await Promise.all([
+        const [voices,progress,manifest]=await Promise.all([
           fetch(base+"/recap-imports/craig-track-speakers?importId="+
             encodeURIComponent(restored.importId),{cache:"no-store",signal:abort.signal}),
           fetch(staging+"?recapId="+encodeURIComponent(recapId)+
             "&jobId="+encodeURIComponent(restored.id),{cache:"no-store",signal:abort.signal}),
+          fetch(base+"/recap-imports/craig-manifest?importId="+
+            encodeURIComponent(restored.importId),{cache:"no-store",signal:abort.signal}),
         ]);
         if(voices.ok&&progress.ok){
           const [speakerData,chunkData]=await Promise.all([
             voices.json() as Promise<{assignments?:Track[]}>,progress.json() as Promise<Progress>,
           ]);
-          if(!abort.signal.aborted){setTracks(speakerData.assignments??[]);setStaged(chunkData);}
+          if(!abort.signal.aborted){
+            setTracks(speakerData.assignments??[]);setStaged(chunkData);
+            if(manifest.ok){
+              const inventory=await manifest.json() as {entries?:CraigEntry[]};
+              if(!abort.signal.aborted)setCraigEntries(inventory.entries??[]);
+            }
+          }
         }else if(!abort.signal.aborted){
           setError("Saved Gemini job found, but its audio or speaker metadata could not be loaded.");
         }

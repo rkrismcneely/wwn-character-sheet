@@ -3,14 +3,17 @@ import {
 } from "../account/recap-google-drive-oauth.ts";
 
 const API="https://generativelanguage.googleapis.com";
-export const RECAP_STAGING_CHUNK_BYTES=4*1024*1024;
-export const RECAP_STAGING_CHUNKS_PER_TICK=6;
+// Google's official Go Gemini client uses 8 MiB per upload chunk.
+export const RECAP_STAGING_CHUNK_BYTES=8*1024*1024;
+// Keep each scheduled run bounded to roughly 24 MiB of network transfer.
+export const RECAP_STAGING_CHUNKS_PER_TICK=3;
 const GOOGLE_ID=/^[a-zA-Z0-9_-]{6,240}$/u;
 export type StagingErrorCode=
   | "gemini_key_unavailable" | "drive_file_unavailable"
   | "drive_permission_unavailable" | "gemini_file_start_failed"
   | "gemini_upload_session_missing" | "gemini_upload_session_expired"
   | "gemini_upload_session_invalid" | "gemini_upload_offset_unknown"
+  | "gemini_chunk_granularity_mismatch"
   | "drive_range_unavailable" | "drive_range_invalid"
   | "gemini_chunk_rejected" | "gemini_chunk_network_error"
   | "gemini_chunk_http_400" | "gemini_chunk_http_401" | "gemini_chunk_http_403"
@@ -98,6 +101,16 @@ async function startingSession(env:StagingEnv,job:Job,secret:string,src:StagedSo
   const raw=response.headers.get("x-goog-upload-url");
   if(!raw)throw new RecapStagingFailure("gemini_upload_session_missing");
   const url=uploadSessionUrl(raw);
+  // Google's resumable upload protocol may return an alignment requirement.
+  // Reject a session before sending bytes if our bounded chunks would violate
+  // that requirement, rather than receiving a generic 400 on the first chunk.
+  const granularity=response.headers.get("x-goog-upload-chunk-granularity");
+  if(granularity!==null){
+    if(!/^\d+$/u.test(granularity))throw new RecapStagingFailure("gemini_chunk_granularity_mismatch");
+    const size=Number(granularity);
+    if(!Number.isSafeInteger(size)||size<1||RECAP_STAGING_CHUNK_BYTES%size!==0)
+      throw new RecapStagingFailure("gemini_chunk_granularity_mismatch");
+  }
   const encrypted=await encryptDriveRefreshToken(env,job.requestedBy,job.id,url);
   const change=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET stage_url_ciphertext=?,stage_url_nonce=?,stage_url_version=?,stage_offset=0,updated_at=? "+
@@ -190,7 +203,10 @@ export async function stageRecapAudioChunked(
           "x-goog-upload-command":final?"upload, finalize":"upload",
           // The Google genai SDK sends the API key with every upload chunk.
           // Only send it to the strictly validated Google upload session URL.
-          "x-goog-api-key":secret,"content-type":"application/octet-stream"},
+          "x-goog-api-key":secret,
+          // Match Google's first-party Go SDK for raw resumable chunks. The
+          // body is still an 8 MiB binary Uint8Array, NOT serialized JSON.
+          "content-type":"application/json"},
         body:new Uint8Array(data),
       });
     }catch{throw new RecapStagingFailure("gemini_chunk_network_error");}

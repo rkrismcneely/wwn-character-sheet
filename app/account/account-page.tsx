@@ -236,6 +236,26 @@ export function AccountPageClient({
           </section>
 
           <ConnectedAccounts />
+          <section id="recap-setup" className="account-panel" aria-labelledby="recap-setup-title">
+            <div className="account-section-heading"><div>
+              <p className="account-kicker">SESSION RECAP SETUP</p>
+              <h2 id="recap-setup-title">Configure Automatic Recap</h2>
+            </div></div>
+            <p className="account-explanation">
+              To prepare a recording-based recap, connect your own Google Drive for
+              audio storage, then connect your Gemini API key for future AI summaries.
+              Neither connection alone starts AI processing or incurs an AI usage charge.
+            </p>
+            <p className="account-explanation">
+              <a href="#storage-connections-title">1. Connect Google Drive</a>
+              {" · "}
+              <a href="#recap-ai-connections-heading">2. Connect Gemini</a>
+            </p>
+            <p className="account-explanation">
+              Direct AI recap generation is still in development. These connections
+              prepare your account for that upcoming feature; they do not generate a recap yet.
+            </p>
+          </section>
           <RecapStorageConnections />
           <RecapAIConnections />
         </div>

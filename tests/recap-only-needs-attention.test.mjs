@@ -71,6 +71,24 @@ test("retry after Gemini HTTP 400 resets only the temporary upload, not the appr
   assert.equal(db.statements.filter(x=>x.sql.startsWith("INSERT")).length,0);
 });
 
+test("expired Gemini temporary Files audio can re-stage the original recording without resubmitting a model",async()=>{
+  for(const stageErrorCode of ["gemini_file_expired","gemini_file_processing_failed"]){
+    const job={...failed,fileUri:"https://generativelanguage.googleapis.com/v1beta/files/expired",
+      fileName:"files/expired",stageErrorCode};
+    assert.equal(safeRecapRetryTarget(job),"pending_upload");
+    const db=mockDatabase(job);
+    assert.deepEqual(await retrySafeRecapPreparation(db,input),
+      {resumed:true,status:"pending_upload"});
+    const updated=db.statements.find(row=>row.sql.startsWith("UPDATE"));
+    assert.ok(updated);
+    assert.match(updated.sql,/file_uri=CASE WHEN \? THEN NULL/u);
+    assert.match(updated.sql,/file_name=CASE WHEN \? THEN NULL/u);
+    assert.deepEqual(updated.args.slice(2,8),[1,1,1,1,1,1]);
+    assert.equal(db.statements.some(row=>row.sql.startsWith("INSERT")),false);
+  }
+  assert.equal(safeRecapRetryTarget({...failed,errorCode:"interaction_result_unavailable",
+    interactionId:"received-previously"}),null);
+});
 test("no retry for unsafe submissions, invalid state, missing storage, key or nonprivate recap",async()=>{
   for(const bad of [
     {...failed,errorCode:"submission_uncertain"},

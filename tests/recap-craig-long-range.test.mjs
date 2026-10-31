@@ -65,8 +65,8 @@ test("browser Craig ranged reader pins one immutable source and reports only con
   assert.equal(progress[1].receivedBytes,CRAIG_RANGE_WINDOW_BYTES+128);
   assert.equal(operations.length,3);
   assert.equal(operations[2].init.credentials,"same-origin");
-  assert.throws(()=>source.read(0,CRAIG_RANGE_WINDOW_BYTES+1),/bounded/u);
-  assert.throws(()=>source.read(total,1),/bounded/u);
+  await assert.rejects(source.read(0,CRAIG_RANGE_WINDOW_BYTES+1),/bounded/u);
+  await assert.rejects(source.read(total,1),/bounded/u);
 });
 test("changed Craig ETag, incorrect Content-Range or unexpected 200 cannot be mistaken for audio data",async()=>{
   const base=new Headers({"content-length":"2048","content-type":"audio/mp4",

@@ -174,6 +174,12 @@ export async function POST(request:Request,context:Context){
         "AND source_digest IS NOT NULL THEN 1 ELSE 0 END) AS linked "+
         "FROM campaign_recap_processing_chunks WHERE job_id=?").bind(job.id)
         .first<{total:number;tracks:number;linked:number}>();
+      const actual=await db.prepare("SELECT DISTINCT track_index AS trackIndex "+
+        "FROM campaign_recap_processing_chunks WHERE job_id=? ORDER BY track_index")
+        .bind(job.id).all<{trackIndex:number}>();
+      if(actual.results.length!==confirmed.length||
+        actual.results.some(row=>!confirmed.includes(row.trackIndex)))
+        return respond("The prepared tracks do not match the current Craig speaker assignments.",409);
       if(!stats||stats.total<1||stats.total!==stats.linked||
         stats.total!==job.totalChunks||stats.tracks!==confirmed.length||
         stats.tracks!==job.speakerTracks)

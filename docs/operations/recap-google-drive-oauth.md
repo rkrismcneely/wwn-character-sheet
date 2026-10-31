@@ -12,7 +12,15 @@
    - `GOOGLE_DRIVE_CLIENT_SECRET` — optional matching Drive client secret (otherwise uses TWE's configured `GOOGLE_CLIENT_SECRET`)
    - **Both** dedicated client settings must be present if using an override; an incomplete override fails closed.
    - `RECAP_STORAGE_ENCRYPTION_KEY` — independent **32 cryptographically random bytes**, encoded using unpadded base64url (43 characters). Generate with a cryptographically secure random generator; never commit this secret or a generated value to GitHub. Keep an offline backup: rotation without a migration will make existing encrypted Drive grants inaccessible.
-4. Cloudflare Worker secrets must be present on the **production** worker. The code will report storage as unavailable until they are configured. Do not automatically create or charge for any external accounts or services.
+4. Cloudflare Worker secrets must be present on the **production** worker. The
+   `Bootstrap Recap Encryption (one time)` GitHub workflow safely initializes
+   `RECAP_STORAGE_ENCRYPTION_KEY` with 32 random bytes **only if the secret does
+   not exist**; it fails closed if it cannot inspect Cloudflare or if the write
+   cannot be confirmed. **Never rotate an existing encryption key casually.**
+   Cloudflare intentionally hides the value after creation. If it is lost or
+   replaced, the GM must reconnect their Drive and Gemini accounts unless an
+   explicit encrypted-credential migration is performed. The worker uses the
+   same key for both provider credential types.
 5. The GitHub "Migrate and Deploy Session Recaps" workflow applies `0036_recap_storage_oauth_states.sql` before deploying the routes. Confirm the migration succeeded, then verify **Account → Storage → Connect Google Drive**.
 
 ## How it works

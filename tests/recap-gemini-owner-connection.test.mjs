@@ -64,7 +64,7 @@ test("Account manages Gemini access, explicitly informs of billing and no false 
   assert.match(ui,/approved/u);
   assert.match(ui,/Test connection/u);
   assert.match(ui,/Disconnect/u);
-  assert.match(ui,/Recap Only uses Gemini audio understanding/u);
+  assert.match(ui,/Gemini only starts when you click Auto Summarize/u);
   assert.doesNotMatch(ui,/localStorage|sessionStorage/u);
   assert.match(page,/RecapAIConnections/u);
 });

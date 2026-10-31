@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCraigRecordingForDownloadJob } from "@/lib/campaigns/recap-imports";
+import { requireLegacyRecapR2Capacity } from "@/lib/campaigns/recap-r2-capacity";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { zipDirectoryLocation, parseZipDirectory } from "@/lib/campaigns/craig-zip-manifest";
 import type { CraigArchiveEntry } from "@/lib/campaigns/craig-zip-manifest";
@@ -75,6 +76,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       return Response.json({ error: "Select a FLAC or AAC audio track from the archive." }, { status: 422 });
     }
     const outputKey = "recap-tracks/" + row.campaignId + "/" + body.importId + "/" + index;
+    await requireLegacyRecapR2Capacity(env.BUCKET,entry.uncompressedBytes,outputKey);
     const stream = await trackData(archiveKey, archive.size, entry);
     const contentType = /\.flac$/iu.test(entry.filename) ? "audio/flac" : "audio/aac";
     // Decompression is streamed and bounded. A failed transfer cannot leave

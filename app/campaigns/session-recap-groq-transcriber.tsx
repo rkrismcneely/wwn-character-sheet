@@ -41,6 +41,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider
   const [start,setStart]=useState("00:00:00");
   const [duration,setDuration]=useState("");
   const [key,setKey]=useState("");
+  const [connectedGemini,setConnectedGemini]=useState(false);
   const [agreeShare,setAgreeShare]=useState(false);
   const [agreeBilling,setAgreeBilling]=useState(false);
   const [loading,setLoading]=useState(false);
@@ -64,6 +65,20 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider
       .catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:"Speakers unavailable.");});
     return ()=>{disposed.current=true;stopAfterCurrent.current=true;controller.abort();};
   },[campaignId]);
+
+  useEffect(()=>{
+    if(!gemini)return;
+    const controller=new AbortController();
+    void fetch("/api/account/recap-ai/gemini",{cache:"no-store",signal:controller.signal})
+      .then(async response=>{
+        const data=await response.json() as {
+          configured?:boolean;connection?:{status?:string};error?:string;
+        };
+        if(!response.ok)throw new Error(data.error||"Could not load Gemini account status.");
+        if(!controller.signal.aborted)setConnectedGemini(Boolean(data.configured&&data.connection?.status==="connected"));
+      }).catch(()=>{if(!controller.signal.aborted)setConnectedGemini(false);});
+    return ()=>controller.abort();
+  },[gemini]);
 
   async function inspectSavedCraig(importId:string) {
     setCraigImportId(importId);setCraigTracks([]);setCraigTrackIndex("");
@@ -181,7 +196,8 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider
     form.set("durationMs",String(clipDurationMs));
     form.set("speakerId",speakerId);form.set("model",model);
     if(language==="en")form.set("language","en");
-    form.set("approvedShare","true");form.set("approvedBilling","true");form.set("apiKey",key);
+    form.set("approvedShare","true");form.set("approvedBilling","true");
+    if(key.trim())form.set("apiKey",key.trim());
     const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+
       (gemini?"/session-recaps/transcript/gemini":"/session-recaps/transcript/transcribe"),
       {method:"POST",body:form,cache:"no-store"});
@@ -190,7 +206,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider
     return result;
   }
   async function transcribe(){
-    if(loading||!file||!speakerId||!agreeShare||!agreeBilling||!key.trim())return;
+    if(loading||!file||!speakerId||!agreeShare||!agreeBilling||(!key.trim()&&!connectedGemini))return;
     const baseStartMs=parseSessionAudioStart(start);
     if(baseStartMs===null){setError("Enter a valid session start (HH:MM:SS).");return;}
     const clipDuration=Math.round(Number(duration)*1000);
@@ -319,9 +335,9 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider
         <select value={language} disabled={loading} onChange={event=>setLanguage(event.target.value)}>
           <option value="en">English</option><option value="">Auto-detect</option>
         </select></label>
-      <label><span>Personal {gemini?"Google AI Studio":"Groq"} API key (not stored)</span>
+      <label><span>Personal {gemini?"Google AI Studio":"Groq"} API key {gemini&&connectedGemini?"(optional — connected in Account)":"(not stored)"}</span>
         <input type="password" autoComplete="off" value={key} disabled={loading}
-          placeholder={gemini?"Google AI Studio key":"gsk_…"} onChange={event=>setKey(event.target.value)}/></label>
+          placeholder={gemini&&connectedGemini?"Using your encrypted Account connection":"Google AI Studio key"} onChange={event=>setKey(event.target.value)}/></label>
     </div>
     <label style={{display:"block",marginBlock:"0.5rem"}}>
       <input type="checkbox" checked={agreeShare} disabled={loading}
@@ -335,7 +351,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider
     </label>
     <div className="session-recap-form-actions">
       <button type="button" className="campaign-primary"
-        disabled={loading||!file||!key.trim()||!speakerId||!agreeShare||!agreeBilling}
+        disabled={loading||!file||(!key.trim()&&!connectedGemini)||!speakerId||!agreeShare||!agreeBilling}
         onClick={()=>void transcribe()}>{loading?"Transcribing…":
           mode==="wav"?"Transcribe full WAV and save private draft":"Transcribe and save private draft"}</button>
       {loading&&mode==="wav"&&

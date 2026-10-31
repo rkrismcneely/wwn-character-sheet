@@ -7,6 +7,7 @@ import { CampaignServiceError,getCampaignD1,loadCampaignAccess,requireActiveCamp
 import { recapTranscriptObjectKey } from "@/lib/campaigns/recap-full-transcript";
 import { mergeGroqAudioTranscript,type RecordedRecapTranscript,type TranscriptionAttribution } from "@/lib/campaigns/recap-groq-audio";
 import { GEMINI_TRANSCRIBE_MODEL,MAX_GEMINI_CHUNK_BYTES,normalizeGeminiWords,supportedGeminiAudio } from "@/lib/campaigns/recap-gemini-transcribe";
+import { decryptGeminiUserKey,type RecapAIEncryptionSettings } from "@/lib/account/recap-gemini-key";
 
 type Context={params:Promise<{id:string}>};
 const headers={"cache-control":"private, no-store"};
@@ -91,9 +92,26 @@ export async function POST(request:Request,context:Context):Promise<Response> {
       return errorResponse("Use an actual clip timestamp and duration of up to 30 minutes.",422);
     if(form.get("approvedShare")!=="true"||form.get("approvedBilling")!=="true")
       return errorResponse("Explicit consent to Gemini data use and personal project billing is required.",422);
-    const apiKey=form.get("apiKey");
-    if(typeof apiKey!=="string"||!/^[A-Za-z0-9_-]{24,200}$/u.test(apiKey))
-      return errorResponse("Enter a personal Google AI Studio API key.",422);
+    const supplied=form.get("apiKey");
+    let apiKey:string;
+    if(typeof supplied==="string" && supplied.trim()) {
+      if(!/^[A-Za-z0-9_-]{24,200}$/u.test(supplied))
+        return errorResponse("Enter a valid personal Google AI Studio API key.",422);
+      apiKey=supplied;
+    }else{
+      // The creator of the API key is the ONLY user allowed to spend its quota.
+      // Campaign co-GMs and admins cannot borrow somebody else's connection.
+      const row=await db.prepare("SELECT id,status,key_ciphertext AS ciphertext,key_nonce AS nonce,"+
+        "key_version AS version FROM user_recap_ai_connections "+
+        "WHERE user_id=? AND provider='gemini'").bind(actor.userId)
+        .first<{id:string;status:string;ciphertext:string|null;nonce:string|null;version:number|null}>();
+      if(!row||row.status!=="connected"||!row.ciphertext||!row.nonce||row.version!==1)
+        return errorResponse("Connect your own Gemini key in Account settings or enter a temporary key.",409);
+      try{
+        apiKey=await decryptGeminiUserKey(env as unknown as RecapAIEncryptionSettings,
+          actor.userId,row.id,{ciphertext:row.ciphertext,nonce:row.nonce,version:1});
+      }catch{return errorResponse("Your Gemini key cannot be decrypted. Reconnect it in Account settings.",409);}
+    }
     const speakerId=form.get("speakerId");
     if(typeof speakerId!=="string")return errorResponse("Choose a confirmed speaker.",422);
     let speaker:TranscriptionAttribution;

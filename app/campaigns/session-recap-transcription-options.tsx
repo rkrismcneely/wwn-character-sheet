@@ -4,6 +4,7 @@ import { useState } from "react";
 import { transcriptionChoices,type TranscriptionChoice } from "@/lib/campaigns/recap-transcription-options";
 import { SessionRecapGroqTranscriber } from "./session-recap-groq-transcriber";
 import { SessionRecapLocalWhisper } from "./session-recap-local-whisper";
+import { SessionRecapGeminiStaging } from "./session-recap-gemini-drive-staging";
 
 export function SessionRecapTranscriptionOptions({campaignId,recapId,onSaved}:{
   campaignId:string;recapId:string;onSaved:()=>void;
@@ -46,6 +47,10 @@ export function SessionRecapTranscriptionOptions({campaignId,recapId,onSaved}:{
       </p>
       <SessionRecapGroqTranscriber
         key="gemini" provider="gemini" campaignId={campaignId} recapId={recapId} onSaved={onSaved}/>
+      <details className="session-recap-reading">
+        <summary>Prepare your Craig session for future unattended Gemini processing</summary>
+        <SessionRecapGeminiStaging campaignId={campaignId} recapId={recapId}/>
+      </details>
     </>}
     {selected==="local-whisper"&&<SessionRecapLocalWhisper
       key="local" campaignId={campaignId} recapId={recapId} onSaved={onSaved}/>}

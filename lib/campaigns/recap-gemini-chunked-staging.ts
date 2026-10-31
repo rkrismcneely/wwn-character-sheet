@@ -131,7 +131,7 @@ async function queryOffset(url:string,total:number,secret:string):Promise<Offset
   if(state!=="active"&&state!=="final")
     throw new RecapStagingFailure("gemini_upload_offset_unknown");
   const raw=response.headers.get("x-goog-upload-size-received");
-  if(raw===null||!/^\\d+$/u.test(raw))
+  if(raw===null||!/^\d+$/u.test(raw))
     throw new RecapStagingFailure("gemini_upload_offset_unknown");
   const bytes=Number(raw);
   if(!Number.isSafeInteger(bytes)||bytes<0||bytes>total||

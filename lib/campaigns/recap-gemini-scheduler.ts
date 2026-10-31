@@ -168,6 +168,23 @@ async function submitOne(env:GeminiCronEnvironment,now:string){
       .bind(leased.jobId,leased.requestedBy,leased.trackIndex,leased.chunkIndex,leased.leaseToken)
       .first<{allowed:number}>();
     if(!permitted)return false;
+    // Reserve a conservative upper cost estimate before any potentially
+    // billable request. A failed/unknown result keeps this reservation:
+    // never permit an accidental retry to exceed the GM's chosen ceiling.
+    const budget=await env.DB.prepare("UPDATE campaign_recap_processing_jobs "+
+      "SET spent_cost_microusd=spent_cost_microusd+?,updated_at=? "+
+      "WHERE id=? AND requested_by=? AND status='queued' AND paused_at IS NULL "+
+      "AND quota_mode='gm-owned-paid-allowed' AND max_cost_microusd>0 "+
+      "AND spent_cost_microusd+?<=max_cost_microusd")
+      .bind(Math.ceil((leased.endMs-leased.startMs)/60000)*10000,now,
+        leased.jobId,leased.requestedBy,
+        Math.ceil((leased.endMs-leased.startMs)/60000)*10000).run();
+    // Free-tier jobs only run behind separate project-specific verification;
+    // no global flag should ever classify an arbitrary paid GM project as free.
+    if(budget.meta.changes!==1 && env.RECAP_GEMINI_FREE_QUOTA_VERIFIED!=="true"){
+      await holdGeminiChunk(env.DB,leased,"needs_attention",now);
+      return true;
+    }
     let outcome:GeminiProviderOutcome;
     try{
       outcome=await submitVerifiedGeminiAudio({key,bytes:audio.bytes,

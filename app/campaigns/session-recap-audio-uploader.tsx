@@ -14,7 +14,9 @@ type AudioAsset = {
 type AwaitingVerification = {assetId:string;remoteFileId:string};
 const fileExtensions = ".mp3,.m4a,.mp4,.wav,.flac,.aac";
 
-export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:string;recapId:string}) {
+export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
+  campaignId:string;recapId:string;onBusyChange?:(active:boolean)=>void;
+}) {
   const [connections,setConnections] = useState<StorageConnection[]>([]);
   const [driveConfigured,setDriveConfigured] = useState(false);
   const [connectionId,setConnectionId] = useState("");
@@ -29,6 +31,18 @@ export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:stri
   const controller=useRef<AbortController|null>(null);
   const fileInputRef=useRef<HTMLInputElement|null>(null);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio";
+
+  useEffect(()=>{onBusyChange?.(busy);},[busy,onBusyChange]);
+  useEffect(()=>()=>{onBusyChange?.(false);},[onBusyChange]);
+  useEffect(()=>{
+    if(!busy)return;
+    const warn=(event:BeforeUnloadEvent)=>{
+      event.preventDefault();
+      event.returnValue="";
+    };
+    window.addEventListener("beforeunload",warn);
+    return ()=>window.removeEventListener("beforeunload",warn);
+  },[busy]);
 
   useEffect(()=>{
     let active=true;
@@ -140,7 +154,8 @@ export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:stri
     <p className="session-recap-editor-help">
       Save an MP3, M4A, WAV, FLAC or AAC recording in your own Google Drive.
       Large 2–3-hour recordings upload in chunks directly from this browser.
-      Keep this page open while uploading.
+      Keep this page and section open while uploading. Navigation can interrupt the transfer;
+      stop the upload first if you need to leave.
     </p>
     {assets.length>0 && <div aria-label="Attached recordings">
       {assets.map(asset=><p className="session-recap-editor-help" key={asset.id}>
@@ -178,7 +193,7 @@ export function SessionRecapAudioUploader({campaignId,recapId}: {campaignId:stri
               </button>
             : <button type="button" className="campaign-primary" disabled={!file||!connectionId||busy}
                 onClick={()=>void upload()}>{busy?"Uploading…":"Upload recording"}</button>}
-          {busy && <button type="button" className="campaign-secondary" onClick={()=>controller.current?.abort()}>
+          {busy && !awaitingVerification && <button type="button" className="campaign-secondary" onClick={()=>controller.current?.abort()}>
             Stop upload
           </button>}
         </div>

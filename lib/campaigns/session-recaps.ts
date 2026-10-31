@@ -25,7 +25,8 @@ export const PRIVATE_RECAP_DRAFT_CONTENT = "*Recording awaiting a GM-approved re
 const order = "ORDER BY session_date DESC, created_at DESC, id DESC";
 
 function asRecap(row: RecapRow): CampaignSessionRecap {
-  return { id: row.id, date: row.sessionDate, title: row.title, content: row.content,
+  return { id: row.id, date: row.sessionDate, title: row.title,
+    content: row.isPublished === 0 && row.content === PRIVATE_RECAP_DRAFT_CONTENT ? "" : row.content,
     isPublished: row.isPublished === 1, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 function validId(id: unknown): string {
@@ -119,35 +120,60 @@ export async function createCampaignSessionRecap(
   await db.prepare(`INSERT INTO campaign_session_recaps
     (id, campaign_id, session_date, title, content, is_published, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, internalId, draft.date, draft.title, draft.content, isPublished ? 1 : 0, now, now).run();
-  return { id, ...draft, isPublished, createdAt: now, updatedAt: now };
+  return { id, ...draft, content: isPublished ? draft.content : "",
+    isPublished, createdAt: now, updatedAt: now };
 }
 
 export async function updateCampaignSessionRecap(
   db: D1Database, actor: CampaignActor | null, campaignId: string,
-  input: { id?: unknown; date?: unknown; title?: unknown; content?: unknown; updatedAt?: unknown },
+  input: { id?: unknown; date?: unknown; title?: unknown; content?: unknown; updatedAt?: unknown; publish?: unknown },
   now = new Date().toISOString(),
 ): Promise<CampaignSessionRecap> {
   const internalId = await writable(db, actor, campaignId);
   const id = validId(input.id);
-  const draft = validateDraft(input);
   if (typeof input.updatedAt !== "string" || !input.updatedAt) {
     throw new CampaignServiceError("Reload the recap before saving changes.", 422);
   }
+  if (input.publish !== undefined && typeof input.publish !== "boolean") {
+    throw new CampaignServiceError("Invalid recap publication preference.", 422);
+  }
+  const original = await db.prepare(
+    "SELECT is_published AS isPublished FROM campaign_session_recaps WHERE campaign_id = ? AND id = ?",
+  ).bind(internalId, id).first<{isPublished: number}>();
+  if (!original) throw new CampaignServiceError("Session recap not found.", 404);
+  // A published recap must never be silently unpublished. An unpublished recap
+  // stays private unless its GM explicitly requests publication.
+  if (original.isPublished === 1 && input.publish === false) {
+    throw new CampaignServiceError("A published recap cannot be saved as a private draft.", 422);
+  }
+  const isPublished = original.isPublished === 1 || input.publish === true;
+  const content = !isPublished && (!input.content || typeof input.content !== "string" || !input.content.trim())
+    ? PRIVATE_RECAP_DRAFT_CONTENT : input.content;
+  const draft = validateDraft({...input, content});
+  if (isPublished && draft.content === PRIVATE_RECAP_DRAFT_CONTENT) {
+    throw new CampaignServiceError("Write and review a recap before publishing.", 422);
+  }
   const result = await db.prepare(`UPDATE campaign_session_recaps
-    SET session_date = ?, title = ?, content = ?, is_published = 1, updated_at = ?
+    SET session_date = ?, title = ?, content = ?, is_published = ?, updated_at = ?
     WHERE id = ? AND campaign_id = ? AND updated_at = ?`)
-    .bind(draft.date, draft.title, draft.content, now, id, internalId, input.updatedAt).run();
+    .bind(draft.date, draft.title, draft.content, isPublished ? 1 : 0,
+      now, id, internalId, input.updatedAt).run();
   if (result.meta.changes !== 1) {
     const existing = await db.prepare("SELECT id FROM campaign_session_recaps WHERE campaign_id = ? AND id = ?")
       .bind(internalId, id).first<{ id: string }>();
     throw new CampaignServiceError(existing
       ? "This recap was edited elsewhere. Reload it before saving." : "Session recap not found.", existing ? 409 : 404);
   }
-  // Keep the linked Journal article's date/title synchronized. Its Markdown and
-  // visibility remain independently editable in the Journal.
-  const marker="<!-- twe-session-recap:"+id+" -->";
-  await db.prepare(`UPDATE campaign_journal_entries SET title=?,updated_at=?
-    WHERE campaign_id=? AND kind='page' AND instr(content,?)>0`)
-    .bind(draft.date.slice(2)+" — "+draft.title,now,internalId,marker).run();
-  return { id, ...draft, isPublished: true, createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
+  // Only published recaps can be in the Journal. Preserve its independently
+  // managed Markdown and visibility while keeping its date/title synchronized.
+  if (isPublished) {
+    const marker="<!-- twe-session-recap:"+id+" -->";
+    await db.prepare(`UPDATE campaign_journal_entries SET title=?,updated_at=?
+      WHERE campaign_id=? AND kind='page' AND instr(content,?)>0`)
+      .bind(draft.date.slice(2)+" — "+draft.title,now,internalId,marker).run();
+  }
+  return { id, ...draft,
+    content: isPublished ? draft.content : draft.content === PRIVATE_RECAP_DRAFT_CONTENT ? "" : draft.content,
+    isPublished,
+    createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
 }

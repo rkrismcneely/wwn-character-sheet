@@ -30,7 +30,7 @@ export type CraigAacCodecFactory={
 /** Keep codec support optional: WebCodecs is not available in all browsers.
  * The browser runtime is only touched when a GM explicitly prepares audio.
  */
-function browserAacCodec():CraigAacCodecFactory{
+export function browserAacCodec():CraigAacCodecFactory{
   type AudioDecoderConstructor={
     new(init:DecoderCallbacks):CraigAacDecoder;
     isConfigSupported(config:CraigAacDecoderConfig):Promise<{supported:boolean}>;

@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import {
   canDispatchGeminiJob,validateGeminiQuotaMode,validateGeminiJobTransition,
-  safeGeminiJobSummary,GEMINI_BACKGROUND_MAX_TRACKS,GEMINI_BACKGROUND_MAX_ACTIVE_JOBS_PER_GM,
+  safeGeminiJobSummary,planGeminiAudioChunks,GEMINI_BACKGROUND_MAX_TRACKS,GEMINI_BACKGROUND_MAX_ACTIVE_JOBS_PER_GM,
 } from "../lib/campaigns/recap-gemini-background.ts";
 const read=path=>readFile(new URL(path,import.meta.url),"utf8");
 const input={enabled:true,accountConnected:true,audioReady:true,humanApproved:true,
@@ -74,4 +74,31 @@ test("background migration is additive and Drizzle models stay aligned",async()=
     assert.ok(schema.includes(prop),"Missing typed schema "+prop);
   }
   assert.doesNotMatch(sql,/DROP TABLE|DELETE FROM|UPDATE .*status='queued'/u);
+});
+
+test("a five-speaker three-hour session gets 45 independently encodable 20-minute clips",()=>{
+  const plan=planGeminiAudioChunks(Array.from({length:5},(_,trackIndex)=>({
+    trackIndex,startMs:0,durationMs:3*60*60*1000,
+  })));
+  assert.equal(plan.length,45);
+  assert.equal(plan.filter(row=>row.trackIndex===0).length,9);
+  assert.deepEqual(plan[0],{trackIndex:0,chunkIndex:0,startMs:0,endMs:20*60*1000});
+  assert.equal(plan.at(-1).endMs,3*60*60*1000);
+  for(const row of plan){
+    assert.ok(row.endMs-row.startMs<=20*60*1000);
+    assert.ok(row.endMs>row.startMs);
+  }
+  assert.throws(()=>planGeminiAudioChunks([{trackIndex:0,startMs:0,durationMs:9*60*60*1000}]));
+  assert.throws(()=>planGeminiAudioChunks([{trackIndex:0,startMs:0,durationMs:10_000},
+    {trackIndex:0,startMs:20000,durationMs:10_000}]));
+});
+test("leases are atomic and forbid automatic retries after ambiguous provider results",async()=>{
+  const src=await read("../lib/campaigns/recap-gemini-leases.ts");
+  for(const required of ["canDispatchGeminiJob","verifySource","WHERE job_id=?",
+    "status='pending'","status='leased'","lease_token=?","attempts<25",
+    "connectionStatus","sourceDigest","status='completed'",
+    "reason===\"uncertain_result\"","status='failed'","quarantineExpiredGeminiLeases",
+    "lease_expires_at<=?","AND j.paused_at IS NULL",
+  ])assert.ok(src.includes(required),"Missing lease guard: "+required);
+  assert.doesNotMatch(src,/generativelanguage\.googleapis\.com|apiKey|fetch\(/u);
 });

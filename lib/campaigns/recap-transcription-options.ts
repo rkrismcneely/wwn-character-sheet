@@ -2,7 +2,7 @@
 export type TranscriptionChoice = "groq"|"gemini"|"local-whisper";
 export type TranscriptionChoiceInfo={
   id:TranscriptionChoice;name:string;subtitle:string;benefits:readonly string[];
-  limitations:readonly string[];availability:"ready"|"building";
+  limitations:readonly string[];availability:"ready"|"experimental"|"building";
   requiresOpenBrowser:boolean;needsKey:boolean;ownerPays:boolean;
 };
 export const transcriptionChoices:readonly TranscriptionChoiceInfo[]=[
@@ -15,20 +15,20 @@ export const transcriptionChoices:readonly TranscriptionChoiceInfo[]=[
       "Keep the tab open while processing","Large compressed Craig tracks still need conversion"],
   },
   {
-    id:"gemini",name:"Google Gemini",subtitle:"Unattended processing (in development)",
-    availability:"building",requiresOpenBrowser:false,needsKey:true,ownerPays:false,
+    id:"gemini",name:"Google Gemini",subtitle:"GM-owned transcription now; unattended queue in development",
+    availability:"ready",requiresOpenBrowser:false,needsKey:true,ownerPays:false,
     benefits:["Ongoing free tier on eligible GM-owned projects, subject to limits",
-      "Designed to run on TWE's schedule while your computer is off",
-      "Preserves results and resumes after pauses when deployed"],
-    limitations:["Unattended queue and encrypted GM credentials must be activated first",
+      "File transcription through the GM's own Google AI Studio project",
+      "Future scheduled mode will work with a powered-off computer"],
+    limitations:["Foreground mode requires the browser open; encrypted unattended queue is not active",
       "Timed audio requests are limited to 30 minutes; multitrack sessions take more requests",
       "Free-tier content may be used by Google to improve products; provider quotas vary"],
   },
   {
-    id:"local-whisper",name:"Local Whisper",subtitle:"Transcription on this device (in development)",
-    availability:"building",requiresOpenBrowser:true,needsKey:false,ownerPays:false,
+    id:"local-whisper",name:"Local Whisper",subtitle:"Experimental on-device transcription with checkpoints",
+    availability:"experimental",requiresOpenBrowser:true,needsKey:false,ownerPays:false,
     benefits:["No API key or transcription charges","Audio does not need to leave the device",
-      "Planned: save completed chunks and resume when you reopen the page"],
+      "Finished chunks save privately and can be skipped when you return with the same WAV"],
     limitations:["Computer and browser must remain open and awake while computing",
       "Requires a compatible browser and sufficient device performance",
       "Automatic resume needs a persistent authorized audio source or re-selection"],
@@ -40,5 +40,5 @@ export function transcriptionChoice(value:unknown):TranscriptionChoiceInfo {
   return found;
 }
 export function canStartTranscription(value:unknown):boolean {
-  return transcriptionChoice(value).availability==="ready";
+  return ["ready","experimental"].includes(transcriptionChoice(value).availability);
 }

@@ -14,12 +14,51 @@ export async function uploadRecordingToDrive(
   file: Blob,
   rawSessionUrl: string,
   progress: Progress = () => {},
-  options: { fetcher?: typeof fetch; signal?: AbortSignal; chunkBytes?: number } = {},
+  options: { fetcher?: typeof fetch; signal?: AbortSignal; chunkBytes?: number;
+    relay?: {endpoint:string;assetId:string;ticket:string;issuedAt:number};
+  } = {},
 ): Promise<DriveUploadedFile> {
   const sessionUrl = validateDriveSessionUrl(rawSessionUrl);
   if (!file.size) throw new Error("Choose a nonempty audio recording.");
   const fetcher = options.fetcher ?? fetch;
   const chunkBytes = options.chunkBytes ?? DRIVE_UPLOAD_CHUNK_BYTES;
+  // A signed relay avoids browser-to-Google cross-origin preflight failures.
+  // TWE streams bounded chunks to the GM's own Drive without storing the audio.
+  const target=options.relay
+    ? options.relay.endpoint+"?assetId="+encodeURIComponent(options.relay.assetId)
+    : sessionUrl;
+  const uploadHeaders=options.relay ? {
+    "x-twe-drive-upload-session":sessionUrl,
+    "x-twe-drive-upload-ticket":options.relay.ticket,
+    "x-twe-drive-upload-issued-at":String(options.relay.issuedAt),
+  } : {};
+  const send=async(contentRange:string,body?:Blob):Promise<Response>=>{
+    try{
+      const response=await fetcher(target,{
+        method:"PUT",credentials:"same-origin",
+        headers:{"Content-Range":contentRange,...uploadHeaders},
+        ...(body?{body}:{}),signal:options.signal,
+      });
+      if(response.status!==308&&response.status!==200&&response.status!==201){
+        let message="";
+        if(options.relay){
+          try{
+            const result=await response.json() as {error?:unknown};
+            if(typeof result.error==="string")message=result.error;
+          }catch{ /* Never expose provider response text. */ }
+        }
+        throw new Error(message||"Google Drive rejected a chunk (HTTP "+response.status+").");
+      }
+      return response;
+    }catch(error){
+      if(options.signal?.aborted)throw error;
+      if(error instanceof TypeError)
+        throw new Error(options.relay
+          ? "The connection to TWE's upload relay failed. Check your network and retry."
+          : "The browser could not reach Google Drive. A blocked cross-origin request may be responsible.");
+      throw error;
+    }
+  };
   let offset = 0;
   let consecutiveFailures = 0;
   while (offset < file.size) {
@@ -27,22 +66,14 @@ export async function uploadRecordingToDrive(
     const next = driveChunkRange(file.size, offset, chunkBytes);
     let response: Response;
     try {
-      response = await fetcher(sessionUrl, {
-        method: "PUT",
-        headers: { "Content-Range": next.contentRange },
-        body: file.slice(next.start, next.endExclusive),
-        signal: options.signal,
-      });
+      response = await send(next.contentRange,file.slice(next.start, next.endExclusive));
     } catch (error) {
       if (options.signal?.aborted) throw error;
       consecutiveFailures += 1;
       if (consecutiveFailures > 3) throw new Error("Drive upload interrupted repeatedly. Retry with the original file.");
       // Query Google's actual acknowledged position; never guess how many
       // bytes arrived during a lost connection or retry the entire file.
-      const check = await fetcher(sessionUrl, {
-        method: "PUT", headers: { "Content-Range": "bytes */" + file.size },
-        signal: options.signal,
-      });
+      const check = await send("bytes */"+file.size);
       if (check.status === 200 || check.status === 201) {
         return verifiedUploadedFile(await check.json());
       }

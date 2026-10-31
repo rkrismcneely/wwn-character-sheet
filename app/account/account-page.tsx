@@ -17,6 +17,7 @@ import { STANDARD_RPG_DICE_SIDES } from "../virtual-dice-style";
 import { ConnectedAccounts } from "./connected-accounts";
 import { RecapStorageConnections } from "./recap-storage-connections";
 import { RecapAIConnections } from "./recap-ai-connections";
+import { RecapAutoSettings } from "./recap-auto-settings";
 
 function DicePreviewControl() {
   const { theme } = useDisplayTheme();
@@ -242,8 +243,8 @@ export function AccountPageClient({
               <h2 id="recap-setup-title">Configure Automatic Recap</h2>
             </div></div>
             <p className="account-explanation">
-              To prepare a recording-based recap, connect your own Google Drive for
-              audio storage, then connect your Gemini API key for future AI summaries.
+              To create automatic recording-based recaps, connect your own Google Drive for
+              audio storage, then connect your Gemini API key and approve processing below.
               Neither connection alone starts AI processing or incurs an AI usage charge.
             </p>
             <p className="account-explanation">
@@ -252,12 +253,13 @@ export function AccountPageClient({
               <a href="#recap-ai-connections-heading">2. Connect Gemini</a>
             </p>
             <p className="account-explanation">
-              Direct AI recap generation is still in development. These connections
-              prepare your account for that upcoming feature; they do not generate a recap yet.
+              After connecting both providers, approve automatic processing and save your recap preferences below.
+              Your recordings are only sent to AI after you enable the automation.
             </p>
           </section>
           <RecapStorageConnections />
           <RecapAIConnections />
+          <RecapAutoSettings />
         </div>
 
         <aside className="account-destinations" aria-label="Signed-in destinations">

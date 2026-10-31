@@ -48,7 +48,7 @@ test("recap setup endpoint is user scoped and exposes only redacted readiness",a
     read("app/account/recap-ai-connections.tsx"),
   ]);
   assert.match(api,/getSessionActor\(request\)/u);
-  assert.equal((api.match(/\.bind\(actor\.userId\)/gu)||[]).length,2);
+  assert.equal((api.match(/\.bind\(actor\.userId\)/gu)||[]).length,3);
   assert.match(api,/driveConfiguration\(config\)/u);
   assert.match(api,/recapAIEncryptionReady\(config\)/u);
   assert.match(api,/ready:storageConnected&&aiConnected/u);

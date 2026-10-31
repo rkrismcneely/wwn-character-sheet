@@ -10,6 +10,7 @@ on:
       - "drizzle/0035_recap_user_audio_storage.sql"
       - "drizzle/0036_recap_storage_oauth_states.sql"
       - "drizzle/0047_recap_private_drafts.sql"
+      - "drizzle/0048_recap_only_automation.sql"
       - "drizzle/0040_recap_ai_connections.sql"
       - "drizzle/0041_recap_gemini_background_jobs.sql"
       - "drizzle/0042_recap_gemini_drive_staging.sql"
@@ -23,6 +24,7 @@ on:
       - "scripts/migrate-recap-audio-storage.mjs"
       - "scripts/migrate-recap-storage-oauth.mjs"
       - "scripts/migrate-recap-private-drafts.mjs"
+      - "scripts/migrate-recap-only-automation.mjs"
       - "scripts/migrate-recap-gemini-schema.mjs"
       - ".github/workflows/migrate-session-recaps.yml"
   workflow_dispatch:
@@ -81,6 +83,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Apply and verify private recording recap draft migration
         run: node scripts/migrate-recap-private-drafts.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Apply and verify GM-consented recap-only job schema
+        run: node scripts/migrate-recap-only-automation.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

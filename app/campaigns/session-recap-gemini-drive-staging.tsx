@@ -315,7 +315,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         </div>
         {busy&&<p role="status">Checked or uploaded {count} / {clips.length} clips for this voice.</p>}
       </>}
-      {(job.status==="queued"||job.status==="awaiting_review")&&<div className="session-recap-reading">
+      {(["queued","awaiting_review","completed"].includes(job.status))&&<div className="session-recap-reading">
         <h5>Assembled Gemini transcript</h5>
         <button type="button" className="campaign-secondary" disabled={busy}
           onClick={()=>void loadAssembly()}>

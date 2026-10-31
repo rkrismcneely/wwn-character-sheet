@@ -9,8 +9,10 @@ export type DriveConnectionCode =
   | "secure_storage_error" | "database_error" | "unexpected";
 
 export class DriveConnectionFailure extends Error {
-  constructor(public readonly code: DriveConnectionCode) {
+  readonly code: DriveConnectionCode;
+  constructor(code: DriveConnectionCode) {
     super("Google Drive connection failed at " + code);
+    this.code = code;
     this.name = "DriveConnectionFailure";
   }
 }
@@ -26,10 +28,10 @@ export function classifyDriveAboutError(httpStatus: number, responseBody: unknow
       const errors = (error as { errors?: unknown }).errors;
       const reasons: unknown[] = [];
       if (Array.isArray(details)) for (const detail of details) {
-        if (detail && typeof detail === "object") reasons.push(detail.reason);
+        if (detail && typeof detail === "object") reasons.push((detail as { reason?: unknown }).reason);
       }
       if (Array.isArray(errors)) for (const item of errors) {
-        if (item && typeof item === "object") reasons.push(item.reason);
+        if (item && typeof item === "object") reasons.push((item as { reason?: unknown }).reason);
       }
       if (reasons.some(reason => reason === "SERVICE_DISABLED" || reason === "accessNotConfigured")) {
         return "drive_api_disabled";

@@ -129,8 +129,10 @@ async function pollOne(env:GeminiCronEnvironment,now:string){
   const completed=await env.DB.prepare("UPDATE campaign_recap_processing_chunks "+
     "SET status='completed',transcript_key=?,provider_poll_after=NULL,updated_at=? "+
     "WHERE job_id=? AND track_index=? AND chunk_index=? AND status='submitted' "+
-    "AND provider_interaction_id=?")
-    .bind(saved,now,current.jobId,current.trackIndex,current.chunkIndex,current.interactionId).run();
+    "AND provider_interaction_id=? "+
+    "AND EXISTS(SELECT 1 FROM campaign_recap_processing_jobs j "+
+    "WHERE j.id=? AND j.status='queued' AND j.paused_at IS NULL)")
+    .bind(saved,now,current.jobId,current.trackIndex,current.chunkIndex,current.interactionId,current.jobId).run();
   if(completed.meta.changes===1){
     await env.DB.prepare("UPDATE campaign_recap_processing_jobs SET "+
       "completed_chunks=(SELECT COUNT(*) FROM campaign_recap_processing_chunks "+

@@ -481,6 +481,7 @@ export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_process
   audioMimeType: text("audio_mime_type"),
   audioBytes: integer("audio_bytes"),
   sourceDigest: text("source_digest"),
+  driveAssetId: text("drive_asset_id"),
   nextEligibleAt: text("next_eligible_at"),
   errorCode: text("error_code"),
   updatedAt: text("updated_at").notNull(),
@@ -488,6 +489,7 @@ export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_process
   primaryKey({ columns: [table.jobId, table.trackIndex, table.chunkIndex] }),
   index("campaign_recap_processing_chunks_work_idx").on(table.jobId, table.status, table.trackIndex, table.chunkIndex),
   index("campaign_recap_processing_chunks_eligible_idx").on(table.status, table.nextEligibleAt, table.leaseExpiresAt),
+  index("campaign_recap_processing_chunks_asset_idx").on(table.driveAssetId),
 ]);
 
 
@@ -552,6 +554,7 @@ export const campaignRecapAudioAssets = sqliteTable("campaign_recap_audio_assets
   connectionId: text("connection_id").notNull(),
   storageOwnerUserId: text("storage_owner_user_id").notNull(),
   remoteFileId: text("remote_file_id"),
+  processingJobId: text("processing_job_id"),
   label: text("label").notNull().default(""),
   mimeType: text("mime_type"),
   byteSize: integer("byte_size"),
@@ -565,6 +568,7 @@ export const campaignRecapAudioAssets = sqliteTable("campaign_recap_audio_assets
 }, table => [
   index("campaign_recap_audio_assets_recap_idx").on(table.campaignId, table.recapId, table.primaryAudio, table.createdAt),
   index("campaign_recap_audio_assets_connection_idx").on(table.connectionId, table.status),
+  index("campaign_recap_audio_assets_processing_idx").on(table.processingJobId,table.storageOwnerUserId,table.status),
   uniqueIndex("campaign_recap_audio_assets_one_primary_idx").on(table.recapId).where(sql`${table.recapId} IS NOT NULL AND ${table.primaryAudio} = 1`),
 ]);
 

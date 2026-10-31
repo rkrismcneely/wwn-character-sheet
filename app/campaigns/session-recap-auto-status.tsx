@@ -16,7 +16,7 @@ const statusLabel:Record<string,string>={
   failed:"Processing stopped",
 };
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
-  campaignId:string;recapId:string;onDraft:(content:string,updatedAt:string)=>boolean;
+  campaignId:string;recapId:string;onDraft:(content:string,updatedAt:string,overwrite:boolean)=>boolean;
 }){
   const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/auto-recap";
   const [jobs,setJobs]=useState<Job[]>([]);
@@ -50,7 +50,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
     const job=jobs.find(x=>x.status==="ready"&&x.generatedMarkdown);
     if(job?.generatedMarkdown&&seen.current!==job.id){
       seen.current=job.id;
-      if(onDraft(job.generatedMarkdown,recapUpdatedAt))
+      if(onDraft(job.generatedMarkdown,recapUpdatedAt,false))
         setNotice("Gemini wrote a private draft into the recap editor. Review and publish when ready.");
     }
   },[jobs,onDraft,recapUpdatedAt]);
@@ -81,10 +81,24 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       TWE checks the result automatically while your computer is off. Free-tier
       provider quotas and audio processing may affect completion time.
     </p>}
-    {newest?.status==="ready"&&<p className="campaign-empty-copy">
-      Review the AI draft in the editor below. Check names, timeline and NPC details before publishing.
-      The audio player will appear in the published recap.
-    </p>}
+    {newest?.status==="ready"&&<>
+      <p className="campaign-empty-copy">
+        Review the AI draft in the editor below. Check names, timeline and NPC details before publishing.
+        The audio player will appear in the published recap.
+      </p>
+      {newest.generatedMarkdown&&<details>
+        <summary>View saved Gemini draft or replace the editor text</summary>
+        <button type="button" className="campaign-secondary"
+          onClick={()=>{
+            if(!window.confirm("Replace your current unsaved editor text with the saved Gemini draft?"))return;
+            if(onDraft(newest.generatedMarkdown!,recapUpdatedAt,true))
+              setNotice("Gemini draft copied into the editor. Review before publishing.");
+          }}>Use Gemini draft in editor</button>
+        <pre style={{maxHeight:280,overflow:"auto",whiteSpace:"pre-wrap"}}>
+          {newest.generatedMarkdown}
+        </pre>
+      </details>}
+    </>}
     {newest?.status==="needs_attention"&&<p className="campaign-error">
       {newest.errorCode==="audio_exceeds_2gb"
         ?"The original recording is saved in Drive, but Gemini cannot accept an audio file over 2 GB."

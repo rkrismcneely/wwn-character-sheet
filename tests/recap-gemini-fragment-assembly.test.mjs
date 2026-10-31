@@ -80,7 +80,7 @@ test("GM-only assembled route must fail on existing published transcript or unex
   const route=await read("../app/api/campaigns/[id]/session-recaps/background-gemini/assembled/route.ts");
   for(const term of ["getSessionActor(request)","canManageCampaignContent",
     "getCampaignSessionRecap","job.requestedBy!==actor.userId",
-    "status!=='awaiting_review'","validateCompleteGeminiAssembly",
+    'status!=="awaiting_review"',"validateCompleteGeminiAssembly",
     "prior.value?.published","body.replace!==true","prior.value.updatedAt!==body.expectedUpdatedAt",
     "etagMatches","If-None-Match","published:false","cues:draft.cues",
     "cache-control","private, no-store"]){

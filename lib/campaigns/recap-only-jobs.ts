@@ -91,17 +91,22 @@ export async function retrySafeRecapPreparation(
     job.stageErrorCode==="gemini_chunk_http_404"||
     // A 400 means the previous resumable session already rejected its chunk.
     // Start a new temporary upload after changing the request format.
-    job.stageErrorCode==="gemini_chunk_http_400";
+    job.stageErrorCode==="gemini_chunk_http_400"||
+    job.stageErrorCode==="gemini_file_expired"||
+    job.stageErrorCode==="gemini_file_processing_failed";
   const updated=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET status=?,error_code=NULL,stage_error_code=NULL,claimed_at=NULL,updated_at=?,"+
     "stage_url_ciphertext=CASE WHEN ? THEN NULL ELSE stage_url_ciphertext END,"+
     "stage_url_nonce=CASE WHEN ? THEN NULL ELSE stage_url_nonce END,"+
     "stage_url_version=CASE WHEN ? THEN NULL ELSE stage_url_version END,"+
-    "stage_offset=CASE WHEN ? THEN 0 ELSE stage_offset END "+
+    "stage_offset=CASE WHEN ? THEN 0 ELSE stage_offset END,"+
+    "file_uri=CASE WHEN ? THEN NULL ELSE file_uri END,"+
+    "file_name=CASE WHEN ? THEN NULL ELSE file_name END "+
     "WHERE id=? AND campaign_id=? AND recap_id=? AND requested_by=? "+
     "AND status='needs_attention' AND error_code=? AND interaction_id IS NULL "+
     "AND confirmed_at IS NOT NULL")
     .bind(target,new Date().toISOString(),reset?1:0,reset?1:0,reset?1:0,reset?1:0,
+      reset?1:0,reset?1:0,
       input.jobId,input.campaignId,input.recapId,input.userId,job.errorCode).run();
   if(updated.meta.changes!==1)throw new CampaignServiceError(
     "This AI job changed while you were reviewing it. Refresh the status before retrying.",409);

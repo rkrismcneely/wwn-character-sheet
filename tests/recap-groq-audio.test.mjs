@@ -84,6 +84,6 @@ test("transcription UI is opt-in, labels one voice per clip, refreshes stored tr
   assert.match(ui,/HH:MM:SS/u);
   assert.match(ui,/Transcribe and save private draft/u);
   assert.doesNotMatch(ui,/localStorage|sessionStorage/u);
-  assert.match(manager,/SessionRecapGroqTranscriber/u);
+  assert.match(manager,/SessionRecapTranscriptionOptions/u);
   assert.match(manager,/setTranscriptRefresh\(n=>n\+1\)/u);
 });

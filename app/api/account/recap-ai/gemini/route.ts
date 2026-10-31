@@ -5,6 +5,7 @@ import { readBoundedJson,RequestBodyError } from "@/lib/http-json";
 import { recapAIEncryptionReady,encryptGeminiUserKey,decryptGeminiUserKey,
   fingerprintGeminiKey,validateGeminiUserKey,
   type RecapAIEncryptionSettings,type EncryptedProviderKey } from "@/lib/account/recap-gemini-key";
+import {checkGeminiModelAccess} from "@/lib/account/recap-gemini-verification";
 
 const config=()=>env as unknown as RecapAIEncryptionSettings;
 const noCache={"cache-control":"private, no-store"};
@@ -96,29 +97,41 @@ export async function POST(request:Request){
   try{plain=await decryptGeminiUserKey(config(),who.id,row.id,
     {ciphertext:row.ciphertext,nonce:row.nonce,version:1});}
   catch{return bad("Stored credential could not be decrypted. Reconnect the account.",409);}
-  try{
-    const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",{
-      method:"GET",redirect:"error",signal:AbortSignal.timeout(10000),
-      headers:{"x-goog-api-key":plain},
-    });
-    if(!response.ok){
-      if(response.status===429)return bad("Google rate limit reached; retry verification later.",429);
-      await who.db.prepare("UPDATE user_recap_ai_connections SET status='needs_attention',"+
-        "updated_at=? WHERE id=? AND user_id=? AND key_fingerprint=?")
-        .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();
-      if(response.status===400||response.status===401)
-        return bad("Google rejected this credential. Copy the API key string from AI Studio (not its key ID).",403);
-      if(response.status===403)
-        return bad("Google denied this key access to the Gemini API. Check its project and Gemini API permissions in AI Studio.",403);
-      return bad("Google couldn't verify Gemini access (HTTP "+response.status+"). Try again or check the selected project.",503);
+  const result=await checkGeminiModelAccess(plain);
+  if(result.kind!=="verified"){
+    // Only definitive key rejection/authorization denial marks an existing key
+    // in need of attention; temporary outages must not disable good GM keys.
+    if(result.kind==="invalid_key"||result.kind==="permission_denied"){
+      try{
+        await who.db.prepare("UPDATE user_recap_ai_connections SET status='needs_attention',"+
+          "updated_at=? WHERE id=? AND user_id=? AND key_fingerprint=?")
+          .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();
+      }catch{return bad("Google responded, but TWE could not update the connection record.",503);}
     }
-    const modelList=await response.json() as {models?:unknown};
-    if(!Array.isArray(modelList.models)||!modelList.models.length)
-      return bad("Google did not return an accessible Gemini model for this key.",403);
+    switch(result.kind){
+      case "invalid_key":
+        return bad("Google rejected this credential. Copy the API key string from AI Studio (not its key ID).",403);
+      case "permission_denied":
+        return bad("Google denied this key access to the Gemini API. Check its project and Gemini API permissions in AI Studio.",403);
+      case "rate_limited":
+        return bad("Google rate limit reached; retry verification later.",429);
+      case "provider_redirect":
+        return bad("Google unexpectedly redirected the Gemini API verification. TWE did not follow the redirect.",502);
+      case "timeout":
+        return bad("Google Gemini API verification timed out. Your saved key was not changed; try Test connection again.",503);
+      case "network_error":
+        return bad("TWE could not reach the Google Gemini API. Your saved key was not changed; try Test connection again.",503);
+      case "invalid_response":
+        return bad("Google returned an unexpected models response. Your saved key was not changed.",503);
+      case "service_unavailable":
+        return bad("Google Gemini model verification is temporarily unavailable. Your saved key was not changed.",503);
+    }
+  }
+  try{
     await who.db.prepare("UPDATE user_recap_ai_connections SET status='connected',"+
       "updated_at=? WHERE id=? AND user_id=? AND key_fingerprint=?")
       .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();
     return Response.json({verified:true,notice:"Gemini model access verified without using transcription quota."},
       {headers:noCache});
-  }catch{return bad("Google connection verification is unavailable. No transcription was started.",503);}
+  }catch{return bad("Google verified the Gemini key, but TWE could not save its verification status.",503);}
 }

@@ -20,7 +20,7 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     const {id}=await context.params;
     const body=await readBoundedJson(request,4096) as {
       recapId?:unknown;connectionId?:unknown;
-      filename?:unknown;mimeType?:unknown;byteSize?:unknown;durationMs?:unknown;
+      filename?:unknown;mimeType?:unknown;byteSize?:unknown;durationMs?:unknown;processingJobId?:unknown;
     };
     const result=await beginGmDriveAudioUpload(await getCampaignD1(),actor,id,body??{},
       env as unknown as DriveSettings);

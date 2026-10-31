@@ -12,6 +12,7 @@ export async function enqueueConfirmedRecapAudio(
   db:D1Database,input:{
     campaignId:string;recapId:string;audioAssetId:string;userId:string;byteSize:number;
     confirmed:boolean;privacyApproved:boolean;billingApproved:boolean;
+    detail?:unknown;requestId?:unknown;
   },
 ):Promise<{created:boolean;alreadyQueued:boolean}>{
   if(input.confirmed!==true||input.privacyApproved!==true||input.billingApproved!==true)
@@ -28,23 +29,34 @@ export async function enqueueConfirmedRecapAudio(
       .bind(input.recapId,input.campaignId).first<{published:number}>(),
   ]);
   if(!provider)throw new CampaignServiceError("Connect your own Gemini API key in Account first.",409);
-  if(recap?.published!==0)
-    throw new CampaignServiceError("Auto Summarize requires a private session recap draft.",409);
+  if(!recap)throw new CampaignServiceError("Session recap not found.",404);
+  // Published recaps may request a *new, independently stored* AI draft;
+  // it is never copied into an existing Journal page automatically.
   if(!Number.isSafeInteger(input.byteSize)||input.byteSize<=0||input.byteSize>RECAP_ONLY_MAX_AUDIO_BYTES)
     throw new CampaignServiceError("This recording exceeds Gemini's 2 GB per-file limit. The original remains in Drive.",422);
-  const detail=preferences?.detail??"detailed";
+  if(input.detail!==undefined&&
+    !["brief","standard","detailed"].includes(String(input.detail)))
+    throw new CampaignServiceError("Choose a supported recap detail level.",422);
+  if(input.requestId!==undefined&&
+    (typeof input.requestId!=="string"||
+      !/^[0-9a-f]{8}-[0-9a-f-]{27}$/iu.test(input.requestId)))
+    throw new CampaignServiceError("Invalid recap request identifier.",422);
+  const detail=(input.detail??preferences?.detail??"detailed") as Preferences["detail"];
   const now=new Date().toISOString();
   const result=await db.prepare("INSERT OR IGNORE INTO campaign_recap_audio_summary_jobs "+
-    "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at) "+
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+    "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at,request_id) "+
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
-      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now).run();
+      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now,input.requestId??null).run();
   if(result.meta.changes!==1){
     const old=await db.prepare("SELECT confirmed_at AS confirmedAt FROM campaign_recap_audio_summary_jobs "+
-      "WHERE audio_asset_id=? AND recap_id=? AND requested_by=?")
-      .bind(input.audioAssetId,input.recapId,input.userId).first<{confirmedAt:string|null}>();
+      "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? "+
+      "AND (request_id=? OR status IN ('pending_upload','transferring','uploaded','submitting','submitted')) "+
+      "ORDER BY created_at DESC LIMIT 1")
+      .bind(input.audioAssetId,input.recapId,input.userId,input.requestId??null)
+      .first<{confirmedAt:string|null}>();
     if(!old?.confirmedAt)throw new CampaignServiceError(
-      "A previous automatic job exists for this recording. It was not approved under the new confirmation process; no new AI request was made.",409);
+      "An existing recap processing request is not confirmed or cannot be reused. No new Gemini job was started.",409);
   }
   return {created:result.meta.changes===1,alreadyQueued:result.meta.changes!==1};
 }
@@ -84,7 +96,9 @@ export async function retrySafeRecapPreparation(
   ]);
   if(!source)throw new CampaignServiceError("The original Drive audio must be available before retrying.",409);
   if(!account)throw new CampaignServiceError("Test or reconnect your Gemini API key in Account before retrying.",409);
-  if(recap?.published!==0)throw new CampaignServiceError("Only private recap drafts can be resumed.",409);
+  if(!recap)throw new CampaignServiceError("Session recap not found.",404);
+  // Retrying a pre-submission failure after publication is still restricted
+  // to the same owner-confirmed job and original recording.
   // An expired Gemini staging session must be replaced on retry. Other
   // errors preserve the encrypted resumable session and accepted byte offset.
   const reset=job.stageErrorCode==="gemini_upload_session_expired"||

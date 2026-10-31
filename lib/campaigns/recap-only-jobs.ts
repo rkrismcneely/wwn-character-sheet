@@ -37,9 +37,8 @@ export async function enqueueConfirmedRecapAudio(
   if(input.detail!==undefined&&
     !["brief","standard","detailed"].includes(String(input.detail)))
     throw new CampaignServiceError("Choose a supported recap detail level.",422);
-  if(input.requestId!==undefined&&
-    (typeof input.requestId!=="string"||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.requestId)))
+  if(typeof input.requestId!=="string"||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.requestId))
     throw new CampaignServiceError("Invalid recap request identifier.",422);
   const detail=(input.detail??preferences?.detail??"detailed") as Preferences["detail"];
   const now=new Date().toISOString();
@@ -47,13 +46,13 @@ export async function enqueueConfirmedRecapAudio(
     "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at,request_id) "+
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
-      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now,input.requestId??null).run();
+      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now,input.requestId).run();
   if(result.meta.changes!==1){
     const old=await db.prepare("SELECT confirmed_at AS confirmedAt FROM campaign_recap_audio_summary_jobs "+
       "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? "+
       "AND (request_id=? OR status IN ('pending_upload','transferring','uploaded','submitting','submitted')) "+
       "ORDER BY created_at DESC LIMIT 1")
-      .bind(input.audioAssetId,input.recapId,input.userId,input.requestId??null)
+      .bind(input.audioAssetId,input.recapId,input.userId,input.requestId)
       .first<{confirmedAt:string|null}>();
     if(!old?.confirmedAt)throw new CampaignServiceError(
       "An existing recap processing request is not confirmed or cannot be reused. No new Gemini job was started.",409);

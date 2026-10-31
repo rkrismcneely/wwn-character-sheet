@@ -1,64 +1,60 @@
-# Recap Only: GM-owned background audio summarization
+# Session Recaps: Drive first, optional confirmed Gemini analysis
 
-## Flow
-1. GM connects Google Drive through explicit Drive OAuth and saves a personal Gemini key.
-2. GM chooses brief/standard/detailed and explicitly approves future automatic audio+campaign
-   context sharing and any billing from **their own Gemini project**. Opt-out stops future
-   provider activity without deleting past recording data.
-3. GM creates a private draft and uploads their original compressed or WAV recording to
-   their own `Tales Without End` folder in Google Drive, using resumable browser upload.
-4. Once Drive verifies the file, TWE creates **at most one job per recording** if automatic
-   consent is active. No action on Gemini occurs by merely creating a draft.
-5. A 5-minute Cloudflare Cron moves the file as a **stream** from GM Drive into Gemini Files
-   (up to Gemini's 2 GB per-file limit). No transcripts, per-speaker tracks, intermediate WAV
-   clips, site-owned R2 audio, or large in-Worker buffers.
-6. Later Cron ticks verify the file is ACTIVE, submit Gemini's **background Interactions**
-   request (model `gemini-3.6-flash`) with chronological audio and bounded Journal/previous
-   recap context, then poll a saved interaction ID.
-7. A completed Markdown result is saved privately in D1 and added to the private recap
-   when its content is still the original empty-draft placeholder. GM edits win.
-8. The GM reviews/corrects the draft, explicitly publishes, and the existing authorized
-   embedded audio player shows their original Drive audio with chapter links based on
-   timestamped Markdown headings.
+## Two-step GM workflow
+1. A GM connects Google Drive, optionally saves a personal Gemini API key, and creates
+   a private session recap with date and working title.
+2. **Step 1: upload** a full mixed MP3/M4A/WAV/FLAC/AAC recording. Browser uploads the
+   original directly into the GM's `Tales Without End` Drive folder. The completed
+   recording is linked to the private recap and playable immediately. **This never
+   starts Gemini or incurs AI usage**, even if older account-level automation settings
+   were enabled. Audio can remain attached without ever generating a summary.
+3. **Step 2: Auto Summarize.** The GM chooses a saved recording, opens a confirmation
+   dialog, and individually approves sharing the recording and contextual Journal/
+   prior recaps and any possible personal Gemini quota usage or billing.
+4. An authenticated GM-only API verifies that file is ready in the GM's own Drive,
+   checks the personal encrypted Gemini connection and private recap, records a
+   per-job `confirmed_at` timestamp, and inserts at most one job per audio asset.
+   No inference occurs in the confirmation API response itself.
+5. The existing scheduled Worker processes **only** jobs with `confirmed_at IS NOT NULL`.
+   Previous account-wide automatic jobs without this timestamp cannot initiate new work.
+   It streams the Drive recording to a temporary Gemini Files upload, then submits a
+   `gemini-3.8-flash` background Interactions request and polls the saved interaction ID.
+   The original never passes through site-owned R2 and remains in the GM's Drive.
+6. A completed Markdown recap is saved privately. The AI result cannot auto-publish
+   or replace GM-edited text. The GM reviews it, edits, and explicitly publishes.
+   The existing authorized audio player persists in the published recap.
 
-## Free owner / consent protections
-- All Gemini calls use only the requesting GM's encrypted own key after verifying
-  `user_recap_auto_preferences` still grants automatic processing and billing approval.
-- The site never uses a common AI credential and never attempts to query quotas it cannot
-  reliably verify. A GM's provider can charge their project depending on their tier.
-- Google's free-tier API inputs may be used to improve products; the Account setup states this.
-- Jobs use a UNIQUE audio asset and conditional state transitions to avoid duplicate
-  inference. Ambiguous model POST outcomes are marked `needs_attention` and never
-  automatically resubmitted.
-- Only a GM can read processing details, and results remain unpublished until explicitly
-  approved. Uploaded audio is restricted by existing campaign/audio authorization.
+## Security and charges
+- Files API per-file limit: 2 GB; Gemini documentation permits 9.5 hours of audio
+  per prompt, but practical three-hour recordings are still unverified end to end.
+- Each job records exact GM approval; the key is only decrypted for a confirmed
+  job and belongs to that GM. Site owner never pays for provider AI calls.
+- A duplicate button POST cannot enqueue a second job for the same recording.
+  An ambiguous billable Gemini POST is marked `needs_attention` rather than
+  automatically repeated.
+- The GM confirms data use (free tier may use content to improve products) and
+  possible provider charges in a per-recording modal.
+- Original Drive media can be played before or after summarization. Initial
+  browser-to-Drive upload requires the browser to remain open; scheduled Gemini
+  processing is independent of the browser.
+- Old auto-created jobs remain in the database but are excluded from the scheduler
+  unless explicitly confirmed under the new workflow. They are not bulk-deleted.
 
-## Operational limitations and QA gates
-- Gemini Files API has a 2 GB file maximum, stores temporary media for 48 hours, and
-  free-tier background interactions may be retained for only one day. Every 5-minute
-  scheduled tick checks one job and prioritizes result polling.
-- Multi-hour **Drive-to-Gemini streaming remains unverified on a real recording**.
-  Confirm Worker CPU/wall limits, streaming behavior, file MIME support, transient
-  network error recovery, and Gemini's 3-hour audio context before advertising reliable
-  unattended handling. Large file transfers could exceed a single scheduled invocation.
-- A transient or expired Gemini file can leave the job `needs_attention` while its
-  Google Drive original remains safe. A failed or ambiguous provider POST must not be
-  automatically retried because of possible duplicated charges.
-- Switching off the saved preference stops future stages; a previously submitted Gemini
-  task may still finish or incur charges. GM should revoke/cancel with provider when needed.
-- A GM with a file over 2 GB gets a visible processing warning, but the file is still
-  stored/playable in Drive. Compression or chunked native-audio analysis can be added later.
-- The upload browser must remain open for the initial upload to Drive. After verification,
-  the scheduled job can proceed without the browser.
-- TWE's audio playback depends on reconnecting the file owner's Drive account after
-  revocation; files are never deleted on disconnect.
-- Cloudflare secret `RECAP_STORAGE_ENCRYPTION_KEY` and authorized Drive OAuth callback
-  must already be configured, as documented in
-  `docs/operations/recap-google-drive-oauth.md`.
+## Known integration validation limits
+- Real Gemini audio inference and multi-hour Drive-to-Files stream need an actual
+  connected GM account and sample. Automated tests can prove consent, schema,
+  route authorization, state transitions and builds but not external provider
+  latency or recap factual accuracy.
+- The Cron invocation has a finite Cloudflare wall-clock budget. A very large
+  file transfer may fail safely and require engineering work to resume its transfer;
+  never claim that all 2–3-hour recordings are proven until real QA passes.
+- Google Files expire after 48 hours. Background result retention may depend
+  on Gemini account tier; TWE polls results and saves private output.
+- No transcription or separate Craig tracks are needed. Full transcript tools
+  remain optional and unchanged.
 
-## Production deployment
-`drizzle/0048_recap_only_automation.sql` is applied and verified by the
-`Migrate and Deploy Session Recaps` workflow before the updated Worker deploys.
-The additional Cron uses the already configured 5-minute schedule.
-No automatic recording creation is attempted without a verified Drive file and
-account-level consent. The prior transcript pipeline is left intact and optional.
+## Deployment
+The additive `0049_recap_explicit_confirmation.sql` adds nullable
+`confirmed_at`, intentionally leaving old jobs unapproved. The recap migration
+workflow verifies it before deploying the updated Worker. No automatic recurrence
+or cloud billing is configured for the site owner.

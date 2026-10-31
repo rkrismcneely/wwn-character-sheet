@@ -46,8 +46,9 @@ export function RecapAIConnections(){
         // billable generation request. Keep a saved key even if Google is offline.
         try{
           const check=await fetch(url,{method:"POST",cache:"no-store"});
-          await readAccountReply<{verified:boolean;notice?:string}>(check);
-          savedNotice="Gemini key securely saved and verified with Google. No AI request was started.";
+          const verification=await readAccountReply<{verified:boolean;notice?:string}>(check);
+          savedNotice="Gemini key securely saved and verified with Google. "+
+            (verification.notice||"No AI request was started.");
         }catch(e){
           savedNotice="Gemini key securely saved, but Google couldn't verify access: "+
             (e instanceof Error?e.message:"Try Test connection again.");

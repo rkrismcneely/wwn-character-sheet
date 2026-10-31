@@ -8,6 +8,9 @@ import type { PcmWav } from "@/lib/campaigns/recap-wav-chunks";
 import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-browser";
 import { decodeShortCraigAudio,makeDecodedGeminiSpeechClip,
   type DecodedSpeechPart } from "@/lib/campaigns/recap-gemini-native-short";
+import { openPrivateCraigRangeReader,inspectCraigFlacStreamInfo,
+  type CraigLongSourceMetadata } from "@/lib/campaigns/recap-craig-range-browser";
+import { CRAIG_RANGE_WINDOW_BYTES } from "@/lib/campaigns/recap-craig-audio-ranges";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
@@ -67,6 +70,13 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [nativeClips,setNativeClips]=useState<DecodedSpeechPart[]>([]);
   const [nativeFormat,setNativeFormat]=useState<"flac"|"aac"|null>(null);
   const [uploadBytes,setUploadBytes]=useState({sent:0,total:0});
+  const [longSource,setLongSource]=useState<{
+    meta:CraigLongSourceMetadata;durationMs:number|null;sampleRate:number|null;
+  }|null>(null);
+  const [sourceTransfer,setSourceTransfer]=useState({bytes:0,total:0});
+  const [sourceBusy,setSourceBusy]=useState(false);
+  const [sourceMessage,setSourceMessage]=useState("");
+  const longAbort=useRef<AbortController|null>(null);
   const [approve,setApprove]=useState(false);
   const [busy,setBusy]=useState(false);
   const [count,setCount]=useState(0);
@@ -122,7 +132,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         }
       }
     }).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e));});
-    return ()=>{abort.abort();stopRequested.current=true;active.current?.abort();};
+    return ()=>{abort.abort();stopRequested.current=true;active.current?.abort();longAbort.current?.abort();};
   },[base,recapId,jobs,staging]);
   async function readJSON<T>(url:string,init?:RequestInit):Promise<T>{
     const response=await fetch(url,{cache:"no-store",...init});
@@ -133,7 +143,8 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   async function chooseCraig(id:string){
     if(busy)return;
     setImportId(id);setJob(null);setTracks([]);setStaged(null);setAssembly(null);
-    setCraigEntries([]);
+    setCraigEntries([]);setLongSource(null);setSourceMessage("");
+    setSourceTransfer({bytes:0,total:0});
     setTrackIndex("");setFile(null);setWav(null);setClips([]);
     setNativeBuffer(null);setNativeClips([]);setNativeFormat(null);
     setError("");setMessage("");
@@ -228,6 +239,71 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     return ()=>{controller.abort();window.clearInterval(id);};
   },[busy,job?.id,jobs,recapId,staging]);
 
+  async function inspectLongCraig(){
+    if(sourceBusy||!importId||trackIndex==="")return;
+    const controller=new AbortController();longAbort.current=controller;
+    setSourceBusy(true);setError("");setLongSource(null);setSourceMessage("");
+    try{
+      const stream=await openPrivateCraigRangeReader(campaignId,importId,Number(trackIndex),{
+        signal:controller.signal,
+        onProgress:progress=>setSourceTransfer({bytes:progress.receivedBytes,
+          total:progress.totalSourceBytes}),
+      });
+      const prefix=await stream.read(0,Math.min(64,stream.metadata.bytes));
+      let durationMs:null|number=null,sampleRate:null|number=null;
+      if(stream.metadata.mimeType==="audio/flac"){
+        const header=inspectCraigFlacStreamInfo(prefix);
+        durationMs=header.durationMs;sampleRate=header.sampleRate;
+      }else if(prefix.byteLength<12||
+        String.fromCharCode(...prefix.subarray(4,8))!=="ftyp"){
+        throw new Error("Craig MPEG-4 file header is not valid.");
+      }
+      setLongSource({meta:stream.metadata,durationMs,sampleRate});
+      setSourceMessage("Source verified. Only "+prefix.byteLength+
+        " header bytes were downloaded; the full recording was not decoded.");
+    }catch(e){setError(errorMessage(e));}
+    finally{longAbort.current=null;setSourceBusy(false);}
+  }
+  async function saveLongCraigToComputer(){
+    if(sourceBusy||!importId||trackIndex==="")return;
+    type FileWriter={write(bytes:Uint8Array<ArrayBuffer>):Promise<void>;
+      close():Promise<void>;abort():Promise<void>};
+    type Picker=()=>Promise<{createWritable():Promise<FileWriter>}>;
+    const nativeWindow=window as Window&{showSaveFilePicker?:(
+      options:{suggestedName:string})=>ReturnType<Picker>};
+    if(!nativeWindow.showSaveFilePicker){
+      setError("This browser does not support streaming save-to-disk. Use a desktop browser with File System Access support.");return;
+    }
+    // Request the file handle synchronously from the click, before network awaits.
+    const entry=craigEntries[Number(trackIndex)];
+    const preferred=(entry?.filename??("craig-track-"+trackIndex+".flac"))
+      .split(/[\\/]/u).pop()?.replace(/[^A-Za-z0-9._ -]/gu,"_")??"craig-audio.flac";
+    let handle:Awaited<ReturnType<Picker>>;
+    try{handle=await nativeWindow.showSaveFilePicker({suggestedName:preferred});}
+    catch{return;}
+    setSourceBusy(true);setError("");setSourceMessage("");
+    const controller=new AbortController();longAbort.current=controller;
+    let writer:FileWriter|null=null;
+    try{
+      const stream=await openPrivateCraigRangeReader(campaignId,importId,Number(trackIndex),{
+        signal:controller.signal,
+        onProgress:p=>setSourceTransfer({bytes:p.receivedBytes,total:p.totalSourceBytes}),
+      });
+      writer=await handle.createWritable();
+      setSourceTransfer({bytes:0,total:stream.metadata.bytes});
+      for(let at=0;at<stream.metadata.bytes;at+=CRAIG_RANGE_WINDOW_BYTES){
+        if(controller.signal.aborted)throw new Error("Local file save was cancelled.");
+        const length=Math.min(CRAIG_RANGE_WINDOW_BYTES,stream.metadata.bytes-at);
+        const part=await stream.read(at,length);
+        await writer.write(part);
+      }
+      await writer.close();writer=null;
+      setSourceMessage("Saved the original compressed audio to your computer. This is not a transcription; full-length audio still requires an audio-aware decoder or PCM WAV conversion.");
+    }catch(e){
+      if(writer)await writer.abort().catch(()=>{});
+      setError(errorMessage(e)+" No partial file is kept by TWE.");
+    }finally{longAbort.current=null;setSourceBusy(false);}
+  }
   async function chooseSourceFile(next:File|null){
     setFile(null);setWav(null);setClips([]);setCount(0);setError("");
     setNativeBuffer(null);setNativeClips([]);setNativeFormat(null);
@@ -525,7 +601,8 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       {job.status==="awaiting_source"&&!job.pausedAt&&<>
         <label>Craig speaker track to prepare
           <select value={trackIndex} disabled={busy}
-            onChange={event=>{setTrackIndex(event.target.value);setFile(null);setWav(null);setClips([]);}}>
+            onChange={event=>{setTrackIndex(event.target.value);setFile(null);setWav(null);setClips([]);
+              setLongSource(null);setSourceMessage("");setSourceTransfer({bytes:0,total:0});}}>
             <option value="">Select one voice</option>
             {tracks.map(item=><option key={item.index} value={item.index}>
               {item.displayName} ({item.discordName})
@@ -537,6 +614,44 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           {chosenCraigEntry.uncompressedBytes>16*1024*1024?
             " This track is too large for direct browser loading.":" Short native source decoding may be available in this browser."}
         </p>}
+        {trackIndex!==""&&<div className="session-recap-reading">
+          <p><strong>Full-length original audio — bounded transfer</strong></p>
+          <p className="campaign-empty-copy">
+            Inspect this Craig speaker track without opening the whole file.
+            Only 1 MiB may be read in a request; repeated reads still count
+            toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
+            This checks the original format but <strong>does not decode or transcribe
+            multi-hour AAC/FLAC</strong> yet.
+          </p>
+          <div className="session-recap-form-actions">
+            <button type="button" className="campaign-secondary"
+              disabled={busy||sourceBusy} onClick={()=>void inspectLongCraig()}>
+              {sourceBusy?"Reading source…":"Inspect long Craig track"}
+            </button>
+            <button type="button" className="campaign-secondary"
+              disabled={busy||sourceBusy} onClick={()=>void saveLongCraigToComputer()}>
+              Save original to computer (streaming)
+            </button>
+            {sourceBusy&&<button type="button" className="campaign-secondary"
+              onClick={()=>longAbort.current?.abort()}>Stop transfer</button>}
+          </div>
+          {longSource&&<p className="campaign-empty-copy" role="status">
+            Verified {longSource.meta.mimeType==="audio/flac"?"FLAC":"MPEG-4 AAC"}
+            {" "}· {bytesLabel(longSource.meta.bytes)}.
+            {longSource.durationMs!==null?
+              " FLAC duration: "+(longSource.durationMs/60000).toFixed(1)+" min.":" Duration not available from this header."}
+          </p>}
+          {sourceTransfer.total>0&&<div role="status">
+            <p>Source bytes retrieved: {bytesLabel(sourceTransfer.bytes)} /
+              {" "}{bytesLabel(sourceTransfer.total)}
+              {" "}({clipPercent(sourceTransfer.bytes,sourceTransfer.total)}%).
+              Inspection reads only the file header, so a small percentage is normal.
+            </p>
+            <progress value={sourceTransfer.bytes} max={sourceTransfer.total}
+              aria-label="Original Craig audio transfer bytes"/>
+          </div>}
+          {sourceMessage&&<p role="status" className="session-recap-import-notice">{sourceMessage}</p>}
+        </div>}
         <button type="button" className="campaign-secondary"
           disabled={busy||trackIndex===""||
             (chosenCraigEntry?.uncompressedBytes??0)>16*1024*1024}

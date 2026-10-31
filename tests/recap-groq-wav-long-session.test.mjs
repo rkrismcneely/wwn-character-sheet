@@ -52,9 +52,9 @@ test("real WAV file slicing creates standalone RIFF files with original audio fr
 });
 test("long WAV upload UI warns about request count, charges and permits safe stopping",async()=>{
   const code=await readFile(new URL("../app/campaigns/session-recap-groq-transcriber.tsx",import.meta.url),"utf8");
-  assert.match(code,/planPcmWavUploadChunks\(info\)/u);
+  assert.match(code,/planPcmWavUploadChunks\(info,gemini\?/u);
   assert.match(code,/buildPcmWavUpload\(file,wavInfo,chunk,i\)/u);
-  assert.match(code,/wavChunks\.length\+" Groq transcription requests/u);
+  assert.match(code,/wavChunks\.length\+" "\+\(gemini\?"Gemini":"Groq"\)/u);
   assert.match(code,/Stop after current clip/u);
   assert.match(code,/Restart to safely skip identical completed clips/u);
   assert.match(code,/setProgress\(finished\)/u);

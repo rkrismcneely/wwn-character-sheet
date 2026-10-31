@@ -6,6 +6,7 @@ import { recapAIEncryptionReady,encryptGeminiUserKey,decryptGeminiUserKey,
   fingerprintGeminiKey,validateGeminiUserKey,
   type RecapAIEncryptionSettings,type EncryptedProviderKey } from "@/lib/account/recap-gemini-key";
 import {checkGeminiModelAccess} from "@/lib/account/recap-gemini-verification";
+import {checkGeminiRecapReadiness} from "@/lib/account/recap-gemini-readiness";
 
 const config=()=>env as unknown as RecapAIEncryptionSettings;
 const noCache={"cache-control":"private, no-store"};
@@ -131,7 +132,14 @@ export async function POST(request:Request){
     await who.db.prepare("UPDATE user_recap_ai_connections SET status='connected',"+
       "updated_at=? WHERE id=? AND user_id=? AND key_fingerprint=?")
       .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();
-    return Response.json({verified:true,notice:"Gemini model access verified without using transcription quota."},
-      {headers:noCache});
+    const readiness=await checkGeminiRecapReadiness(plain);
+    return Response.json({
+      verified:true,readiness,
+      notice:readiness.warning
+        ?"API key accepted. Recap readiness needs attention: "+readiness.warning+
+          " No model generation was started, and remaining quota was not verified."
+        :"Gemini key, selected model, and Files API verified with read-only requests. "+
+          "Remaining free quota cannot be checked automatically.",
+    },{headers:noCache});
   }catch{return bad("Google verified the Gemini key, but TWE could not save its verification status.",503);}
 }

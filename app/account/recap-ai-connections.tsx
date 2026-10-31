@@ -67,9 +67,9 @@ export function RecapAIConnections(){
       Connecting does not submit audio or start any AI request.
     </p>
     <p className="account-explanation">
-      Recap Only uses Gemini audio understanding and a background job after you
-      enable automation in the preferences below. Merely connecting a key does
-      not start processing. Full transcripts remain optional advanced tools.
+      Connect your Gemini key once, then upload a session recording to your Google Drive.
+      Gemini only starts when you click Auto Summarize on that recording and approve its
+      individual privacy and billing confirmation. Full transcripts remain optional.
     </p>
     {state?.connection&&state.connection.status!=="disconnected"&&
       <dl className="account-provider">
@@ -79,7 +79,10 @@ export function RecapAIConnections(){
           new Date(state.connection.connectedAt).toLocaleDateString():"Pending"}</dd></div>
       </dl>}
     {state&&!state.configured&&<p className="account-error" role="status">
-      Encrypted AI connections are not configured on this deployment. You cannot save an API key yet.
+      TWE is finishing the server-side encryption setup. Your Gemini API key cannot
+      be stored until the production Cloudflare Worker has the secure
+      RECAP_STORAGE_ENCRYPTION_KEY secret. This is a site configuration issue,
+      not a problem with your Google API key.
     </p>}
     <div className="account-actions">
       <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer"

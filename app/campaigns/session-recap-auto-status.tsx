@@ -180,6 +180,14 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       <p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
       </p>
+      {newest.generatedMarkdown&&<details>
+        <summary>View partial AI notes — not a complete recap</summary>
+        <p className="campaign-empty-copy">
+          Gemini returned only part of the recap. These notes are private, unverified,
+          and have not been copied into the published session summary.
+        </p>
+        <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
+      </details>}
       <div className="session-recap-form-actions">
         {newest.canRetry&&<button type="button" className="campaign-primary"
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>

@@ -11,6 +11,7 @@ import { decodeShortCraigAudio,makeDecodedGeminiSpeechClip,
 import { openPrivateCraigRangeReader,inspectCraigFlacStreamInfo,
   type CraigLongSourceMetadata } from "@/lib/campaigns/recap-craig-range-browser";
 import { CRAIG_RANGE_WINDOW_BYTES } from "@/lib/campaigns/recap-craig-audio-ranges";
+import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES } from "@/lib/campaigns/recap-craig-flac-stream";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
@@ -263,6 +264,88 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         " header bytes were downloaded; the full recording was not decoded.");
     }catch(e){setError(errorMessage(e));}
     finally{longAbort.current=null;setSourceBusy(false);}
+  }
+  async function prepareFullFlacToDrive(){
+    if(busy||sourceBusy||!job||job.status!=="awaiting_source"||job.pausedAt||
+      !connectionId||!importId||trackIndex==="")return;
+    setBusy(true);setError("");setMessage("");setCount(0);
+    setUploadBytes({sent:0,total:0});setSourceTransfer({bytes:0,total:0});
+    stopRequested.current=false;
+    const controller=new AbortController();longAbort.current=controller;
+    const index=Number(trackIndex),selectedJob=job;
+    try{
+      const source=await openPrivateCraigRangeReader(campaignId,importId,index,{
+        signal:controller.signal,
+        onProgress:p=>setSourceTransfer({bytes:p.receivedBytes,total:p.totalSourceBytes}),
+      });
+      if(source.metadata.mimeType!=="audio/flac")
+        throw new Error("Full-length conversion currently supports FLAC only. AAC/M4A needs separate demuxing.");
+      const header=inspectCraigFlacStreamInfo(await source.read(0,64));
+      const parts=planCraigFlacSpeechParts(header);
+      const expectedStorage=parts.reduce((sum,part)=>sum+44+part.targetFrames*2,0);
+      setSourceMessage("Decoding in small ranges: "+parts.length+" clips; estimated Drive storage "+
+        bytesLabel(expectedStorage)+". Keep this page open. Returning later re-decodes the FLAC but skips matching uploaded clips.");
+      const current=await refresh(selectedJob.id);
+      let existing=current.clips.filter(part=>part.trackIndex===index);
+      if(existing.length===0){
+        await readJSON<{planned:boolean}>(staging,{
+          method:"POST",headers:{"content-type":"application/json"},signal:controller.signal,
+          body:JSON.stringify({recapId,jobId:selectedJob.id,action:"plan",trackIndex:index,
+            chunks:parts.map(part=>({startMs:part.startMs,endMs:part.endMs}))}),
+        });
+        existing=(await refresh(selectedJob.id)).clips.filter(part=>part.trackIndex===index);
+      }
+      if(existing.length!==parts.length||existing.some((part,i)=>
+        part.chunkIndex!==i||part.startMs!==parts[i].startMs||part.endMs!==parts[i].endMs))
+        throw new Error("The verified FLAC duration differs from the saved plan. The recording cannot be silently replaced.");
+      const planned=existing;
+      await streamCraigFlacSpeech({
+        source,signal:controller.signal,
+        onProgress:p=>setSourceMessage(
+          "Decoded "+p.clipsCompleted+"/"+p.clipsTotal+" audio clips. "+
+          "Downloaded "+bytesLabel(p.sourceBytes)+"/"+bytesLabel(p.sourceTotal)+
+          " of original FLAC in up to "+p.estimatedR2Reads+" private reads."),
+        onClip:async(converted,part)=>{
+          if(stopRequested.current||controller.signal.aborted)
+            throw new Error("FLAC preparation stopped. Uploaded clips remain in Drive.");
+          const digest=await sha(converted),old=planned[part.chunkIndex];
+          if(old.staged){
+            if(old.sourceDigest!==digest)
+              throw new Error("Previously uploaded FLAC speech clip did not match its checksum.");
+            setCount(part.chunkIndex+1);return;
+          }
+          const started=await readJSON<{assetId:string;uploadSessionUrl:string;chunkBytes:number}>(
+            base+"/session-recaps/audio/upload/start",{
+              method:"POST",headers:{"content-type":"application/json"},
+              signal:controller.signal,
+              body:JSON.stringify({recapId,connectionId,filename:converted.name,
+                mimeType:"audio/wav",byteSize:converted.size,
+                durationMs:part.endMs-part.startMs,processingJobId:selectedJob.id}),
+            });
+          setUploadBytes({sent:0,total:converted.size});
+          const remote=await uploadRecordingToDrive(converted,started.uploadSessionUrl,
+            (sent,total)=>setUploadBytes({sent,total}),
+            {chunkBytes:started.chunkBytes,signal:controller.signal});
+          await readJSON<{ready:boolean}>(base+"/session-recaps/audio/upload/finish",{
+            method:"POST",headers:{"content-type":"application/json"},
+            signal:controller.signal,
+            body:JSON.stringify({assetId:started.assetId,remoteFileId:remote.id}),
+          });
+          await readJSON<{staged:boolean}>(staging,{
+            method:"POST",headers:{"content-type":"application/json"},
+            signal:controller.signal,
+            body:JSON.stringify({recapId,jobId:selectedJob.id,action:"attach",
+              trackIndex:index,chunkIndex:part.chunkIndex,
+              assetId:started.assetId,sourceDigest:digest}),
+          });
+          setCount(part.chunkIndex+1);await refresh(selectedJob.id);
+        },
+      });
+      setMessage("Full FLAC speaker track prepared and verified in your Google Drive. "+
+        "Prepare the other Craig speakers, then seal the job. Automatic Gemini submission remains disabled.");
+    }catch(e){
+      setError(errorMessage(e)+" Confirmed clips remain saved. Retry the same Craig source to resume.");
+    }finally{longAbort.current=null;setBusy(false);setSourceBusy(false);}
   }
   async function saveLongCraigToComputer(){
     if(sourceBusy||!importId||trackIndex==="")return;
@@ -617,13 +700,28 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         {trackIndex!==""&&<div className="session-recap-reading">
           <p><strong>Full-length original audio — bounded transfer</strong></p>
           <p className="campaign-empty-copy">
+            Streaming FLAC conversion reads up to {CRAIG_FLAC_READ_BYTES / 1024} KiB of
+            compressed source per request, decodes into four-minute mono WAV clips,
+            and uploads them to your connected Drive. This uses Cloudflare R2 reads,
+            your device&apos;s CPU and Google Drive space. Keep the page open; closing it
+            stops local decoding, but completed clips stay saved. Reopening must
+            re-decode the source to verify earlier clip checksums. AAC is not yet supported.
+          </p>
+          <p className="campaign-empty-copy">
             Inspect this Craig speaker track without opening the whole file.
             Only 1 MiB may be read in a request; repeated reads still count
             toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
-            This checks the original format but <strong>does not decode or transcribe
-            multi-hour AAC/FLAC</strong> yet.
+            The inspection button only checks metadata. <strong>Prepare entire FLAC</strong>
+            performs local decoding and Drive uploads; it does not transcribe.
+            Full-length AAC remains unsupported.
           </p>
           <div className="session-recap-form-actions">
+            <button type="button" className="campaign-primary"
+              disabled={busy||sourceBusy||!job||job.status!=="awaiting_source"||
+                Boolean(job.pausedAt)||!connectionId||!importId}
+              onClick={()=>void prepareFullFlacToDrive()}>
+              {busy?"Preparing FLAC…":"Prepare entire FLAC in my Drive"}
+            </button>
             <button type="button" className="campaign-secondary"
               disabled={busy||sourceBusy} onClick={()=>void inspectLongCraig()}>
               {sourceBusy?"Reading source…":"Inspect long Craig track"}

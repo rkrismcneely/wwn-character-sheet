@@ -10,7 +10,7 @@ import type { CaptionCue } from "./recap-full-transcript.ts";
 
 export type GeminiCronEnvironment=DriveSettings&RecapAIEncryptionSettings&{
   DB:D1Database;BUCKET:R2Bucket;RECAP_GEMINI_BACKGROUND_ENABLED?:string;
-  RECAP_GEMINI_FREE_QUOTA_VERIFIED?:string;
+
 };
 const FRAGMENT="recap-transcript-chunks/";
 const POLL_MS=15*60*1000;
@@ -146,7 +146,7 @@ async function pollOne(env:GeminiCronEnvironment,now:string){
 }
 async function submitOne(env:GeminiCronEnvironment,now:string){
   const leased=await leaseOnePreparedGeminiChunk(env.DB,{
-    enabled:true,freeQuotaVerified:env.RECAP_GEMINI_FREE_QUOTA_VERIFIED==="true",
+    enabled:true,freeQuotaVerified:false,
     now,verifySource:async(key,size)=>{
       return /^drive-asset\/[0-9a-f-]{36}$/iu.test(key)&&
         Number.isSafeInteger(size)&&size>=128&&size<=GEMINI_BACKGROUND_MAX_CLIP_BYTES;
@@ -181,7 +181,7 @@ async function submitOne(env:GeminiCronEnvironment,now:string){
         Math.ceil((leased.endMs-leased.startMs)/60000)*10000).run();
     // Free-tier jobs only run behind separate project-specific verification;
     // no global flag should ever classify an arbitrary paid GM project as free.
-    if(budget.meta.changes!==1 && env.RECAP_GEMINI_FREE_QUOTA_VERIFIED!=="true"){
+    if(leased.quotaMode!=="gm-owned-paid-allowed"||budget.meta.changes!==1){
       await holdGeminiChunk(env.DB,leased,"needs_attention",now);
       return true;
     }

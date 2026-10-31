@@ -32,6 +32,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const [billing,setBilling]=useState(false);
   const [recapUpdatedAt,setRecapUpdatedAt]=useState("");
   const seen=useRef("");
+  const cancelRef=useRef<HTMLButtonElement|null>(null);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
     const [status,audio]=await Promise.all([
       fetch(endpoint+"?recapId="+encodeURIComponent(recapId),{cache:"no-store",signal}),
@@ -74,6 +75,15 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       onDraft(job.generatedMarkdown,recapUpdatedAt,false);
     }
   },[jobs,onDraft,recapUpdatedAt]);
+  useEffect(()=>{
+    if(!confirmAsset)return;
+    cancelRef.current?.focus();
+    const close=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"&&!starting){event.preventDefault();setConfirmAsset(null);}
+    };
+    window.addEventListener("keydown",close);
+    return ()=>window.removeEventListener("keydown",close);
+  },[confirmAsset,starting]);
   function openConfirmation(asset:Asset){
     if(starting)return;
     setConfirmAsset(asset);setPrivacy(false);setBilling(false);setError("");setNotice("");
@@ -171,7 +181,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
           {" "}I understand this request could use my quota or incur provider charges.
         </label>
         <div className="session-recap-form-actions">
-          <button type="button" className="campaign-secondary" disabled={starting}
+          <button ref={cancelRef} type="button" className="campaign-secondary" disabled={starting}
             onClick={()=>setConfirmAsset(null)}>Cancel</button>
           <button type="button" className="campaign-primary"
             disabled={starting||!privacy||!billing} onClick={()=>void summarize()}>

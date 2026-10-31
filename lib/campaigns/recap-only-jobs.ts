@@ -88,7 +88,10 @@ export async function retrySafeRecapPreparation(
   // An expired Gemini staging session must be replaced on retry. Other
   // errors preserve the encrypted resumable session and accepted byte offset.
   const reset=job.stageErrorCode==="gemini_upload_session_expired"||
-    job.stageErrorCode==="gemini_chunk_http_404";
+    job.stageErrorCode==="gemini_chunk_http_404"||
+    // A 400 means the previous resumable session already rejected its chunk.
+    // Start a new temporary upload after changing the request format.
+    job.stageErrorCode==="gemini_chunk_http_400";
   const updated=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET status=?,error_code=NULL,stage_error_code=NULL,claimed_at=NULL,updated_at=?,"+
     "stage_url_ciphertext=CASE WHEN ? THEN NULL ELSE stage_url_ciphertext END,"+

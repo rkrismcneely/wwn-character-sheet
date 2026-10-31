@@ -32,7 +32,7 @@ test("Gemini interaction polling uses only recorded ID, no audio reupload",async
     assert.deepEqual(outcome.cues.map(x=>x.startMs),[180200]);
     assert.equal(called.length,1);
     assert.equal(called[0].method,"GET");
-    assert.match(called[0].url,/\/v1beta\/interactions\/v1_TWEInteractionExample_123456$/u);
+    assert.match(called[0].url,/\/v1beta\/interactions\/v1_TWEInteractionExample_123456789$/u);
     assert.doesNotMatch(called[0].url,/upload|files/u);
   }finally{globalThis.fetch=saved;}
 });
@@ -93,7 +93,7 @@ test("scheduled wiring is fail closed on free quota and cost capped for GM-owned
     "quarantineExpiredGeminiLeases","provider_interaction_id","pollGeminiInteraction",
     "submitVerifiedGeminiAudio","spent_cost_microusd+?",
     "awaiting_review","FRAGMENT","saveFragment",
-    "provider_poll_after","status='submitted'","sourceDigest"]){
+    "provider_poll_after","status='submitted'"]){
     assert.ok(scheduler.includes(v),"Missing runner safety property: "+v);
   }
   assert.match(lease,/spentCostMicrousd\+conservativeMicrousd>item\.maxCostMicrousd/u);

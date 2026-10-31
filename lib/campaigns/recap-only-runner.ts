@@ -137,6 +137,7 @@ ${context}`;
 }
 async function submit(env:RecapOnlyEnvironment,job:Job){
   const secret=await keyFor(env,job);
+  const original=await sourceFor(env,job);
   if(!job.fileName||!job.fileUri)throw Error("Gemini staging file missing.");
   const check=await fetch(API+"/v1beta/"+job.fileName,{redirect:"manual",
     headers:{"x-goog-api-key":secret},signal:AbortSignal.timeout(12000)});
@@ -158,8 +159,7 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
       headers:{"x-goog-api-key":secret,"content-type":"application/json","Api-Revision":"2026-05-20"},
       body:JSON.stringify({model:RECAP_ONLY_MODEL,background:true,store:true,
         input:[{type:"text",text:prompt(job.detail,await contextFor(env,job))},
-          {type:"audio",uri:job.fileUri,mime_type:"audio/"+(
-            job.fileUri.endsWith(".m4a")?"m4a":"mpeg")}]})
+          {type:"audio",uri:job.fileUri,mime_type:audioMime(original.mimeType)}]})
     });
     interaction=await readSmall(request,250_000) as Interaction;
   }catch{

@@ -193,7 +193,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
               </button>
             : <button type="button" className="campaign-primary" disabled={!file||!connectionId||busy}
                 onClick={()=>void upload()}>{busy?"Uploading…":"Upload recording"}</button>}
-          {busy && <button type="button" className="campaign-secondary" onClick={()=>controller.current?.abort()}>
+          {busy && !awaitingVerification && <button type="button" className="campaign-secondary" onClick={()=>controller.current?.abort()}>
             Stop upload
           </button>}
         </div>

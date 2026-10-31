@@ -480,7 +480,7 @@ export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_process
   chunkIndex: integer("chunk_index").notNull(),
   startMs: integer("start_ms").notNull(),
   endMs: integer("end_ms").notNull(),
-  status: text("status", { enum: ["pending", "leased", "completed", "failed", "skipped"] }).notNull().default("pending"),
+  status: text("status", { enum: ["pending", "leased", "submitted", "completed", "failed", "skipped"] }).notNull().default("pending"),
   attempts: integer("attempts").notNull().default(0),
   leaseToken: text("lease_token"),
   leaseExpiresAt: text("lease_expires_at"),

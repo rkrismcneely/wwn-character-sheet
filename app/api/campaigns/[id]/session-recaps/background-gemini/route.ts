@@ -43,12 +43,39 @@ function fail(error:unknown){
 export async function GET(request:Request,context:Context) {
   try{
     const recapId=new URL(request.url).searchParams.get("recapId");
-    const {db,campaign,recap}=await scope(request,context,recapId);
-    const rows=await db.prepare(selectJob+"ORDER BY created_at DESC LIMIT 20")
-      .bind(campaign.id,recap.id).all<DatabaseJob>();
-    return Response.json({jobs:rows.results.map(safeGeminiJobSummary),
+    const {db,actor,campaign,recap}=await scope(request,context,recapId);
+    // Only expose the invoking GM's jobs, not another campaign GM's account use.
+    const rows=await db.prepare(selectJob+
+      "AND requested_by=? ORDER BY created_at DESC LIMIT 20")
+      .bind(campaign.id,recap.id,actor.userId).all<DatabaseJob>();
+    const counts=await db.prepare(
+      "SELECT c.job_id AS jobId,c.status,COUNT(*) AS count "+
+      "FROM campaign_recap_processing_chunks c "+
+      "JOIN campaign_recap_processing_jobs j ON j.id=c.job_id "+
+      "WHERE j.campaign_id=? AND j.recap_id=? AND j.requested_by=? "+
+      "AND j.provider='gemini' GROUP BY c.job_id,c.status")
+      .bind(campaign.id,recap.id,actor.userId)
+      .all<{jobId:string;status:string;count:number}>();
+    const summaries=new Map<string,Record<string,number>>();
+    for(const row of counts.results){
+      const current=summaries.get(row.jobId)??Object.create(null) as Record<string,number>;
+      current[row.status]=Number(row.count);
+      summaries.set(row.jobId,current);
+    }
+    return Response.json({jobs:rows.results.map(row=>({
+      ...safeGeminiJobSummary(row),
+      importId:row.importId,
+      progress:{
+        pending:summaries.get(row.id)?.pending??0,
+        leased:summaries.get(row.id)?.leased??0,
+        submitted:summaries.get(row.id)?.submitted??0,
+        completed:summaries.get(row.id)?.completed??0,
+        failed:summaries.get(row.id)?.failed??0,
+        skipped:summaries.get(row.id)?.skipped??0,
+      },
+    })),
       backgroundEnabled:false,
-      notice:"Saved job plans are not dispatched until the audio staging and free-usage guards are activated."},
+      notice:"Saved plans and transcript results can be resumed here. Automatic Gemini submission is still disabled pending per-GM cost safeguards."},
       {headers:privateHeaders});
   }catch(error){return fail(error);}
 }

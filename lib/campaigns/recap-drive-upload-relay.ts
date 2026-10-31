@@ -18,7 +18,7 @@ async function signingKey(settings:DriveSettings):Promise<CryptoKey>{
   if(bytes.length!==32)throw Error("Invalid Drive upload protection.");
   return crypto.subtle.importKey("raw",bytes,{name:"HMAC",hash:"SHA-256"},false,["sign","verify"]);
 }
-function subject(userId:string,campaignId:string,assetId:string,url:string,issuedAt:number):Uint8Array{
+function subject(userId:string,campaignId:string,assetId:string,url:string,issuedAt:number):Uint8Array<ArrayBuffer>{
   // Newlines cannot be injected by URLs (validated) or app-generated IDs.
   return utf8.encode(["twe:recap-drive-upload:v1",userId,campaignId,assetId,url,String(issuedAt)].join("\n"));
 }
@@ -28,7 +28,9 @@ function toBase64url(bytes:ArrayBuffer):string{
 }
 function fromBase64url(encoded:string):Uint8Array{
   const raw=atob(encoded.replaceAll("-","+").replaceAll("_","/"));
-  return Uint8Array.from(raw,ch=>ch.charCodeAt(0));
+  const bytes=new Uint8Array(new ArrayBuffer(raw.length));
+  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  return bytes;
 }
 export async function issueDriveUploadTicket(settings:DriveSettings,parameters:{
   userId:string;campaignId:string;assetId:string;uploadSessionUrl:string;issuedAt:number;

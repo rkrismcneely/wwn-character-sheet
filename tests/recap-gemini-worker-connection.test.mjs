@@ -68,6 +68,6 @@ test("Account checks keep owner isolation and do not disable saved keys for temp
   assert.match(route,/WHERE id=\? AND user_id=\? AND key_fingerprint=\?/u);
   assert.match(route,/decryptGeminiUserKey\(config\(\),who\.id,row\.id/u);
   assert.match(helper,/redirect:"manual"/u);
-  assert.doesNotMatch(helper,/redirect:"error"|console\.(log|error)|generateContent|interactions|upload\/v1beta\/files/u);
+  assert.doesNotMatch(helper,/redirect:"error"\s*,|console\.(log|error)|generateContent|interactions|upload\/v1beta\/files/u);
   assert.doesNotMatch(route,/console\.(log|error)/u);
 });

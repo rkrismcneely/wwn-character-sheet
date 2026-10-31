@@ -25,7 +25,8 @@ export const PRIVATE_RECAP_DRAFT_CONTENT = "*Recording awaiting a GM-approved re
 const order = "ORDER BY session_date DESC, created_at DESC, id DESC";
 
 function asRecap(row: RecapRow): CampaignSessionRecap {
-  return { id: row.id, date: row.sessionDate, title: row.title, content: row.content,
+  return { id: row.id, date: row.sessionDate, title: row.title,
+    content: row.isPublished === 0 && row.content === PRIVATE_RECAP_DRAFT_CONTENT ? "" : row.content,
     isPublished: row.isPublished === 1, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 function validId(id: unknown): string {
@@ -119,7 +120,8 @@ export async function createCampaignSessionRecap(
   await db.prepare(`INSERT INTO campaign_session_recaps
     (id, campaign_id, session_date, title, content, is_published, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, internalId, draft.date, draft.title, draft.content, isPublished ? 1 : 0, now, now).run();
-  return { id, ...draft, isPublished, createdAt: now, updatedAt: now };
+  return { id, ...draft, content: isPublished ? draft.content : "",
+    isPublished, createdAt: now, updatedAt: now };
 }
 
 export async function updateCampaignSessionRecap(
@@ -170,6 +172,8 @@ export async function updateCampaignSessionRecap(
       WHERE campaign_id=? AND kind='page' AND instr(content,?)>0`)
       .bind(draft.date.slice(2)+" — "+draft.title,now,internalId,marker).run();
   }
-  return { id, ...draft, isPublished,
+  return { id, ...draft,
+    content: isPublished ? draft.content : draft.content === PRIVATE_RECAP_DRAFT_CONTENT ? "" : draft.content,
+    isPublished,
     createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
 }

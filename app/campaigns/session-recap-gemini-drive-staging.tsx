@@ -711,8 +711,9 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             Inspect this Craig speaker track without opening the whole file.
             Only 1 MiB may be read in a request; repeated reads still count
             toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
-            This checks the original format but <strong>does not decode or transcribe
-            multi-hour AAC/FLAC</strong> yet.
+            The inspection button only checks metadata. <strong>Prepare entire FLAC</strong>
+            performs local decoding and Drive uploads; it does not transcribe.
+            Full-length AAC remains unsupported.
           </p>
           <div className="session-recap-form-actions">
             <button type="button" className="campaign-primary"

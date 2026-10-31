@@ -16,7 +16,7 @@ const statusLabel:Record<string,string>={
   failed:"Processing stopped",
 };
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
-  campaignId:string;recapId:string;onDraft:(content:string)=>boolean;
+  campaignId:string;recapId:string;onDraft:(content:string,updatedAt:string)=>boolean;
 }){
   const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/auto-recap";
   const [jobs,setJobs]=useState<Job[]>([]);
@@ -25,17 +25,18 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const [notice,setNotice]=useState("");
   const [starting,setStarting]=useState("");
   const seen=useRef("");
+  const [recapUpdatedAt,setRecapUpdatedAt]=useState("");
   const refresh=useCallback(async(signal?:AbortSignal)=>{
     const [results,audio]=await Promise.all([
       fetch(endpoint+"?recapId="+encodeURIComponent(recapId),{cache:"no-store",signal}),
       fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio?recapId="+encodeURIComponent(recapId),{cache:"no-store",signal}),
     ]);
     const [jobsResult,audioResult]=await Promise.all([results.json(),audio.json()]) as [
-      {jobs?:Job[];error?:string},{assets?:Asset[];error?:string},
+      {jobs?:Job[];recap?:{updatedAt:string};error?:string},{assets?:Asset[];error?:string},
     ];
     if(!results.ok||!Array.isArray(jobsResult.jobs))throw Error(jobsResult.error||"Could not read recap processing status.");
     if(!audio.ok||!Array.isArray(audioResult.assets))throw Error(audioResult.error||"Could not read saved audio.");
-    if(!signal?.aborted){setJobs(jobsResult.jobs);setAssets(audioResult.assets);}
+    if(!signal?.aborted){setJobs(jobsResult.jobs);setAssets(audioResult.assets);setRecapUpdatedAt(jobsResult.recap?.updatedAt||"");}
   },[campaignId,recapId,endpoint]);
   useEffect(()=>{
     const ctrl=new AbortController();
@@ -49,10 +50,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
     const job=jobs.find(x=>x.status==="ready"&&x.generatedMarkdown);
     if(job?.generatedMarkdown&&seen.current!==job.id){
       seen.current=job.id;
-      if(onDraft(job.generatedMarkdown))
+      if(onDraft(job.generatedMarkdown,recapUpdatedAt))
         setNotice("Gemini wrote a private draft into the recap editor. Review and publish when ready.");
     }
-  },[jobs,onDraft]);
+  },[jobs,onDraft,recapUpdatedAt]);
   async function start(assetId:string){
     setStarting(assetId);setError("");setNotice("");
     try{

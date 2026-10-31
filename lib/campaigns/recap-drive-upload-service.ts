@@ -2,7 +2,6 @@ import { canManageCampaignContent } from "./authorization.ts";
 import { validateAudioUploadDraft, validateDriveSessionUrl, type UploadDraft } from "./recap-drive-upload.ts";
 import { getGmDriveAccessToken } from "./recap-drive-token.ts";
 import { ensureRecapDriveFolder } from "./recap-drive-folder.ts";
-import { enqueueConsentedRecapAudio } from "./recap-only-jobs.ts";
 import { getCampaignSessionRecap } from "./session-recaps.ts";
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
@@ -116,10 +115,6 @@ export async function finishGmDriveAudioUpload(
   ).bind(input.assetId,campaign.id,actor!.userId).first<AssetRow>();
   if(!asset)throw new CampaignServiceError("This audio upload could not be found.",404);
   if(asset.status==="ready" && asset.remoteFileId===input.remoteFileId){
-    if(!asset.processingJobId)await enqueueConsentedRecapAudio(db,{
-      campaignId:campaign.id,recapId:asset.recapId,audioAssetId:asset.id,
-      userId:actor!.userId,byteSize:asset.byteSize,
-    });
     return {assetId:asset.id,ready:true};
   }
   if(asset.status!=="preparing") throw new CampaignServiceError("This audio upload is not awaiting completion.",409);
@@ -146,9 +141,5 @@ export async function finishGmDriveAudioUpload(
     "WHERE id=? AND campaign_id=? AND storage_owner_user_id=? AND status='preparing'",
   ).bind(input.remoteFileId,new Date().toISOString(),asset.id,campaign.id,actor!.userId).run();
   if(result.meta.changes!==1)throw new CampaignServiceError("Recording upload was changed elsewhere.",409);
-  if(!asset.processingJobId)await enqueueConsentedRecapAudio(db,{
-    campaignId:campaign.id,recapId:asset.recapId,audioAssetId:asset.id,
-    userId:actor!.userId,byteSize:asset.byteSize,
-  });
   return {assetId:asset.id,ready:true};
 }

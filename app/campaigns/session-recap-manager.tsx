@@ -236,7 +236,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
               return true;
             }}/>
         </details>
-      </>
+      </>}
     </> : <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">CAMPAIGN JOURNAL</p><h2 id="gm-session-recaps-title">Session Recaps</h2></div>

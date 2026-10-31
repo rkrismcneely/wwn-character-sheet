@@ -69,7 +69,10 @@ test("local Whisper stores completed chunks and verifies GM-only checkpoint rece
   assert.match(client,/checked\.complete/u);
   assert.match(client,/buildPcmWavUpload/u);
   assert.match(client,/Completed chunks remain saved/u);
-  assert.doesNotMatch(client,/localStorage|sessionStorage|apiKey/u);
+  assert.doesNotMatch(client,/sessionStorage|apiKey/u);
+  assert.match(client,/readRememberedLocalRecapFile/u);
+  assert.match(client,/rememberLocalRecapFile/u);
+  assert.match(client,/queryPermission/u);
   assert.match(endpoint,/canManageCampaignContent/u);
   assert.match(endpoint,/processedClips/u);
   assert.match(endpoint,/onlyIf/u);

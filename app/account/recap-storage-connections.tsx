@@ -55,13 +55,17 @@ export function RecapStorageConnections() {
     const controller = new AbortController();
     const currentUrl = new URL(window.location.href);
     const outcome = currentUrl.searchParams.get("drive");
-    if (outcome === "connected") {
-      setMessage("Google Drive connected. Your session recordings will be saved to your Drive.");
-    } else if (outcome === "cancelled") {
-      setMessage("Google Drive connection cancelled. Nothing was changed.");
-    } else if (outcome === "error") {
-      setError("Google couldn't complete the connection. Try again. If Google reports a redirect error, TWE needs to finish its Google authorization setup.");
-    }
+    // Defer state updates until after the first render (React effect safety).
+    const notification = window.setTimeout(() => {
+      if (controller.signal.aborted) return;
+      if (outcome === "connected") {
+        setMessage("Google Drive connected. Your session recordings will be saved to your Drive.");
+      } else if (outcome === "cancelled") {
+        setMessage("Google Drive connection cancelled. Nothing was changed.");
+      } else if (outcome === "error") {
+        setError("Google couldn't complete the connection. Try again. If Google reports a redirect error, TWE needs to finish its Google authorization setup.");
+      }
+    }, 0);
     if (outcome === "connected" || outcome === "cancelled" || outcome === "error") {
       currentUrl.searchParams.delete("drive");
       window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search + currentUrl.hash);
@@ -75,7 +79,7 @@ export function RecapStorageConnections() {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-    return () => controller.abort();
+    return () => { controller.abort(); window.clearTimeout(notification); };
   }, [refresh]);
 
   // The API returns connections newest first. Use one account card rather
@@ -145,12 +149,12 @@ export function RecapStorageConnections() {
         Google authorization setup; no changes to your Drive are required.
       </p>}
       {!connected && available && <p className="account-explanation">
-        You can approve access on Google's permission screen. TWE only requests
+        You can approve access on Google&apos;s permission screen. TWE only requests
         access to files it creates or that you explicitly share with TWE.
       </p>}
       {confirmDisconnect && drive && <div className="account-disconnect-confirmation"
         role="group" aria-label="Confirm disconnect Google Drive">
-        <p>Disconnect Google Drive? Your recordings won't be deleted, but TWE
+        <p>Disconnect Google Drive? Your recordings won&apos;t be deleted, but TWE
           cannot upload or play them until you reconnect.</p>
         <div className="account-actions">
           <button type="button" className="account-secondary" disabled={disconnecting}

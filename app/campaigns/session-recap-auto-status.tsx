@@ -3,6 +3,7 @@ import {useCallback,useEffect,useRef,useState} from "react";
 import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
 import {SessionRecapProgress} from "./session-recap-progress";
 import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
+import {recapQuotaNotice} from "@/lib/campaigns/recap-quota-estimate";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
@@ -10,7 +11,7 @@ type Job={
   stageBytes:number;totalBytes:number|null;canRetry:boolean;
   createdAt:string;updatedAt:string;
 };
-type Asset={id:string;label:string;status:string;provider:string};
+type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null};
 const statusLabel:Record<string,string>={
   pending_upload:"Queued for Gemini — original audio remains in Drive",
   transferring:"Transferring a temporary copy from Drive to Gemini",
@@ -32,6 +33,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const [starting,setStarting]=useState(false);
   const [retrying,setRetrying]=useState(false);
   const [confirmAsset,setConfirmAsset]=useState<Asset|null>(null);
+  const [durations,setDurations]=useState<Record<string,number>>({});
   const [privacy,setPrivacy]=useState(false);
   const [billing,setBilling]=useState(false);
   const [recapUpdatedAt,setRecapUpdatedAt]=useState("");
@@ -131,6 +133,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id));
   const newest=jobs[0];
+  const quotaEstimate=recapQuotaNotice(confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null);
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
     <h4>Session recording</h4>
     <p className="campaign-empty-copy">
@@ -138,7 +141,9 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       whether or not you ever use AI.
     </p>
     {playable.length>0&&<SessionRecapAudioPlayer
-      key={playable.map(a=>a.id).join(":")} campaignId={campaignId} recapId={recapId}/>}
+      key={playable.map(a=>a.id).join(":")} campaignId={campaignId} recapId={recapId}
+      onDuration={(assetId,durationMs)=>setDurations(previous=>
+        previous[assetId]===durationMs?previous:{...previous,[assetId]:durationMs})}/>}
     {playable.length===0&&<p className="campaign-empty-copy">
       Once your upload finishes, the recording will appear here with playback controls.
     </p>}
@@ -223,6 +228,14 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
           The request may count toward free limits or incur charges in your own
           Google project. TWE cannot verify your remaining free quota.
           Nothing will be published to players automatically.
+        </p>
+        <p role="note" className="campaign-empty-copy">
+          <strong>Estimated audio input:</strong>{" "}
+          {quotaEstimate.estimatedTokens===null?"Duration unavailable":
+            quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
+          {" "}{quotaEstimate.message}{" "}
+          <a href="https://aistudio.google.com/rate-limit" target="_blank"
+            rel="noopener noreferrer">Check your project's active limits in Google AI Studio</a>.
         </p>
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={privacy} disabled={starting}

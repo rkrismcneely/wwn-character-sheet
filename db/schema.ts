@@ -508,6 +508,26 @@ export const userRecapStorageConnections = sqliteTable("user_recap_storage_conne
   index("user_recap_storage_connections_owner_idx").on(table.userId, table.provider),
 ]);
 
+/** Every connected transcription account is exclusively owned by one TWE user.
+ * Secret material is encrypted before D1 insertion; no campaign can share a key.
+ */
+export const userRecapAIConnections = sqliteTable("user_recap_ai_connections", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["gemini"] }).notNull(),
+  status: text("status", { enum: ["connected", "disconnected", "needs_attention"] }).notNull(),
+  keyCiphertext: text("key_ciphertext"),
+  keyNonce: text("key_nonce"),
+  keyVersion: integer("key_version"),
+  keyFingerprint: text("key_fingerprint"),
+  connectedAt: text("connected_at"),
+  updatedAt: text("updated_at").notNull(),
+  createdAt: text("created_at").notNull(),
+}, table => [
+  uniqueIndex("user_recap_ai_connections_user_provider_unique").on(table.userId,table.provider),
+  index("user_recap_ai_connections_owner_idx").on(table.userId,table.provider,table.status),
+]);
+
 /** Stable, provider-neutral audio association. Remote file IDs are server-only. */
 export const campaignRecapAudioAssets = sqliteTable("campaign_recap_audio_assets", {
   id: text("id").primaryKey(),

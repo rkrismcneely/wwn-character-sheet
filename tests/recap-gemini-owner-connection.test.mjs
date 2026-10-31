@@ -26,6 +26,18 @@ test("AES-GCM encrypts user-owned keys and binds ciphertext to user and connecti
   await assert.rejects(decryptGeminiUserKey(config,"user-1",id,tampered));
   assert.equal((await fingerprintGeminiKey(raw)).length,12);
 });
+test("modern Gemini key strings are accepted without assuming Google's key alphabet",()=>{
+  const current="AIzaSyTEST_OWNER_PRIVATE_KEY_0123456789ABC";
+  const extended="gemini.auth."+ "ABC-_.:~".repeat(12);
+  const longKey="AIza"+ "AbC_-.123".repeat(25);
+  assert.equal(validateGeminiUserKey(current),current);
+  assert.equal(validateGeminiUserKey(extended),extended);
+  assert.equal(validateGeminiUserKey(longKey),longKey);
+  for(const bad of ["", "not-an-api-key", "a".repeat(513),
+    "a".repeat(32)+" ","a".repeat(32)+String.fromCharCode(10),"a".repeat(32)+String.fromCharCode(9)]){
+    assert.throws(()=>validateGeminiUserKey(bad),/valid/u);
+  }
+});
 test("invalid Gemini keys and missing encryption config fail closed",async()=>{
   assert.throws(()=>validateGeminiUserKey("not-an-api-key"),/valid/);
   assert.throws(()=>validateGeminiUserKey("x".repeat(1000)),/valid/);
@@ -40,6 +52,7 @@ test("Gemini account endpoints never display the key and enforce owner and origi
     "user_recap_ai_connections","ON CONFLICT(user_id,provider)",
     "key_ciphertext=NULL","key_nonce=NULL","key_version=NULL",
     "x-goog-api-key","generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+    "Copy the API key string from AI Studio",
     "private, no-store",
   ])assert.ok(code.includes(fragment),"Missing owner-secret boundary: "+fragment);
   assert.doesNotMatch(code,/console\.log|process\.env\.GEMINI_API_KEY|openai\.com|script:eval/u);
@@ -65,6 +78,7 @@ test("Account manages Gemini access, explicitly informs of billing and no false 
   assert.match(ui,/Test connection/u);
   assert.match(ui,/Disconnect/u);
   assert.match(ui,/Gemini only starts when you click Auto Summarize/u);
+  assert.match(ui,/Gemini key securely saved and verified with Google/u);
   assert.doesNotMatch(ui,/localStorage|sessionStorage/u);
   assert.match(page,/RecapAIConnections/u);
 });

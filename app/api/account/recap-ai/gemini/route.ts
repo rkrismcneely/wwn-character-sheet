@@ -106,7 +106,11 @@ export async function POST(request:Request){
       await who.db.prepare("UPDATE user_recap_ai_connections SET status='needs_attention',"+
         "updated_at=? WHERE id=? AND user_id=? AND key_fingerprint=?")
         .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();
-      return bad("Google could not verify this API key or model access. Check your project.",403);
+      if(response.status===400||response.status===401)
+        return bad("Google rejected this credential. Copy the API key string from AI Studio (not its key ID).",403);
+      if(response.status===403)
+        return bad("Google denied this key access to the Gemini API. Check its project and Gemini API permissions in AI Studio.",403);
+      return bad("Google couldn't verify Gemini access (HTTP "+response.status+"). Try again or check the selected project.",503);
     }
     const modelList=await response.json() as {models?:unknown};
     if(!Array.isArray(modelList.models)||!modelList.models.length)

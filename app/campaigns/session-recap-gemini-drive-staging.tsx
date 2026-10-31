@@ -788,9 +788,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         <p className="campaign-empty-copy">
           <strong>Compressed-track warning:</strong> Direct AAC/FLAC decoding is
           browser-dependent and limited to four minutes and 16 MiB per track,
-          with a 96 MiB decoded-audio safety budget. Multi-hour Craig recordings
-          must still be converted to an ordinary PCM WAV or processed by a future
-          streaming decoder; this tool never attempts to decode hours of compressed audio at once.
+          with a 96 MiB decoded-audio safety budget. Multi-hour Craig recordings use bounded FLAC/AAC preparation above; this short-file tool never attempts to decode hours of compressed audio at once.
         </p>
         <label>Or select PCM WAV / short AAC or FLAC for this speaker
           <input type="file" accept=".wav,.flac,.m4a,.mp4,audio/wav,audio/flac,audio/mp4"

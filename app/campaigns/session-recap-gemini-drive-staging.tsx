@@ -9,7 +9,11 @@ import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-brows
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
-type Job={id:string;status:string;speakerTracks:number;totalChunks:number};
+type Job={id:string;importId:string;status:string;speakerTracks:number;
+  totalChunks:number;completedChunks:number;failedChunks:number;
+  pausedAt:string|null;failureCode:string|null;nextEligibleAt:string|null;
+  progress?:{pending:number;leased:number;submitted:number;completed:number;failed:number;skipped:number}};
+type JobPage={jobs:Job[];backgroundEnabled:boolean;notice?:string};
 type Staged={trackIndex:number;chunkIndex:number;startMs:number;endMs:number;
   sourceDigest:string|null;staged:boolean};
 type Progress={jobId:string;status:string;totalChunks:number;speakerTracks:number;clips:Staged[]};
@@ -24,6 +28,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [tracks,setTracks]=useState<Track[]>([]);
   const [trackIndex,setTrackIndex]=useState("");
   const [job,setJob]=useState<Job|null>(null);
+  const [savedJobs,setSavedJobs]=useState<Job[]>([]);
   const [assembly,setAssembly]=useState<{
     ready:boolean;status:string;assembled?:number;total?:number;count?:number;
     cues?:{startMs:number;endMs:number;speakerName:string;characterName:string|null;text:string}[];
@@ -48,18 +53,40 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     void Promise.all([
       fetch(base+"/recap-imports",{cache:"no-store",signal:abort.signal}),
       fetch("/api/account/storage/google-drive",{cache:"no-store",signal:abort.signal}),
-    ]).then(async ([recapRes,driveRes])=>{
+      fetch(jobs+"?recapId="+encodeURIComponent(recapId),
+        {cache:"no-store",signal:abort.signal}),
+    ]).then(async ([recapRes,driveRes,jobsRes])=>{
       const recap=await recapRes.json() as {imports?:RecapRecordingImport[];error?:string};
       const drive=await driveRes.json() as {connections?:Storage[];error?:string};
-      if(!recapRes.ok||!driveRes.ok)
-        throw new Error(recap.error||drive.error||"Account connections unavailable.");
+      const saved=await jobsRes.json() as JobPage&{error?:string};
+      if(!recapRes.ok||!driveRes.ok||!jobsRes.ok)
+        throw new Error(recap.error||drive.error||saved.error||"Account connections unavailable.");
       if(abort.signal.aborted)return;
       setImports((recap.imports??[]).filter(x=>x.sourceType==="craig"&&x.status==="ready"));
       const connected=(drive.connections??[]).filter(x=>x.provider==="google-drive"&&x.status==="connected");
       setDriveAccounts(connected);setConnectionId(connected[0]?.id??"");
+      setSavedJobs(saved.jobs??[]);
+      const restored=(saved.jobs??[]).find(row=>row.status!=="cancelled")??null;
+      if(restored){
+        setJob(restored);setImportId(restored.importId);
+        const [voices,progress]=await Promise.all([
+          fetch(base+"/recap-imports/craig-track-speakers?importId="+
+            encodeURIComponent(restored.importId),{cache:"no-store",signal:abort.signal}),
+          fetch(staging+"?recapId="+encodeURIComponent(recapId)+
+            "&jobId="+encodeURIComponent(restored.id),{cache:"no-store",signal:abort.signal}),
+        ]);
+        if(voices.ok&&progress.ok){
+          const [speakerData,chunkData]=await Promise.all([
+            voices.json() as Promise<{assignments?:Track[]}>,progress.json() as Promise<Progress>,
+          ]);
+          if(!abort.signal.aborted){setTracks(speakerData.assignments??[]);setStaged(chunkData);}
+        }else if(!abort.signal.aborted){
+          setError("Saved Gemini job found, but its audio or speaker metadata could not be loaded.");
+        }
+      }
     }).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e));});
     return ()=>{abort.abort();stopRequested.current=true;active.current?.abort();};
-  },[base]);
+  },[base,recapId,jobs,staging]);
   async function readJSON<T>(url:string,init?:RequestInit):Promise<T>{
     const response=await fetch(url,{cache:"no-store",...init});
     const data=await response.json() as T&{error?:string};
@@ -73,9 +100,11 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     setError("");setMessage("");
     if(!id)return;
     try{
+      const found=savedJobs.find(row=>row.importId===id)??null;
       const data=await readJSON<{assignments?:Track[]}>(
         base+"/recap-imports/craig-track-speakers?importId="+encodeURIComponent(id));
       setTracks(data.assignments??[]);
+      if(found){setJob(found);await refresh(found.id);}
     }catch(e){setError(errorMessage(e));}
   }
   async function refresh(jobId:string):Promise<Progress>{
@@ -94,10 +123,66 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           approvedShare:true,approvedBilling:true}),
       });
       setJob(result.job);await refresh(result.job.id);
+      await reloadJobs(result.job.id);
       setMessage(result.notice??"Gemini job ready to receive prepared audio.");
     }catch(e){setError(errorMessage(e));}
     finally{setBusy(false);}
   }
+  async function reloadJobs(selectedId?:string):Promise<Job|null>{
+    const saved=await readJSON<JobPage>(jobs+"?recapId="+encodeURIComponent(recapId));
+    setSavedJobs(saved.jobs);
+    const selected=saved.jobs.find(row=>row.id===(selectedId??job?.id))??null;
+    if(selected)setJob(selected);
+    return selected;
+  }
+  async function changeJobState(action:"pause"|"resume"|"cancel"){
+    if(!job||busy)return;
+    if(action==="cancel"&&!window.confirm(
+      "Permanently cancel this Gemini job? Prepared audio in Google Drive is not automatically deleted, and this recording cannot be requeued."))return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      await readJSON<{updated:boolean;action:string}>(jobs,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,action}),
+      });
+      const updated=await reloadJobs(job.id);
+      await refresh(job.id);
+      setMessage(action==="cancel"?"Job cancelled. Existing Drive files are unchanged.":
+        action==="pause"?"Job paused. No new Gemini chunks will be started.":
+        "Job resumed. Automatic Gemini submissions remain disabled until safely activated.");
+      if(updated?.status==="cancelled")setAssembly(null);
+    }catch(e){setError(errorMessage(e));}
+    finally{setBusy(false);}
+  }
+  useEffect(()=>{
+    if(!job?.id)return;
+    const selectedId=job.id;
+    const controller=new AbortController();
+    const check=async()=>{
+      if(controller.signal.aborted||busy)return;
+      try{
+        const response=await fetch(jobs+"?recapId="+encodeURIComponent(recapId),
+          {cache:"no-store",signal:controller.signal});
+        if(!response.ok)return;
+        const page=await response.json() as JobPage;
+        if(controller.signal.aborted)return;
+        setSavedJobs(page.jobs);
+        const current=page.jobs.find(row=>row.id===selectedId);
+        if(!current)return;
+        setJob(old=>old?.id===selectedId?current:old);
+        const progress=await fetch(staging+"?recapId="+encodeURIComponent(recapId)+
+          "&jobId="+encodeURIComponent(selectedId),
+          {cache:"no-store",signal:controller.signal});
+        if(progress.ok){
+          const value=await progress.json() as Progress;
+          if(!controller.signal.aborted)setStaged(value);
+        }
+      }catch{/* The manual Refresh control remains available. */}
+    };
+    const id=window.setInterval(()=>void check(),60_000);
+    return ()=>{controller.abort();window.clearInterval(id);};
+  },[busy,job?.id,jobs,recapId,staging]);
+
   async function chooseWav(event:ChangeEvent<HTMLInputElement>){
     const next=event.currentTarget.files?.[0]??null;
     event.currentTarget.value="";

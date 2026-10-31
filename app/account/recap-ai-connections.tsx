@@ -81,7 +81,7 @@ export function RecapAIConnections(){
           Create or manage your Google AI Studio key
         </a>. <strong>Privacy:</strong> Google states that content submitted under its free
         Gemini API tier may be used to improve its products. Paid-tier handling differs.
-        Check your project's actual data-use terms before sending private recordings.
+        Check your project&apos;s actual data-use terms before sending private recordings.
         <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener noreferrer">
           {" Gemini tier terms"}
         </a>.

@@ -14,7 +14,7 @@ test("GM sees truthful comparison of three providers and no owner-funded AI",()=
   }
   assert.equal(canStartTranscription("gemini"),true);
   assert.equal(canStartTranscription("local-whisper"),true);
-  assert.equal(transcriptionChoices.find(x=>x.id==="gemini").requiresOpenBrowser,false);
+  assert.equal(transcriptionChoices.find(x=>x.id==="gemini").requiresOpenBrowser,true);
   assert.match(transcriptionChoices.find(x=>x.id==="gemini").limitations.join(" "),/browser open/);
   assert.equal(transcriptionChoices.find(x=>x.id==="local-whisper").availability,"experimental");
 });

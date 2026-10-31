@@ -66,9 +66,9 @@ export function RecapAIConnections(){
       Connecting does not submit audio or start any AI request.
     </p>
     <p className="account-explanation">
-      Recap Only is the default direction. Direct AI audio summaries and unattended processing
-      are still under development; connecting a key does not activate either.
-      Full transcripts remain an optional advanced workflow.
+      Recap Only uses Gemini audio understanding and a background job after you
+      enable automation in the preferences below. Merely connecting a key does
+      not start processing. Full transcripts remain optional advanced tools.
     </p>
     {state?.connection&&state.connection.status!=="disconnected"&&
       <dl className="account-provider">

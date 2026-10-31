@@ -29,7 +29,7 @@ test("Craig importer only offers previously confirmed, extract-ready short track
   assert.match(source,/craig-track-speakers/u);
   assert.match(source,/craig-manifest/u);
   assert.match(source,/byIndex\.get\(index\)/u);
-  assert.match(source,/entry\.uncompressedBytes>MAX_GROQ_AUDIO_BYTES/u);
+  assert.match(source,/entry\.uncompressedBytes>maxBytes/u);
   assert.match(source,/craig-track-audio\?importId=/u);
   assert.ok(source.includes('setSpeakerId("");'));
   assert.match(source,/readDuration\(audio\)/u);

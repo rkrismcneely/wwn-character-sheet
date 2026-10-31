@@ -197,7 +197,7 @@ export async function relayGmDriveAudioUpload(db:D1Database,actor:CampaignActor|
   if(response.status===308){
     // Only the acknowledged offset is returned, not Google's upload URL or OAuth credentials.
     const acknowledged=response.headers.get("range");
-    if(acknowledged&&/^bytes=0-\\d+$/u.test(acknowledged))headers.set("range",acknowledged);
+    if(acknowledged&&/^bytes=0-\d+$/u.test(acknowledged))headers.set("range",acknowledged);
     return new Response(null,{status:308,headers});
   }
   if(response.status===200||response.status===201){

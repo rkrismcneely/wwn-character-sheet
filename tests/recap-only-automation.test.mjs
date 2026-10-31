@@ -35,11 +35,12 @@ test("Gemini requires explicit per-recording confirmation and connected personal
   }
   assert.equal(notConfirmed.writes,0);
   await assert.rejects(()=>enqueueConfirmedRecapAudio(eligible({connected:false}).db,input),/Connect your own Gemini/u);
-  await assert.rejects(()=>enqueueConfirmedRecapAudio(eligible({published:1}).db,input),/private session recap/u);
+  assert.deepEqual(await enqueueConfirmedRecapAudio(eligible({published:1}).db,input),
+    {created:true,alreadyQueued:false}); // published recap produces a separate private AI version
   const allowed=eligible();
   assert.deepEqual(await enqueueConfirmedRecapAudio(allowed.db,input),{created:true,alreadyQueued:false});
   assert.equal(allowed.writes,1);
-  assert.equal(allowed.insertParams.length,12);
+  assert.equal(allowed.insertParams.length,13);
   assert.match(allowed.insertParams[9],/^\d{4}-\d\d-\d\dT/u); // explicit confirmed_at
 });
 
@@ -47,7 +48,7 @@ test("duplicate POST never creates another billable job; old unconfirmed jobs ca
   const duplicate=eligible({already:true});
   assert.deepEqual(await enqueueConfirmedRecapAudio(duplicate.db,input),{created:false,alreadyQueued:true});
   const legacy=eligible({already:true,confirmedAt:null});
-  await assert.rejects(()=>enqueueConfirmedRecapAudio(legacy.db,input),/previous automatic job/u);
+  await assert.rejects(()=>enqueueConfirmedRecapAudio(legacy.db,input),/not confirmed/u);
 });
 
 test("oversize recordings stay in Drive but cannot be analyzed",async()=>{
@@ -106,6 +107,8 @@ test("UI shows playable audio first, Auto Summarize button, and confirmation pop
   ]);
   assert.match(status,/SessionRecapAudioPlayer/u);
   assert.match(status,/Auto Summarize/u);
+  assert.match(status,/Summarize again/u);
+  assert.match(status,/Saved AI recap versions/u);
   assert.match(status,/role="alertdialog"/u);
   assert.match(status,/Confirm Auto Summarize/u);
   assert.match(status,/privacyApproved:true,billingApproved:true/u);

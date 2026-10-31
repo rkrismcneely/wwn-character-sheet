@@ -703,7 +703,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             Streaming FLAC conversion reads up to {CRAIG_FLAC_READ_BYTES / 1024} KiB of
             compressed source per request, decodes into four-minute mono WAV clips,
             and uploads them to your connected Drive. This uses Cloudflare R2 reads,
-            your device's CPU and Google Drive space. Keep the page open; closing it
+            your device&apos;s CPU and Google Drive space. Keep the page open; closing it
             stops local decoding, but completed clips stay saved. Reopening must
             re-decode the source to verify earlier clip checksums. AAC is not yet supported.
           </p>

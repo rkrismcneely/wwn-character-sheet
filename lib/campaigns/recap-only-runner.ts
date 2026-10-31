@@ -2,6 +2,7 @@ import {decryptGeminiUserKey,type RecapAIEncryptionSettings} from "../account/re
 import type {DriveSettings} from "../account/recap-google-drive-oauth.ts";
 import {getGmDriveAccessToken} from "./recap-drive-token.ts";
 import {redactJournalSecrets} from "./journal.ts";
+import {RecapStagingFailure,stageRecapAudioChunked} from "./recap-gemini-chunked-staging.ts";
 
 export type RecapOnlyEnvironment=DriveSettings&RecapAIEncryptionSettings&{DB:D1Database};
 export const RECAP_ONLY_MODEL="gemini-3.8-flash";
@@ -12,7 +13,7 @@ const ID=/^[a-zA-Z0-9_-]{6,240}$/u;
 type Job={
   id:string;campaignId:string;recapId:string;audioAssetId:string;requestedBy:string;
   status:string;detail:"brief"|"standard"|"detailed";fileUri:string|null;
-  fileName:string|null;interactionId:string|null;updatedAt:string;
+  fileName:string|null;interactionId:string|null;updatedAt:string;claimedAt:string|null;
 };
 type Source={connectionId:string;remoteFileId:string;byteSize:number;mimeType:string;status:string};
 type Credential={id:string;ciphertext:string;nonce:string;version:number};
@@ -34,18 +35,11 @@ async function keyFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
   return decryptGeminiUserKey(env,job.requestedBy,key.id,
     {ciphertext:key.ciphertext,nonce:key.nonce,version:1});
 }
-function googleFileUrl(raw:string):string{
-  const parsed=new URL(raw);
-  if(parsed.origin!==API||!parsed.pathname.startsWith("/upload/v1beta/files")||
-     parsed.username||parsed.password||parsed.hash)
-     throw Error("Invalid Gemini resumable upload endpoint.");
-  return parsed.href;
-}
 function audioMime(raw:string):string{
-  if(raw==="audio/mp4")return "audio/m4a";
-  if(raw==="audio/mpeg")return "audio/mp3";
+  if(raw==="audio/mp4")return "audio/mp4";
+  if(raw==="audio/mpeg")return "audio/mpeg";
   if(["audio/aac","audio/flac","audio/wav","audio/m4a","audio/mp3"].includes(raw))return raw;
-  throw Error("Audio file format is not supported by direct Gemini recap.");
+  throw new Error("Audio format not supported by Gemini.");
 }
 async function readSmall(response:Response,max=700_000):Promise<unknown>{
   if(!response.ok||response.redirected)throw Error("Provider request failed (HTTP "+response.status+").");
@@ -66,40 +60,16 @@ async function sourceFor(env:RecapOnlyEnvironment,job:Job):Promise<Source>{
   return src;
 }
 async function uploadAudio(env:RecapOnlyEnvironment,job:Job){
-  const secret=await keyFor(env,job);
-  const source=await sourceFor(env,job);
-  const drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);
-  const media=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(source.remoteFileId)+"?alt=media",{
-    // Do not time-limit the body stream to 45 seconds; multi-hour audio files can be large.
-    headers:{authorization:"Bearer "+drive},redirect:"manual",
-  });
-  if(!media.ok||media.redirected||!media.body)throw Error("Google Drive could not stream the recording.");
-  const mime=audioMime(source.mimeType);
-  const started=await fetch(API+"/upload/v1beta/files",{
-    method:"POST",redirect:"manual",signal:AbortSignal.timeout(20000),
-    headers:{"x-goog-api-key":secret,"content-type":"application/json",
-      "x-goog-upload-protocol":"resumable","x-goog-upload-command":"start",
-      "x-goog-upload-header-content-length":String(source.byteSize),
-      "x-goog-upload-header-content-type":mime},
-    body:JSON.stringify({file:{display_name:"TWE private recap audio"}}),
-  });
-  if(!started.ok||started.redirected)throw Error("Gemini could not prepare its temporary audio file.");
-  const uploadUrl=started.headers.get("x-goog-upload-url");
-  if(!uploadUrl)throw Error("Gemini did not return its temporary upload address.");
-  const uploaded=await fetch(googleFileUrl(uploadUrl),{
-    method:"POST",redirect:"manual",
-    headers:{"x-goog-upload-offset":"0","x-goog-upload-command":"upload, finalize",
-      "content-length":String(source.byteSize)},
-    body:media.body,
-    // Both upstream bodies are streamed; never materialize hours of audio in memory.
-  });
-  const result=await readSmall(uploaded,100_000) as {file?:{uri?:unknown;name?:unknown}};
-  if(typeof result.file?.uri!=="string"||!result.file.uri.startsWith(API+"/")||
-    typeof result.file.name!=="string"||!/^files\/[a-zA-Z0-9_-]+$/u.test(result.file.name))
-    throw Error("Gemini did not verify its temporary uploaded audio.");
-  await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET status='uploaded',"+
-    "file_uri=?,file_name=?,updated_at=? WHERE id=? AND status='transferring'")
-    .bind(result.file.uri,result.file.name,now(),job.id).run();
+  let secret:string;
+  try{secret=await keyFor(env,job);}
+  catch{throw new RecapStagingFailure("gemini_key_unavailable");}
+  let source:Source;
+  try{source=await sourceFor(env,job);}
+  catch{throw new RecapStagingFailure("drive_file_unavailable");}
+  let drive:string;
+  try{drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);}
+  catch{throw new RecapStagingFailure("drive_permission_unavailable");}
+  await stageRecapAudioChunked(env,job,secret,source,drive);
 }
 
 async function contextFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
@@ -238,11 +208,14 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
     .bind(now(),stale).run();
   const job=await db.prepare("SELECT id,campaign_id AS campaignId,recap_id AS recapId,"+
     "audio_asset_id AS audioAssetId,requested_by AS requestedBy,status,detail,"+
-    "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId,updated_at AS updatedAt "+
+    "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId,updated_at AS updatedAt,"+
+    "claimed_at AS claimedAt "+
     "FROM campaign_recap_audio_summary_jobs "+
-    "WHERE confirmed_at IS NOT NULL AND status IN ('submitted','uploaded','pending_upload') "+
-    "ORDER BY CASE status WHEN 'submitted' THEN 0 WHEN 'uploaded' THEN 1 ELSE 2 END,updated_at LIMIT 1")
-    .first<Job>();
+    "WHERE confirmed_at IS NOT NULL AND (status IN ('submitted','uploaded','pending_upload') "+
+    "OR (status='transferring' AND claimed_at<?)) "+
+    "ORDER BY CASE status WHEN 'submitted' THEN 0 WHEN 'uploaded' THEN 1 "+
+    "WHEN 'transferring' THEN 2 ELSE 3 END,updated_at LIMIT 1")
+    .bind(stamped(Date.now()-90_000)).first<Job>();
   if(!job)return;
   try{
     if(job.status==="pending_upload"){
@@ -251,14 +224,24 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
         .bind(now(),now(),job.id).run();
       if(claimed.meta.changes!==1)return;
       await uploadAudio(env,job);
+    }else if(job.status==="transferring"){
+      // Reclaim the same incomplete transfer only after the previous worker's
+      // lease has expired. Chunk offset is reconciled with Gemini before use.
+      const claimed=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+        "SET claimed_at=?,updated_at=? WHERE id=? AND status='transferring' AND claimed_at=?")
+        .bind(now(),now(),job.id,job.claimedAt).run();
+      if(claimed.meta.changes!==1)return;
+      await uploadAudio(env,job);
     }else if(job.status==="uploaded")await submit(env,job);
     else if(job.status==="submitted")await poll(env,job);
-  }catch{
-    // Avoid repeated provider submissions or unbounded site-owner resource use.
-    if(job.status==="pending_upload"||job.status==="uploaded"){
+  }catch(error){
+    // The browser never receives raw provider errors, keys, or bearer URLs.
+    const stageError=error instanceof RecapStagingFailure?error.code:"staging_data_unavailable";
+    if(job.status==="pending_upload"||job.status==="transferring"||job.status==="uploaded"){
       await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET status='needs_attention',"+
-        "error_code='provider_or_storage_error',updated_at=? WHERE id=? AND status IN ('transferring','uploaded')")
-        .bind(now(),job.id).run();
+        "error_code='provider_or_storage_error',stage_error_code=?,updated_at=? "+
+        "WHERE id=? AND status IN ('transferring','uploaded')")
+        .bind(stageError,now(),job.id).run();
     }else{
       // A status GET is safe to retry; keep original interaction ID.
       await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET updated_at=? "+

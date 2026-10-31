@@ -1,11 +1,12 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
-import {recapAttentionText} from "@/lib/campaigns/recap-only-recovery";
+import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
-  generatedMarkdown:string|null;errorCode:string|null;canRetry:boolean;
+  generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
+  stageBytes:number;totalBytes:number|null;canRetry:boolean;
   createdAt:string;updatedAt:string;
 };
 type Asset={id:string;label:string;status:string;provider:string};
@@ -152,7 +153,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
         onClick={()=>openConfirmation(asset)}>Auto Summarize</button>
     </div>)}
     {newest&&<p role="status"><strong>{statusLabel[newest.status]||"Status: "+newest.status}</strong>
-      {" · "}{newest.detail} recap</p>}
+      {" · "}{newest.detail} recap
+      {newest.status==="transferring"&&newest.totalBytes&&newest.totalBytes>0&&
+        <> · {Math.min(100,Math.round(100*newest.stageBytes/newest.totalBytes))}% of audio staged to Gemini</>}
+    </p>}
     {newest?.status==="ready"&&newest.generatedMarkdown&&<details>
       <summary>View or apply saved Gemini draft</summary>
       <p className="campaign-empty-copy">Review for inaccurate names or events before publishing.</p>
@@ -168,6 +172,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       <p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.description??recapAttentionText.unexpected.description}
       </p>
+      {newest.stageErrorCode&&<p className="campaign-empty-copy">
+        <strong>Specific issue:</strong> {recapStageDescriptions[newest.stageErrorCode]??
+          "The preparation step failed; the saved recording is unchanged."}
+      </p>}
       <p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
       </p>
@@ -184,10 +192,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
         <summary>Technical details</summary>
         <p className="campaign-empty-copy">Job ID: <code>{newest.id}</code></p>
         <p className="campaign-empty-copy">Error code: <code>{newest.errorCode||"unknown"}</code></p>
+        {newest.stageErrorCode&&<p className="campaign-empty-copy">Preparation stage: <code>{newest.stageErrorCode}</code></p>}
         <p className="campaign-empty-copy">Last updated: {new Date(newest.updatedAt).toLocaleString()}</p>
         <button type="button" className="campaign-secondary" onClick={()=>
           void navigator.clipboard.writeText("TWE recap job: "+newest.id+
             "\\nError: "+(newest.errorCode||"unknown")+
+            "\\nPreparation: "+(newest.stageErrorCode||"not available")+
             "\\nUpdated: "+newest.updatedAt)
             .then(()=>setNotice("Diagnostic copied.")).catch(()=>setError("Could not copy diagnostics."))
         }>Copy diagnostics</button>

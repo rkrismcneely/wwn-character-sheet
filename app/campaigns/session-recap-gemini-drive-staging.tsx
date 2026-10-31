@@ -731,22 +731,22 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             and uploads them to your connected Drive. This uses Cloudflare R2 reads,
             your device&apos;s CPU and Google Drive space. Keep the page open; closing it
             stops local decoding, but completed clips stay saved. Reopening must
-            re-decode the source to verify earlier clip checksums. Long AAC/M4A can be inspected but not decoded or uploaded yet.
+            re-decode the source to verify earlier clip checksums. Long AAC/M4A uses browser WebCodecs where supported. FLAC uses local WASM. Neither requires owner-funded transcoding.
           </p>
           <p className="campaign-empty-copy">
             Inspect this Craig speaker track without opening the whole file.
             Only 1 MiB may be read in a request; repeated reads still count
             toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
-            The inspection button only checks metadata. <strong>Prepare entire FLAC</strong>
+            The inspection button only checks metadata. <strong>Prepare full Craig audio</strong>
             performs local decoding and Drive uploads; it does not transcribe.
-            Full-length AAC packet metadata is now inspected with bounded reads, but decoding and Drive upload are not yet available. Inspection uses hosting R2 reads; quota remaining is unknown.
+            Full-length AAC-LC requires a supported WebCodecs browser and rejects edited/fragmented MP4. Export FLAC or PCM WAV if incompatible. These reads consume hosting R2 requests; remaining quota is unknown.
           </p>
           <div className="session-recap-form-actions">
             <button type="button" className="campaign-primary"
               disabled={busy||sourceBusy||!job||job.status!=="awaiting_source"||
                 Boolean(job.pausedAt)||!connectionId||!importId}
-              onClick={()=>void prepareFullFlacToDrive()}>
-              {busy?"Preparing FLAC…":"Prepare entire FLAC in my Drive"}
+              onClick={()=>void prepareFullCraigToDrive()}>
+              {busy?"Preparing Craig audio…":"Prepare full Craig audio (FLAC or AAC) in my Drive"}
             </button>
             <button type="button" className="campaign-secondary"
               disabled={busy||sourceBusy} onClick={()=>void inspectLongCraig()}>
@@ -772,7 +772,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             <p>Source bytes retrieved: {bytesLabel(sourceTransfer.bytes)} /
               {" "}{bytesLabel(sourceTransfer.total)}
               {" "}({clipPercent(sourceTransfer.bytes,sourceTransfer.total)}%).
-              Inspection reads only the file header, so a small percentage is normal.
+              Inspection only reads metadata, so a small percentage is normal.
             </p>
             <progress value={sourceTransfer.bytes} max={sourceTransfer.total}
               aria-label="Original Craig audio transfer bytes"/>

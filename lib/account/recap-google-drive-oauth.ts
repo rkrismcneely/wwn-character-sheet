@@ -1,6 +1,7 @@
 import { CANONICAL_ORIGIN } from "../auth-constants.ts";
 import { hashOpaqueToken, randomBase64URL } from "../security/opaque-tokens.ts";
 import { CampaignServiceError } from "../campaigns/service.ts";
+import { DriveConnectionFailure, classifyDriveAboutError } from "./recap-drive-errors.ts";
 
 /**
  * Explicit Drive authorization, separate from the app's Google sign-in.
@@ -143,12 +144,14 @@ export async function exchangeDriveCode(settings: Settings, code: string): Promi
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
     body, signal: AbortSignal.timeout(12_000),
   });
-  if (!response.ok) throw new Error("Google Drive authorization could not be completed.");
+  if (!response.ok) throw new DriveConnectionFailure("token_exchange");
   const json = await response.json() as Partial<DriveTokenReply>;
-  if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" ||
-    typeof json.scope !== "string" || !json.scope.split(/\s+/u).includes(DRIVE_SCOPE)) {
-    throw new Error("Drive authorization did not return offline access with the required scope.");
-  }
+  if (typeof json.access_token !== "string" || !json.access_token.trim())
+    throw new DriveConnectionFailure("token_exchange");
+  if (typeof json.scope !== "string" || !json.scope.split(/\s+/u).includes(DRIVE_SCOPE))
+    throw new DriveConnectionFailure("missing_scope");
+  if (typeof json.refresh_token !== "string" || !json.refresh_token.trim())
+    throw new DriveConnectionFailure("missing_refresh_token");
   return json as DriveTokenReply;
 }
 export async function driveAccountLabel(accessToken: string): Promise<string> {
@@ -156,7 +159,11 @@ export async function driveAccountLabel(accessToken: string): Promise<string> {
     headers: { Authorization: "Bearer " + accessToken },
     signal: AbortSignal.timeout(12_000),
   });
-  if (!response.ok) throw new Error("Could not verify the selected Drive account.");
+  if (!response.ok) {
+    let reason: unknown = null;
+    try { reason = await response.json(); } catch { /* Non-JSON Google response: use HTTP status only. */ }
+    throw new DriveConnectionFailure(classifyDriveAboutError(response.status, reason));
+  }
   const data = await response.json() as { user?: { emailAddress?: string; displayName?: string } };
   const label = data.user?.emailAddress || data.user?.displayName;
   return typeof label === "string" && label.trim() ? label.slice(0, 160) : "Google Drive";

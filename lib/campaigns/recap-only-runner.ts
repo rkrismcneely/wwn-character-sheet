@@ -70,7 +70,8 @@ async function uploadAudio(env:RecapOnlyEnvironment,job:Job){
   const source=await sourceFor(env,job);
   const drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);
   const media=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(source.remoteFileId)+"?alt=media",{
-    headers:{authorization:"Bearer "+drive},redirect:"manual",signal:AbortSignal.timeout(45000),
+    // Do not time-limit the body stream to 45 seconds; multi-hour audio files can be large.
+    headers:{authorization:"Bearer "+drive},redirect:"manual",
   });
   if(!media.ok||media.redirected||!media.body)throw Error("Google Drive could not stream the recording.");
   const mime=audioMime(source.mimeType);

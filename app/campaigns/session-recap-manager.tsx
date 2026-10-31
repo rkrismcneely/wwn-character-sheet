@@ -232,14 +232,21 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           ? "This draft is private. Review your recap before publishing; only publishing makes it visible to players."
           : "Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Saving publishes this recap to campaign members."}</p>
         {error && <p className="campaign-error" role="alert">{error}</p>}
-        <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : editing!=="new"&&!editing.isPublished ? "Publish approved recap" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
+        <div className="session-recap-form-actions">
+          {editing!=="new"&&!editing.isPublished&&<button type="button"
+            className="campaign-secondary" disabled={saving||uploadBusy||!draft.date||!draft.title.trim()}
+            onClick={()=>void save(undefined,false)}>{saving?"Saving…":"Save private draft"}</button>}
+          <button type="submit" className="campaign-primary"
+            disabled={saving||uploadBusy||!draft.date||!draft.title.trim()||!draft.content.trim()}>
+            {saving?"Saving…" : editing!=="new"&&!editing.isPublished ? "Publish approved recap" : "Save Session Recap"}
+          </button>
+          <button type="button" className="campaign-secondary"
+            disabled={saving||uploadBusy} onClick={cancelEdit}>Cancel</button>
+        </div>
       </form>}
       {editing !== "new" && <>
-        {!editing.isPublished&&<p className="session-recap-import-notice" role="status">
-          Private GM draft: store your session audio below, then come back to publish
-          an approved recap. No audio is sent to AI just by uploading it.
-        </p>}
-        <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
+        {editing.isPublished&&<SessionRecapAudioUploader key={editing.id}
+          campaignId={campaignId} recapId={editing.id} onBusyChange={trackUploadBusy}/>}
         <details className="session-recap-reading">
           <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>
           <p className="campaign-empty-copy">

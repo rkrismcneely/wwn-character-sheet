@@ -38,7 +38,7 @@ function associatedData(userId:string,id:string):Uint8Array<ArrayBuffer>{
 }
 export function validateGeminiUserKey(raw:unknown):string{
   if(typeof raw!=="string"||!API_KEY_PATTERN.test(raw))
-    throw new Error("Paste the full Google AI Studio API key string (not its key ID). Copy it again if it contains spaces or line breaks.");
+    throw new Error("Enter a valid Google AI Studio API key string (not its key ID). Copy the entire string without spaces or line breaks.");
   return raw;
 }
 export async function encryptGeminiUserKey(config:RecapAIEncryptionSettings,

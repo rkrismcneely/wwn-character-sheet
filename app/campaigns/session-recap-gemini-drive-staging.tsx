@@ -6,9 +6,12 @@ import { inspectGeminiSpeechWav,makeGeminiSpeechClip,
   type GeminiStagingClip } from "@/lib/campaigns/recap-gemini-speech-wav";
 import type { PcmWav } from "@/lib/campaigns/recap-wav-chunks";
 import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-browser";
+import { decodeShortCraigAudio,makeDecodedGeminiSpeechClip,
+  type DecodedSpeechPart } from "@/lib/campaigns/recap-gemini-native-short";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
+type CraigEntry={filename:string;uncompressedBytes:number};
 type Job={id:string;importId:string;status:string;speakerTracks:number;
   totalChunks:number;completedChunks:number;failedChunks:number;
   pausedAt:string|null;failureCode:string|null;nextEligibleAt:string|null;
@@ -43,6 +46,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [connectionId,setConnectionId]=useState("");
   const [importId,setImportId]=useState("");
   const [tracks,setTracks]=useState<Track[]>([]);
+  const [craigEntries,setCraigEntries]=useState<CraigEntry[]>([]);
   const [trackIndex,setTrackIndex]=useState("");
   const [job,setJob]=useState<Job|null>(null);
   const [savedJobs,setSavedJobs]=useState<Job[]>([]);
@@ -55,6 +59,10 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [file,setFile]=useState<File|null>(null);
   const [wav,setWav]=useState<PcmWav|null>(null);
   const [clips,setClips]=useState<GeminiStagingClip[]>([]);
+  const [nativeBuffer,setNativeBuffer]=useState<AudioBuffer|null>(null);
+  const [nativeClips,setNativeClips]=useState<DecodedSpeechPart[]>([]);
+  const [nativeFormat,setNativeFormat]=useState<"flac"|"aac"|null>(null);
+  const [uploadBytes,setUploadBytes]=useState({sent:0,total:0});
   const [approve,setApprove]=useState(false);
   const [busy,setBusy]=useState(false);
   const [count,setCount]=useState(0);
@@ -113,14 +121,22 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   async function chooseCraig(id:string){
     if(busy)return;
     setImportId(id);setJob(null);setTracks([]);setStaged(null);setAssembly(null);
+    setCraigEntries([]);
     setTrackIndex("");setFile(null);setWav(null);setClips([]);
+    setNativeBuffer(null);setNativeClips([]);setNativeFormat(null);
     setError("");setMessage("");
     if(!id)return;
     try{
       const found=savedJobs.find(row=>row.importId===id)??null;
-      const data=await readJSON<{assignments?:Track[]}>(
-        base+"/recap-imports/craig-track-speakers?importId="+encodeURIComponent(id));
+      const [data,manifest]=await Promise.all([
+        readJSON<{assignments?:Track[]}>(
+          base+"/recap-imports/craig-track-speakers?importId="+encodeURIComponent(id)),
+        readJSON<{entries?:CraigEntry[]}>(
+          base+"/recap-imports/craig-manifest?importId="+encodeURIComponent(id))
+          .catch(()=>({entries:[] as CraigEntry[]})),
+      ]);
       setTracks(data.assignments??[]);
+      setCraigEntries(manifest.entries??[]);
       if(found){setJob(found);await refresh(found.id);}
     }catch(e){setError(errorMessage(e));}
   }
@@ -200,24 +216,62 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     return ()=>{controller.abort();window.clearInterval(id);};
   },[busy,job?.id,jobs,recapId,staging]);
 
+  async function chooseSourceFile(next:File|null){
+    setFile(null);setWav(null);setClips([]);setCount(0);setError("");
+    setNativeBuffer(null);setNativeClips([]);setNativeFormat(null);
+    setUploadBytes({sent:0,total:0});
+    if(!next)return;
+    try{
+      if(/\\.wav$/iu.test(next.name)){
+        const inspected=await inspectGeminiSpeechWav(next);
+        setFile(next);setWav(inspected.source);setClips(inspected.clips);
+        setMessage("WAV analyzed. Conversion reads one four-minute source slice at a time; original audio stays in your browser.");
+      }else{
+        const result=await decodeShortCraigAudio(next);
+        setFile(next);setNativeBuffer(result.decoded);setNativeClips(result.parts);
+        setNativeFormat(result.format);
+        setMessage("Short Craig "+result.format.toUpperCase()+
+          " decoded locally. Full-length compressed recordings need streaming conversion; never decode multi-hour tracks into browser memory.");
+      }
+    }catch(e){setError(errorMessage(e));}
+  }
+  async function loadShortCraigTrack(){
+    if(!importId||trackIndex===""||busy)return;
+    const index=Number(trackIndex);
+    const entry=craigEntries[index];
+    if(entry && (entry.uncompressedBytes>16*1024*1024||
+      !/\\.(?:flac|m4a|aac)$/iu.test(entry.filename))){
+      setError("Craig's private short-track download limit is 16 MiB. For a long track, use a PCM WAV conversion and keep the original time positions.");return;
+    }
+    setBusy(true);setError("");setMessage("");
+    try{
+      const response=await fetch(base+"/recap-imports/craig-track-audio?importId="+
+        encodeURIComponent(importId)+"&entryIndex="+index,{cache:"no-store"});
+      if(!response.ok){
+        const failure=await response.json() as {error?:string};
+        throw new Error(failure.error??"Craig speaker track unavailable.");
+      }
+      const blob=await response.blob();
+      if(blob.size>16*1024*1024)throw new Error("Short Craig track exceeded safe download limit.");
+      const format=response.headers.get("content-type")?.includes("flac")?"flac":"m4a";
+      await chooseSourceFile(new File([blob],"craig-"+index+"."+format,{type:blob.type}));
+    }catch(e){setError(errorMessage(e));}
+    finally{setBusy(false);}
+  }
   async function chooseWav(event:ChangeEvent<HTMLInputElement>){
     const next=event.currentTarget.files?.[0]??null;
     event.currentTarget.value="";
-    setFile(null);setWav(null);setClips([]);setCount(0);setError("");
-    if(!next)return;
-    try{
-      const inspected=await inspectGeminiSpeechWav(next);
-      setFile(next);setWav(inspected.source);setClips(inspected.clips);
-      setMessage("Audio analyzed. Each four-minute section will be converted to mono speech audio, then uploaded to your own Google Drive.");
-    }catch(e){setError(errorMessage(e));}
+    await chooseSourceFile(next);
   }
   async function sha(fileToHash:File):Promise<string>{
     const data=new Uint8Array(await crypto.subtle.digest("SHA-256",await fileToHash.arrayBuffer()));
     return Array.from(data,n=>n.toString(16).padStart(2,"0")).join("");
   }
   async function upload(){
-    if(!job||!file||!wav||!clips.length||trackIndex===""||!connectionId||busy)return;
+    const parts=nativeBuffer?nativeClips:clips;
+    if(!job||!file||(!wav&&!nativeBuffer)||!parts.length||trackIndex===""||!connectionId||busy)return;
     setBusy(true);setCount(0);setMessage("");setError("");stopRequested.current=false;
+    setUploadBytes({sent:0,total:0});
     const abort=new AbortController();active.current=abort;
     const index=Number(trackIndex);
     try{
@@ -227,18 +281,20 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         await readJSON<{planned:boolean}>(staging,{
           method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({recapId,jobId:job.id,action:"plan",trackIndex:index,
-            chunks:clips.map(part=>({startMs:part.startMs,endMs:part.endMs}))}),
+            chunks:parts.map(part=>({startMs:part.startMs,endMs:part.endMs}))}),
           signal:abort.signal,
         });
         existing=(await refresh(job.id)).clips.filter(c=>c.trackIndex===index);
       }
-      if(existing.length!==clips.length||existing.some((part,i)=>
-        part.chunkIndex!==i||part.startMs!==clips[i].startMs||part.endMs!==clips[i].endMs))
+      if(existing.length!==parts.length||existing.some((part,i)=>
+        part.chunkIndex!==i||part.startMs!==parts[i].startMs||part.endMs!==parts[i].endMs))
         throw new Error("This WAV does not match the previously staged track plan. Re-select the original recording.");
       let uploaded=0;
-      for(let i=0;i<clips.length;i++){
+      for(let i=0;i<parts.length;i++){
         if(stopRequested.current||abort.signal.aborted)break;
-        const converted=await makeGeminiSpeechClip(file,wav,clips[i],i);
+        const converted=nativeBuffer?
+          makeDecodedGeminiSpeechClip(file.name,nativeBuffer,nativeClips[i],i):
+          await makeGeminiSpeechClip(file,wav!,clips[i],i);
         const digest=await sha(converted);
         if(existing[i].staged){
           if(existing[i].sourceDigest!==digest)
@@ -250,10 +306,12 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             method:"POST",headers:{"content-type":"application/json"},signal:abort.signal,
             body:JSON.stringify({recapId,connectionId,filename:converted.name,
               mimeType:"audio/wav",byteSize:converted.size,
-              durationMs:clips[i].endMs-clips[i].startMs,processingJobId:job.id}),
+              durationMs:parts[i].endMs-parts[i].startMs,processingJobId:job.id}),
           });
+        setUploadBytes({sent:0,total:converted.size});
         const remote=await uploadRecordingToDrive(converted,started.uploadSessionUrl,
-          ()=>{}, {chunkBytes:started.chunkBytes,signal:abort.signal});
+          (sent,total)=>setUploadBytes({sent,total}),
+          {chunkBytes:started.chunkBytes,signal:abort.signal});
         await readJSON<{ready:boolean}>(base+"/session-recaps/audio/upload/finish",{
           method:"POST",headers:{"content-type":"application/json"},signal:abort.signal,
           body:JSON.stringify({assetId:started.assetId,remoteFileId:remote.id}),

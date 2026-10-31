@@ -423,8 +423,8 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     </p>
     <div className="session-recap-import-notice" role="note">
       <strong>Usage and privacy:</strong> Each prepared clip uses storage in your Google Drive.
-      Gemini requests, when enabled, consume your own Google AI Studio project's quota and
-      may incur charges if your project has billing enabled. TWE cannot read Google's
+      Gemini requests, when enabled, consume your own Google AI Studio project&apos;s quota and
+      may incur charges if your project has billing enabled. TWE cannot read Google&apos;s
       remaining free transcription allowance from this connection. Check the
       <a href="https://aistudio.google.com/usage" target="_blank" rel="noopener noreferrer">
         {" Google AI Studio usage dashboard"}

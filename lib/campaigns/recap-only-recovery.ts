@@ -5,6 +5,7 @@
 export type RecapRetryRecord = {
   status:string;
   errorCode:string|null;
+  stageErrorCode?:string|null;
   fileUri:string|null;
   fileName:string|null;
   interactionId:string|null;
@@ -13,8 +14,10 @@ export type RecapRetryTarget = "pending_upload" | "uploaded";
 export function safeRecapRetryTarget(job:RecapRetryRecord):RecapRetryTarget|null {
   if(job.status!=="needs_attention"||job.interactionId)return null;
   if(job.errorCode==="provider_or_storage_error"){
-    // The runner marks this code only for failures in the transfer/uploaded
-    // stage, never after claiming a model submission.
+    // These temporary Google files have expired or failed preparation.
+    // Re-stage the same original Drive recording, not a new interaction.
+    if(job.stageErrorCode==="gemini_file_expired"||
+      job.stageErrorCode==="gemini_file_processing_failed")return "pending_upload";
     return job.fileUri&&job.fileName?"uploaded":"pending_upload";
   }
   if((job.errorCode==="transfer_stalled"||

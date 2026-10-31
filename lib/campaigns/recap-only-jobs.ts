@@ -59,11 +59,12 @@ export async function retrySafeRecapPreparation(
   if(!/^[0-9a-f-]{36}$/iu.test(input.jobId))
     throw new CampaignServiceError("Choose a valid AI recap job.",422);
   const job=await db.prepare("SELECT id,status,error_code AS errorCode,"+
-    "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId "+
+    "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId,"+
+    "stage_error_code AS stageErrorCode "+
     "FROM campaign_recap_audio_summary_jobs WHERE id=? AND campaign_id=? "+
     "AND recap_id=? AND requested_by=? AND confirmed_at IS NOT NULL")
     .bind(input.jobId,input.campaignId,input.recapId,input.userId)
-    .first<RecapRetryRecord&{id:string}>();
+    .first<RecapRetryRecord&{id:string;stageErrorCode:string|null}>();
   if(!job)throw new CampaignServiceError("AI recap job not found.",404);
   const target=safeRecapRetryTarget(job);
   if(!target)throw new CampaignServiceError(
@@ -84,13 +85,20 @@ export async function retrySafeRecapPreparation(
   if(!source)throw new CampaignServiceError("The original Drive audio must be available before retrying.",409);
   if(!account)throw new CampaignServiceError("Test or reconnect your Gemini API key in Account before retrying.",409);
   if(recap?.published!==0)throw new CampaignServiceError("Only private recap drafts can be resumed.",409);
+  // An expired Gemini staging session must be replaced on retry. Other
+  // errors preserve the encrypted resumable session and accepted byte offset.
+  const reset=job.stageErrorCode==="gemini_upload_session_expired";
   const updated=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
-    "SET status=?,error_code=NULL,claimed_at=NULL,updated_at=? "+
+    "SET status=?,error_code=NULL,stage_error_code=NULL,claimed_at=NULL,updated_at=?,"+
+    "stage_url_ciphertext=CASE WHEN ? THEN NULL ELSE stage_url_ciphertext END,"+
+    "stage_url_nonce=CASE WHEN ? THEN NULL ELSE stage_url_nonce END,"+
+    "stage_url_version=CASE WHEN ? THEN NULL ELSE stage_url_version END,"+
+    "stage_offset=CASE WHEN ? THEN 0 ELSE stage_offset END "+
     "WHERE id=? AND campaign_id=? AND recap_id=? AND requested_by=? "+
     "AND status='needs_attention' AND error_code=? AND interaction_id IS NULL "+
     "AND confirmed_at IS NOT NULL")
-    .bind(target,new Date().toISOString(),input.jobId,input.campaignId,
-      input.recapId,input.userId,job.errorCode).run();
+    .bind(target,new Date().toISOString(),reset?1:0,reset?1:0,reset?1:0,reset?1:0,
+      input.jobId,input.campaignId,input.recapId,input.userId,job.errorCode).run();
   if(updated.meta.changes!==1)throw new CampaignServiceError(
     "This AI job changed while you were reviewing it. Refresh the status before retrying.",409);
   return {resumed:true,status:target};

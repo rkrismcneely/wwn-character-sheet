@@ -26,7 +26,7 @@ async function scope(request:Request,context:Context,rawRecap:unknown) {
     throw new CampaignServiceError("Only GMs can manage recap transcription jobs.",403);
   requireActiveCampaign(access.campaign);
   const recap=await getCampaignSessionRecap(db,actor,id,rawRecap);
-  return {db,actor,campaign:access.campaign,recap};
+  return {db,actor,campaign:access.campaign,recap,publicCampaignId:id};
 }
 const selectJob="SELECT id,recap_id AS recapId,requested_by AS requestedBy,import_id AS importId,"+
   "provider_connection_id AS providerConnectionId,status,quota_mode AS quotaMode,"+
@@ -59,7 +59,7 @@ export async function POST(request:Request,context:Context){
     const body=await readBoundedJson(request,4096) as {
       recapId?:unknown;importId?:unknown;quotaMode?:unknown;approvedShare?:unknown;approvedBilling?:unknown;
     };
-    const {db,actor,campaign,recap}=await scope(request,context,body.recapId);
+    const {db,actor,campaign,recap,publicCampaignId}=await scope(request,context,body.recapId);
     if(body.approvedShare!==true||body.approvedBilling!==true)
       return respond("Confirm Google data processing and use of your own provider account.",422);
     let quotaMode;
@@ -67,12 +67,12 @@ export async function POST(request:Request,context:Context){
     catch{return respond("Select your own provider quota preference.",422);}
     if(typeof body.importId!=="string"||!/^[0-9a-f-]{36}$/iu.test(body.importId))
       return respond("Choose a confirmed Craig recording.",422);
-    await getCraigRecordingForDownloadJob(db,actor,await (async()=>campaign.publicId)(),body.importId);
+    await getCraigRecordingForDownloadJob(db,actor,publicCampaignId,body.importId);
     const imported=await db.prepare(
       "SELECT session_date AS sessionDate FROM campaign_recap_recording_imports "+
       "WHERE campaign_id=? AND id=? AND source_type='craig' AND status='ready'")
       .bind(campaign.id,body.importId).first<{sessionDate:string}>();
-    if(!imported||imported.sessionDate!==recap.sessionDate)
+    if(!imported||imported.sessionDate!==recap.date)
       return respond("Choose a Craig recording from the same session date as this recap.",409);
     const speakerObject=await env.BUCKET.get("recap-track-speakers/"+campaign.id+"/"+body.importId);
     if(!speakerObject)return respond("Extract and confirm Craig track speakers first.",409);

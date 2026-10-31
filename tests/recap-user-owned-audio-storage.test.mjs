@@ -36,7 +36,8 @@ test("player audio discovery requires campaign and specific recap authorization 
   assert.match(route,/listRecapAudioForPlayer/u);
   assert.match(route,/cache-control": "private, no-store"/u);
   const playerProjection = service.slice(service.indexOf("return result.results.map"));
-  assert.doesNotMatch(playerProjection, /remoteFileId|remote_file_id|credentialCiphertext|connectionId|storageOwnerUserId/u);
+  assert.doesNotMatch(playerProjection, /remoteFileId|remote_file_id|credentialCiphertext|connectionId|storageOwnerUserId:/u);
+  assert.match(playerProjection,/canRecover: canManage && row\.storageOwnerUserId === actor\.userId/u);
   assert.doesNotMatch(route,/export async function POST|export async function PUT|export async function DELETE/u);
 });
 

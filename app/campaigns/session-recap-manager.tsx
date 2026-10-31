@@ -218,8 +218,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId}
           recapId={editing.id} onBusyChange={trackUploadBusy}/>
         <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id}
-          onDraft={(content,updatedAt)=>{
-            if(draft.content.trim())return false;
+          onDraft={(content,updatedAt,overwrite)=>{
+            if(draft.content.trim()&&!overwrite)return false;
             setDraft(current=>({...current,content}));
             setEditing(current=>current&&current!=="new"&&current.id===editing.id
               ? {...current,content,updatedAt:updatedAt||current.updatedAt}:current);

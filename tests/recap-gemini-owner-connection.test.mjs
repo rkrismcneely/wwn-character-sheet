@@ -34,7 +34,7 @@ test("modern Gemini key strings are accepted without assuming Google's key alpha
   assert.equal(validateGeminiUserKey(extended),extended);
   assert.equal(validateGeminiUserKey(longKey),longKey);
   for(const bad of ["", "not-an-api-key", "a".repeat(513),
-    "a".repeat(32)+" ","a".repeat(32)+"\\n","a".repeat(32)+"\\t"]){
+    "a".repeat(32)+" ","a".repeat(32)+String.fromCharCode(10),"a".repeat(32)+String.fromCharCode(9)]){
     assert.throws(()=>validateGeminiUserKey(bad),/valid/u);
   }
 });

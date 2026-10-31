@@ -7,14 +7,14 @@ type Connection={id:string;status:"connected"|"disconnected"|"needs_attention";
 type State={configured:boolean;connection:Connection|null};
 const url="/api/account/recap-ai/gemini";
 /** An upstream Worker error can have no JSON body. Show guidance, never a JSON parser exception. */
-async function readAccountReply<T extends {error?:string}>(response:Response):Promise<T>{
+async function readAccountReply<T>(response:Response):Promise<T>{
   const raw=await response.text();
   let body:T;
   try {body=JSON.parse(raw) as T;}
   catch {throw new Error(response.ok
     ? "The account server returned an invalid response. Reload Account and try again."
     : "The account service is not ready. Reload Account and try again; if this continues, check the recap database migration.");}
-  if(!response.ok)throw new Error(body.error||"Account service unavailable.");
+  if(!response.ok)throw new Error((body as {error?:string}).error||"Account service unavailable.");
   return body;
 }
 export function RecapAIConnections(){

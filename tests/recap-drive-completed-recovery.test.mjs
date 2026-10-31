@@ -55,12 +55,12 @@ test("recovery route requires signed-in GM, same-origin request and a recap asse
   assert.match(route,/export async function POST/u);
   assert.doesNotMatch(route,/export async function GET|access_token|refresh_token|console\.log/u);
   assert.match(service,/recoverGmDriveAudioUpload/u);
-  assert.match(service,/getCampaignSessionRecap\(db,actor,campaign\.id,input\.recapId\)/u);
+  assert.match(service,/getCampaignSessionRecap\(db,actor,campaignId,input\.recapId\)/u);
   assert.match(service,/storage_owner_user_id=\? /u);
   assert.match(service,/processing_job_id IS NULL/u);
   assert.match(service,/status!=="preparing"/u);
   assert.match(service,/completedRecapDriveFile\(results/u);
-  assert.match(service,/finishGmDriveAudioUpload\(db,actor,campaign\.id/u);
+  assert.match(service,/finishGmDriveAudioUpload\(db,actor,campaignId/u);
   assert.match(service,/spaces:"drive"/u);
   assert.match(ui,/found\.filter\(a=>a\.canRecover\)/u);
   assert.match(ui,/Find saved recording/u);
@@ -70,4 +70,29 @@ test("recovery route requires signed-in GM, same-origin request and a recap asse
   assert.doesNotMatch(route,/remoteFileId|arrayBuffer\(|uploadRecordingToDrive|Gemini/u);
   const recover=service.slice(service.indexOf("export async function recoverGmDriveAudioUpload"));
   assert.doesNotMatch(recover,/body:media\.body|arrayBuffer\(|BUCKET\.put|enqueueConfirmedRecapAudio/u);
+});
+
+test("relay and recovery use public campaign IDs for authorization, internal UUID only for Drive markers",async()=>{
+  const [service,recaps,core]=await Promise.all([
+    read("lib/campaigns/recap-drive-upload-service.ts"),
+    read("lib/campaigns/session-recaps.ts"),
+    read("lib/campaigns/service.ts"),
+  ]);
+  assert.match(core,/loadCampaignAccess\([\s\S]*?publicId: string/u);
+  assert.match(core,/findCampaignByPublicId\(db, publicId\)/u);
+  assert.match(recaps,/getCampaignSessionRecap\([\s\S]*?campaignId: string/u);
+  assert.match(recaps,/loadCampaignAccess\(db, actor, campaignId\)/u);
+  // This was the exact production "Campaign not found" regression:
+  // internal UUID was passed to a helper that resolves campaigns by public ID.
+  assert.match(service,/await getCampaignSessionRecap\(db,actor,campaignId,asset\.recapId\)/u);
+  assert.match(service,/const recap=await getCampaignSessionRecap\(db,actor,campaignId,input\.recapId\)/u);
+  assert.match(service,/await finishGmDriveAudioUpload\(db,actor,campaignId,\{/u);
+  assert.doesNotMatch(service,/getCampaignSessionRecap\(db,actor,campaign\.id/u);
+  assert.doesNotMatch(service,/finishGmDriveAudioUpload\(db,actor,campaign\.id/u);
+  // Keep opaque internal database IDs for all server-side ownership matching
+  // and the original Google appProperties marker. Do not loosen authorization.
+  assert.match(service,/completedRecapDriveFileQuery\(asset\.id,campaign\.id\)/u);
+  assert.match(service,/campaignId:campaign\.id,byteSize:asset\.byteSize/u);
+  assert.match(service,/WHERE id=\? AND campaign_id=\? AND recap_id=\? AND storage_owner_user_id=\?/u);
+  assert.match(service,/storage_owner_user_id=\? AND status='preparing'/u);
 });

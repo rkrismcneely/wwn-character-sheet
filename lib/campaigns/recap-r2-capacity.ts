@@ -1,3 +1,4 @@
+import { CampaignServiceError } from "./service.ts";
 /**
  * Conservative admission guard for legacy recap audio held in site-owned R2.
  * New long recordings go directly to each GM's Drive; don't use R2 for those.
@@ -17,9 +18,9 @@ export async function requireLegacyRecapR2Capacity(
 ):Promise<{usedBytes:number;newBytes:number;maxBytes:number}>{
   if(!Number.isSafeInteger(incomingBytes)||incomingBytes<1||
     incomingBytes>LEGACY_RECAP_R2_MAX_BYTES)
-    throw new Error("Legacy recap recording exceeds safe R2 intake limit.");
+    throw new CampaignServiceError("Legacy recap recording exceeds safe R2 intake limit.",409);
   if(overwriteKey && !LEGACY_RECAP_R2_PREFIXES.some(prefix=>overwriteKey.startsWith(prefix)))
-    throw new Error("Unexpected legacy recap replacement key.");
+    throw new CampaignServiceError("Unexpected legacy recap replacement key.",409);
   const previous = overwriteKey?await bucket.head(overwriteKey):null;
   let usedBytes=0;
   for(const prefix of LEGACY_RECAP_R2_PREFIXES){
@@ -29,20 +30,20 @@ export async function requireLegacyRecapR2Capacity(
       const batch=await bucket.list({prefix,limit:1000,...(cursor?{cursor}:{})});
       for(const object of batch.objects){
         if(!Number.isSafeInteger(object.size)||object.size<0)
-          throw new Error("Legacy recap R2 inventory returned invalid bytes.");
+          throw new CampaignServiceError("Legacy recap R2 inventory returned invalid bytes.",409);
         usedBytes+=object.size;
         if(usedBytes>LEGACY_RECAP_R2_MAX_BYTES)
-          throw new Error("Legacy recap R2 budget exceeded. Use GM-owned Drive storage.");
+          throw new CampaignServiceError("Legacy recap R2 budget exceeded. Use GM-owned Drive storage.",409);
       }
       if(!batch.truncated){complete=true;break;}
       if(!batch.cursor||batch.cursor===cursor)
-        throw new Error("Legacy recap R2 inventory could not be completed.");
+        throw new CampaignServiceError("Legacy recap R2 inventory could not be completed.",409);
       cursor=batch.cursor;
     }
-    if(!complete)throw new Error("Legacy recap R2 inventory exceeded inspection budget.");
+    if(!complete)throw new CampaignServiceError("Legacy recap R2 inventory exceeded inspection budget.",409);
   }
   const newBytes=usedBytes-(previous?.size??0)+incomingBytes;
   if(newBytes>LEGACY_RECAP_R2_MAX_BYTES)
-    throw new Error("Legacy recap R2 budget is full. Use GM-owned Drive or remove old recordings after backup.");
+    throw new CampaignServiceError("Legacy recap R2 budget is full. Use GM-owned Drive or remove old recordings after backup.",409);
   return {usedBytes,newBytes,maxBytes:LEGACY_RECAP_R2_MAX_BYTES};
 }

@@ -46,7 +46,7 @@ function fakeCodec(options={}){
   }};
 }
 test("AAC long-audio plan uses exact four-minute PCM intervals",()=>{
-  const index=makeIndex(50000);
+  const index=makeIndex(150000);
   const parts=planCraigAacSpeechParts(index);
   assert.equal(parts.length,14);
   assert.equal(parts[0].startMs,0);assert.equal(parts[0].endMs,240000);

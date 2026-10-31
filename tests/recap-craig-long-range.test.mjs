@@ -122,7 +122,7 @@ test("Craig long source route is GM-scoped, capped, immutable and never exposes 
   for(const value of ["openPrivateCraigRangeReader","inspectCraigFlacStreamInfo",
     "Inspect long Craig track","Save original to computer (streaming)",
     "Source bytes retrieved:","Original Craig audio transfer bytes",
-    "does not decode or transcribe","Cloudflare R2 read quota",
+    "it does not transcribe","Cloudflare R2 read quota",
     "sourceTransfer.bytes","AbortController"]){
     assert.ok(ui.includes(value),"Missing long audio progress/limitations: "+value);
   }

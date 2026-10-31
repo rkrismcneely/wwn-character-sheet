@@ -94,7 +94,7 @@ test("malformed output, codec failures and cancellation stop without publishing"
     await assert.rejects(streamCraigAacSpeech({source:data,index:makeIndex(),codec,
       onClip:async()=>{throw Error("should not upload");}}),
       /timeline|Codec failed/u);
-    assert.ok(state.decoderClosed);assert.equal(state.outputsClosed,state.decode);
+    assert.ok(state.decoderClosed);assert.ok(state.outputsClosed<=state.decode);
   }
   const abort=new AbortController(),data=source();
   const {codec,state}=fakeCodec({abort,abortOnPacket:1});

@@ -59,3 +59,22 @@ export const recapAttentionText:Record<string,{
     action:"Check your Gemini connection and share the job diagnostic with the site administrator.",
   },
 };
+
+/** Privacy-safe preparation-stage messages. Only these fixed codes appear in UI;
+ * never surface Google's raw error bodies, file URLs, or API credentials. */
+export const recapStageDescriptions:Record<string,string>={
+  gemini_key_unavailable:"TWE could not access the saved Gemini key. Test your key in Account.",
+  drive_file_unavailable:"TWE could not find or use the original Drive audio file.",
+  drive_permission_unavailable:"Google Drive access could not be refreshed. Reconnect Drive in Account if needed.",
+  gemini_file_start_failed:"Gemini rejected or could not create a temporary file-upload session. Check your API permissions or usage limits.",
+  gemini_upload_session_missing:"Gemini did not provide a resumable upload address.",
+  gemini_upload_session_expired:"The temporary Gemini upload session expired. Retrying creates a new temporary upload, not a second recap generation.",
+  gemini_upload_session_invalid:"Gemini returned an unexpected upload destination. TWE blocked the transfer.",
+  gemini_upload_offset_unknown:"Gemini did not report a trustworthy accepted byte offset. TWE stopped rather than risk corrupting the upload.",
+  drive_range_unavailable:"TWE could not read the next audio chunk from Google Drive.",
+  drive_range_invalid:"The Drive audio bytes did not match the requested chunk range.",
+  gemini_chunk_rejected:"Gemini rejected an audio chunk. The original recording is unaffected.",
+  gemini_chunk_network_error:"The temporary audio transfer to Gemini was interrupted.",
+  gemini_upload_receipt_invalid:"Gemini did not return a valid receipt for the completed audio upload.",
+  staging_data_unavailable:"TWE could not resume its saved transfer state. The audio remains in Google Drive.",
+};

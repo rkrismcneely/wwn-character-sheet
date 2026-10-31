@@ -73,7 +73,7 @@ test("Drive staging remains GM-owned and only accepts truly completed private fi
     "status='queued'","backgroundEnabled:false"]){
     assert.ok(staging.includes(phrase),"Missing staging guard: "+phrase);
   }
-  assert.match(upload,/processingJobId=u);
+  assert.match(upload,/processingJobId/u);
   assert.match(upload,/status='awaiting_source' AND paused_at IS NULL/u);
   assert.match(uploadRoute,/processingJobId\?:unknown/u);
   assert.match(player,/a.processing_job_id IS NULL/u);

@@ -1,5 +1,6 @@
 import { RECAP_ONLY_MAX_AUDIO_BYTES, RECAP_ONLY_MODEL } from "./recap-only-runner.ts";
 import { CampaignServiceError } from "./service.ts";
+import {safeRecapRetryTarget,type RecapRetryRecord} from "./recap-only-recovery.ts";
 
 type Preferences={detail:"brief"|"standard"|"detailed"};
 /**
@@ -46,4 +47,51 @@ export async function enqueueConfirmedRecapAudio(
       "A previous automatic job exists for this recording. It was not approved under the new confirmation process; no new AI request was made.",409);
   }
   return {created:result.meta.changes===1,alreadyQueued:result.meta.changes!==1};
+}
+
+/** Explicit GM retry of a safely pre-submission failed step. Never creates a
+ * second job, never resumes an uncertain/possibly billable submission, and
+ * requires the same original GM, recap, saved recording, and connected key.
+ */
+export async function retrySafeRecapPreparation(
+  db:D1Database,input:{jobId:string;campaignId:string;recapId:string;userId:string},
+):Promise<{resumed:true;status:"pending_upload"|"uploaded"}>{
+  if(!/^[0-9a-f-]{36}$/iu.test(input.jobId))
+    throw new CampaignServiceError("Choose a valid AI recap job.",422);
+  const job=await db.prepare("SELECT id,status,error_code AS errorCode,"+
+    "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId "+
+    "FROM campaign_recap_audio_summary_jobs WHERE id=? AND campaign_id=? "+
+    "AND recap_id=? AND requested_by=? AND confirmed_at IS NOT NULL")
+    .bind(input.jobId,input.campaignId,input.recapId,input.userId)
+    .first<RecapRetryRecord&{id:string}>();
+  if(!job)throw new CampaignServiceError("AI recap job not found.",404);
+  const target=safeRecapRetryTarget(job);
+  if(!target)throw new CampaignServiceError(
+    "This AI job cannot safely be resubmitted. Gemini may already have received it. Check your provider usage.",409);
+  const [source,account,recap]=await Promise.all([
+    db.prepare("SELECT 1 AS ok FROM campaign_recap_audio_assets a "+
+      "JOIN campaign_recap_audio_summary_jobs j ON j.audio_asset_id=a.id "+
+      "WHERE j.id=? AND a.campaign_id=? AND a.recap_id=? "+
+      "AND a.storage_owner_user_id=? AND a.status='ready' AND a.remote_file_id IS NOT NULL")
+      .bind(input.jobId,input.campaignId,input.recapId,input.userId).first(),
+    db.prepare("SELECT 1 AS ok FROM user_recap_ai_connections WHERE user_id=? "+
+      "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
+      .bind(input.userId).first(),
+    db.prepare("SELECT is_published AS published FROM campaign_session_recaps "+
+      "WHERE id=? AND campaign_id=?").bind(input.recapId,input.campaignId)
+      .first<{published:number}>(),
+  ]);
+  if(!source)throw new CampaignServiceError("The original Drive audio must be available before retrying.",409);
+  if(!account)throw new CampaignServiceError("Test or reconnect your Gemini API key in Account before retrying.",409);
+  if(recap?.published!==0)throw new CampaignServiceError("Only private recap drafts can be resumed.",409);
+  const updated=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+    "SET status=?,error_code=NULL,claimed_at=NULL,updated_at=? "+
+    "WHERE id=? AND campaign_id=? AND recap_id=? AND requested_by=? "+
+    "AND status='needs_attention' AND error_code=? AND interaction_id IS NULL "+
+    "AND confirmed_at IS NOT NULL")
+    .bind(target,new Date().toISOString(),input.jobId,input.campaignId,
+      input.recapId,input.userId,job.errorCode).run();
+  if(updated.meta.changes!==1)throw new CampaignServiceError(
+    "This AI job changed while you were reviewing it. Refresh the status before retrying.",409);
+  return {resumed:true,status:target};
 }

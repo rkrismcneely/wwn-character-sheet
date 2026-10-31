@@ -1,10 +1,11 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
+import {recapAttentionText} from "@/lib/campaigns/recap-only-recovery";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
-  generatedMarkdown:string|null;errorCode:string|null;
+  generatedMarkdown:string|null;errorCode:string|null;canRetry:boolean;
   createdAt:string;updatedAt:string;
 };
 type Asset={id:string;label:string;status:string;provider:string};
@@ -27,6 +28,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [starting,setStarting]=useState(false);
+  const [retrying,setRetrying]=useState(false);
   const [confirmAsset,setConfirmAsset]=useState<Asset|null>(null);
   const [privacy,setPrivacy]=useState(false);
   const [billing,setBilling]=useState(false);
@@ -108,6 +110,22 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
     }catch(e){setError(e instanceof Error?e.message:"Could not start summarization.");}
     finally{setStarting(false);}
   }
+  async function retryJob(job:Job){
+    if(retrying||starting||!job.canRetry||job.status!=="needs_attention")return;
+    if(!window.confirm("Retry this AI processing job? TWE will reuse your original Drive recording and previous approval. No new recap job will be created, but Gemini requests can use quota or incur charges. This option is available only because no model submission was confirmed or attempted in the failed stage."))return;
+    setRetrying(true);setError("");setNotice("");
+    try{
+      const response=await fetch(endpoint,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,retryApproved:true}),
+      });
+      const data=await response.json() as {resumed?:boolean;error?:string};
+      if(!response.ok||!data.resumed)throw Error(data.error||"Could not safely retry this job.");
+      setNotice("Processing resumed using your existing recording. The recap will update here when Gemini finishes.");
+      await refresh();
+    }catch(e){setError(e instanceof Error?e.message:"Could not retry processing.");}
+    finally{setRetrying(false);}
+  }
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id));
   const newest=jobs[0];
@@ -145,11 +163,36 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       }}>Use Gemini draft in editor</button>
       <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
     </details>}
-    {newest?.status==="needs_attention"&&<p className="campaign-error" role="alert">
-      {newest.errorCode==="submission_uncertain"
-        ?"Gemini might have received the request. TWE will not submit it again automatically, to avoid a second charge."
-        :"The AI job needs attention. Your original Google Drive recording is still saved."}
-    </p>}
+    {newest?.status==="needs_attention"&&<div className="session-recap-reading" role="alert">
+      <strong>{recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>
+      <p className="campaign-empty-copy">
+        {recapAttentionText[newest.errorCode??""]?.description??recapAttentionText.unexpected.description}
+      </p>
+      <p className="campaign-empty-copy">
+        {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
+      </p>
+      <div className="session-recap-form-actions">
+        {newest.canRetry&&<button type="button" className="campaign-primary"
+          disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
+          {retrying?"Retrying…":"Retry AI processing"}
+        </button>}
+        <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
+        <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
+          rel="noopener noreferrer">Open Google AI Studio</a>
+      </div>
+      <details>
+        <summary>Technical details</summary>
+        <p className="campaign-empty-copy">Job ID: <code>{newest.id}</code></p>
+        <p className="campaign-empty-copy">Error code: <code>{newest.errorCode||"unknown"}</code></p>
+        <p className="campaign-empty-copy">Last updated: {new Date(newest.updatedAt).toLocaleString()}</p>
+        <button type="button" className="campaign-secondary" onClick={()=>
+          void navigator.clipboard.writeText("TWE recap job: "+newest.id+
+            "\\nError: "+(newest.errorCode||"unknown")+
+            "\\nUpdated: "+newest.updatedAt)
+            .then(()=>setNotice("Diagnostic copied.")).catch(()=>setError("Could not copy diagnostics."))
+        }>Copy diagnostics</button>
+      </details>
+    </div>}
     {confirmAsset&&<div role="presentation" style={{
       position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",display:"flex",
       justifyContent:"center",alignItems:"center",padding:16,zIndex:2000,

@@ -1,15 +1,16 @@
 # Enable each GM's own Google Drive storage connection
 
-**Status:** OAuth integration code is implemented; setup requires an operator-owned Google OAuth client and one encryption secret. This setup does not require a paid Google Cloud project. Drive uploads and recap playback are subsequent features and are not enabled by the OAuth connector alone.
+**Status:** OAuth integration code is implemented; setup requires an existing or dedicated Google OAuth client, the Drive API, an authorized callback URI, and one encryption secret. This setup does not require a paid Google Cloud project. Drive upload and playback are implemented, but are disabled until OAuth setup and each GM's separate Drive consent are complete.
 
 ## One-time operator setup (no subscription)
 
-1. In **Google Cloud Console → Google Auth Platform / Clients**, create a **separate Web application OAuth client** for Drive rather than reusing TWE's Google sign-in client. Enable the Google Drive API in that project. Set the authorized redirect URI **exactly** to:
+1. In **Google Cloud Console → Google Auth Platform / Clients**, use TWE's already configured Google sign-in Web application OAuth client, or create an optional **dedicated Web application OAuth client** for Drive. Enable the Google Drive API in that project. Set the authorized redirect URI **exactly** to:
    `https://taleswithoutend.com/api/account/storage/google-drive/callback`
 2. Configure the OAuth consent screen for external users. TWE requests **only** `https://www.googleapis.com/auth/drive.file` and needs `access_type=offline`. The `drive.file` scope is non-sensitive, but Google still has consent/verification requirements. Testing-mode refresh tokens can expire after seven days; move through Google's appropriate production publishing process before considering it a dependable persistent connection.
 3. Set these Worker secrets:
-   - `GOOGLE_DRIVE_CLIENT_ID` — separate Drive OAuth client ID
-   - `GOOGLE_DRIVE_CLIENT_SECRET` — matching Drive client secret
+   - `GOOGLE_DRIVE_CLIENT_ID` — optional separate Drive OAuth client ID (otherwise uses TWE's configured `GOOGLE_CLIENT_ID`)
+   - `GOOGLE_DRIVE_CLIENT_SECRET` — optional matching Drive client secret (otherwise uses TWE's configured `GOOGLE_CLIENT_SECRET`)
+   - **Both** dedicated client settings must be present if using an override; an incomplete override fails closed.
    - `RECAP_STORAGE_ENCRYPTION_KEY` — independent **32 cryptographically random bytes**, encoded using unpadded base64url (43 characters). Generate with a cryptographically secure random generator; never commit this secret or a generated value to GitHub. Keep an offline backup: rotation without a migration will make existing encrypted Drive grants inaccessible.
 4. Cloudflare Worker secrets must be present on the **production** worker. The code will report storage as unavailable until they are configured. Do not automatically create or charge for any external accounts or services.
 5. The GitHub "Migrate and Deploy Session Recaps" workflow applies `0036_recap_storage_oauth_states.sql` before deploying the routes. Confirm the migration succeeded, then verify **Account → Storage → Connect Google Drive**.
@@ -26,7 +27,7 @@
 
 ## Known boundaries and next phases
 
-- OAuth connection by itself does not implement resumable Drive upload, selecting existing Drive files, transcript linking, or playback.
+- Existing GM Drive uploads and authorized recap playback are implemented. Selecting arbitrary existing Drive files is not supported. Direct AI Recap Only generation remains under development.
 - A connected grant's `drive.file` scope covers files created/opened using TWE's app and files explicitly chosen with an appropriate picker; it does **not** allow browsing all Drive files without permission.
 - Large session recording upload should stream directly from the GM's browser to Drive with resumable uploads, not relay all bytes through Cloudflare.
 - Playback may use authenticated byte-range streaming, but must be tested against Drive traffic restrictions and site-owner free hosting limits before rollout.

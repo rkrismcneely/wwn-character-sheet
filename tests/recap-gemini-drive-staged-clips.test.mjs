@@ -20,7 +20,7 @@ test("5 voice, 3 hour Craig session plans 225 bounded, independently playable 4 
     assert.ok(part.dataBytes<=48000*4*240);
   }
 });
-test("staged clips retain timestamps and validated audio bytes without decoding entire 2GB+ recording",()=>{
+test("staged clips retain timestamps and validated audio bytes without decoding entire 2GB+ recording",async()=>{
   const wav={channels:2,sampleRate:48000,bitsPerSample:16,blockAlign:4,dataOffset:44,
     dataBytes:48000*4*2};
   const bytes=new Uint8Array(44+wav.dataBytes);

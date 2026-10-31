@@ -52,7 +52,7 @@ test("uncompressed decoded buffer budget is bounded before producing any Drive u
   assert.throws(()=>planDecodedSpeechParts({
     length:96000*240,sampleRate:96000,numberOfChannels:2,duration:240,
   }),/memory/u);
-  const short=planDecodedSpeechParts(fakeBuffer(180));
+  const short=planDecodedSpeechParts({length:48000*180,sampleRate:48000,numberOfChannels:2,duration:180});
   assert.equal(short.length,1);
   assert.ok(short[0].targetFrames*2+44<8*1024*1024);
 });

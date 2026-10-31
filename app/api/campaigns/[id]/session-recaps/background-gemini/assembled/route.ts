@@ -44,7 +44,7 @@ async function scope(request:Request,context:Context,recapId:unknown,jobId:unkno
   return {job,db,campaign:access.campaign,recap};
 }
 async function loadCandidate(job:Job,campaignId:string,recapId:string) {
-  if(job.status!=="awaiting_review"||!job.assembledAt||
+  if(!["awaiting_review","completed"].includes(job.status)||!job.assembledAt||
     job.assemblyCursor!==job.totalChunks||job.completedChunks!==job.totalChunks||
     job.totalChunks<1||job.pausedAt!==null)
     throw new CampaignServiceError("This job's transcript has not finished assembling.",409);
@@ -98,7 +98,7 @@ export async function POST(request:Request,context:Context){
     const body=await readBoundedJson(request,2048) as {
       recapId?:unknown;jobId?:unknown;replace?:unknown;expectedUpdatedAt?:unknown;
     };
-    const {job,campaign,recap}=await scope(request,context,body.recapId,body.jobId);
+    const {job,campaign,recap,db}=await scope(request,context,body.recapId,body.jobId);
     const draft=await loadCandidate(job,campaign.id,recap.id);
     const target=recapTranscriptObjectKey(campaign.id,recap.id);
     const prior=await existingTranscript(target);
@@ -121,6 +121,12 @@ export async function POST(request:Request,context:Context){
       httpMetadata:{contentType:"application/json"},
     });
     if(!written)return reply("The transcript was updated in another tab. Reload and review it.",409);
+    // Accepted results stop occupying the GM's limited active-job slots.
+    // Publishing remains a distinct, reviewed GM action.
+    await db.prepare("UPDATE campaign_recap_processing_jobs SET status='completed',updated_at=? "+
+      "WHERE id=? AND provider='gemini' AND requested_by=? AND status='awaiting_review' "+
+      "AND assembled_at IS NOT NULL AND paused_at IS NULL")
+      .bind(now,job.id,job.requestedBy).run();
     // Idempotent import remains private; publication is a separate reviewed GM action.
     return Response.json({saved:true,published:false,count:draft.cues.length,updatedAt:now,
       notice:"Assembled transcript copied to the GM-only editable draft. Review speaker mappings and dialogue before publishing."},

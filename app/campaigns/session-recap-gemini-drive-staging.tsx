@@ -6,9 +6,12 @@ import { inspectGeminiSpeechWav,makeGeminiSpeechClip,
   type GeminiStagingClip } from "@/lib/campaigns/recap-gemini-speech-wav";
 import type { PcmWav } from "@/lib/campaigns/recap-wav-chunks";
 import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-browser";
+import { decodeShortCraigAudio,makeDecodedGeminiSpeechClip,
+  type DecodedSpeechPart } from "@/lib/campaigns/recap-gemini-native-short";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
+type CraigEntry={filename:string;uncompressedBytes:number};
 type Job={id:string;importId:string;status:string;speakerTracks:number;
   totalChunks:number;completedChunks:number;failedChunks:number;
   pausedAt:string|null;failureCode:string|null;nextEligibleAt:string|null;
@@ -18,6 +21,10 @@ type Staged={trackIndex:number;chunkIndex:number;startMs:number;endMs:number;
   sourceDigest:string|null;staged:boolean};
 type Progress={jobId:string;status:string;totalChunks:number;speakerTracks:number;clips:Staged[]};
 const errorMessage=(e:unknown)=>e instanceof Error?e.message:"Could not prepare this recording.";
+const bytesLabel=(bytes:number)=>bytes>=1024**3?
+  (bytes/1024**3).toFixed(2)+" GiB":(bytes/1024**2).toFixed(1)+" MiB";
+const clipPercent=(done:number,total:number)=>total>0?
+  Math.min(100,Math.round(100*done/total)):0;
 function readableState(item:Job){
   if(item.status==="cancelled")return "Cancelled";
   if(item.pausedAt)return "Paused";
@@ -43,6 +50,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [connectionId,setConnectionId]=useState("");
   const [importId,setImportId]=useState("");
   const [tracks,setTracks]=useState<Track[]>([]);
+  const [craigEntries,setCraigEntries]=useState<CraigEntry[]>([]);
   const [trackIndex,setTrackIndex]=useState("");
   const [job,setJob]=useState<Job|null>(null);
   const [savedJobs,setSavedJobs]=useState<Job[]>([]);
@@ -55,6 +63,10 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   const [file,setFile]=useState<File|null>(null);
   const [wav,setWav]=useState<PcmWav|null>(null);
   const [clips,setClips]=useState<GeminiStagingClip[]>([]);
+  const [nativeBuffer,setNativeBuffer]=useState<AudioBuffer|null>(null);
+  const [nativeClips,setNativeClips]=useState<DecodedSpeechPart[]>([]);
+  const [nativeFormat,setNativeFormat]=useState<"flac"|"aac"|null>(null);
+  const [uploadBytes,setUploadBytes]=useState({sent:0,total:0});
   const [approve,setApprove]=useState(false);
   const [busy,setBusy]=useState(false);
   const [count,setCount]=useState(0);
@@ -86,17 +98,25 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       const restored=(saved.jobs??[]).find(row=>row.status!=="cancelled")??null;
       if(restored){
         setJob(restored);setImportId(restored.importId);
-        const [voices,progress]=await Promise.all([
+        const [voices,progress,manifest]=await Promise.all([
           fetch(base+"/recap-imports/craig-track-speakers?importId="+
             encodeURIComponent(restored.importId),{cache:"no-store",signal:abort.signal}),
           fetch(staging+"?recapId="+encodeURIComponent(recapId)+
             "&jobId="+encodeURIComponent(restored.id),{cache:"no-store",signal:abort.signal}),
+          fetch(base+"/recap-imports/craig-manifest?importId="+
+            encodeURIComponent(restored.importId),{cache:"no-store",signal:abort.signal}),
         ]);
         if(voices.ok&&progress.ok){
           const [speakerData,chunkData]=await Promise.all([
             voices.json() as Promise<{assignments?:Track[]}>,progress.json() as Promise<Progress>,
           ]);
-          if(!abort.signal.aborted){setTracks(speakerData.assignments??[]);setStaged(chunkData);}
+          if(!abort.signal.aborted){
+            setTracks(speakerData.assignments??[]);setStaged(chunkData);
+            if(manifest.ok){
+              const inventory=await manifest.json() as {entries?:CraigEntry[]};
+              if(!abort.signal.aborted)setCraigEntries(inventory.entries??[]);
+            }
+          }
         }else if(!abort.signal.aborted){
           setError("Saved Gemini job found, but its audio or speaker metadata could not be loaded.");
         }
@@ -113,14 +133,22 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   async function chooseCraig(id:string){
     if(busy)return;
     setImportId(id);setJob(null);setTracks([]);setStaged(null);setAssembly(null);
+    setCraigEntries([]);
     setTrackIndex("");setFile(null);setWav(null);setClips([]);
+    setNativeBuffer(null);setNativeClips([]);setNativeFormat(null);
     setError("");setMessage("");
     if(!id)return;
     try{
       const found=savedJobs.find(row=>row.importId===id)??null;
-      const data=await readJSON<{assignments?:Track[]}>(
-        base+"/recap-imports/craig-track-speakers?importId="+encodeURIComponent(id));
+      const [data,manifest]=await Promise.all([
+        readJSON<{assignments?:Track[]}>(
+          base+"/recap-imports/craig-track-speakers?importId="+encodeURIComponent(id)),
+        readJSON<{entries?:CraigEntry[]}>(
+          base+"/recap-imports/craig-manifest?importId="+encodeURIComponent(id))
+          .catch(()=>({entries:[] as CraigEntry[]})),
+      ]);
       setTracks(data.assignments??[]);
+      setCraigEntries(manifest.entries??[]);
       if(found){setJob(found);await refresh(found.id);}
     }catch(e){setError(errorMessage(e));}
   }
@@ -200,24 +228,62 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     return ()=>{controller.abort();window.clearInterval(id);};
   },[busy,job?.id,jobs,recapId,staging]);
 
+  async function chooseSourceFile(next:File|null){
+    setFile(null);setWav(null);setClips([]);setCount(0);setError("");
+    setNativeBuffer(null);setNativeClips([]);setNativeFormat(null);
+    setUploadBytes({sent:0,total:0});
+    if(!next)return;
+    try{
+      if(/\\.wav$/iu.test(next.name)){
+        const inspected=await inspectGeminiSpeechWav(next);
+        setFile(next);setWav(inspected.source);setClips(inspected.clips);
+        setMessage("WAV analyzed. Conversion reads one four-minute source slice at a time; original audio stays in your browser.");
+      }else{
+        const result=await decodeShortCraigAudio(next);
+        setFile(next);setNativeBuffer(result.decoded);setNativeClips(result.parts);
+        setNativeFormat(result.format);
+        setMessage("Short Craig "+result.format.toUpperCase()+
+          " decoded locally. Full-length compressed recordings need streaming conversion; never decode multi-hour tracks into browser memory.");
+      }
+    }catch(e){setError(errorMessage(e));}
+  }
+  async function loadShortCraigTrack(){
+    if(!importId||trackIndex===""||busy)return;
+    const index=Number(trackIndex);
+    const entry=craigEntries[index];
+    if(entry && (entry.uncompressedBytes>16*1024*1024||
+      !/\\.(?:flac|m4a|aac)$/iu.test(entry.filename))){
+      setError("Craig's private short-track download limit is 16 MiB. For a long track, use a PCM WAV conversion and keep the original time positions.");return;
+    }
+    setBusy(true);setError("");setMessage("");
+    try{
+      const response=await fetch(base+"/recap-imports/craig-track-audio?importId="+
+        encodeURIComponent(importId)+"&entryIndex="+index,{cache:"no-store"});
+      if(!response.ok){
+        const failure=await response.json() as {error?:string};
+        throw new Error(failure.error??"Craig speaker track unavailable.");
+      }
+      const blob=await response.blob();
+      if(blob.size>16*1024*1024)throw new Error("Short Craig track exceeded safe download limit.");
+      const format=response.headers.get("content-type")?.includes("flac")?"flac":"m4a";
+      await chooseSourceFile(new File([blob],"craig-"+index+"."+format,{type:blob.type}));
+    }catch(e){setError(errorMessage(e));}
+    finally{setBusy(false);}
+  }
   async function chooseWav(event:ChangeEvent<HTMLInputElement>){
     const next=event.currentTarget.files?.[0]??null;
     event.currentTarget.value="";
-    setFile(null);setWav(null);setClips([]);setCount(0);setError("");
-    if(!next)return;
-    try{
-      const inspected=await inspectGeminiSpeechWav(next);
-      setFile(next);setWav(inspected.source);setClips(inspected.clips);
-      setMessage("Audio analyzed. Each four-minute section will be converted to mono speech audio, then uploaded to your own Google Drive.");
-    }catch(e){setError(errorMessage(e));}
+    await chooseSourceFile(next);
   }
   async function sha(fileToHash:File):Promise<string>{
     const data=new Uint8Array(await crypto.subtle.digest("SHA-256",await fileToHash.arrayBuffer()));
     return Array.from(data,n=>n.toString(16).padStart(2,"0")).join("");
   }
   async function upload(){
-    if(!job||!file||!wav||!clips.length||trackIndex===""||!connectionId||busy)return;
+    const parts=nativeBuffer?nativeClips:clips;
+    if(!job||!file||(!wav&&!nativeBuffer)||!parts.length||trackIndex===""||!connectionId||busy)return;
     setBusy(true);setCount(0);setMessage("");setError("");stopRequested.current=false;
+    setUploadBytes({sent:0,total:0});
     const abort=new AbortController();active.current=abort;
     const index=Number(trackIndex);
     try{
@@ -227,18 +293,20 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         await readJSON<{planned:boolean}>(staging,{
           method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({recapId,jobId:job.id,action:"plan",trackIndex:index,
-            chunks:clips.map(part=>({startMs:part.startMs,endMs:part.endMs}))}),
+            chunks:parts.map(part=>({startMs:part.startMs,endMs:part.endMs}))}),
           signal:abort.signal,
         });
         existing=(await refresh(job.id)).clips.filter(c=>c.trackIndex===index);
       }
-      if(existing.length!==clips.length||existing.some((part,i)=>
-        part.chunkIndex!==i||part.startMs!==clips[i].startMs||part.endMs!==clips[i].endMs))
+      if(existing.length!==parts.length||existing.some((part,i)=>
+        part.chunkIndex!==i||part.startMs!==parts[i].startMs||part.endMs!==parts[i].endMs))
         throw new Error("This WAV does not match the previously staged track plan. Re-select the original recording.");
       let uploaded=0;
-      for(let i=0;i<clips.length;i++){
+      for(let i=0;i<parts.length;i++){
         if(stopRequested.current||abort.signal.aborted)break;
-        const converted=await makeGeminiSpeechClip(file,wav,clips[i],i);
+        const converted=nativeBuffer?
+          makeDecodedGeminiSpeechClip(file.name,nativeBuffer,nativeClips[i],i):
+          await makeGeminiSpeechClip(file,wav!,clips[i],i);
         const digest=await sha(converted);
         if(existing[i].staged){
           if(existing[i].sourceDigest!==digest)
@@ -250,10 +318,12 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             method:"POST",headers:{"content-type":"application/json"},signal:abort.signal,
             body:JSON.stringify({recapId,connectionId,filename:converted.name,
               mimeType:"audio/wav",byteSize:converted.size,
-              durationMs:clips[i].endMs-clips[i].startMs,processingJobId:job.id}),
+              durationMs:parts[i].endMs-parts[i].startMs,processingJobId:job.id}),
           });
+        setUploadBytes({sent:0,total:converted.size});
         const remote=await uploadRecordingToDrive(converted,started.uploadSessionUrl,
-          ()=>{}, {chunkBytes:started.chunkBytes,signal:abort.signal});
+          (sent,total)=>setUploadBytes({sent,total}),
+          {chunkBytes:started.chunkBytes,signal:abort.signal});
         await readJSON<{ready:boolean}>(base+"/session-recaps/audio/upload/finish",{
           method:"POST",headers:{"content-type":"application/json"},signal:abort.signal,
           body:JSON.stringify({assetId:started.assetId,remoteFileId:remote.id}),
@@ -337,6 +407,12 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     finally{setBusy(false);}
   }
   const attached=staged?.clips.filter(x=>x.staged).length??0;
+  const selectedParts=nativeBuffer?nativeClips:clips;
+  const estimatedUploadBytes=selectedParts.reduce((total,part)=>total+44+part.targetFrames*2,0);
+  const chosenCraigEntry=trackIndex!==""?craigEntries[Number(trackIndex)]:undefined;
+  const activeClipPercent=clipPercent(count,selectedParts.length);
+  const uploadedPercent=clipPercent(uploadBytes.sent,uploadBytes.total);
+  const transcribed=job?.progress?.completed??job?.completedChunks??0;
   return <section className="session-recap-reading" aria-label="Prepare Gemini background transcription audio">
     <h4>Prepare Gemini for unattended transcription</h4>
     <p className="campaign-empty-copy">
@@ -345,6 +421,16 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       source audio to TWE storage. Keep the browser open for the initial upload only.
       The unattended Gemini runner is not enabled yet, so staging will not start AI charges.
     </p>
+    <div className="session-recap-import-notice" role="note">
+      <strong>Usage and privacy:</strong> Each prepared clip uses storage in your Google Drive.
+      Gemini requests, when enabled, consume your own Google AI Studio project&apos;s quota and
+      may incur charges if your project has billing enabled. TWE cannot read Google&apos;s
+      remaining free transcription allowance from this connection. Check the
+      <a href="https://aistudio.google.com/usage" target="_blank" rel="noopener noreferrer">
+        {" Google AI Studio usage dashboard"}
+      </a> for actual provider limits and usage. Clip progress below measures TWE processing,
+      <strong> not your remaining Gemini quota</strong>.
+    </div>
     {driveAccounts.length===0&&<p className="session-recap-import-notice">
       <a href="/account">Connect Google Drive in Account</a> before preparing speech clips.
     </p>}
@@ -396,11 +482,16 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         <p><strong>{readableState(job)}</strong></p>
         <p className="campaign-empty-copy">
           Prepared audio: {attached} of {staged?.totalChunks??0} clips.
-          {" "}Transcribed: {job.progress?.completed??job.completedChunks} of {job.totalChunks}.
+          {" "}Transcribed: {transcribed} of {job.totalChunks}
+          {" "}({clipPercent(transcribed,job.totalChunks)}%).
           {" "}Submitted to Gemini: {job.progress?.submitted??0}.
           {" "}Processing: {job.progress?.leased??0}.
           {" "}Needing attention: {job.progress?.failed??job.failedChunks}.
         </p>
+        {job.totalChunks>0&&<progress value={transcribed} max={job.totalChunks}
+          aria-label="Completed Gemini transcript clips"/>}
+        {staged&&staged.totalChunks>0&&<progress value={attached}
+          max={staged.totalChunks} aria-label="Prepared audio upload progress"/>}
         {tracks.length>0&&staged&&<p className="campaign-empty-copy">
           {tracks.map(track=>{
             const items=staged.clips.filter(c=>c.trackIndex===track.index);
@@ -441,16 +532,41 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             </option>)}
           </select>
         </label>
-        <label>Converted or recorded uncompressed PCM WAV for this speaker
-          <input type="file" accept=".wav,audio/wav" disabled={busy||trackIndex===""}
-            onChange={event=>void chooseWav(event)}/>
-        </label>
-        {file&&<p className="campaign-empty-copy">
-          {file.name} · {clips.length} independently playable four-minute clips
+        {chosenCraigEntry&&<p className="campaign-empty-copy">
+          Craig source: {chosenCraigEntry.filename} · {bytesLabel(chosenCraigEntry.uncompressedBytes)}.
+          {chosenCraigEntry.uncompressedBytes>16*1024*1024?
+            " This track is too large for direct browser loading.":" Short native source decoding may be available in this browser."}
         </p>}
+        <button type="button" className="campaign-secondary"
+          disabled={busy||trackIndex===""||
+            (chosenCraigEntry?.uncompressedBytes??0)>16*1024*1024}
+          onClick={()=>void loadShortCraigTrack()}>
+          {busy?"Loading Craig track…":"Load short original Craig track"}
+        </button>
+        <p className="campaign-empty-copy">
+          <strong>Compressed-track warning:</strong> Direct AAC/FLAC decoding is
+          browser-dependent and limited to four minutes and 16 MiB per track,
+          with a 96 MiB decoded-audio safety budget. Multi-hour Craig recordings
+          must still be converted to an ordinary PCM WAV or processed by a future
+          streaming decoder; this tool never attempts to decode hours of compressed audio at once.
+        </p>
+        <label>Or select PCM WAV / short AAC or FLAC for this speaker
+          <input type="file" accept=".wav,.flac,.m4a,.mp4,audio/wav,audio/flac,audio/mp4"
+            disabled={busy||trackIndex===""} onChange={event=>void chooseWav(event)}/>
+        </label>
+        {file&&<div className="session-recap-reading" role="status">
+          <p>{file.name} · {selectedParts.length} independently playable speech clips.
+            {nativeFormat?" Decoded locally from "+nativeFormat.toUpperCase()+".":" PCM WAV, read in four-minute slices."}
+          </p>
+          <p className="campaign-empty-copy">
+            <strong>Estimated new Drive storage:</strong> {bytesLabel(estimatedUploadBytes)}
+            {" "}({selectedParts.length} files). Your actual Drive free space is not exposed
+            by the TWE connection; confirm capacity in Google Drive.
+          </p>
+        </div>}
         <div className="session-recap-form-actions">
           <button type="button" className="campaign-primary"
-            disabled={busy||!file||!clips.length||!connectionId}
+            disabled={busy||!file||!selectedParts.length||!connectionId}
             onClick={()=>void upload()}>
             {busy?"Preparing and uploading…":"Prepare and upload this voice"}
           </button>
@@ -461,7 +577,15 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           <button type="button" className="campaign-secondary" disabled={busy||!attached}
             onClick={()=>void seal()}>Seal fully prepared job</button>
         </div>
-        {busy&&<p role="status">Checked or uploaded {count} / {clips.length} clips for this voice.</p>}
+        {busy&&<div role="status" className="session-recap-reading">
+          <p>Checked or uploaded {count} / {selectedParts.length} clips ({activeClipPercent}%).</p>
+          <progress max={selectedParts.length} value={count} aria-label="Prepared audio clip progress"/>
+          {uploadBytes.total>0&&<>
+            <p>Current Drive upload: {bytesLabel(uploadBytes.sent)} / {bytesLabel(uploadBytes.total)}
+              {" "}({uploadedPercent}%).</p>
+            <progress max={uploadBytes.total} value={uploadBytes.sent} aria-label="Current Google Drive upload bytes"/>
+          </>}
+        </div>}
       </>}
       {(["queued","awaiting_review","completed"].includes(job.status))&&<div className="session-recap-reading">
         <h5>Assembled Gemini transcript</h5>

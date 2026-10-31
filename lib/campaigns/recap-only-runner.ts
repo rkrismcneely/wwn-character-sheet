@@ -23,10 +23,13 @@ const stamped=(ms:number)=>new Date(ms).toISOString();
 async function keyFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
   // The job could only have been enqueued by an authenticated GM's
   // explicit, per-recording confirmation. Never rely on account-wide automation.
-  const key=await env.DB.prepare("SELECT id,key_ciphertext AS ciphertext,key_nonce AS nonce,"+
-    "key_version AS version FROM user_recap_ai_connections WHERE user_id=? "+
-    "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
-    .bind(job.requestedBy).first<Credential>();
+  // A confirmed job is the only permission to contact this GM's Gemini project.
+  const key=await env.DB.prepare("SELECT a.id,a.key_ciphertext AS ciphertext,a.key_nonce AS nonce,"+
+    "a.key_version AS version FROM user_recap_ai_connections a "+
+    "JOIN campaign_recap_audio_summary_jobs j ON j.requested_by=a.user_id "+
+    "WHERE j.id=? AND j.requested_by=? AND j.confirmed_at IS NOT NULL "+
+    "AND a.provider='gemini' AND a.status='connected' AND a.key_ciphertext IS NOT NULL")
+    .bind(job.id,job.requestedBy).first<Credential>();
   if(!key||key.version!==1)throw Error("Gemini connection or explicit processing approval missing.");
   return decryptGeminiUserKey(env,job.requestedBy,key.id,
     {ciphertext:key.ciphertext,nonce:key.nonce,version:1});
@@ -224,13 +227,13 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
   const stale=stamped(Date.now()-60*60*1000);
   await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET status='needs_attention',"+
     "error_code='incomplete_transfer_or_submission',updated_at=? "+
-    "WHERE status IN ('transferring','submitting') AND claimed_at<?")
+    "WHERE confirmed_at IS NOT NULL AND status IN ('transferring','submitting') AND claimed_at<?")
     .bind(now(),stale).run();
   const job=await db.prepare("SELECT id,campaign_id AS campaignId,recap_id AS recapId,"+
     "audio_asset_id AS audioAssetId,requested_by AS requestedBy,status,detail,"+
     "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId,updated_at AS updatedAt "+
     "FROM campaign_recap_audio_summary_jobs "+
-    "WHERE status IN ('submitted','uploaded','pending_upload') "+
+    "WHERE confirmed_at IS NOT NULL AND status IN ('submitted','uploaded','pending_upload') "+
     "ORDER BY CASE status WHEN 'submitted' THEN 0 WHEN 'uploaded' THEN 1 ELSE 2 END,updated_at LIMIT 1")
     .first<Job>();
   if(!job)return;

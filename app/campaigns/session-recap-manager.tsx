@@ -211,9 +211,9 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       </div>}
       {editing !== "new"&&!editing.isPublished&&<>
         <p className="session-recap-import-notice" role="status">
-          This recording draft is private. After upload, your approved automatic recap
-          settings will send the recording to Gemini and save the AI draft for your review.
-          Nothing is published to players automatically.
+          Step 1: upload and play the recording in this private recap. Step 2: click
+          Auto Summarize and confirm if you want Gemini to create a draft.
+          Uploading alone never starts AI, and nothing is published automatically.
         </p>
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId}
           recapId={editing.id} onBusyChange={trackUploadBusy}/>
@@ -232,9 +232,9 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
             <p className="session-recap-editor-help">
               Create a private draft, then upload your full mixed MP3/M4A/WAV/FLAC/AAC
               recording straight to your own Google Drive. No transcript or separate
-              Craig tracks are required. Once the recording is saved to Drive,
-              your approved Gemini automation creates a private draft for you to review.
-              Creating this draft alone does not start an AI request.
+              Craig tracks are required. The recording will be attached and playable as soon as
+              it is saved in Drive. Gemini starts only when you later click Auto Summarize
+              and confirm the request. The result stays private for your review.
             </p>
             <div className="session-recap-form-fields">
               <label><span>Session date</span><input type="date" required value={draft.date}

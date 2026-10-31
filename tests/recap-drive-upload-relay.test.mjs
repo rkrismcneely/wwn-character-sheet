@@ -46,9 +46,9 @@ test("browser sends real audio chunks to same-origin TWE endpoint, never directl
   const fakeFetch=async(target,options)=>{
     assert.equal(target,relay.endpoint+"?assetId="+relay.assetId);
     assert.equal(options.credentials,"same-origin");
-    assert.equal(options.headers["x-twe-drive-upload-session"],url);
-    assert.equal(options.headers["x-twe-drive-upload-ticket"],relay.ticket);
-    const range=options.headers["Content-Range"];
+    assert.equal(options.headers.get("x-twe-drive-upload-session"),url);
+    assert.equal(options.headers.get("x-twe-drive-upload-ticket"),relay.ticket);
+    const range=options.headers.get("Content-Range");
     sent.push(range);
     if(sent.length<3){
       const match=/^bytes (\d+)-(\d+)\/(\d+)$/u.exec(range);

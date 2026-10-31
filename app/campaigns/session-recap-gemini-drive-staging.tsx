@@ -15,6 +15,7 @@ import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES,
   type CraigFlacSpeechPart } from "@/lib/campaigns/recap-craig-flac-stream";
 import { inspectCraigAacMp4 } from "@/lib/campaigns/recap-craig-aac-demux";
 import {streamCraigAacSpeech,planCraigAacSpeechParts} from "@/lib/campaigns/recap-craig-aac-stream";
+import {probeCraigAacBrowser} from "@/lib/campaigns/recap-craig-aac-probe";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
@@ -274,6 +275,31 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           "AAC metadata is ready for browser WebCodecs conversion where supported.");
       }
       setLongSource({meta:stream.metadata,durationMs,sampleRate,aacPackets});
+    }catch(e){setError(errorMessage(e));}
+    finally{longAbort.current=null;setSourceBusy(false);}
+  }
+  async function testCraigAacBrowser(){
+    if(busy||sourceBusy||!importId||trackIndex==="")return;
+    const controller=new AbortController();longAbort.current=controller;
+    setSourceBusy(true);setError("");setSourceMessage("");
+    setSourceTransfer({bytes:0,total:0});
+    try{
+      const source=await openPrivateCraigRangeReader(campaignId,importId,Number(trackIndex),{
+        signal:controller.signal,
+        onProgress:p=>setSourceTransfer({bytes:p.receivedBytes,total:p.totalSourceBytes}),
+      });
+      if(source.metadata.mimeType!=="audio/mp4")
+        throw new Error("Select a Craig AAC/M4A track for the browser test. FLAC uses its own decoder.");
+      setSourceMessage("Checking this browser with a short sample of the actual Craig AAC audio. No Drive or AI uploads.");
+      const result=await probeCraigAacBrowser({source,signal:controller.signal});
+      setSourceMessage("AAC browser compatibility test passed: "+
+        result.secondsDecoded.toFixed(2)+" seconds of actual PCM from "+
+        result.packetsTested+" AAC packets at "+result.sampleRate+" Hz, "+
+        result.channels+" channel(s). "+
+        bytesLabel(result.sourceBytes)+" source audio fetched in "+
+        result.sourceReadRequests+" bounded R2 reads (plus metadata reads). "+
+        "No Google Drive or AI upload. This is only a short sample check, "+
+        "not proof that a 2–3-hour conversion will finish on this device.");
     }catch(e){setError(errorMessage(e));}
     finally{longAbort.current=null;setSourceBusy(false);}
   }
@@ -739,7 +765,12 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
             The inspection button only checks metadata. <strong>Prepare full Craig audio</strong>
             performs local decoding and Drive uploads; it does not transcribe.
-            Full-length AAC-LC requires a supported WebCodecs browser and rejects edited/fragmented MP4. Export FLAC or PCM WAV if incompatible. These reads consume hosting R2 requests; remaining quota is unknown.
+            <strong>Test AAC in this browser</strong> tries decoding a short sample
+            from the selected Craig track without Drive or AI uploads. This uses
+            some Cloudflare R2 reads and device CPU, but does not test whether an
+            entire 2–3-hour recording will complete. Full-length AAC-LC needs
+            WebCodecs and rejects edited/fragmented MP4. Export FLAC or PCM WAV
+            if incompatible; remaining R2 quota is unknown.
           </p>
           <div className="session-recap-form-actions">
             <button type="button" className="campaign-primary"
@@ -751,6 +782,10 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             <button type="button" className="campaign-secondary"
               disabled={busy||sourceBusy} onClick={()=>void inspectLongCraig()}>
               {sourceBusy?"Reading source…":"Inspect long Craig track"}
+            </button>
+            <button type="button" className="campaign-secondary"
+              disabled={busy||sourceBusy} onClick={()=>void testCraigAacBrowser()}>
+              Test AAC in this browser (no upload)
             </button>
             <button type="button" className="campaign-secondary"
               disabled={busy||sourceBusy} onClick={()=>void saveLongCraigToComputer()}>

@@ -70,6 +70,7 @@ export const recapStageDescriptions:Record<string,string>={
   gemini_upload_session_missing:"Gemini did not provide a resumable upload address.",
   gemini_upload_session_expired:"The temporary Gemini upload session expired. Retrying creates a new temporary upload, not a second recap generation.",
   gemini_upload_session_invalid:"Gemini returned an unexpected upload destination. TWE blocked the transfer.",
+  gemini_chunk_granularity_mismatch:"Gemini requires an unsupported upload chunk alignment. TWE stopped before sending any audio; report this to the site owner.",
   gemini_upload_offset_unknown:"Gemini did not report a trustworthy accepted byte offset. TWE stopped rather than risk corrupting the upload.",
   drive_range_unavailable:"TWE could not read the next audio chunk from Google Drive.",
   drive_range_invalid:"The Drive audio bytes did not match the requested chunk range.",

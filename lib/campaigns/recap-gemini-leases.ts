@@ -16,7 +16,7 @@ type Candidate={
   startMs:number;endMs:number;
 };
 export type GeminiLeasedClip=Pick<Candidate,"jobId"|"recapId"|"requestedBy"|"campaignId"|
-  "audioKey"|"audioBytes"|"sourceDigest"|"mimeType"|"trackIndex"|"chunkIndex"|"startMs"|"endMs"> & {
+  "audioKey"|"audioBytes"|"sourceDigest"|"mimeType"|"trackIndex"|"chunkIndex"|"startMs"|"endMs"|"quotaMode"> & {
   leaseToken:string;
 };
 export const GEMINI_CHUNK_LEASE_MS=5*60*1000;

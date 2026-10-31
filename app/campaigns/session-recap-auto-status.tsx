@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
+import {SessionRecapProgress} from "./session-recap-progress";
 import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
 
 type Job={
@@ -152,11 +153,11 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       <button type="button" className="campaign-primary" disabled={starting}
         onClick={()=>openConfirmation(asset)}>Auto Summarize</button>
     </div>)}
-    {newest&&<p role="status"><strong>{statusLabel[newest.status]||"Status: "+newest.status}</strong>
-      {" · "}{newest.detail} recap
-      {newest.status==="transferring"&&newest.totalBytes&&newest.totalBytes>0&&
-        <> · {Math.min(100,Math.round(100*newest.stageBytes/newest.totalBytes))}% of audio staged to Gemini</>}
-    </p>}
+    {newest&&<>
+      <p role="status"><strong>{statusLabel[newest.status]||"Status: "+newest.status}</strong>
+        {" · "}{newest.detail} recap</p>
+      <SessionRecapProgress job={newest}/>
+    </>}
     {newest?.status==="ready"&&newest.generatedMarkdown&&<details>
       <summary>View or apply saved Gemini draft</summary>
       <p className="campaign-empty-copy">Review for inaccurate names or events before publishing.</p>

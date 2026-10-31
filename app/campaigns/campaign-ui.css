@@ -673,6 +673,50 @@ html[data-theme="dark"] .gm-npc-magic-add label>span{color:#d3a75d}html[data-the
 .session-recap-date-picker select {cursor:pointer}
 .session-recap-reading {padding:.5rem 0;overflow-wrap:anywhere}
 .session-recap-reading>h3 {font:600 clamp(1.35rem,2.4vw,1.85rem)/1.25 var(--font-display);margin:.4rem 0 1rem}
+
+/* AI recap progress: numeric only for acknowledged file-transfer bytes.
+ * Gemini's background analysis reports stage/status, not an overall percent. */
+.recap-ai-progress{
+  margin:.7rem 0 1rem;padding:.95rem 1rem;border:1px solid var(--campaign-line,#c5a871);
+  border-radius:7px;background:var(--campaign-paper,#fffaf0);color:var(--campaign-ink,#382e23);
+  font: .86rem/1.5 var(--font-ui);min-width:0;
+}
+.recap-ai-progress__heading{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .8rem;justify-content:space-between}
+.recap-ai-progress__heading strong{font-size:.98rem}
+.recap-ai-progress__counter{font-size:.78rem;color:var(--campaign-muted,#756b5f)}
+.recap-ai-progress p{margin:.35rem 0 .7rem}
+.recap-ai-progress__steps{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;list-style:none;padding:0;margin:.85rem 0;
+}
+.recap-ai-progress__step{
+  display:flex;gap:.35rem;align-items:center;min-width:0;padding:.45rem .3rem;
+  font-size:.74rem;line-height:1.3;color:var(--campaign-muted,#756b5f);
+  border-bottom:3px solid var(--campaign-line,#c5a871);
+}
+.recap-ai-progress__step-marker{
+  flex:0 0 1.35rem;width:1.35rem;height:1.35rem;border-radius:50%;
+  border:1px solid currentColor;display:inline-flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:700;
+}
+.recap-ai-progress__step--complete{color:var(--campaign-ink,#382e23);border-color:#477754;font-weight:600}
+.recap-ai-progress__step--complete .recap-ai-progress__step-marker{color:#fff;background:#477754;border-color:#477754}
+.recap-ai-progress__step--current{color:var(--campaign-ink,#382e23);border-color:#a97b32;font-weight:700}
+.recap-ai-progress__step--current .recap-ai-progress__step-marker{background:#a97b32;color:#fff;border-color:#a97b32}
+.recap-ai-progress__meter-label{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.2rem .7rem;margin:.7rem 0 .25rem;font-size:.79rem;font-weight:600}
+.recap-ai-progress__meter{display:block;width:100%;height:13px;accent-color:#8a6326;border:0;border-radius:6px;overflow:hidden}
+.recap-ai-progress__meter::-webkit-progress-bar{background:#e0d2b7;border-radius:6px}
+.recap-ai-progress__meter::-webkit-progress-value{background:#8a6326;border-radius:6px;transition:width .3s ease}
+.recap-ai-progress__meter::-moz-progress-bar{background:#8a6326;border-radius:6px}
+.recap-ai-progress .recap-ai-progress__hint{font-size:.76rem;margin:.4rem 0 0;color:var(--campaign-muted,#756b5f)}
+@media(max-width:600px){
+  .recap-ai-progress{padding:.75rem}
+  .recap-ai-progress__steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .recap-ai-progress__step{font-size:.73rem}
+}
+@media(prefers-reduced-motion:reduce){
+  .recap-ai-progress__meter::-webkit-progress-value{transition:none}
+}
+
 .session-recap-markdown {font:400 .98rem/1.7 var(--font-ui);overflow-wrap:anywhere}
 .session-recap-markdown>* {margin:0 0 .9em}
 .session-recap-markdown h2,.session-recap-markdown h3,.session-recap-markdown h4 {

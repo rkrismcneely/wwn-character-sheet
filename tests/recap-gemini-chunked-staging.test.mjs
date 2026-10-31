@@ -129,5 +129,9 @@ test("migration, cron and status all retain stage state while protecting private
   assert.match(route,/stage_error_code AS stageErrorCode/u);
   assert.match(route,/const safeJobs=rows\.results\.map\(\(\{fileUri,fileName,interactionId,\.\.\.job\}\)/u);
   assert.match(ui,/recapStageDescriptions/u);
-  assert.match(ui,/stageBytes\/newest\.totalBytes/u);
+  // Progress now lives in a dedicated component with a tested byte-progress
+  // helper, rather than inline arithmetic in the parent status panel.
+  assert.match(ui,/<SessionRecapProgress job=\{newest\}\/>/u);
+  const progress=await read("lib/campaigns/recap-progress.ts");
+  assert.match(progress,/bytes\*100\/total/u);
 });

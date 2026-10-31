@@ -43,6 +43,7 @@ export function RecapAIConnections(){
       const refreshed=await fetch(url,{cache:"no-store"});
       const detail=await readAccountReply<State>(refreshed);
       setState(detail);
+      window.dispatchEvent(new Event("twe:recap-account-changed"));
       if(method==="PUT"){setKey("");setApproved(false);}
       setNotice(json.notice??(method==="PUT"?"Gemini key stored encrypted. Verify model access when ready.":
         method==="DELETE"?"Gemini key disconnected from TWE.":"Gemini access verified."));

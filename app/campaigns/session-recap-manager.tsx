@@ -77,7 +77,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       const imported = parseObsidianSessionRecap(await file.text(), file.name, localToday());
       // Only fill a new draft; the selected file is never uploaded or saved
       // until the GM explicitly reviews and clicks Save Session Recap.
-      setEditing("new");
+      setEditing("new"); setCreateMethod("manual");
       setDraft({ date: imported.date, title: imported.title, content: imported.content });
       setPreview(true);
       setImportNotice(imported.dateInferred

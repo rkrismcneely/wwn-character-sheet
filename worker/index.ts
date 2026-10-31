@@ -6,6 +6,7 @@ import { getSessionActor } from "../lib/auth-session";
 import { authorizeLiveSessionConnection } from "../lib/campaigns/live-session-service";
 import { CampaignServiceError } from "../lib/campaigns/service";
 import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler";
+import { runRecapOnlyScheduledTick } from "../lib/campaigns/recap-only-runner";
 import {
   CLIENT_ERROR_REPORT_PATH,
   OBSERVABILITY_EVENT_VERSION,
@@ -139,6 +140,10 @@ const worker = {
     ctx.waitUntil(runGeminiScheduledTick(env as unknown as Parameters<typeof runGeminiScheduledTick>[0])
       .catch(() => {
         console.error({event:"twe_gemini_cron_failed",category:"transcription-scheduler"});
+      }));
+    ctx.waitUntil(runRecapOnlyScheduledTick(env as unknown as Parameters<typeof runRecapOnlyScheduledTick>[0])
+      .catch(() => {
+        console.error({event:"twe_recap_only_cron_failed",category:"private-recap-scheduler"});
       }));
   },
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext): Promise<Response> {

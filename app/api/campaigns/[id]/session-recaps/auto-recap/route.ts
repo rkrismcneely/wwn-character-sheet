@@ -31,7 +31,7 @@ export async function GET(request:Request,ctx:Context){
         id:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
         errorCode:string|null;createdAt:string;updatedAt:string;
       }>();
-    return Response.json({jobs:rows.results,recap:{content:info.recap.content,isPublished:info.recap.isPublished}},
+    return Response.json({jobs:rows.results,recap:{content:info.recap.content,isPublished:info.recap.isPublished,updatedAt:info.recap.updatedAt}},
       {headers:noStore});
   }catch(e){return campaignErrorResponse(e,"Automatic recap status unavailable.");}
 }

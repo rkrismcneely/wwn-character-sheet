@@ -16,7 +16,7 @@ export const transcriptionChoices:readonly TranscriptionChoiceInfo[]=[
   },
   {
     id:"gemini",name:"Google Gemini",subtitle:"GM-owned transcription now; unattended queue in development",
-    availability:"ready",requiresOpenBrowser:false,needsKey:true,ownerPays:false,
+    availability:"ready",requiresOpenBrowser:true,needsKey:true,ownerPays:false,
     benefits:["Ongoing free tier on eligible GM-owned projects, subject to limits",
       "File transcription through the GM's own Google AI Studio project",
       "Future scheduled mode will work with a powered-off computer"],

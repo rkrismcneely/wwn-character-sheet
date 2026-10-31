@@ -25,7 +25,8 @@ function eligible({connected=true,published=0,already=false,confirmedAt="2026-10
   return {db,get writes(){return writes;},get insertParams(){return insertParams;}};
 }
 const input={campaignId:"campaign",recapId:"recap",audioAssetId:"asset",userId:"gm",byteSize:4_000_000,
-  confirmed:true,privacyApproved:true,billingApproved:true};
+  confirmed:true,privacyApproved:true,billingApproved:true,
+  requestId:"3c1c5d79-7b5b-4792-858e-9f28319bb15f"};
 
 test("Gemini requires explicit per-recording confirmation and connected personal key",async()=>{
   const notConfirmed=eligible();

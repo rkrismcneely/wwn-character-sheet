@@ -42,7 +42,19 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [error, setError] = useState("");
   const [uploadBusy,setUploadBusy] = useState(false);
   const [showAdvanced,setShowAdvanced] = useState(false);
+  const [recapSetup,setRecapSetup] = useState<"checking"|"ready"|"needs-setup">("checking");
   const trackUploadBusy = useCallback((active:boolean)=>setUploadBusy(active),[]);
+
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch("/api/account/recap-setup",{cache:"no-store",signal:controller.signal})
+      .then(async response=>{
+        if(!response.ok)throw new Error("Recap setup is unavailable.");
+        const data=await response.json() as {ready?:boolean};
+        if(!controller.signal.aborted)setRecapSetup(data.ready===true?"ready":"needs-setup");
+      }).catch(()=>{if(!controller.signal.aborted)setRecapSetup("needs-setup");});
+    return ()=>controller.abort();
+  },[campaignId]);
 
   const loadPage = useCallback(async (p: number) => {
     setLoading(true); setError("");
@@ -64,7 +76,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }, [campaignId, loadPage]);
 
   function startNew() {
-    setEditing("new"); setCreateMethod("recording"); setDraft({ date: localToday(), title: "", content: "" });
+    setEditing("new"); setCreateMethod(recapSetup==="ready"?"recording":"manual"); setDraft({ date: localToday(), title: "", content: "" });
     setShowAdvanced(false);
     setError(""); setPreview(false); setImportNotice(""); setJournalNotice("");
   }
@@ -189,7 +201,12 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}
       {editing === "new" && <div className="session-recap-creation-method" role="group" aria-label="Create recap from">
         <button type="button" className={createMethod === "manual" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("manual")}>Write recap</button>
-        <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("recording")}>Recap from recording</button>
+        {recapSetup==="ready"
+          ? <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"}
+              onClick={() => setCreateMethod("recording")}>Recap from recording</button>
+          : recapSetup==="checking"
+            ? <button type="button" className="campaign-secondary" disabled>Checking recap setup…</button>
+            : <a className="campaign-secondary" href="/account#recap-setup">Configure Automatic Recap</a>}
       </div>}
       {editing !== "new"&&!editing.isPublished&&<>
         <p className="session-recap-import-notice" role="status">

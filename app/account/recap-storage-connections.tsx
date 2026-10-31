@@ -102,7 +102,29 @@ export function RecapStorageConnections() {
       </div>
       {available
         ? <div className="account-actions"><a href="/api/account/storage/google-drive/start" className="account-secondary">Connect Google Drive</a></div>
-        : <p className="account-explanation">Google Drive connections are not configured on TWE yet.</p>}
+        : <div className="account-explanation" role="status">
+            <strong>Google Drive needs one-time site setup before you can connect.</strong>
+            <p>Your normal Google sign-in does not automatically grant access to Drive.</p>
+            <details>
+              <summary>Site owner: enable Google Drive connections</summary>
+              <ol>
+                <li>In <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener noreferrer">Google Auth Platform — Clients</a>,
+                    open the existing TWE Google sign-in OAuth client (or create a separate Web client).</li>
+                <li>Authorize this exact redirect URI:
+                    <code>https://taleswithoutend.com/api/account/storage/google-drive/callback</code></li>
+                <li>Enable the <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener noreferrer">Google Drive API</a>
+                    and declare the <code>drive.file</code> scope on the consent screen. Publish or configure testing access as required by Google.</li>
+                <li>Set the <code>RECAP_STORAGE_ENCRYPTION_KEY</code> secret on the production Cloudflare Worker.
+                    It must be a cryptographically random 32-byte value encoded in unpadded base64url (43 characters).
+                    If using a separate OAuth client, also configure <code>GOOGLE_DRIVE_CLIENT_ID</code> and
+                    <code>GOOGLE_DRIVE_CLIENT_SECRET</code>. Never enter these site credentials into a GM&apos;s account form.</li>
+                <li>Reload this page and choose <strong>Connect Google Drive</strong>.
+                    Google will then ask for permission for your individual account.</li>
+              </ol>
+              <p>Cloudflare Worker settings and Google OAuth configuration can only be changed by the site operator.
+                 Existing Google sign-in credentials can be reused for the separate Drive consent after the redirect URI is approved.</p>
+            </details>
+          </div>}
     </>}
     <p className="account-explanation">Disconnecting removes TWE&apos;s access, not the recordings in your Drive. Existing playback and new uploads will stop until storage is reconnected. Recordings remain under your control.</p>
   </section>;

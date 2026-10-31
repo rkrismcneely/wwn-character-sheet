@@ -30,10 +30,15 @@ function statusOf(item:Connection|null){
     updatedAt:item.updatedAt,keyFingerprint:item.keyFingerprint}:null;
 }
 export async function GET(request:Request){
-  const who=await account(request);
-  if(!who)return bad("Sign in required.",401);
-  const row=await stored(who.db,who.id);
-  return Response.json({configured:recapAIEncryptionReady(config()),connection:statusOf(row)},{headers:noCache});
+  try{
+    const who=await account(request);
+    if(!who)return bad("Sign in required.",401);
+    const row=await stored(who.db,who.id);
+    return Response.json({configured:recapAIEncryptionReady(config()),connection:statusOf(row)},{headers:noCache});
+  }catch{
+    // JSON, not a generic HTML 500, even when a prerequisite migration is missing.
+    return bad("Gemini account status is temporarily unavailable. Check the recap database migration.",503);
+  }
 }
 export async function PUT(request:Request){
   if(!originOk(request))return bad("Start this action from your TWE Account page.",403);
@@ -92,7 +97,7 @@ export async function POST(request:Request){
     {ciphertext:row.ciphertext,nonce:row.nonce,version:1});}
   catch{return bad("Stored credential could not be decrypted. Reconnect the account.",409);}
   try{
-    const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe",{
+    const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",{
       method:"GET",redirect:"error",signal:AbortSignal.timeout(10000),
       headers:{"x-goog-api-key":plain},
     });
@@ -103,6 +108,9 @@ export async function POST(request:Request){
         .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();
       return bad("Google could not verify this API key or model access. Check your project.",403);
     }
+    const modelList=await response.json() as {models?:unknown};
+    if(!Array.isArray(modelList.models)||!modelList.models.length)
+      return bad("Google did not return an accessible Gemini model for this key.",403);
     await who.db.prepare("UPDATE user_recap_ai_connections SET status='connected',"+
       "updated_at=? WHERE id=? AND user_id=? AND key_fingerprint=?")
       .bind(new Date().toISOString(),row.id,who.id,row.keyFingerprint).run();

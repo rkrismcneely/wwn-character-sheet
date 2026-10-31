@@ -13,7 +13,8 @@ test("Drive OAuth uses separate client, narrow scope, offline consent and short-
   assert.match(core,/GOOGLE_DRIVE_CLIENT_ID/u);
   assert.match(core,/GOOGLE_DRIVE_CLIENT_SECRET/u);
   assert.match(core,/RECAP_STORAGE_ENCRYPTION_KEY/u);
-  assert.doesNotMatch(core,/(?<!DRIVE_)GOOGLE_CLIENT_SECRET/u);
+  assert.match(core,/driveOAuthClient/u);
+  assert.match(core,/GOOGLE_CLIENT_SECRET/u);
   assert.match(core,/https:\/\/www.googleapis.com\/auth\/drive\.file/u);
   assert.doesNotMatch(core,/https:\/\/www.googleapis.com\/auth\/drive["']/u);
   assert.match(core,/query\.set\("access_type", "offline"\)/u);

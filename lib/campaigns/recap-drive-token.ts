@@ -1,4 +1,4 @@
-import { decryptDriveRefreshToken, requireDriveConfiguration, type DriveSettings } from "../account/recap-google-drive-oauth.ts";
+import { decryptDriveRefreshToken, driveOAuthClient, requireDriveConfiguration, type DriveSettings } from "../account/recap-google-drive-oauth.ts";
 import { CampaignServiceError } from "./service.ts";
 
 type StoredConnection = {
@@ -32,8 +32,8 @@ export async function getGmDriveAccessToken(
     method:"POST",
     headers:{"content-type":"application/x-www-form-urlencoded"},
     body:new URLSearchParams({
-      client_id:settings.GOOGLE_DRIVE_CLIENT_ID,
-      client_secret:settings.GOOGLE_DRIVE_CLIENT_SECRET,
+      client_id:driveOAuthClient(settings)!.clientId,
+      client_secret:driveOAuthClient(settings)!.clientSecret,
       grant_type:"refresh_token",refresh_token:refreshToken,
     }),
     signal:AbortSignal.timeout(12000),

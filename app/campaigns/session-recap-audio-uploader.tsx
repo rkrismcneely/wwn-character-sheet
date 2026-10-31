@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-browser";
 import { describeAudioUploadFile, formatAudioUploadSize, uploadPercent } from "@/lib/campaigns/recap-audio-upload-ui";
 
@@ -9,7 +9,7 @@ type StorageConnection = {
   status:"connected"|"disconnected"|"reconnect_required";
 };
 type AudioAsset = {
-  id:string;label:string;provider:string;status:string;primaryAudio:boolean;
+  id:string;label:string;provider:string;status:string;primaryAudio:boolean;canRecover?:boolean;
 };
 type AwaitingVerification = {assetId:string;remoteFileId:string};
 const fileExtensions = ".mp3,.m4a,.mp4,.wav,.flac,.aac";
@@ -28,9 +28,37 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
   const [notice,setNotice] = useState("");
   const [error,setError] = useState("");
   const [awaitingVerification,setAwaitingVerification] = useState<AwaitingVerification|null>(null);
+  const [recoveringAsset,setRecoveringAsset] = useState<string|null>(null);
   const controller=useRef<AbortController|null>(null);
   const fileInputRef=useRef<HTMLInputElement|null>(null);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio";
+
+  const recoverSavedRecording=useCallback(async(assetId:string,quiet=false):Promise<boolean>=>{
+    if(!quiet){setRecoveringAsset(assetId);setError("");setNotice("");}
+    try{
+      const response=await fetch(base+"/upload/recover",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({assetId,recapId}),
+      });
+      const data=await response.json() as {found?:boolean;ready?:boolean;error?:string};
+      if(!response.ok)throw new Error(data.error||"TWE could not check Drive for the saved recording.");
+      if(data.found&&data.ready){
+        setNotice("Recovered your existing Google Drive recording and attached it to this recap. No new upload or Gemini request was made.");
+        const list=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
+        if(list.ok){
+          const updated=await list.json() as {assets?:AudioAsset[]};
+          if(Array.isArray(updated.assets))setAssets(updated.assets);
+        }
+        window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId}}));
+        return true;
+      }
+      if(!quiet)setNotice("No completed matching file found in your Drive yet. If the upload is still running, retry recovery after it finishes.");
+      return false;
+    }catch(cause){
+      if(!quiet)setError(cause instanceof Error?cause.message:"Could not recover the saved recording.");
+      return false;
+    }finally{if(!quiet)setRecoveringAsset(null);}
+  },[base,recapId]);
 
   useEffect(()=>{onBusyChange?.(busy);},[busy,onBusyChange]);
   useEffect(()=>()=>{onBusyChange?.(false);},[onBusyChange]);
@@ -66,11 +94,16 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
         setAssets(found);
         const connected=details.connections?.find(c=>c.provider==="google-drive" && c.status==="connected");
         setConnectionId(connected?.id ?? "");
+        // Recover completed uploads whose final browser confirmation was lost.
+        // The server verifies ownership and appProperties; no re-upload occurs.
+        for(const asset of found.filter(a=>a.canRecover).slice(0,10)){
+          void recoverSavedRecording(asset.id,true);
+        }
       })
       .catch(cause=>{if(active)setError(cause instanceof Error?cause.message:"Could not load recordings.");})
       .finally(()=>{if(active)setLoading(false);});
     return ()=>{active=false;controller.current?.abort();};
-  },[base,recapId]);
+  },[base,recapId,recoverSavedRecording]);
 
   function pickFile(event:ChangeEvent<HTMLInputElement>) {
     const picked=event.target.files?.[0]??null;
@@ -162,9 +195,13 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
       stop the upload first if you need to leave. Uploading alone never sends audio to Gemini.
     </p>
     {assets.length>0 && <div aria-label="Attached recordings">
-      {assets.map(asset=><p className="session-recap-editor-help" key={asset.id}>
+      {assets.map(asset=><div className="session-recap-editor-help" key={asset.id}>
         {asset.label} — {asset.status==="ready"?"Saved in your storage account":asset.status==="auth_required"?"Reconnect storage to access":"Upload not ready"}
-      </p>)}
+        {asset.canRecover&&<button type="button" className="campaign-secondary"
+          disabled={busy||recoveringAsset!==null} onClick={()=>void recoverSavedRecording(asset.id)}>
+          {recoveringAsset===asset.id?"Checking Drive…":"Find saved recording"}
+        </button>}
+      </div>)}
     </div>}
     {loading ? <p role="status">Loading recording storage…</p> : <>
       {!driveConfigured && <p className="session-recap-editor-help">

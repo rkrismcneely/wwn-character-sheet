@@ -23,5 +23,8 @@ export function JournalDocument({content,onJournalNavigate,previewImageUrls,camp
   ? <div key={index}>{renderText(node.content)}</div>
   : node.kind==="secret"?<section key={index} className="journal-document-secret" aria-label="GM-only content"><span className="journal-secret-label">GM only</span>{render(node.children)}</section>
   : <div key={index} className={node.kind==="section"?"journal-document-columns":"journal-document-column"} style={node.kind==="column"?{"--journal-column-width":node.width} as CSSProperties:undefined}>{render(node.children)}</div>);
- return <div className="journal-document">{layout?render(layout):renderText(display)}</div>;
+ return <div className="journal-document">
+   {recapId&&campaignId&&<SessionRecapAudioPlayer campaignId={campaignId} recapId={recapId} compact/>}
+   {layout?render(layout):renderText(display)}
+ </div>;
 }

@@ -16,6 +16,7 @@ import { VirtualDiceOverlay, type VirtualDiceOverlayHandle } from "../virtual-di
 import { STANDARD_RPG_DICE_SIDES } from "../virtual-dice-style";
 import { ConnectedAccounts } from "./connected-accounts";
 import { RecapStorageConnections } from "./recap-storage-connections";
+import { RecapAIConnections } from "./recap-ai-connections";
 
 function DicePreviewControl() {
   const { theme } = useDisplayTheme();
@@ -236,6 +237,7 @@ export function AccountPageClient({
 
           <ConnectedAccounts />
           <RecapStorageConnections />
+          <RecapAIConnections />
         </div>
 
         <aside className="account-destinations" aria-label="Signed-in destinations">

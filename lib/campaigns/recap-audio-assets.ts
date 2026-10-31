@@ -22,7 +22,7 @@ const audioQuery = [
   "CASE WHEN s.status != 'connected' THEN 'auth_required' ELSE a.status END AS status",
   "FROM campaign_recap_audio_assets a",
   "JOIN user_recap_storage_connections s ON s.id = a.connection_id AND s.user_id = a.storage_owner_user_id",
-  "WHERE a.campaign_id = ? AND a.recap_id = ?",
+  "WHERE a.campaign_id = ? AND a.recap_id = ? AND a.processing_job_id IS NULL",
   "ORDER BY a.primary_audio DESC, a.track_index ASC, a.created_at ASC LIMIT 128",
 ].join(" ");
 

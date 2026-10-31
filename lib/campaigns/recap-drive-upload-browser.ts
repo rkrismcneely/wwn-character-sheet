@@ -6,8 +6,10 @@ export type DriveUploadedFile = { id: string; mimeType?: string; size?: string; 
 type Progress = (bytesSent: number, totalBytes: number) => void;
 
 /**
- * Browser-side upload straight to the GM's Google Drive session.
- * TWE does not receive the audio bytes or OAuth access/refresh token.
+ * Uploads bounded chunks through an authorized same-origin relay. The Worker
+ * streams each chunk to the GM's Drive without persisting audio or handing
+ * OAuth credentials to the browser. The direct Google path remains only for
+ * isolated protocol tests; all production call sites supply a signed relay.
  * The browser must remain open; cross-browser resumability is a later phase.
  */
 export async function uploadRecordingToDrive(

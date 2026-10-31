@@ -28,7 +28,10 @@ export function recapAudioChapters(content: string): { seconds: number; label: s
   return chapters.sort((a,b) => a.seconds - b.seconds);
 }
 
-export function SessionRecapAudioPlayer({campaignId,recapId,content}:{campaignId:string;recapId:string;content?:string}) {
+export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:{
+  campaignId:string;recapId:string;content?:string;
+  onDuration?:(assetId:string,durationMs:number)=>void;
+}) {
   const audioRef=useRef<HTMLAudioElement>(null);
   const pendingSeek=useRef<number|null>(null);
   const chapters=recapAudioChapters(content??"");
@@ -158,7 +161,13 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content}:{campaignId
       {transcript.length>500 && <p className="campaign-empty-copy">Showing up to 500 matching lines. Search to find another moment.</p>}
     </section>}
     {selected && <audio ref={audioRef} key={selected.id} controls preload="metadata"
-      onLoadedMetadata={()=>{if(pendingSeek.current!==null){const seconds=pendingSeek.current;pendingSeek.current=null;seekTo(seconds);}}}
+      onLoadedMetadata={event=>{
+        const seconds=event.currentTarget.duration;
+        if(Number.isFinite(seconds)&&seconds>0&&seconds<=8*60*60){
+          onDuration?.(selected.id,Math.round(seconds*1000));
+        }
+        if(pendingSeek.current!==null){const seconds=pendingSeek.current;pendingSeek.current=null;seekTo(seconds);}
+      }}
       aria-label={selected.label||"Session recording"}
       src={"/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio/"+
         encodeURIComponent(selected.id)+"/stream"}

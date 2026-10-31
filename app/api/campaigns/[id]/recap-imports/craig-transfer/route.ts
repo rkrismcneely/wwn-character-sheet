@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCraigRecordingForDownloadJob } from "@/lib/campaigns/recap-imports";
+import { requireLegacyRecapR2Capacity } from "@/lib/campaigns/recap-r2-capacity";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
 
@@ -55,6 +56,7 @@ export async function POST(request: Request, context: Context): Promise<Response
       .bind(payload.importId).first<{ id: string }>())?.id;
     if (!campaign) return Response.json({ error: "Recording no longer exists." }, { status: 404 });
     const key = "recap-craig/" + campaign + "/" + payload.importId;
+    await requireLegacyRecapR2Capacity(env.BUCKET,length,key);
     // This route remains GM-only; the deterministic R2 object is not publicly exposed.
     const stored = await env.BUCKET.put(key, download.body, {
       httpMetadata: { contentType: "application/zip" },

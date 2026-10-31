@@ -23,12 +23,12 @@ async function gm(request:Request,ctx:Context,recapId:unknown){
 export async function GET(request:Request,ctx:Context){
   try{
     const info=await gm(request,ctx,new URL(request.url).searchParams.get("recapId"));
-    const rows=await info.db.prepare("SELECT id,status,detail,model,generated_markdown AS generatedMarkdown,"+
+    const rows=await info.db.prepare("SELECT id,audio_asset_id AS audioAssetId,status,detail,model,generated_markdown AS generatedMarkdown,"+
       "error_code AS errorCode,created_at AS createdAt,updated_at AS updatedAt "+
       "FROM campaign_recap_audio_summary_jobs WHERE campaign_id=? AND recap_id=? "+
-      "AND requested_by=? ORDER BY created_at DESC LIMIT 4")
+      "AND requested_by=? AND confirmed_at IS NOT NULL ORDER BY created_at DESC LIMIT 4")
       .bind(info.campaign.id,info.recap.id,info.actor.userId).all<{
-        id:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
+        id:string;audioAssetId:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
         errorCode:string|null;createdAt:string;updatedAt:string;
       }>();
     return Response.json({jobs:rows.results,recap:{content:info.recap.content,isPublished:info.recap.isPublished,updatedAt:info.recap.updatedAt}},

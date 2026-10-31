@@ -171,7 +171,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}
       {editing === "new" && <div className="session-recap-creation-method" role="group" aria-label="Create recap from">
         <button type="button" className={createMethod === "manual" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("manual")}>Write recap</button>
-        <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("recording")}>Import recording</button>
+        <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("recording")}>Recap from recording</button>
       </div>}
       {editing === "new" && createMethod === "recording"
         ? <form className="session-recap-form" onSubmit={event=>void createRecordingDraft(event)}>
@@ -212,19 +212,31 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : editing!=="new"&&!editing.isPublished ? "Publish approved recap" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
       </form>}
       {editing !== "new" && <>
+        {!editing.isPublished&&<p className="session-recap-import-notice" role="status">
+          Private GM draft: store your session audio below, then come back to publish
+          an approved recap. No audio is sent to AI just by uploading it.
+        </p>}
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
-        <SessionRecapTranscriptionOptions key={"providers-"+editing.id} campaignId={campaignId}
-          recapId={editing.id} onSaved={()=>setTranscriptRefresh(n=>n+1)} />
-        <SessionRecapFullTranscriptManager key={"transcript-"+editing.id+"-"+transcriptRefresh}
-          campaignId={campaignId} recapId={editing.id} />
-        <SessionRecapAIWriter key={"ai-"+editing.id} campaignId={campaignId} recapId={editing.id}
-          onDraft={content=>{
-            if(draft.content.trim() && !window.confirm("Replace the unsaved Markdown editor text with this AI draft?"))return false;
-            setDraft(current=>({...current,content}));setPreview(false);
-            setImportNotice("AI draft added to the editor. Review it and Save Session Recap when satisfied.");
-            return true;
-          }}/>
-      </>}
+        <details className="session-recap-reading">
+          <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>
+          <p className="campaign-empty-copy">
+            These older tools remain available, but are not needed for a Recap Only workflow.
+            External AI processing can consume your provider's own quota.
+          </p>
+          <SessionRecapRecordingSetup campaignId={campaignId} date={editing.date} onBack={cancelEdit}/>
+          <SessionRecapTranscriptionOptions key={"providers-"+editing.id} campaignId={campaignId}
+            recapId={editing.id} onSaved={()=>setTranscriptRefresh(n=>n+1)} />
+          <SessionRecapFullTranscriptManager key={"transcript-"+editing.id+"-"+transcriptRefresh}
+            campaignId={campaignId} recapId={editing.id} />
+          <SessionRecapAIWriter key={"ai-"+editing.id} campaignId={campaignId} recapId={editing.id}
+            onDraft={content=>{
+              if(draft.content.trim() && !window.confirm("Replace the unsaved Markdown editor text with this AI draft?"))return false;
+              setDraft(current=>({...current,content}));setPreview(false);
+              setImportNotice("AI draft added to the editor. Review it and publish the recap when satisfied.");
+              return true;
+            }}/>
+        </details>
+      </>
     </> : <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">CAMPAIGN JOURNAL</p><h2 id="gm-session-recaps-title">Session Recaps</h2></div>
@@ -241,7 +253,9 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       {!loading && data && <div className="session-recap-cards">{data.recaps.map(recap =>
         <button type="button" className="session-recap-card" key={recap.id} onClick={() => openRecap(recap)}>
           <span className="session-recap-card-date">{formatRecapDate(recap.date)}</span>
-          <strong>{recap.title}</strong><span className="session-recap-card-action">Open & edit →</span>
+          <strong>{recap.title}</strong>
+          {!recap.isPublished&&<span className="campaign-empty-copy">Private GM draft · not visible to players</span>}
+          <span className="session-recap-card-action">{recap.isPublished?"Open & edit":"Continue private draft"} →</span>
         </button>)}</div>}
       {!loading && data && data.totalPages > 1 && <nav className="session-recap-pagination" aria-label="Session recap pages">
         <button type="button" className="campaign-secondary" aria-label="Previous recaps page" disabled={page <= 1} onClick={() => void loadPage(page - 1)}>‹</button>

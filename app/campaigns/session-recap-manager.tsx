@@ -7,7 +7,7 @@ import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
 import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcript-manager";
-import { SessionRecapGroqTranscriber } from "./session-recap-groq-transcriber";
+import { SessionRecapTranscriptionOptions } from "./session-recap-transcription-options";
 import { SessionRecapAIWriter } from "./session-recap-ai-writer";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
 
@@ -170,7 +170,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       </form>}
       {editing !== "new" && <>
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />
-        <SessionRecapGroqTranscriber key={"asr-"+editing.id} campaignId={campaignId}
+        <SessionRecapTranscriptionOptions key={"providers-"+editing.id} campaignId={campaignId}
           recapId={editing.id} onSaved={()=>setTranscriptRefresh(n=>n+1)} />
         <SessionRecapFullTranscriptManager key={"transcript-"+editing.id+"-"+transcriptRefresh}
           campaignId={campaignId} recapId={editing.id} />

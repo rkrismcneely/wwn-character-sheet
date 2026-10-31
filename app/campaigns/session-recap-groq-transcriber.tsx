@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { RecapSpeakerAssociation, RecapRecordingImport } from "@/lib/campaigns/recap-imports";
 import { GROQ_AUDIO_MODELS,MAX_GROQ_AUDIO_BYTES } from "@/lib/campaigns/recap-groq-audio";
+import { MAX_GEMINI_CHUNK_BYTES } from "@/lib/campaigns/recap-gemini-transcribe";
 import {
   inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload,
   type PcmWav,type WavChunk,
@@ -18,9 +19,11 @@ export function parseSessionAudioStart(value:string):number|null {
 type TranscriptionResult={saved?:boolean;duplicate?:boolean;added?:number;total?:number;error?:string};
 type CraigTrack={index:number;filename:string;bytes:number;speakerLabel:string;discordName:string};
 
-export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
-  campaignId:string;recapId:string;onSaved:()=>void;
+export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved,provider="groq"}:{
+  campaignId:string;recapId:string;onSaved:()=>void;provider?:"groq"|"gemini";
 }) {
+  const gemini=provider==="gemini";
+  const maxBytes=gemini?MAX_GEMINI_CHUNK_BYTES:MAX_GROQ_AUDIO_BYTES;
   const [speakers,setSpeakers]=useState<RecapSpeakerAssociation[]>([]);
   const [craigImports,setCraigImports]=useState<RecapRecordingImport[]>([]);
   const [craigImportId,setCraigImportId]=useState("");
@@ -86,7 +89,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       const eligible=(manifest.entries??[]).flatMap((entry,index)=>{
         const mapping=byIndex.get(index);
         if(!mapping||!mapping.displayName||!mapping.discordName||entry.uncompressedBytes<128||
-          entry.uncompressedBytes>MAX_GROQ_AUDIO_BYTES||!/\.(?:flac|m4a|aac)$/iu.test(entry.filename))return [];
+          entry.uncompressedBytes>maxBytes||!/\.(?:flac|m4a|aac)$/iu.test(entry.filename))return [];
         return [{index,filename:entry.filename,bytes:entry.uncompressedBytes,
           speakerLabel:mapping.displayName,discordName:mapping.discordName}];
       });
@@ -128,7 +131,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
         throw new Error(detail.error||"Craig track not available.");
       }
       const blob=await response.blob();
-      if(blob.size<128||blob.size>MAX_GROQ_AUDIO_BYTES)
+      if(blob.size<128||blob.size>maxBytes)
         throw new Error("Craig track exceeded the supported 16 MB upload limit.");
       const ext=track.filename.toLowerCase().endsWith(".flac")?"flac":"m4a";
       const audio=new File([blob],"craig-track-"+index+"."+ext,{
@@ -157,13 +160,13 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
     try{
       if(mode==="wav") {
         const info=await inspectPcmWavUpload(chosen);
-        const chunks=planPcmWavUploadChunks(info);
+        const chunks=planPcmWavUploadChunks(info,gemini?11*1024*1024:12*1024*1024);
         if(chunks.length===0)throw new Error("This WAV recording is empty.");
         setWavInfo(info);setWavChunks(chunks);setFile(chosen);
         setNotice("WAV plan ready. Only each small, valid clip is read during transcription.");
         return;
       }
-      if(chosen.size<128||chosen.size>MAX_GROQ_AUDIO_BYTES)
+      if(chosen.size<128||chosen.size>maxBytes)
         throw new Error("Select a prepared audio clip smaller than 16 MB.");
       if(!/\.(flac|mp3|mp4|m4a|mpeg|mpga|ogg|wav|webm)$/iu.test(chosen.name))
         throw new Error("Unsupported audio format.");
@@ -180,7 +183,8 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
     if(language==="en")form.set("language","en");
     form.set("approvedShare","true");form.set("approvedBilling","true");form.set("apiKey",key);
     const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+
-      "/session-recaps/transcript/transcribe",{method:"POST",body:form,cache:"no-store"});
+      (gemini?"/session-recaps/transcript/gemini":"/session-recaps/transcript/transcribe"),
+      {method:"POST",body:form,cache:"no-store"});
     const result=await response.json() as TranscriptionResult;
     if(!response.ok||!result.saved)throw new Error(result.error||"Transcription failed.");
     return result;
@@ -199,7 +203,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       setError("This WAV recording exceeds the supported eight-hour session timeline.");return;
     }
     if(mode==="wav" && !window.confirm(
-      "This WAV will use up to "+wavChunks.length+" Groq transcription requests on YOUR account. "+
+      "This WAV will use up to "+wavChunks.length+" "+(gemini?"Gemini":"Groq")+" transcription requests on YOUR account. "+
       "Your provider may charge for each request. Start now?"))return;
     setLoading(true);setError("");setNotice("");setProgress(0);setDuplicates(0);
     stopAfterCurrent.current=false;setStopRequested(false);
@@ -237,13 +241,14 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       }
     }
   }
-  return <section className="session-recap-reading" aria-label="Transcribe prepared audio with Groq">
-    <h4>Transcribe session audio with your own Groq account</h4>
+  return <section className="session-recap-reading" aria-label="Transcribe prepared audio with your own provider">
+    <h4>Transcribe session audio with your own {gemini?"Google Gemini":"Groq"} account</h4>
     <p className="campaign-empty-copy">
       Use a short FLAC/MP3/M4A/WAV clip, or automatically process a long uncompressed PCM WAV
       as valid smaller audio clips. Assign one speaker per source recording, such as an isolated Craig track.
       Compressed full-length FLAC/MP3/M4A recordings still require conversion to PCM WAV.
       Your key is never stored. TWE does not pay for the provider requests.
+      {gemini?" Gemini processing currently runs only while this page stays open; unattended queued processing is not active yet.":""}
     </p>
     {craigImports.length>0 && <div className="session-recap-reading" aria-label="Import saved Craig audio">
       <h5>Use an existing Craig recording</h5>
@@ -282,7 +287,7 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       <button type="button" className={mode==="wav"?"campaign-primary":"campaign-secondary"}
         disabled={loading} onClick={()=>resetFile("wav")}>Full-length PCM WAV (automatic chunks)</button>
     </div>
-    <label><span>{mode==="wav"?"Uncompressed 16-bit PCM WAV recording":"Prepared audio clip (under 16 MB)"}</span>{" "}
+    <label><span>{mode==="wav"?"Uncompressed 16-bit PCM WAV recording":"Prepared audio clip (under provider limit)"}</span>{" "}
       <input type="file" accept={mode==="wav"?".wav,audio/wav":".flac,.mp3,.mp4,.m4a,.ogg,.wav,.webm"}
         disabled={loading} onChange={event=>void chooseFile(event)} /></label>
     {file&&<p className="campaign-empty-copy">{file.name} · {(file.size/1048576).toFixed(1)} MB
@@ -305,28 +310,28 @@ export function SessionRecapGroqTranscriber({campaignId,recapId,onSaved}:{
       {mode==="clip"&&<label><span>Clip length in seconds</span>
         <input type="number" min={1} max={1800} step="0.01" value={duration}
           disabled={loading} onChange={event=>setDuration(event.target.value)}/></label>}
-      <label><span>Whisper model</span>
+      {!gemini&&<label><span>Whisper model</span>
         <select value={model} disabled={loading} onChange={event=>setModel(event.target.value)}>
           <option value="whisper-large-v3-turbo">Whisper V3 Turbo — lower cost</option>
           <option value="whisper-large-v3">Whisper V3 — higher accuracy</option>
-        </select></label>
+        </select></label>}
       <label><span>Spoken language</span>
         <select value={language} disabled={loading} onChange={event=>setLanguage(event.target.value)}>
           <option value="en">English</option><option value="">Auto-detect</option>
         </select></label>
-      <label><span>Personal Groq API key (not stored)</span>
+      <label><span>Personal {gemini?"Google AI Studio":"Groq"} API key (not stored)</span>
         <input type="password" autoComplete="off" value={key} disabled={loading}
-          placeholder="gsk_…" onChange={event=>setKey(event.target.value)}/></label>
+          placeholder={gemini?"Google AI Studio key":"gsk_…"} onChange={event=>setKey(event.target.value)}/></label>
     </div>
     <label style={{display:"block",marginBlock:"0.5rem"}}>
       <input type="checkbox" checked={agreeShare} disabled={loading}
         onChange={event=>setAgreeShare(event.target.checked)}/>
-      I approve sending these clips to my Groq account for transcription.
+      I approve sending these clips to my {gemini?"Google Gemini":"Groq"} account for transcription.
     </label>
     <label style={{display:"block",marginBlock:"0.5rem"}}>
       <input type="checkbox" checked={agreeBilling} disabled={loading}
         onChange={event=>setAgreeBilling(event.target.checked)}/>
-      I understand my Groq account may charge for every request and TWE cannot enforce a free quota.
+      I understand my {gemini?"Google Gemini":"Groq"} account may charge for every request and TWE cannot enforce a free quota.
     </label>
     <div className="session-recap-form-actions">
       <button type="button" className="campaign-primary"

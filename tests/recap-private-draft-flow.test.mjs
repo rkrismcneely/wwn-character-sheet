@@ -43,7 +43,7 @@ test("GM can create and reopen a private recording draft with long Google Drive 
   assert.match(ui, /setCreateMethod\("recording"\)/u);
   assert.match(ui, /draftOnly:true/u);
   assert.match(ui, /createRecordingDraft/u);
-  assert.match(ui, /recap\.isPublished \? recap\.content : ""/u);
+  assert.match(ui, /content: recap\.content/u);
   assert.match(ui, /Publish approved recap/u);
   assert.match(ui, /Private GM draft · not visible to players/u);
   assert.match(ui, /<details className="session-recap-reading">[\s\S]*Advanced: Craig speaker tracks and full transcripts \(optional\)/u);

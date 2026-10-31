@@ -29,16 +29,19 @@ export async function uploadRecordingToDrive(
   const target=options.relay
     ? options.relay.endpoint+"?assetId="+encodeURIComponent(options.relay.assetId)
     : sessionUrl;
-  const uploadHeaders=options.relay ? {
-    "x-twe-drive-upload-session":sessionUrl,
-    "x-twe-drive-upload-ticket":options.relay.ticket,
-    "x-twe-drive-upload-issued-at":String(options.relay.issuedAt),
-  } : {};
+  const uploadHeaders=new Headers();
+  if(options.relay){
+    uploadHeaders.set("x-twe-drive-upload-session",sessionUrl);
+    uploadHeaders.set("x-twe-drive-upload-ticket",options.relay.ticket);
+    uploadHeaders.set("x-twe-drive-upload-issued-at",String(options.relay.issuedAt));
+  }
   const send=async(contentRange:string,body?:Blob):Promise<Response>=>{
     try{
+      const headers=new Headers(uploadHeaders);
+      headers.set("Content-Range",contentRange);
       const response=await fetcher(target,{
         method:"PUT",credentials:"same-origin",
-        headers:{"Content-Range":contentRange,...uploadHeaders},
+        headers,
         ...(body?{body}:{}),signal:options.signal,
       });
       if(response.status!==308&&response.status!==200&&response.status!==201){

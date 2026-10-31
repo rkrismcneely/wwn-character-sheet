@@ -104,3 +104,29 @@ export async function holdGeminiChunk(db:D1Database,clip:GeminiLeasedClip,
     .bind(isAmbiguous?null:eligible,reason,now,clip.jobId).run();
   return true;
 }
+
+/** On crashed/expired leases we do NOT automatically submit the clip twice.
+ * A completed provider call with a lost response could incur a second charge.
+ * Explicit GM review is required before requeue.
+ */
+export async function quarantineExpiredGeminiLeases(db:D1Database,now:string):Promise<number>{
+  const pending=await db.prepare("SELECT job_id AS jobId,track_index AS trackIndex,"+
+    "chunk_index AS chunkIndex FROM campaign_recap_processing_chunks "+
+    "WHERE status='leased' AND lease_expires_at<=? LIMIT 4")
+    .bind(now).all<{jobId:string;trackIndex:number;chunkIndex:number}>();
+  let quarantined=0;
+  for(const item of pending.results){
+    const updated=await db.prepare("UPDATE campaign_recap_processing_chunks SET "+
+      "status='failed',error_code='uncertain_result',lease_token=NULL,"+
+      "lease_expires_at=NULL,updated_at=? WHERE job_id=? AND track_index=? "+
+      "AND chunk_index=? AND status='leased' AND lease_expires_at<=?")
+      .bind(now,item.jobId,item.trackIndex,item.chunkIndex,now).run();
+    if(updated.meta.changes!==1)continue;
+    quarantined++;
+    await db.prepare("UPDATE campaign_recap_processing_jobs SET "+
+      "failure_code='uncertain_result',paused_at=?,updated_at=? "+
+      "WHERE id=? AND status NOT IN ('completed','cancelled')")
+      .bind(now,now,item.jobId).run();
+  }
+  return quarantined;
+}

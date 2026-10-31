@@ -20,9 +20,9 @@ async function loadLocalWhisper():Promise<Transcriber>{
   // Dynamic CDN import avoids adding an unverified package-lock dependency.
   // Fail with an actionable error when browser CSP or offline mode blocks assets.
   const libraryUrl:string=WHISPER_BROWSER_LIBRARY;
-  const module=await import(/* @vite-ignore */ libraryUrl) as TranscriptionModule;
+  const imported=await import(/* @vite-ignore */ libraryUrl) as TranscriptionModule;
   const hasGpu=Boolean((navigator as Navigator&{gpu?:unknown}).gpu);
-  return module.pipeline("automatic-speech-recognition",WHISPER_MODEL,
+  return imported.pipeline("automatic-speech-recognition",WHISPER_MODEL,
     {device:hasGpu?"webgpu":"wasm",dtype:"q8"});
 }
 function localCaptionCues(result:WhisperOutput,startMs:number,durationMs:number):CaptionCue[]{

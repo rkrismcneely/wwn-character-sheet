@@ -178,6 +178,8 @@ test("a lost final upload receipt can recover the exact job's completed Gemini f
     return base(url,opts);
   };
   try{
+    const initial=await stageRecapAudioChunked(state.env,job,"private-test-key",source,"private-drive-bearer");
+    assert.equal(initial.done,false);
     await assert.rejects(()=>stageRecapAudioChunked(state.env,job,"private-test-key",source,"private-drive-bearer"),
       e=>e instanceof RecapStagingFailure&&e.code==="gemini_chunk_network_error");
     assert.equal(state.row.stageOffset,24*MiB);

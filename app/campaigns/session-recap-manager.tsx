@@ -41,6 +41,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const importFileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [uploadBusy,setUploadBusy] = useState(false);
+  const [showAdvanced,setShowAdvanced] = useState(false);
   const trackUploadBusy = useCallback((active:boolean)=>setUploadBusy(active),[]);
 
   const loadPage = useCallback(async (p: number) => {
@@ -64,6 +65,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
 
   function startNew() {
     setEditing("new"); setCreateMethod("recording"); setDraft({ date: localToday(), title: "", content: "" });
+    setShowAdvanced(false);
     setError(""); setPreview(false); setImportNotice(""); setJournalNotice("");
   }
 
@@ -93,6 +95,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }
   function openRecap(recap: CampaignSessionRecap) {
     setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.content });
+    setShowAdvanced(false);
     setError(""); setPreview(false); setImportNotice("");
   }
   async function addToJournal(){
@@ -247,12 +250,13 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       {editing !== "new" && <>
         {editing.isPublished&&<SessionRecapAudioUploader key={editing.id}
           campaignId={campaignId} recapId={editing.id} onBusyChange={trackUploadBusy}/>}
-        <details className="session-recap-reading">
+        <details className="session-recap-reading" onToggle={event=>setShowAdvanced(event.currentTarget.open)}>
           <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>
           <p className="campaign-empty-copy">
             These older tools remain available, but are not needed for a Recap Only workflow.
             External AI processing can consume your provider&apos;s own quota.
           </p>
+          {showAdvanced&&<>
           <SessionRecapRecordingSetup campaignId={campaignId} date={editing.date} onBack={cancelEdit}/>
           <SessionRecapTranscriptionOptions key={"providers-"+editing.id} campaignId={campaignId}
             recapId={editing.id} onSaved={()=>setTranscriptRefresh(n=>n+1)} />
@@ -265,6 +269,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
               setImportNotice("AI draft added to the editor. Review it and publish the recap when satisfied.");
               return true;
             }}/>
+          </>}
         </details>
       </>}
     </> : <>

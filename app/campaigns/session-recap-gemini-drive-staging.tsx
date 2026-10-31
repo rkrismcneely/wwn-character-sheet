@@ -18,6 +18,23 @@ type Staged={trackIndex:number;chunkIndex:number;startMs:number;endMs:number;
   sourceDigest:string|null;staged:boolean};
 type Progress={jobId:string;status:string;totalChunks:number;speakerTracks:number;clips:Staged[]};
 const errorMessage=(e:unknown)=>e instanceof Error?e.message:"Could not prepare this recording.";
+function readableState(item:Job){
+  if(item.status==="cancelled")return "Cancelled";
+  if(item.pausedAt)return "Paused";
+  if(item.status==="awaiting_source")return "Preparing audio";
+  if(item.status==="queued")return "Audio ready; background transcription not active";
+  if(item.status==="awaiting_review")return "Transcript awaiting review";
+  if(item.status==="completed")return "Transcript accepted";
+  return item.status.replaceAll("_"," ");
+}
+function issueExplanation(code:string|null):string|null {
+  if(!code)return null;
+  if(code==="quota")return "Google's current quota was reached. This job will not switch accounts.";
+  if(code==="uncertain_result")return "A provider response was uncertain. The clip was stopped to avoid a duplicate charge.";
+  if(code==="assembly_needs_review")return "A transcript fragment needs review; no partial result was published.";
+  if(code==="needs_attention")return "Check the connected Gemini account or its billing permissions.";
+  return "This processing job needs attention before continuing.";
+}
 export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
   campaignId:string;recapId:string;onSaved:()=>void;
 }){
@@ -272,7 +289,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     finally{setBusy(false);}
   }
   async function verifyOneStagedClip(){
-    if(!job||busy||job.status!=="queued")return;
+    if(!job||busy||job.status!=="queued"||job.pausedAt)return;
     const clip=staged?.clips.find(item=>item.staged);
     if(!clip){setError("Stage a recording before verification.");return;}
     setBusy(true);setError("");setMessage("");
@@ -339,6 +356,17 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         </option>)}
       </select>
     </label>
+    {savedJobs.length>0&&<label>Resume a saved Gemini job
+      <select value={job?.id??""} disabled={busy} onChange={event=>{
+        const chosen=savedJobs.find(row=>row.id===event.target.value);
+        if(chosen)void chooseCraig(chosen.importId);
+      }}>
+        {savedJobs.map(row=><option key={row.id} value={row.id}>
+          {imports.find(item=>item.id===row.importId)?.sourceLabel??"Saved Craig recording"}
+          {" — "}{readableState(row)}
+        </option>)}
+      </select>
+    </label>}
     {tracks.length>0&&<p className="campaign-empty-copy">
       {tracks.length} confirmed Craig speaker tracks. Prepare each one separately.
     </p>}
@@ -364,11 +392,46 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       </button>
     </div>}
     {job&&<>
-      <p className="campaign-empty-copy">
-        Job status: <strong>{job.status.replaceAll("_"," ")}</strong>.
-        Prepared clips: <strong>{attached} / {staged?.totalChunks??0}</strong>.
-      </p>
-      {job.status==="awaiting_source"&&<>
+      <div className="session-recap-reading" aria-label="Saved Gemini job progress">
+        <p><strong>{readableState(job)}</strong></p>
+        <p className="campaign-empty-copy">
+          Prepared audio: {attached} of {staged?.totalChunks??0} clips.
+          {" "}Transcribed: {job.progress?.completed??job.completedChunks} of {job.totalChunks}.
+          {" "}Submitted to Gemini: {job.progress?.submitted??0}.
+          {" "}Processing: {job.progress?.leased??0}.
+          {" "}Needing attention: {job.progress?.failed??job.failedChunks}.
+        </p>
+        {tracks.length>0&&staged&&<p className="campaign-empty-copy">
+          {tracks.map(track=>{
+            const items=staged.clips.filter(c=>c.trackIndex===track.index);
+            return track.displayName+": "+items.filter(c=>c.staged).length+"/"+items.length;
+          }).join(" · ")}
+        </p>}
+        {job.nextEligibleAt&&!job.pausedAt&&<p className="campaign-empty-copy">
+          Next eligible processing: {new Date(job.nextEligibleAt).toLocaleString()}.
+        </p>}
+        {issueExplanation(job.failureCode)&&<p className="session-recap-import-notice" role="status">
+          {issueExplanation(job.failureCode)}
+        </p>}
+        {job.pausedAt&&<p className="session-recap-import-notice">This job is paused.
+          Previously uploaded clips and completed transcripts are preserved.</p>}
+        <div className="session-recap-form-actions">
+          <button type="button" className="campaign-secondary" disabled={busy}
+            onClick={()=>{void reloadJobs(job.id).then(()=>refresh(job.id)).catch(e=>setError(errorMessage(e)));}}>
+            Refresh progress
+          </button>
+          {!["cancelled","completed","failed"].includes(job.status)&&<>
+            {job.pausedAt
+              ?<button type="button" className="campaign-secondary" disabled={busy}
+                  onClick={()=>void changeJobState("resume")}>Resume job</button>
+              :<button type="button" className="campaign-secondary" disabled={busy}
+                  onClick={()=>void changeJobState("pause")}>Pause job</button>}
+            <button type="button" className="campaign-secondary" disabled={busy}
+              onClick={()=>void changeJobState("cancel")}>Cancel job</button>
+          </>}
+        </div>
+      </div>
+      {job.status==="awaiting_source"&&!job.pausedAt&&<>
         <label>Craig speaker track to prepare
           <select value={trackIndex} disabled={busy}
             onChange={event=>{setTrackIndex(event.target.value);setFile(null);setWav(null);setClips([]);}}>
@@ -430,7 +493,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           </p>}
         </>}
       </div>}
-      {job.status==="queued"&&<div>
+      {job.status==="queued"&&!job.pausedAt&&<div>
         <p className="session-recap-import-notice">
           Audio prepared. Scheduled Gemini inference is not enabled yet; no automatic
           requests or provider charges will occur.

@@ -53,6 +53,41 @@ export const recapAttentionText:Record<string,{
     description:"The previous worker execution was interrupted. TWE cannot always tell whether Gemini received a request.",
     action:"If the transfer definitely ended before model submission, TWE may offer a safe retry. Otherwise check usage before starting another request.",
   },
+  interaction_failed:{
+    title:"Gemini reported a failed summary",
+    description:"The AI generation ended with a failure. TWE will not submit it again automatically.",
+    action:"Check Google AI Studio usage and this job's diagnostics before requesting another attempt.",
+  },
+  interaction_cancelled:{
+    title:"Gemini cancelled the summary",
+    description:"The provider ended the interaction without a completed recap.",
+    action:"Check Google AI Studio. TWE will not submit a second request without approval.",
+  },
+  interaction_incomplete:{
+    title:"Gemini returned a partial summary",
+    description:"The provider ended before completing the full recap. Partial generated text may be available below.",
+    action:"Review the available partial text; do not treat it as a complete session recap.",
+  },
+  interaction_requires_action:{
+    title:"Gemini requires additional action",
+    description:"The model has paused and is waiting for additional input that TWE cannot safely supply automatically.",
+    action:"Keep the original interaction ID and review technical details; no new generation was submitted.",
+  },
+  interaction_requires_continuation:{
+    title:"Gemini needs a continuation request",
+    description:"Gemini generated some content but requires a further request to continue, which may consume more quota.",
+    action:"TWE will not automatically issue a potentially billable continuation.",
+  },
+  interaction_unknown_status:{
+    title:"Unexpected Gemini interaction state",
+    description:"The provider returned a state TWE does not recognize.",
+    action:"Copy diagnostics so the request can be investigated without submitting another job.",
+  },
+  interaction_invalid_output:{
+    title:"Gemini summary failed validation",
+    description:"Gemini reported completion, but the text was empty, malformed, or too large for TWE's private recap.",
+    action:"Inspect diagnostics; no draft was published.",
+  },
   unexpected:{
     title:"AI processing stopped",
     description:"TWE doesn't have a detailed reason for this job. The original Google Drive file is unchanged.",
@@ -88,5 +123,8 @@ export const recapStageDescriptions:Record<string,string>={
   gemini_chunk_http_504:"Gemini returned HTTP 504 (gateway timeout). Retry later.",
   gemini_chunk_network_error:"The temporary audio transfer to Gemini was interrupted.",
   gemini_upload_receipt_invalid:"Gemini did not return a valid receipt for the completed audio upload.",
+  gemini_upload_finalization_uncertain:"Gemini may have accepted the entire temporary recording, but TWE could not uniquely verify the completed file. Retry only the original job to check again; the Drive recording is untouched.",
+  gemini_file_processing_failed:"Gemini received the audio but could not finish preparing it. This temporary file cannot be used for a recap.",
+  gemini_file_not_active:"Gemini did not report an active audio file. TWE will not submit a summary using it.",
   staging_data_unavailable:"TWE could not resume its saved transfer state. The audio remains in Google Drive.",
 };

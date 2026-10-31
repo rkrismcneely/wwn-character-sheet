@@ -70,7 +70,7 @@ async function uploadAudio(env:RecapOnlyEnvironment,job:Job){
 
 async function contextFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
   // Limit context to prevent prompts consuming excessive GM model quota.
-  const [journal,history]=await Promise.all([
+  const [journal,history,names]=await Promise.all([
     env.DB.prepare("SELECT title,content FROM campaign_journal_entries "+
       "WHERE campaign_id=? AND kind='page' ORDER BY updated_at DESC LIMIT 18")
       .bind(job.campaignId).all<{title:string;content:string}>(),
@@ -78,11 +78,24 @@ async function contextFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
       "WHERE campaign_id=? AND is_published=1 AND id!=? "+
       "ORDER BY session_date DESC LIMIT 3")
       .bind(job.campaignId,job.recapId).all<{title:string;content:string}>(),
+    // Names must come from the GM-maintained Journal, not the model's guesses.
+    // Search the whole campaign by title rather than only 18 recent pages.
+    env.DB.prepare("SELECT title FROM campaign_journal_entries "+
+      "WHERE campaign_id=? AND kind='page' ORDER BY title ASC LIMIT 240")
+      .bind(job.campaignId).all<{title:string}>(),
   ]);
   const pages=journal.results.map(entry=>entry.title+": "+
     redactJournalSecrets(entry.content).replace(/<[^>]{1,200}>/gu,"").slice(0,450)).join("\n").slice(0,8500);
   const prior=history.results.map(entry=>entry.title+": "+entry.content.slice(0,1700)).join("\n").slice(0,5500);
-  return "CAMPAIGN JOURNAL REFERENCES (may be outdated; audio takes priority):\n"+
+  const canonicalNames=names.results.map(row=>row.title.trim())
+    .filter(title=>title.length>1&&title.length<=85&&!/^\d{2}-\d{2}-\d{2}\s*[—-]/u.test(title))
+    .slice(0,180).join("; ").slice(0,6500);
+  return "GM JOURNAL PAGE TITLES — CANONICAL SPELLINGS (only when the audio clearly refers to "+
+    "that exact character, NPC, item or place; never force a match):\n"+
+    canonicalNames+"\nSpell fantasy names exactly as these Journal titles, even when "+
+    "speech recognition suggests a different spelling. If a name is not a clear "+
+    "match, do not invent an alias; preserve uncertainty for the GM to correct.\n"+
+    "CAMPAIGN JOURNAL REFERENCES (may be outdated; audio takes priority):\n"+
     pages+"\nPREVIOUS SESSION RECAPS (for continuity):\n"+prior;
 }
 function prompt(detail:Job["detail"],context:string):string{

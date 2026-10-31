@@ -89,7 +89,7 @@ test("expired Gemini temporary Files audio can re-stage the original recording w
   assert.equal(safeRecapRetryTarget({...failed,errorCode:"interaction_result_unavailable",
     interactionId:"received-previously"}),null);
 });
-test("no retry for unsafe submissions, invalid state, missing storage, key or nonprivate recap",async()=>{
+test("no retry for unsafe submissions, invalid state, missing storage or key",async()=>{
   for(const bad of [
     {...failed,errorCode:"submission_uncertain"},
     {...failed,errorCode:"submission_id_missing"},
@@ -103,11 +103,12 @@ test("no retry for unsafe submissions, invalid state, missing storage, key or no
   for(const [setup,match] of [
     [{source:false},/original Drive audio/u],
     [{connected:false},/Gemini API key/u],
-    [{published:1},/private recap/u],
     [{updateChanges:0},/changed while/u],
   ]){
     await assert.rejects(()=>retrySafeRecapPreparation(mockDatabase(failed,setup),input),match);
   }
+  assert.deepEqual(await retrySafeRecapPreparation(mockDatabase(failed,{published:1}),input),
+    {resumed:true,status:"pending_upload"}); // published page stays unchanged
 });
 test("GM sees explanatory actions, but never receives temporary Gemini file URI",async()=>{
   const [route,ui,runner]=await Promise.all([

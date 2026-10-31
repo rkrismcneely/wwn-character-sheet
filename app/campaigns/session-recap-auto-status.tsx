@@ -22,8 +22,9 @@ const statusLabel:Record<string,string>={
   needs_attention:"Summarization needs attention",
   failed:"Summarization stopped",
 };
-export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
-  campaignId:string;recapId:string;onDraft:(content:string,updatedAt:string,overwrite:boolean)=>boolean;
+export function SessionRecapAutoStatus({campaignId,recapId,onDraft,published=false}:{
+  campaignId:string;recapId:string;published?:boolean;
+  onDraft:(content:string,updatedAt:string,overwrite:boolean)=>boolean;
 }){
   const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/auto-recap";
   const [jobs,setJobs]=useState<Job[]>([]);
@@ -33,12 +34,27 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const [starting,setStarting]=useState(false);
   const [retrying,setRetrying]=useState(false);
   const [confirmAsset,setConfirmAsset]=useState<Asset|null>(null);
+  const [defaultDetail,setDefaultDetail]=useState<"brief"|"standard"|"detailed">("detailed");
+  const [selectedDetail,setSelectedDetail]=useState<"brief"|"standard"|"detailed">("detailed");
+  const [requestId,setRequestId]=useState("");
   const [durations,setDurations]=useState<Record<string,number>>({});
   const [privacy,setPrivacy]=useState(false);
   const [billing,setBilling]=useState(false);
   const [recapUpdatedAt,setRecapUpdatedAt]=useState("");
   const seen=useRef("");
   const cancelRef=useRef<HTMLButtonElement|null>(null);
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch("/api/account/recap-preferences",{cache:"no-store",signal:controller.signal})
+      .then(async response=>response.ok?await response.json() as {detail?:string}:null)
+      .then((result:{detail?:string}|null)=>{
+        if(!controller.signal.aborted&&["brief","standard","detailed"].includes(result?.detail??"")){
+          const detail=result!.detail as "brief"|"standard"|"detailed";
+          setDefaultDetail(detail);setSelectedDetail(detail);
+        }
+      }).catch(()=>{});
+    return()=>controller.abort();
+  },[]);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
     const [status,audio]=await Promise.all([
       fetch(endpoint+"?recapId="+encodeURIComponent(recapId),{cache:"no-store",signal}),
@@ -76,11 +92,11 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   },[recapId,refresh]);
   useEffect(()=>{
     const job=jobs.find(x=>x.status==="ready"&&x.generatedMarkdown);
-    if(job?.generatedMarkdown&&seen.current!==job.id){
+    if(!published&&job?.generatedMarkdown&&seen.current!==job.id){
       seen.current=job.id;
       onDraft(job.generatedMarkdown,recapUpdatedAt,false);
     }
-  },[jobs,onDraft,recapUpdatedAt]);
+  },[jobs,onDraft,recapUpdatedAt,published]);
   useEffect(()=>{
     if(!confirmAsset)return;
     cancelRef.current?.focus();
@@ -92,7 +108,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   },[confirmAsset,starting]);
   function openConfirmation(asset:Asset){
     if(starting)return;
-    setConfirmAsset(asset);setPrivacy(false);setBilling(false);setError("");setNotice("");
+    setConfirmAsset(asset);setSelectedDetail(defaultDetail);setRequestId(crypto.randomUUID());
+    setPrivacy(false);setBilling(false);setError("");setNotice("");
   }
   async function summarize(){
     if(!confirmAsset||!privacy||!billing||starting)return;
@@ -101,7 +118,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
     try{
       const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,assetId:asset.id,confirmed:true,
-          privacyApproved:true,billingApproved:true})});
+          privacyApproved:true,billingApproved:true,detail:selectedDetail,requestId})});
       const data=await response.json() as {
         queued?:boolean;created?:boolean;alreadyQueued?:boolean;error?:string;
       };
@@ -131,14 +148,16 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
     finally{setRetrying(false);}
   }
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
-  const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id));
+  const activeStatuses=new Set(["pending_upload","transferring","uploaded","submitting","submitted"]);
+  const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
+  const completeVersions=jobs.filter(job=>job.status==="ready"&&job.generatedMarkdown);
   const newest=jobs[0];
   const quotaEstimate=recapQuotaNotice(confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null);
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
     <h4>Session recording</h4>
     <p className="campaign-empty-copy">
-      Step 1: upload your recording to Google Drive. It stays attached to this private recap
-      whether or not you ever use AI.
+      Your recording remains in Google Drive. Every approved AI run saves a separate result;
+      existing edits and published Journal pages are preserved.
     </p>
     {playable.length>0&&<SessionRecapAudioPlayer
       key={playable.map(a=>a.id).join(":")} campaignId={campaignId} recapId={recapId}
@@ -156,22 +175,31 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
       <span>{asset.label}</span>
       <button type="button" className="campaign-primary" disabled={starting}
-        onClick={()=>openConfirmation(asset)}>Auto Summarize</button>
+        onClick={()=>openConfirmation(asset)}>
+        {jobs.some(j=>j.audioAssetId===asset.id)?"Summarize again":"Auto Summarize"}
+      </button>
     </div>)}
     {newest&&<>
       <p role="status"><strong>{statusLabel[newest.status]||"Status: "+newest.status}</strong>
         {" · "}{newest.detail} recap</p>
       <SessionRecapProgress job={newest}/>
     </>}
-    {newest?.status==="ready"&&newest.generatedMarkdown&&<details>
-      <summary>View or apply saved Gemini draft</summary>
-      <p className="campaign-empty-copy">Review for inaccurate names or events before publishing.</p>
-      <button type="button" className="campaign-secondary" onClick={()=>{
-        if(!window.confirm("Replace your unsaved editor notes with Gemini's draft?"))return;
-        if(onDraft(newest.generatedMarkdown!,recapUpdatedAt,true))
-          setNotice("Gemini draft copied into the editor for review.");
-      }}>Use Gemini draft in editor</button>
-      <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
+    {completeVersions.length>0&&<details>
+      <summary>Saved AI recap versions ({completeVersions.length})</summary>
+      <p className="campaign-empty-copy">
+        Every version is preserved. Choosing one only copies it into the editor;
+        your saved recap and Journal entry remain unchanged until you save.
+      </p>
+      {completeVersions.map(version=><details key={version.id}>
+        <summary>{version.detail==="detailed"?"Most detailed":
+          version.detail==="standard"?"Standard":"Brief"} — {new Date(version.createdAt).toLocaleString()}</summary>
+        <button type="button" className="campaign-secondary" onClick={()=>{
+          if(!window.confirm("Replace the current editor text with this AI version? Unsaved editor changes will be lost. Your saved and published Journal entries won't change."))return;
+          if(onDraft(version.generatedMarkdown!,recapUpdatedAt,true))
+            setNotice("Saved version copied into the editor. Review and save only if you want to use it.");
+        }}>Copy this version into editor</button>
+        <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{version.generatedMarkdown}</pre>
+      </details>)}
     </details>}
     {newest?.status==="needs_attention"&&<div className="session-recap-reading" role="alert">
       <strong>{recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>
@@ -237,6 +265,17 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
           Google project. TWE cannot verify your remaining free quota.
           Nothing will be published to players automatically.
         </p>
+        <label style={{display:"block",marginBlock:12}}>Detail level for this run
+          <select value={selectedDetail} disabled={starting}
+            onChange={event=>setSelectedDetail(event.target.value as typeof selectedDetail)}>
+            <option value="brief">Brief — highlights</option>
+            <option value="standard">Standard — major scenes</option>
+            <option value="detailed">Most detailed — scenes, names, timestamps and consequences</option>
+          </select>
+          <span className="campaign-empty-copy">Default from Account; changes here apply only to this run.</span>
+        </label>
+        {published&&<p className="campaign-empty-copy"><strong>Your published Journal entry will not change.</strong>
+          The new result will be saved as another private AI version for you to review.</p>}
         <p role="note" className="campaign-empty-copy">
           <strong>Estimated audio input:</strong>{" "}
           {quotaEstimate.estimatedTokens===null?"Duration unavailable":

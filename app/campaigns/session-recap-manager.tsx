@@ -276,8 +276,19 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         </div>
       </form>}
       {editing !== "new" && <>
-        {editing.isPublished&&<SessionRecapAudioUploader key={editing.id}
-          campaignId={campaignId} recapId={editing.id} onBusyChange={trackUploadBusy}/>}
+        {editing.isPublished&&<>
+          <SessionRecapAudioUploader key={editing.id}
+            campaignId={campaignId} recapId={editing.id} onBusyChange={trackUploadBusy}/>
+          <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id} published
+            onDraft={(content,updatedAt,overwrite)=>{
+              if(!overwrite)return false;
+              setDraft(current=>({...current,content}));
+              setEditing(current=>current&&current!=="new"&&current.id===editing.id
+                ? {...current,content,updatedAt:updatedAt||current.updatedAt}:current);
+              setPreview(false);
+              return true;
+            }}/>
+        </>}
         <details className="session-recap-reading" onToggle={event=>setShowAdvanced(event.currentTarget.open)}>
           <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>
           <p className="campaign-empty-copy">

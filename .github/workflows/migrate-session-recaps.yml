@@ -13,6 +13,7 @@ on:
       - "drizzle/0048_recap_only_automation.sql"
       - "drizzle/0049_recap_explicit_confirmation.sql"
       - "drizzle/0050_recap_gemini_resumable_staging.sql"
+      - "drizzle/0051_recap_repeatable_summary_jobs.sql"
       - "drizzle/0040_recap_ai_connections.sql"
       - "drizzle/0041_recap_gemini_background_jobs.sql"
       - "drizzle/0042_recap_gemini_drive_staging.sql"
@@ -29,6 +30,7 @@ on:
       - "scripts/migrate-recap-only-automation.mjs"
       - "scripts/migrate-recap-manual-confirmation.mjs"
       - "scripts/migrate-recap-resumable-staging.mjs"
+      - "scripts/migrate-recap-repeatable-jobs.mjs"
       - "scripts/migrate-recap-gemini-schema.mjs"
       - ".github/workflows/migrate-session-recaps.yml"
   workflow_dispatch:
@@ -102,6 +104,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Apply and verify resumable Gemini audio staging
         run: node scripts/migrate-recap-resumable-staging.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Apply versioned recap job history migration
+        run: node scripts/migrate-recap-repeatable-jobs.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

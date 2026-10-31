@@ -228,8 +228,9 @@ export async function inspectCraigAacMp4(source:CraigFlacSource):Promise<CraigAa
     chunkRuns.push(run);
   }
   const co=one(parts,"stco",false)??one(parts,"co64",false);
-  if(!co||parts.some(x=>x.type===(co.type==="stco"?"co64":"stco")))
-    invalid("requires one non-fragmented chunk offset table.");
+  if(!co)return invalid("requires one non-fragmented chunk offset table.");
+  if(parts.some(x=>x.type===(co.type==="stco"?"co64":"stco")))
+    return invalid("conflicting chunk offset tables.");
   const offsets=table(metadata,co,o,co.type==="stco"?4:8,CRAIG_AAC_MAX_SAMPLES);
   const readOffset=(i:number)=>co.type==="stco"?
     u32(metadata,offsets.at+i*4):u64(metadata,offsets.at+i*8);

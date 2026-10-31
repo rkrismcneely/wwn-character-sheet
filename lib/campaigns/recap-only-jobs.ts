@@ -37,6 +37,13 @@ export async function enqueueConfirmedRecapAudio(
     "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,created_at,updated_at) "+
     "VALUES (?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
-      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now).run();
+      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now).run();
+  if(result.meta.changes!==1){
+    const old=await db.prepare("SELECT confirmed_at AS confirmedAt FROM campaign_recap_audio_summary_jobs "+
+      "WHERE audio_asset_id=? AND recap_id=? AND requested_by=?")
+      .bind(input.audioAssetId,input.recapId,input.userId).first<{confirmedAt:string|null}>();
+    if(!old?.confirmedAt)throw new CampaignServiceError(
+      "A previous automatic job exists for this recording. It was not approved under the new confirmation process; no new AI request was made.",409);
+  }
   return {created:result.meta.changes===1,alreadyQueued:result.meta.changes!==1};
 }

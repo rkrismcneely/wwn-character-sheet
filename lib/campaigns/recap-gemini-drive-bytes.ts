@@ -49,7 +49,8 @@ export async function boundedGeminiDownload(response:Response,
 export async function verifyGeminiSpeechWav(bytes:Uint8Array<ArrayBuffer>,
   expected:{size:number;digest:string;durationMs:number}):Promise<number> {
   if(bytes.byteLength!==expected.size||bytes.byteLength>GEMINI_BACKGROUND_MAX_CLIP_BYTES||
-    !UUID.test(expected.digest))
+    !UUID.test(expected.digest)||!Number.isSafeInteger(expected.durationMs)||
+    expected.durationMs<1000||expected.durationMs>GEMINI_BACKGROUND_MAX_CLIP_MS)
     throw new Error("Staged audio size or source digest is invalid.");
   const header=parsePcmWavHeader(bytes.subarray(0,Math.min(bytes.byteLength,256*1024)),
     bytes.byteLength);

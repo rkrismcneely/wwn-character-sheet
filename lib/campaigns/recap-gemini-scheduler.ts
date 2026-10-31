@@ -7,6 +7,7 @@ import { GEMINI_BACKGROUND_MAX_CLIP_BYTES } from "./recap-gemini-background.ts";
 import { submitVerifiedGeminiAudio,pollGeminiInteraction,GeminiAmbiguousResult,
   type GeminiProviderOutcome } from "./recap-gemini-provider-runner.ts";
 import type { CaptionCue } from "./recap-full-transcript.ts";
+import { assembleOneReadyGeminiJob } from "./recap-gemini-assembly-runner.ts";
 
 export type GeminiCronEnvironment=DriveSettings&RecapAIEncryptionSettings&{
   DB:D1Database;BUCKET:R2Bucket;RECAP_GEMINI_BACKGROUND_ENABLED?:string;
@@ -21,7 +22,8 @@ type Pending={
   interactionId:string;nextPoll:string|null;
 };
 type Secret={id:string;ciphertext:string;nonce:string;version:number};
-type Speaker={index:number;discordName:string;displayName:string};
+type Speaker={index:number;discordName:string;displayName:string;
+  role:"gm"|"player"|"guest";characterName:string|null};
 const time=(ms:number)=>new Date(ms).toISOString();
 function fragmentKey(clip:Pick<GeminiLeasedClip,"campaignId"|"jobId"|"trackIndex"|"chunkIndex">){
   return FRAGMENT+clip.campaignId+"/"+clip.jobId+"/"+clip.trackIndex+"-"+clip.chunkIndex+".json";
@@ -48,7 +50,8 @@ async function speakerFor(env:GeminiCronEnvironment,clip:{
   if(!obj)throw new Error("Craig speaker confirmation was lost.");
   const data=await obj.json<{version?:number;assignments?:Speaker[]}>();
   const speaker=data.version===1?data.assignments?.find(x=>x.index===clip.trackIndex):null;
-  if(!speaker||!speaker.displayName||!speaker.discordName)
+  if(!speaker||!speaker.displayName||!speaker.discordName||
+    !["gm","player","guest"].includes(speaker.role))
     throw new Error("The recording track is not associated with a confirmed GM speaker.");
   return speaker;
 }
@@ -224,6 +227,9 @@ export async function runGeminiScheduledTick(env:GeminiCronEnvironment):Promise<
   if(env.RECAP_GEMINI_BACKGROUND_ENABLED!=="true")return;
   const now=new Date().toISOString();
   await quarantineExpiredGeminiLeases(env.DB,now);
+  // Never touch the published transcript. Assemble completed fragments
+  // privately, a few at a time, before spending any more provider quota.
+  if(await assembleOneReadyGeminiJob(env,now))return;
   // Poll recorded provider IDs first: read-only retrieval cannot incur a
   // second transcription charge.
   if(await pollOne(env,now))return;

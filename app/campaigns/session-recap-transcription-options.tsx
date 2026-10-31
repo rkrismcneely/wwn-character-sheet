@@ -49,7 +49,7 @@ export function SessionRecapTranscriptionOptions({campaignId,recapId,onSaved}:{
         key="gemini" provider="gemini" campaignId={campaignId} recapId={recapId} onSaved={onSaved}/>
       <details className="session-recap-reading">
         <summary>Prepare your Craig session for future unattended Gemini processing</summary>
-        <SessionRecapGeminiStaging campaignId={campaignId} recapId={recapId}/>
+        <SessionRecapGeminiStaging campaignId={campaignId} recapId={recapId} onSaved={onSaved}/>
       </details>
     </>}
     {selected==="local-whisper"&&<SessionRecapLocalWhisper

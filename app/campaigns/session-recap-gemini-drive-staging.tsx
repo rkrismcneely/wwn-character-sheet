@@ -14,8 +14,8 @@ type Staged={trackIndex:number;chunkIndex:number;startMs:number;endMs:number;
   sourceDigest:string|null;staged:boolean};
 type Progress={jobId:string;status:string;totalChunks:number;speakerTracks:number;clips:Staged[]};
 const errorMessage=(e:unknown)=>e instanceof Error?e.message:"Could not prepare this recording.";
-export function SessionRecapGeminiStaging({campaignId,recapId}:{
-  campaignId:string;recapId:string;
+export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
+  campaignId:string;recapId:string;onSaved:()=>void;
 }){
   const [imports,setImports]=useState<RecapRecordingImport[]>([]);
   const [driveAccounts,setDriveAccounts]=useState<Storage[]>([]);
@@ -24,6 +24,11 @@ export function SessionRecapGeminiStaging({campaignId,recapId}:{
   const [tracks,setTracks]=useState<Track[]>([]);
   const [trackIndex,setTrackIndex]=useState("");
   const [job,setJob]=useState<Job|null>(null);
+  const [assembly,setAssembly]=useState<{
+    ready:boolean;status:string;assembled?:number;total?:number;count?:number;
+    cues?:{startMs:number;endMs:number;speakerName:string;characterName:string|null;text:string}[];
+    existing?:{published:boolean;updatedAt:string;count:number}|null;
+  }|null>(null);
   const [staged,setStaged]=useState<Progress|null>(null);
   const [file,setFile]=useState<File|null>(null);
   const [wav,setWav]=useState<PcmWav|null>(null);
@@ -63,7 +68,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId}:{
   }
   async function chooseCraig(id:string){
     if(busy)return;
-    setImportId(id);setJob(null);setTracks([]);setStaged(null);
+    setImportId(id);setJob(null);setTracks([]);setStaged(null);setAssembly(null);
     setTrackIndex("");setFile(null);setWav(null);setClips([]);
     setError("");setMessage("");
     if(!id)return;
@@ -198,6 +203,37 @@ export function SessionRecapGeminiStaging({campaignId,recapId}:{
     }catch(e){setError(errorMessage(e));}
     finally{setBusy(false);}
   }
+  async function loadAssembly(){
+    if(!job||busy)return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      const q="?recapId="+encodeURIComponent(recapId)+"&jobId="+encodeURIComponent(job.id);
+      const preview=await readJSON<NonNullable<typeof assembly>>(jobs+"/assembled"+q);
+      setAssembly(preview);
+      if(!preview.ready)setMessage("Gemini assembly is not complete. You can return to this page later.");
+    }catch(e){setError(errorMessage(e));}
+    finally{setBusy(false);}
+  }
+  async function importAssembly(){
+    if(!job||!assembly?.ready||busy)return;
+    if(assembly.existing?.published){
+      setError("Unpublish the existing transcript before replacing it.");return;
+    }
+    const replacing=Boolean(assembly.existing);
+    if(replacing&&!window.confirm("Replace the current unpublished transcript with the assembled Gemini transcript? Your earlier manual edits will be lost."))return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      const result=await readJSON<{saved:boolean;notice?:string;count:number}>(jobs+"/assembled",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,replace:replacing,
+          expectedUpdatedAt:replacing?assembly.existing?.updatedAt:null}),
+      });
+      if(!result.saved)throw new Error("Transcript import was not confirmed.");
+      setAssembly(null);onSaved();
+      setMessage(result.notice??"Assembled dialogue saved privately. Review the transcript below before publishing.");
+    }catch(e){setError(errorMessage(e));}
+    finally{setBusy(false);}
+  }
   const attached=staged?.clips.filter(x=>x.staged).length??0;
   return <section className="session-recap-reading" aria-label="Prepare Gemini background transcription audio">
     <h4>Prepare Gemini for unattended transcription</h4>
@@ -279,6 +315,36 @@ export function SessionRecapGeminiStaging({campaignId,recapId}:{
         </div>
         {busy&&<p role="status">Checked or uploaded {count} / {clips.length} clips for this voice.</p>}
       </>}
+      {(["queued","awaiting_review","completed"].includes(job.status))&&<div className="session-recap-reading">
+        <h5>Assembled Gemini transcript</h5>
+        <button type="button" className="campaign-secondary" disabled={busy}
+          onClick={()=>void loadAssembly()}>
+          {busy?"Checking…":"Check assembled transcript"}
+        </button>
+        {assembly&&!assembly.ready&&<p className="campaign-empty-copy">
+          {assembly.assembled??0} of {assembly.total??0} fragments assembled.
+          A finished transcript will remain private until you choose to import and review it.
+        </p>}
+        {assembly?.ready&&<>
+          <p><strong>{assembly.count?.toLocaleString()??0} captions</strong> assembled.
+            {assembly.existing?" An existing transcript is already saved.":""}
+          </p>
+          <div style={{maxHeight:250,overflowY:"auto"}}>
+            {assembly.cues?.slice(0,12).map((cue,i)=><p key={cue.startMs+":"+i}>
+              <strong>{cue.speakerName}{cue.characterName?" ("+cue.characterName+")":""}:</strong>{" "}
+              {cue.text}
+            </p>)}
+          </div>
+          <button type="button" className="campaign-primary"
+            disabled={busy||assembly.existing?.published===true}
+            onClick={()=>void importAssembly()}>
+            {assembly.existing?"Replace existing private transcript after confirmation":"Load into private transcript for review"}
+          </button>
+          {assembly.existing?.published&&<p className="campaign-empty-copy">
+            Unpublish your existing transcript before importing Gemini dialogue.
+          </p>}
+        </>}
+      </div>}
       {job.status==="queued"&&<div>
         <p className="session-recap-import-notice">
           Audio prepared. Scheduled Gemini inference is not enabled yet; no automatic

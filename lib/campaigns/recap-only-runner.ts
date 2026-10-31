@@ -108,6 +108,8 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
   if(!job.fileName||!job.fileUri)throw Error("Gemini staging file missing.");
   const check=await fetch(API+"/v1beta/"+job.fileName,{redirect:"manual",
     headers:{"x-goog-api-key":secret},signal:AbortSignal.timeout(12000)});
+  if(check.status===404||check.status===410)
+    throw new RecapStagingFailure("gemini_file_expired");
   const file=await readSmall(check,100_000) as {state?:unknown};
   if(file.state==="PROCESSING"){
     await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET updated_at=? "+
@@ -171,6 +173,14 @@ async function poll(env:RecapOnlyEnvironment,job:Job){
     redirect:"manual",headers:{"x-goog-api-key":secret,"Api-Revision":"2026-05-20"},
     signal:AbortSignal.timeout(12000),
   });
+  if(response.status===404||response.status===410){
+    // Never submit the interaction again: it may already have consumed quota,
+    // even if its stored provider result has expired.
+    await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET "+
+      "status='needs_attention',error_code='interaction_result_unavailable',updated_at=? "+
+      "WHERE id=? AND status='submitted'").bind(now(),job.id).run();
+    return;
+  }
   const result=await readSmall(response,350_000) as Interaction;
   const lifecycle=classifyRecapInteraction(result.status);
   if(lifecycle.kind==="waiting"){

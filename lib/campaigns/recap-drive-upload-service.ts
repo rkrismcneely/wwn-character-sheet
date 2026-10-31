@@ -1,4 +1,5 @@
 import { canManageCampaignContent } from "./authorization.ts";
+import {completedRecapDriveFile,completedRecapDriveFileQuery} from "./recap-drive-recovery.ts";
 import {issueDriveUploadTicket,verifyDriveUploadTicket,parseDriveRelayRange} from "./recap-drive-upload-relay.ts";
 import { validateAudioUploadDraft, validateDriveSessionUrl, type UploadDraft } from "./recap-drive-upload.ts";
 import { getGmDriveAccessToken } from "./recap-drive-token.ts";
@@ -220,4 +221,66 @@ export async function relayGmDriveAudioUpload(db:D1Database,actor:CampaignActor|
   if(response.status===429||response.status>=500)
     throw new CampaignServiceError("Google Drive is temporarily unable to receive this chunk. Retry the upload.",503);
   throw new CampaignServiceError("Google Drive rejected this recording chunk. Check the file and retry.",409);
+}
+
+
+/** Recover an audio upload which fully reached Google Drive but whose final
+ * browser receipt or TWE completion request was lost. The private Google
+ * appProperties marker is assigned by TWE before the upload begins, and
+ * the existing finish path independently verifies file size, MIME and both
+ * markers before linking the recording. No file data is downloaded here.
+ */
+export async function recoverGmDriveAudioUpload(
+  db:D1Database,actor:CampaignActor|null,campaignId:string,
+  input:{assetId?:unknown;recapId?:unknown},settings:DriveSettings,
+):Promise<{found:boolean;ready:boolean}>{
+  const campaign=await requireGm(db,actor,campaignId);
+  const recap=await getCampaignSessionRecap(db,actor,campaign.id,input.recapId);
+  if(typeof input.assetId!=="string"||!UUID_PATTERN.test(input.assetId))
+    throw new CampaignServiceError("Choose a valid recording upload to recover.",422);
+  const asset=await db.prepare(
+    "SELECT id,connection_id AS connectionId,status,byte_size AS byteSize,mime_type AS mimeType FROM campaign_recap_audio_assets "+
+    "WHERE id=? AND campaign_id=? AND recap_id=? AND storage_owner_user_id=? "+
+    "AND processing_job_id IS NULL LIMIT 1",
+  ).bind(input.assetId,campaign.id,recap.id,actor!.userId)
+    .first<{id:string;connectionId:string;status:string;byteSize:number;mimeType:string}>();
+  if(!asset)throw new CampaignServiceError("This is not one of your recording uploads.",404);
+  if(asset.status==="ready")return {found:true,ready:true};
+  if(asset.status!=="preparing")
+    throw new CampaignServiceError("This recording cannot be recovered from an unfinished upload.",409);
+  const token=await getGmDriveAccessToken(db,settings,actor!.userId,asset.connectionId);
+  const q=completedRecapDriveFileQuery(asset.id,campaign.id);
+  const params=new URLSearchParams({
+    q,pageSize:"2",fields:"nextPageToken,incompleteSearch,files(id,size,mimeType,appProperties,trashed)",
+    spaces:"drive",
+  });
+  let response:Response;
+  try{
+    response=await fetch("https://www.googleapis.com/drive/v3/files?"+params.toString(),{
+      redirect:"manual",headers:{authorization:"Bearer "+token},
+      signal:AbortSignal.timeout(15000),
+    });
+  }catch{
+    throw new CampaignServiceError("Google Drive search is temporarily unavailable. Retry recovery.",409);
+  }
+  if(!response.ok||response.redirected)
+    throw new CampaignServiceError("Google Drive could not search for your completed recording.",409);
+  let results:unknown;
+  try{results=await response.json();}
+  catch{throw new CampaignServiceError("Google Drive returned an invalid recording search result.",409);}
+  let remoteFileId:string|null;
+  try{
+    remoteFileId=completedRecapDriveFile(results,{
+      assetId:asset.id,campaignId:campaign.id,byteSize:asset.byteSize,mimeType:asset.mimeType,
+    });
+  }catch{
+    throw new CampaignServiceError("The saved Drive file did not match this upload. Nothing was attached.",409);
+  }
+  if(!remoteFileId)return {found:false,ready:false};
+  // Reuse the original secured final verification, including matching actual
+  // metadata, before changing the TWE asset from preparing to ready.
+  await finishGmDriveAudioUpload(db,actor,campaign.id,{
+    assetId:asset.id,remoteFileId,
+  },settings);
+  return {found:true,ready:true};
 }

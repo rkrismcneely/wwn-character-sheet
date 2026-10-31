@@ -5,10 +5,11 @@ import { getCampaignSessionRecap } from "./session-recaps.ts";
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 import type { DriveSettings } from "../account/recap-google-drive-oauth.ts";
+import { GEMINI_BACKGROUND_MAX_CLIP_BYTES,GEMINI_BACKGROUND_MAX_CLIP_MS } from "./recap-gemini-background.ts";
 
 type StartInput = {
   recapId?:unknown; connectionId?:unknown;
-  filename?:unknown;mimeType?:unknown;byteSize?:unknown;durationMs?:unknown;
+  filename?:unknown;mimeType?:unknown;byteSize?:unknown;durationMs?:unknown;processingJobId?:unknown;
 };
 type FinishInput = { assetId?:unknown;remoteFileId?:unknown };
 type AssetRow = {
@@ -39,6 +40,22 @@ export async function beginGmDriveAudioUpload(
     throw new CampaignServiceError("Select your own Drive connection.",422);
   }
   const draft=draftUpload(input);
+  // Hidden processing clips use the *same* GM's Drive, never site-owner R2.
+  let processingJobId:string|null=null;
+  if(input.processingJobId!==undefined&&input.processingJobId!==null){
+    if(typeof input.processingJobId!=="string"||!UUID_PATTERN.test(input.processingJobId)||
+      draft.mimeType!=="audio/wav"||draft.byteSize>GEMINI_BACKGROUND_MAX_CLIP_BYTES||
+      (draft.durationMs??0)>GEMINI_BACKGROUND_MAX_CLIP_MS||!draft.durationMs){
+      throw new CampaignServiceError("Choose a bounded PCM WAV processing clip.",422);
+    }
+    const job=await db.prepare("SELECT id FROM campaign_recap_processing_jobs "+
+      "WHERE id=? AND campaign_id=? AND recap_id=? AND requested_by=? "+
+      "AND provider='gemini' AND status='awaiting_source' AND paused_at IS NULL "+
+      "AND cancelled_at IS NULL")
+      .bind(input.processingJobId,campaign.id,recap.id,actor!.userId).first<{id:string}>();
+    if(!job)throw new CampaignServiceError("Your Gemini job is no longer accepting audio.",409);
+    processingJobId=job.id;
+  }
   const outstanding=await db.prepare(
     "SELECT COUNT(*) AS count FROM campaign_recap_audio_assets WHERE storage_owner_user_id=? AND status='preparing'",
   ).bind(actor!.userId).first<{count:number}>();
@@ -70,10 +87,10 @@ export async function beginGmDriveAudioUpload(
   const now=new Date().toISOString();
   await db.prepare(
     "INSERT INTO campaign_recap_audio_assets "+
-    "(id,campaign_id,recap_id,connection_id,storage_owner_user_id,label,mime_type,byte_size,duration_ms,track_index,offset_ms,primary_audio,status,created_at,updated_at) "+
-    "VALUES (?,?,?,?,?,?,?,?,?,0,0,0,'preparing',?,?)",
+    "(id,campaign_id,recap_id,connection_id,storage_owner_user_id,label,mime_type,byte_size,duration_ms,track_index,offset_ms,primary_audio,status,created_at,updated_at,processing_job_id) "+
+    "VALUES (?,?,?,?,?,?,?,?,?,0,0,0,'preparing',?,?,?)",
   ).bind(assetId,campaign.id,recap.id,input.connectionId,actor!.userId,draft.filename,
-    draft.mimeType,draft.byteSize,draft.durationMs,now,now).run();
+    draft.mimeType,draft.byteSize,draft.durationMs,now,now,processingJobId).run();
   // This URL grants upload permission only. It must never be shown to players
   // or included in persistent logs / normal player asset responses.
   return {assetId,uploadSessionUrl,chunkBytes:8*1024*1024};

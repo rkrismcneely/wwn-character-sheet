@@ -30,7 +30,7 @@ export async function streamAuthorizedRecapAudio(
     "s.provider,s.status AS connectionStatus,a.status,a.mime_type AS mimeType,a.byte_size AS byteSize "+
     "FROM campaign_recap_audio_assets a JOIN user_recap_storage_connections s "+
     "ON s.id=a.connection_id AND s.user_id=a.storage_owner_user_id "+
-    "WHERE a.id=? AND a.campaign_id=?",
+    "WHERE a.id=? AND a.campaign_id=? AND a.processing_job_id IS NULL",
   ).bind(assetId,campaign.id).first<Asset>();
   if(!audio || !audio.recapId)throw new CampaignServiceError("Audio recording not found.",404);
   // The player must be permitted to view this *specific* recap.

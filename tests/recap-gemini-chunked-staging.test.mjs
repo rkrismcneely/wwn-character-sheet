@@ -48,6 +48,8 @@ function responseFor(s){
       return new Response(null,{status:200,headers:{"x-goog-upload-url":sessionUrl}});
     }
     if(url===sessionUrl){
+      // Google official SDK authenticates all resumable upload operations.
+      assert.equal(opts.headers["x-goog-api-key"],"private-test-key");
       if(opts.headers["x-goog-upload-command"]==="query"){
         s.history.queries++;
         return new Response(null,{status:200,headers:{"x-goog-upload-size-received":String(s.row.stageOffset),
@@ -108,6 +110,40 @@ test("mismatch in Drive Range is refused before any bytes go to Gemini",async()=
     assert.equal(s.history.offsets.length,0);
   }finally{globalThis.fetch=original;}
 });
+test("Gemini HTTP chunk rejections preserve only safe status codes; never expose provider secrets",async()=>{
+  const original=globalThis.fetch;
+  try{
+    for(const [status,expected] of [
+      [400,"gemini_chunk_http_400"],[401,"gemini_chunk_http_401"],
+      [403,"gemini_chunk_http_403"],[404,"gemini_chunk_http_404"],
+      [409,"gemini_chunk_http_409"],[413,"gemini_chunk_http_413"],
+      [429,"gemini_chunk_http_429"],[500,"gemini_chunk_http_500"],
+      [503,"gemini_chunk_http_503"],[422,"gemini_chunk_rejected"],
+    ]){
+      const state=simulate();
+      const base=responseFor(state);
+      globalThis.fetch=async(url,opts)=>{
+        if(url===sessionUrl&&opts.headers["x-goog-upload-command"]!=="query"){
+          assert.equal(opts.headers["x-goog-api-key"],"private-test-key");
+          return Response.json({error:{message:"SECRET_GOOGLE_ERROR_BODY"}},
+            {status,headers:{"x-goog-upload-status":"active"}});
+        }
+        return base(url,opts);
+      };
+      await assert.rejects(
+        ()=>stageRecapAudioChunked(state.env,job,"private-test-key",source,"fake-drive-bearer"),
+        error=>{
+          assert.ok(error instanceof RecapStagingFailure);
+          assert.equal(error.code,expected);
+          assert.doesNotMatch(error.message,/SECRET_GOOGLE_ERROR_BODY|signed-twe-test|private-test-key/u);
+          return true;
+        });
+      assert.equal(state.row.status,"transferring");
+      assert.equal(state.row.stageOffset,0);
+    }
+  }finally{globalThis.fetch=original;}
+});
+
 test("migration, cron and status all retain stage state while protecting private URLs",async()=>{
   const [runner,sql,workflow,route,ui]=await Promise.all([
     read("lib/campaigns/recap-only-runner.ts"),

@@ -88,7 +88,7 @@ test("scheduled wiring is fail closed on free quota and cost capped for GM-owned
     read("../drizzle/0044_recap_gemini_interaction_polls.sql"),
     read("../db/schema.ts"),
   ]);
-  for(const v of ["RECAP_GEMINI_BACKGROUND_ENABLED","!=='true'","freeQuotaVerified:false",
+  for(const v of ["RECAP_GEMINI_BACKGROUND_ENABLED",'!=="true"',"freeQuotaVerified:false",
     "readVerifiedGmGeminiClip","decryptGeminiUserKey","leaseOnePreparedGeminiChunk",
     "quarantineExpiredGeminiLeases","provider_interaction_id","pollGeminiInteraction",
     "submitVerifiedGeminiAudio","spent_cost_microusd+?",

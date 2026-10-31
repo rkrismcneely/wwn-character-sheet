@@ -34,8 +34,8 @@ export async function openPrivateCraigRangeReader(
   options:{fetcher?:typeof fetch;signal?:AbortSignal;
     onProgress?:(progress:CraigLongSourceProgress)=>void}={},
 ){
-  if(!/^[a-zA-Z0-9-]{5,128}$/u.test(campaignId)||
-    !/^[a-zA-Z0-9-]{5,128}$/u.test(importId)||
+  if(!/^[a-zA-Z0-9_-]{5,128}$/u.test(campaignId)||
+    !/^[a-zA-Z0-9_-]{5,128}$/u.test(importId)||
     !Number.isSafeInteger(trackIndex)||trackIndex<0||trackIndex>127)
     throw new Error("Invalid private Craig recording identity.");
   const fetcher=options.fetcher??fetch;

@@ -80,7 +80,7 @@ export function RecapStorageConnections() {
       <h2 id="storage-connections-title">Storage</h2>
     </div></div>
     <p className="account-explanation">
-      Connect your own Google Drive for future Session Recap recordings.
+      Connect your own Google Drive to store and play Session Recap recordings, including 2–3-hour audio files.
       Your files stay in your account. Players won&apos;t need to connect their own Drive.
     </p>
     {message && <p className="account-notice" role="status">{message}</p>}
@@ -104,6 +104,6 @@ export function RecapStorageConnections() {
         ? <div className="account-actions"><a href="/api/account/storage/google-drive/start" className="account-secondary">Connect Google Drive</a></div>
         : <p className="account-explanation">Google Drive connections are not configured on TWE yet.</p>}
     </>}
-    <p className="account-explanation">Disconnecting removes TWE&apos;s access, not the recordings in your Drive. Uploading and in-page playback will be added separately.</p>
+    <p className="account-explanation">Disconnecting removes TWE&apos;s access, not the recordings in your Drive. Existing playback and new uploads will stop until storage is reconnected. Recordings remain under your control.</p>
   </section>;
 }

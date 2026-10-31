@@ -7,6 +7,7 @@ export type CampaignSessionRecap = {
   date: string;
   title: string;
   content: string;
+  isPublished: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,15 +17,16 @@ export type SessionRecapArchive = { dates: SessionRecapSummary[]; latest: Campai
 export const SESSION_RECAP_PAGE_SIZE = 10;
 
 type RecapRow = {
-  id: string; sessionDate: string; title: string; content: string; createdAt: string; updatedAt: string;
+  id: string; sessionDate: string; title: string; content: string; isPublished: number; createdAt: string; updatedAt: string;
 };
 
-const recapColumns = "id, session_date AS sessionDate, title, content, created_at AS createdAt, updated_at AS updatedAt";
+const recapColumns = "id, session_date AS sessionDate, title, content, is_published AS isPublished, created_at AS createdAt, updated_at AS updatedAt";
+export const PRIVATE_RECAP_DRAFT_CONTENT = "*Recording awaiting a GM-approved recap.*";
 const order = "ORDER BY session_date DESC, created_at DESC, id DESC";
 
 function asRecap(row: RecapRow): CampaignSessionRecap {
   return { id: row.id, date: row.sessionDate, title: row.title, content: row.content,
-    createdAt: row.createdAt, updatedAt: row.updatedAt };
+    isPublished: row.isPublished === 1, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 function validId(id: unknown): string {
   if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(id)) {
@@ -65,15 +67,17 @@ async function writable(db: D1Database, actor: CampaignActor | null, campaignId:
 export async function listCampaignSessionRecaps(
   db: D1Database, actor: CampaignActor | null, campaignId: string, pageValue: number,
 ): Promise<SessionRecapPage> {
-  const { campaign } = await access(db, actor, campaignId);
+  const { campaign, membership } = await access(db, actor, campaignId);
+  const draftsVisible = canManageCampaignContent(actor!, campaign, membership);
+  const filter = draftsVisible ? "" : " AND is_published = 1";
   const page = Number.isSafeInteger(pageValue) && pageValue > 0 && pageValue <= 100000 ? pageValue : 1;
-  const count = await db.prepare("SELECT COUNT(*) AS total FROM campaign_session_recaps WHERE campaign_id = ?")
+  const count = await db.prepare("SELECT COUNT(*) AS total FROM campaign_session_recaps WHERE campaign_id = ?" + filter)
     .bind(campaign.id).first<{ total: number }>();
   const total = Number(count?.total ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / SESSION_RECAP_PAGE_SIZE));
   const normalizedPage = Math.min(page, totalPages);
   const rows = await db.prepare(`SELECT ${recapColumns} FROM campaign_session_recaps
-    WHERE campaign_id = ? ${order} LIMIT ? OFFSET ?`)
+    WHERE campaign_id = ? ${filter} ${order} LIMIT ? OFFSET ?`)
     .bind(campaign.id, SESSION_RECAP_PAGE_SIZE, (normalizedPage - 1) * SESSION_RECAP_PAGE_SIZE).all<RecapRow>();
   return { recaps: rows.results.map(asRecap), page: normalizedPage, totalPages, total };
 }
@@ -81,10 +85,11 @@ export async function listCampaignSessionRecaps(
 export async function getCampaignSessionRecap(
   db: D1Database, actor: CampaignActor | null, campaignId: string, recapId: unknown,
 ): Promise<CampaignSessionRecap> {
-  const { campaign } = await access(db, actor, campaignId);
+  const { campaign, membership } = await access(db, actor, campaignId);
   const row = await db.prepare(`SELECT ${recapColumns} FROM campaign_session_recaps WHERE campaign_id = ? AND id = ?`)
     .bind(campaign.id, validId(recapId)).first<RecapRow>();
-  if (!row) throw new CampaignServiceError("Session recap not found.", 404);
+  if (!row || (row.isPublished !== 1 && !canManageCampaignContent(actor!, campaign, membership)))
+    throw new CampaignServiceError("Session recap not found.", 404);
   return asRecap(row);
 }
 
@@ -95,7 +100,7 @@ export async function sessionRecapArchive(
   // Small date/title index for the campaign selector; only the latest full Markdown
   // is fetched until a player asks for an older recap.
   const dates = await db.prepare(`SELECT id, session_date AS date, title FROM campaign_session_recaps
-    WHERE campaign_id = ? ${order}`).bind(campaign.id).all<SessionRecapSummary>();
+    WHERE campaign_id = ? AND is_published = 1 ${order}`).bind(campaign.id).all<SessionRecapSummary>();
   const latest = dates.results[0]
     ? await getCampaignSessionRecap(db, actor, campaignId, dates.results[0].id) : null;
   return { dates: dates.results, latest };
@@ -103,15 +108,18 @@ export async function sessionRecapArchive(
 
 export async function createCampaignSessionRecap(
   db: D1Database, actor: CampaignActor | null, campaignId: string,
-  input: { date?: unknown; title?: unknown; content?: unknown }, now = new Date().toISOString(),
+  input: { date?: unknown; title?: unknown; content?: unknown; draftOnly?: unknown }, now = new Date().toISOString(),
 ): Promise<CampaignSessionRecap> {
   const internalId = await writable(db, actor, campaignId);
-  const draft = validateDraft(input);
+  if (input.draftOnly !== undefined && input.draftOnly !== true)
+    throw new CampaignServiceError("Invalid private recap preference.", 422);
+  const isPublished = input.draftOnly !== true;
+  const draft = validateDraft(isPublished ? input : {...input, content: PRIVATE_RECAP_DRAFT_CONTENT});
   const id = crypto.randomUUID();
   await db.prepare(`INSERT INTO campaign_session_recaps
-    (id, campaign_id, session_date, title, content, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, internalId, draft.date, draft.title, draft.content, now, now).run();
-  return { id, ...draft, createdAt: now, updatedAt: now };
+    (id, campaign_id, session_date, title, content, is_published, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, internalId, draft.date, draft.title, draft.content, isPublished ? 1 : 0, now, now).run();
+  return { id, ...draft, isPublished, createdAt: now, updatedAt: now };
 }
 
 export async function updateCampaignSessionRecap(
@@ -126,7 +134,7 @@ export async function updateCampaignSessionRecap(
     throw new CampaignServiceError("Reload the recap before saving changes.", 422);
   }
   const result = await db.prepare(`UPDATE campaign_session_recaps
-    SET session_date = ?, title = ?, content = ?, updated_at = ?
+    SET session_date = ?, title = ?, content = ?, is_published = 1, updated_at = ?
     WHERE id = ? AND campaign_id = ? AND updated_at = ?`)
     .bind(draft.date, draft.title, draft.content, now, id, internalId, input.updatedAt).run();
   if (result.meta.changes !== 1) {
@@ -141,5 +149,5 @@ export async function updateCampaignSessionRecap(
   await db.prepare(`UPDATE campaign_journal_entries SET title=?,updated_at=?
     WHERE campaign_id=? AND kind='page' AND instr(content,?)>0`)
     .bind(draft.date.slice(2)+" — "+draft.title,now,internalId,marker).run();
-  return { id, ...draft, createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
+  return { id, ...draft, isPublished: true, createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
 }

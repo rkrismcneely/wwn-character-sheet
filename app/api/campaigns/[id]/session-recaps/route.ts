@@ -28,7 +28,7 @@ export async function POST(request: Request, context: Context): Promise<Response
     const actor = await getSessionActor(request);
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
-    const body = await readBoundedJson(request, 40 * 1024) as { date?: unknown; title?: unknown; content?: unknown };
+    const body = await readBoundedJson(request, 40 * 1024) as { date?: unknown; title?: unknown; content?: unknown; draftOnly?: unknown };
     return Response.json({ recap: await createCampaignSessionRecap(await getCampaignD1(), actor, id, body ?? {}) }, { status: 201 });
   } catch (error) {
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });

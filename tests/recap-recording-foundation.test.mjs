@@ -84,7 +84,7 @@ test("GM-only routes and new session creation mode coexist with manual recaps", 
   assert.match(imports, /readBoundedJson\(request, 8 \* 1024\)/u);
   assert.match(manager, /<SessionRecapRecordingSetup campaignId=\{campaignId\}/u);
   assert.match(manager, /Write recap/u);
-  assert.match(manager, /Import recording/u);
+  assert.match(manager, /Recap from recording/u);
   assert.match(manager, /method: editing === "new" \? "POST" : "PATCH"/u);
   assert.match(setup, /Guest/u);
   assert.match(setup, /Game Master \(may play multiple NPCs\)/u);

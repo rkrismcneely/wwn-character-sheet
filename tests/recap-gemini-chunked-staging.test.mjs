@@ -9,7 +9,8 @@ const MiB=1024*1024;
 const sessionUrl="https://generativelanguage.googleapis.com/upload/v1beta/files?upload_id=signed-twe-test";
 const job={id:"124e85d7-54e5-4fed-8241-95458b7191a5",requestedBy:"user-one"};
 const source={remoteFileId:"drive-audio-123456",byteSize:29*MiB+3,mimeType:"audio/mp4"};
-const config={RECAP_STORAGE_ENCRYPTION_KEY:Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")};
+const config={GOOGLE_CLIENT_ID:"test-client-id",GOOGLE_CLIENT_SECRET:"test-client-secret",
+  RECAP_STORAGE_ENCRYPTION_KEY:Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")};
 function simulate(){
   const row={stageUrlCiphertext:null,stageUrlNonce:null,stageUrlVersion:null,stageOffset:0,status:"transferring",fileUri:null,fileName:null};
   const history={offsets:[],driveRanges:[],started:0,queries:0,finals:0};

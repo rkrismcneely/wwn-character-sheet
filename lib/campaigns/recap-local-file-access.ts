@@ -47,6 +47,6 @@ export async function requestLocalRecapFileHandle():Promise<RememberedFileHandle
     showOpenFilePicker?: (options?:{types:{description:string;accept:Record<string,string[]>}[]})=>Promise<RememberedFileHandle[]>;
   }).showOpenFilePicker;
   if(!picker)return null;
-  const handles=await picker({types:[{description:"Uncompressed PCM WAV",accept:{"audio/wav":[".wav"]}}]});
+  const handles=await picker.call(window,{types:[{description:"Uncompressed PCM WAV",accept:{"audio/wav":[".wav"]}}]});
   return handles[0]??null;
 }

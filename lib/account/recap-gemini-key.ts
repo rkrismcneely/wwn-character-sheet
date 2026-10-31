@@ -5,7 +5,10 @@
 export type RecapAIEncryptionSettings={RECAP_STORAGE_ENCRYPTION_KEY?:string};
 export type EncryptedProviderKey={ciphertext:string;nonce:string;version:1};
 const KEY_PATTERN=/^[A-Za-z0-9_-]{43}$/u;
-const API_KEY_PATTERN=/^[A-Za-z0-9_-]{24,200}$/u;
+// Google AI Studio can issue different key types. Reject unsafe control/space
+// characters and unreasonably large values, but do not invent an API key
+// alphabet/length rule; Google's own read-only models endpoint verifies access.
+const API_KEY_PATTERN=/^[\\x21-\\x7e]{16,512}$/u;
 const encoder=new TextEncoder();
 
 export function recapAIEncryptionReady(config:RecapAIEncryptionSettings):boolean {
@@ -35,7 +38,7 @@ function associatedData(userId:string,id:string):Uint8Array<ArrayBuffer>{
 }
 export function validateGeminiUserKey(raw:unknown):string{
   if(typeof raw!=="string"||!API_KEY_PATTERN.test(raw))
-    throw new Error("Enter a valid Google AI Studio API key.");
+    throw new Error("Paste the full Google AI Studio API key string (not its key ID). Copy it again if it contains spaces or line breaks.");
   return raw;
 }
 export async function encryptGeminiUserKey(config:RecapAIEncryptionSettings,

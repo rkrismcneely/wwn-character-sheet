@@ -57,3 +57,34 @@ export function safeGeminiJobSummary(row:GeminiJobSummary):GeminiJobSummary{
     failureCode:row.failureCode,createdAt:row.createdAt,updatedAt:row.updatedAt,
   };
 }
+
+/** Metadata-only chunk plan. Each audio segment MUST be separately encoded as a
+ * genuine playable file before any R2/Drive staging or Gemini requests.
+ * Never split compressed FLAC/AAC by bytes.
+ */
+export function planGeminiAudioChunks(tracks:readonly {
+  trackIndex:number;startMs:number;durationMs:number;
+}[],chunkMs=20*60*1000):{
+  trackIndex:number;chunkIndex:number;startMs:number;endMs:number;
+}[]{
+  if(!Array.isArray(tracks)||tracks.length<1||tracks.length>GEMINI_BACKGROUND_MAX_TRACKS||
+    !Number.isSafeInteger(chunkMs)||chunkMs<60_000||chunkMs>GEMINI_BACKGROUND_MAX_CLIP_MS)
+    throw new Error("Choose 1–16 tracks and a valid segment duration.");
+  const chunks:{trackIndex:number;chunkIndex:number;startMs:number;endMs:number}[]=[];
+  const used=new Set<number>();
+  for(const track of tracks){
+    if(!Number.isSafeInteger(track.trackIndex)||track.trackIndex<0||track.trackIndex>127||
+      used.has(track.trackIndex)||!Number.isSafeInteger(track.startMs)||track.startMs<0||
+      !Number.isSafeInteger(track.durationMs)||track.durationMs<1000||
+      track.startMs+track.durationMs>8*60*60*1000)
+      throw new Error("Invalid or overlapping Craig source timeline metadata.");
+    used.add(track.trackIndex);
+    for(let from=0,index=0;from<track.durationMs;from+=chunkMs,index++){
+      chunks.push({trackIndex:track.trackIndex,chunkIndex:index,
+        startMs:track.startMs+from,endMs:track.startMs+Math.min(track.durationMs,from+chunkMs)});
+    }
+  }
+  if(chunks.length>GEMINI_BACKGROUND_MAX_CLIPS_PER_JOB)
+    throw new Error("Recording exceeds the bounded Gemini job chunk budget.");
+  return chunks.sort((a,b)=>a.startMs-b.startMs||a.trackIndex-b.trackIndex);
+}

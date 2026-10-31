@@ -59,6 +59,18 @@ test("retry requeues the same owner-approved job without inserting any new job",
   assert.deepEqual(await retrySafeRecapPreparation(staging,input),
     {resumed:true,status:"uploaded"});
 });
+test("retry after Gemini HTTP 400 resets only the temporary upload, not the approved recap job",async()=>{
+  const db=mockDatabase({...failed,stageErrorCode:"gemini_chunk_http_400"});
+  assert.deepEqual(await retrySafeRecapPreparation(db,input),
+    {resumed:true,status:"pending_upload"});
+  const update=db.statements.find(x=>x.sql.startsWith("UPDATE"));
+  assert.ok(update);
+  assert.match(update.sql,/stage_url_ciphertext=CASE WHEN \? THEN NULL/u);
+  assert.match(update.sql,/stage_offset=CASE WHEN \? THEN 0/u);
+  assert.deepEqual(update.args.slice(2,6),[1,1,1,1]);
+  assert.equal(db.statements.filter(x=>x.sql.startsWith("INSERT")).length,0);
+});
+
 test("no retry for unsafe submissions, invalid state, missing storage, key or nonprivate recap",async()=>{
   for(const bad of [
     {...failed,errorCode:"submission_uncertain"},

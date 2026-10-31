@@ -6,6 +6,17 @@ type Connection={id:string;status:"connected"|"disconnected"|"needs_attention";
   connectedAt:string|null;updatedAt:string;keyFingerprint:string|null};
 type State={configured:boolean;connection:Connection|null};
 const url="/api/account/recap-ai/gemini";
+/** An upstream Worker error can have no JSON body. Show guidance, never a JSON parser exception. */
+async function readAccountReply<T extends {error?:string}>(response:Response):Promise<T>{
+  const raw=await response.text();
+  let body:T;
+  try {body=JSON.parse(raw) as T;}
+  catch {throw new Error(response.ok
+    ? "The account server returned an invalid response. Reload Account and try again."
+    : "The account service is not ready. Reload Account and try again; if this continues, check the recap database migration.");}
+  if(!response.ok)throw new Error(body.error||"Account service unavailable.");
+  return body;
+}
 export function RecapAIConnections(){
   const [state,setState]=useState<State|null>(null);
   const [key,setKey]=useState("");
@@ -17,8 +28,7 @@ export function RecapAIConnections(){
     const controller=new AbortController();
     void fetch(url,{cache:"no-store",signal:controller.signal})
       .then(async response=>{
-        const json=await response.json() as State&{error?:string};
-        if(!response.ok)throw new Error(json.error??"Could not load Gemini connection.");
+        const json=await readAccountReply<State&{error?:string}>(response);
         if(!controller.signal.aborted)setState(json);
       }).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Connection status unavailable.");});
     return ()=>controller.abort();
@@ -28,12 +38,11 @@ export function RecapAIConnections(){
     try{
       const response=await fetch(url,{method,headers:{"content-type":"application/json"},
         body:body?JSON.stringify(body):undefined,cache:"no-store"});
-      const json=await response.json() as {saved?:boolean;disconnected?:boolean;verified?:boolean;
-        notice?:string;error?:string};
-      if(!response.ok)throw new Error(json.error??"Could not update Gemini connection.");
+      const json=await readAccountReply<{saved?:boolean;disconnected?:boolean;verified?:boolean;
+        notice?:string;error?:string}>(response);
       const refreshed=await fetch(url,{cache:"no-store"});
-      const detail=await refreshed.json() as State;
-      if(refreshed.ok)setState(detail);
+      const detail=await readAccountReply<State>(refreshed);
+      setState(detail);
       if(method==="PUT"){setKey("");setApproved(false);}
       setNotice(json.notice??(method==="PUT"?"Gemini key stored encrypted. Verify model access when ready.":
         method==="DELETE"?"Gemini key disconnected from TWE.":"Gemini access verified."));
@@ -71,6 +80,14 @@ export function RecapAIConnections(){
     {state&&!state.configured&&<p className="account-error" role="status">
       Encrypted AI connections are not configured on this deployment. You cannot save an API key yet.
     </p>}
+    <div className="account-actions">
+      <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer"
+         className="account-secondary">Get a Gemini API key from Google AI Studio</a>
+    </div>
+    <p className="account-explanation">
+      Open Google AI Studio, create or select a project, choose <strong>Create API key</strong>,
+      copy the key, and paste it below. Check its quotas and billing settings before using AI.
+    </p>
     <form className="account-form" onSubmit={save}>
       <label htmlFor="recap-gemini-api-key">Personal Google AI Studio API key</label>
       <input id="recap-gemini-api-key" type="password" value={key} autoComplete="off"

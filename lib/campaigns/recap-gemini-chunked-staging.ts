@@ -1,6 +1,7 @@
 import {
   encryptDriveRefreshToken,decryptDriveRefreshToken,type DriveSettings,
 } from "../account/recap-google-drive-oauth.ts";
+import {geminiAudioMime} from "./recap-gemini-audio-mime.ts";
 
 const API="https://generativelanguage.googleapis.com";
 // Google's official Go Gemini client uses 8 MiB per upload chunk.
@@ -20,7 +21,8 @@ export type StagingErrorCode=
   | "gemini_chunk_http_404" | "gemini_chunk_http_409" | "gemini_chunk_http_413"
   | "gemini_chunk_http_429" | "gemini_chunk_http_500" | "gemini_chunk_http_502"
   | "gemini_chunk_http_503" | "gemini_chunk_http_504"
-  | "gemini_upload_receipt_invalid" | "staging_data_unavailable";
+  | "gemini_upload_receipt_invalid" | "gemini_upload_finalization_uncertain"
+  | "gemini_file_processing_failed" | "gemini_file_not_active" | "staging_data_unavailable";
 
 export class RecapStagingFailure extends Error{
   readonly code:StagingErrorCode;
@@ -44,12 +46,6 @@ function uploadSessionUrl(raw:string):string{
     raw.length>8192)
     throw new RecapStagingFailure("gemini_upload_session_invalid");
   return parsed.href;
-}
-function audioMime(raw:string):string{
-  if(raw==="audio/mp4"||raw==="audio/m4a")return "audio/mp4";
-  if(raw==="audio/mpeg"||raw==="audio/mp3")return "audio/mpeg";
-  if(["audio/aac","audio/flac","audio/wav"].includes(raw))return raw;
-  throw new RecapStagingFailure("drive_range_invalid");
 }
 function validReceipt(data:unknown):{uri:string;name:string}{
   const file=(data as {file?:{uri?:unknown;name?:unknown}}|null)?.file;
@@ -93,8 +89,8 @@ async function startingSession(env:StagingEnv,job:Job,secret:string,src:StagedSo
       headers:{"x-goog-api-key":secret,"content-type":"application/json",
         "x-goog-upload-protocol":"resumable","x-goog-upload-command":"start",
         "x-goog-upload-header-content-length":String(src.byteSize),
-        "x-goog-upload-header-content-type":audioMime(src.mimeType)},
-      body:JSON.stringify({file:{display_name:"TWE private recap audio"}}),
+        "x-goog-upload-header-content-type":geminiAudioMime(src.mimeType)},
+      body:JSON.stringify({file:{display_name:"TWE recap "+job.id}}),
     });
   }catch{throw new RecapStagingFailure("gemini_file_start_failed");}
   if(!response.ok||response.redirected)throw new RecapStagingFailure("gemini_file_start_failed");
@@ -119,12 +115,11 @@ async function startingSession(env:StagingEnv,job:Job,secret:string,src:StagedSo
   if(change.meta.changes!==1)throw new RecapStagingFailure("staging_data_unavailable");
   return url;
 }
-async function queryOffset(url:string,total:number,secret:string):Promise<number>{
+type OffsetReply={status:"active"|"final";bytes:number};
+async function queryOffset(url:string,total:number,secret:string):Promise<OffsetReply>{
   let response:Response;
   try{response=await fetch(url,{
     method:"POST",redirect:"manual",
-    // Align with Google's official SDK: authenticate query requests as well
-    // as session creation and individual uploads. URL is origin-validated.
     headers:{"x-goog-upload-command":"query","x-goog-api-key":secret},
     signal:AbortSignal.timeout(15000),
   });}catch{throw new RecapStagingFailure("gemini_upload_offset_unknown");}
@@ -133,15 +128,71 @@ async function queryOffset(url:string,total:number,secret:string):Promise<number
   if(!response.ok||response.redirected)
     throw new RecapStagingFailure("gemini_upload_offset_unknown");
   const state=response.headers.get("x-goog-upload-status");
-  if(state&&state!=="active")
-    throw new RecapStagingFailure("gemini_upload_session_expired");
-  const text=response.headers.get("x-goog-upload-size-received");
-  if(text===null||!/^\d+$/u.test(text))
+  if(state!=="active"&&state!=="final")
     throw new RecapStagingFailure("gemini_upload_offset_unknown");
-  const count=Number(text);
-  if(!Number.isSafeInteger(count)||count<0||count>=total)
+  const raw=response.headers.get("x-goog-upload-size-received");
+  if(raw===null||!/^\\d+$/u.test(raw))
     throw new RecapStagingFailure("gemini_upload_offset_unknown");
-  return count;
+  const bytes=Number(raw);
+  if(!Number.isSafeInteger(bytes)||bytes<0||bytes>total||
+    (state==="final"&&bytes!==total)||
+    (state==="active"&&bytes===total))
+    throw new RecapStagingFailure("gemini_upload_offset_unknown");
+  return {status:state,bytes};
+}
+
+/** A finalized session may have lost its browser/Worker receipt. Recover by
+ * matching the unique per-job display name, exact original byte size and MIME
+ * from this GM's own Gemini Files listing; never accept an arbitrary file ID.
+ * List at most three pages and fail closed if ambiguous or still unindexed.
+ */
+async function recoverCompletedFile(job:Job,source:StagedSource,secret:string){
+  const matches:{uri:string;name:string}[]=[];
+  let pageToken:string|undefined;
+  for(let page=0;page<3;page++){
+    const url=new URL(API+"/v1beta/files");
+    url.searchParams.set("pageSize","100");
+    if(pageToken)url.searchParams.set("pageToken",pageToken);
+    let response:Response;
+    try{response=await fetch(url.toString(),{
+      redirect:"manual",headers:{"x-goog-api-key":secret},
+      signal:AbortSignal.timeout(12000),
+    });}catch{throw new RecapStagingFailure("gemini_upload_finalization_uncertain");}
+    if(!response.ok||response.redirected)
+      throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
+    const data=await smallJson(response) as {
+      files?:{displayName?:unknown;sizeBytes?:unknown;mimeType?:unknown;uri?:unknown;name?:unknown}[];
+      nextPageToken?:unknown;
+    };
+    if(!data||!Array.isArray(data.files))
+      throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
+    for(const file of data.files){
+      if(file.displayName!=="TWE recap "+job.id||
+        String(file.sizeBytes)!==String(source.byteSize)||
+        file.mimeType!==geminiAudioMime(source.mimeType))continue;
+      try{matches.push(validReceipt({file}));}catch{
+        throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
+      }
+    }
+    if(matches.length>1)throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
+    pageToken=typeof data.nextPageToken==="string"&&data.nextPageToken?data.nextPageToken:undefined;
+    if(!pageToken){
+      if(matches.length===1)return matches[0];
+      throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
+    }
+  }
+  // A partial paginated listing is not proof of uniqueness.
+  throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
+}
+async function storeCompletedFile(
+  env:StagingEnv,job:Job,source:StagedSource,file:{uri:string;name:string},
+):Promise<void>{
+  const result=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+    "SET status='uploaded',file_uri=?,file_name=?,stage_url_ciphertext=NULL,"+
+    "stage_url_nonce=NULL,stage_url_version=NULL,stage_offset=?,updated_at=? "+
+    "WHERE id=? AND status='transferring'")
+    .bind(file.uri,file.name,source.byteSize,new Date().toISOString(),job.id).run();
+  if(result.meta.changes!==1)throw new RecapStagingFailure("staging_data_unavailable");
 }
 /** One cron slice: safely stage a few bounded Drive range bytes into Gemini.
  * Uint8Array bodies have a fixed Content-Length in Cloudflare Workers; unlike
@@ -168,7 +219,13 @@ export async function stageRecapAudioChunked(
         ciphertext:row.stageUrlCiphertext,nonce:row.stageUrlNonce,version:row.stageUrlVersion,
       }));
     }catch{throw new RecapStagingFailure("staging_data_unavailable");}
-    offset=await queryOffset(url,source.byteSize,secret);
+    const checkpoint=await queryOffset(url,source.byteSize,secret);
+    if(checkpoint.status==="final"){
+      const file=await recoverCompletedFile(job,source,secret);
+      await storeCompletedFile(env,job,source,file);
+      return {done:true,bytes:source.byteSize,total:source.byteSize};
+    }
+    offset=checkpoint.bytes;
     if(offset!==row.stageOffset){
       const synced=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
         "SET stage_offset=?,updated_at=? WHERE id=? AND status='transferring' "+
@@ -219,16 +276,16 @@ export async function stageRecapAudioChunked(
         throw new RecapStagingFailure(("gemini_chunk_http_"+response.status) as StagingErrorCode);
       throw new RecapStagingFailure("gemini_chunk_rejected");
     }
+    const acknowledgement=response.headers.get("x-goog-upload-status");
     if(final){
+      if(acknowledgement!=="final")
+        throw new RecapStagingFailure("gemini_upload_finalization_uncertain");
       const file=validReceipt(await smallJson(response));
-      const result=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
-        "SET status='uploaded',file_uri=?,file_name=?,stage_url_ciphertext=NULL,"+
-        "stage_url_nonce=NULL,stage_url_version=NULL,stage_offset=?,updated_at=? "+
-        "WHERE id=? AND status='transferring' AND stage_offset=?")
-        .bind(file.uri,file.name,source.byteSize,new Date().toISOString(),job.id,offset).run();
-      if(result.meta.changes!==1)throw new RecapStagingFailure("staging_data_unavailable");
+      await storeCompletedFile(env,job,source,file);
       return {done:true,bytes:source.byteSize,total:source.byteSize};
     }
+    if(acknowledgement!=="active")
+      throw new RecapStagingFailure("gemini_upload_offset_unknown");
     const updated=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
       "SET stage_offset=?,updated_at=? WHERE id=? AND status='transferring' "+
       "AND stage_offset=?").bind(offset+length,new Date().toISOString(),job.id,offset).run();

@@ -68,3 +68,20 @@ test("Account manages Gemini access, explicitly informs of billing and no false 
   assert.doesNotMatch(ui,/localStorage|sessionStorage/u);
   assert.match(page,/RecapAIConnections/u);
 });
+
+test("Gemini transcription consumes only invoking GM's own encrypted account connection",async()=>{
+  const [api,client]=await Promise.all([
+    read("../app/api/campaigns/[id]/session-recaps/transcript/gemini/route.ts"),
+    read("../app/campaigns/session-recap-groq-transcriber.tsx"),
+  ]);
+  assert.match(api,/WHERE user_id=\? AND provider='gemini'/u);
+  assert.match(api,/\.bind\(actor\.userId\)/u);
+  assert.match(api,/decryptGeminiUserKey/u);
+  assert.match(api,/row\.status!=="connected"/u);
+  assert.match(api,/actor\.userId,row\.id/u);
+  assert.doesNotMatch(api,/sharedGeminiKey|SITE_OWNER_GEMINI_KEY|process\.env\.GOOGLE_API_KEY/u);
+  assert.match(client,/connectedGemini/u);
+  assert.match(client,/api\/account\/recap-ai\/gemini/u);
+  assert.match(client,/\(!key\.trim\(\)\&\&!connectedGemini\)/u);
+  assert.match(client,/if\(key\.trim\(\)\)form\.set\("apiKey",key\.trim\(\)\)/u);
+});

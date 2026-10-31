@@ -4,7 +4,7 @@ import {getGmDriveAccessToken} from "./recap-drive-token.ts";
 import {redactJournalSecrets} from "./journal.ts";
 
 export type RecapOnlyEnvironment=DriveSettings&RecapAIEncryptionSettings&{DB:D1Database};
-export const RECAP_ONLY_MODEL="gemini-3.6-flash";
+export const RECAP_ONLY_MODEL="gemini-3.8-flash";
 export const RECAP_ONLY_MAX_AUDIO_BYTES=2*1024*1024*1024;
 const API="https://generativelanguage.googleapis.com";
 const MAX_TEXT=30000;
@@ -21,16 +21,13 @@ const now=()=>new Date().toISOString();
 const stamped=(ms:number)=>new Date(ms).toISOString();
 
 async function keyFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
-  const [settings,key]=await Promise.all([
-    env.DB.prepare("SELECT 1 AS ok FROM user_recap_auto_preferences WHERE user_id=? "+
-      "AND auto_enabled=1 AND billing_approved=1 AND consent_at IS NOT NULL")
-      .bind(job.requestedBy).first(),
-    env.DB.prepare("SELECT id,key_ciphertext AS ciphertext,key_nonce AS nonce,"+
-      "key_version AS version FROM user_recap_ai_connections WHERE user_id=? "+
-      "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
-      .bind(job.requestedBy).first<Credential>(),
-  ]);
-  if(!settings||!key||key.version!==1)throw Error("Gemini connection or explicit processing approval missing.");
+  // The job could only have been enqueued by an authenticated GM's
+  // explicit, per-recording confirmation. Never rely on account-wide automation.
+  const key=await env.DB.prepare("SELECT id,key_ciphertext AS ciphertext,key_nonce AS nonce,"+
+    "key_version AS version FROM user_recap_ai_connections WHERE user_id=? "+
+    "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
+    .bind(job.requestedBy).first<Credential>();
+  if(!key||key.version!==1)throw Error("Gemini connection or explicit processing approval missing.");
   return decryptGeminiUserKey(env,job.requestedBy,key.id,
     {ciphertext:key.ciphertext,nonce:key.nonce,version:1});
 }

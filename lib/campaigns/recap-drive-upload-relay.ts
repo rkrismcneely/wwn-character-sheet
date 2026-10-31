@@ -26,7 +26,7 @@ function toBase64url(bytes:ArrayBuffer):string{
   return btoa(String.fromCharCode(...new Uint8Array(bytes)))
     .replaceAll("+","-").replaceAll("/","_").replace(/=+$/u,"");
 }
-function fromBase64url(encoded:string):Uint8Array{
+function fromBase64url(encoded:string):Uint8Array<ArrayBuffer>{
   const raw=atob(encoded.replaceAll("-","+").replaceAll("_","/"));
   const bytes=new Uint8Array(new ArrayBuffer(raw.length));
   for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);

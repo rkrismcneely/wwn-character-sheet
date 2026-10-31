@@ -63,7 +63,8 @@ function responseFor(s){
       s.history.offsets.push({offset,count});
       if(opts.headers["x-goog-upload-command"]==="upload, finalize")
         return Response.json({file:{name:"files/audio0001",
-          uri:"https://generativelanguage.googleapis.com/v1beta/files/audio0001"}});
+          uri:"https://generativelanguage.googleapis.com/v1beta/files/audio0001"}},
+          {headers:{"x-goog-upload-status":"final"}});
       return new Response(null,{status:200,headers:{"x-goog-upload-status":"active"}});
     }
     if(String(url).startsWith("https://www.googleapis.com/drive/v3/files/")){
@@ -136,6 +137,58 @@ test("Gemini resumable session enforces provider-advertised upload chunk granula
   }finally{globalThis.fetch=original;}
 });
 
+test("an unacknowledged chunk does not advance TWE's recorded bytes",async()=>{
+  const state=simulate(),original=globalThis.fetch,base=responseFor(state);
+  globalThis.fetch=async(url,opts)=>{
+    if(url===sessionUrl&&opts.headers["x-goog-upload-command"]==="upload")
+      return new Response(null,{status:200});
+    return base(url,opts);
+  };
+  try{
+    await assert.rejects(()=>stageRecapAudioChunked(
+      state.env,job,"private-test-key",source,"private-drive-bearer"),
+      e=>e instanceof RecapStagingFailure&&e.code==="gemini_upload_offset_unknown");
+    assert.equal(state.row.stageOffset,0);
+  }finally{globalThis.fetch=original;}
+});
+test("a lost final upload receipt can recover the exact job's completed Gemini file",async()=>{
+  const state=simulate();
+  const original=globalThis.fetch,base=responseFor(state);
+  let finalAccepted=false,queryCount=0,listed=0;
+  globalThis.fetch=async(url,opts)=>{
+    if(url===sessionUrl&&opts.headers["x-goog-upload-command"]==="query"){
+      queryCount++;
+      if(finalAccepted)return new Response(null,{status:200,headers:{
+        "x-goog-upload-status":"final",
+        "x-goog-upload-size-received":String(source.byteSize),
+      }});
+      return base(url,opts);
+    }
+    if(url===sessionUrl&&opts.headers["x-goog-upload-command"]==="upload, finalize"){
+      finalAccepted=true;
+      throw Error("Connection terminated after provider accepted final chunk");
+    }
+    if(String(url).startsWith("https://generativelanguage.googleapis.com/v1beta/files?")){
+      listed++;return Response.json({files:[{
+        displayName:"TWE recap "+job.id,sizeBytes:String(source.byteSize),
+        mimeType:"audio/m4a",name:"files/audio0001",
+        uri:"https://generativelanguage.googleapis.com/v1beta/files/audio0001",
+      }]});
+    }
+    return base(url,opts);
+  };
+  try{
+    await assert.rejects(()=>stageRecapAudioChunked(state.env,job,"private-test-key",source,"private-drive-bearer"),
+      e=>e instanceof RecapStagingFailure&&e.code==="gemini_chunk_network_error");
+    assert.equal(state.row.stageOffset,24*MiB);
+    const restored=await stageRecapAudioChunked(state.env,job,"private-test-key",source,"private-drive-bearer");
+    assert.equal(restored.done,true);
+    assert.equal(state.row.status,"uploaded");
+    assert.equal(state.row.fileName,"files/audio0001");
+    assert.equal(state.history.started,1);
+    assert.ok(queryCount>0&&listed===1);
+  }finally{globalThis.fetch=original;}
+});
 test("Gemini HTTP chunk rejections preserve only safe status codes; never expose provider secrets",async()=>{
   const original=globalThis.fetch;
   try{

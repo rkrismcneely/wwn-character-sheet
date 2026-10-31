@@ -1,4 +1,4 @@
-import { appendGeminiAssemblyDraft,geminiAssemblyObjectKey,
+import { appendGeminiAssemblyDraft,validateCompleteGeminiAssembly,geminiAssemblyObjectKey,
   geminiFragmentObjectKey,GEMINI_ASSEMBLY_BATCH_SIZE,
   type GeminiAssemblyDraft,type GeminiFragmentIdentity,
 } from "./recap-gemini-assembly.ts";
@@ -36,8 +36,19 @@ export async function assembleOneReadyGeminiJob(env:AssemblyEnv,now:string):Prom
     if(previous&&previous.size>2_000_000)throw new Error("Assembled draft is too large.");
     const draft=previous?await previous.json<GeminiAssemblyDraft>():null;
     const cursor=draft?.fragmentsProcessed??0;
-    if(cursor<job.assemblyCursor||cursor>=job.totalChunks)
+    if(cursor<job.assemblyCursor||cursor>job.totalChunks)
       throw new Error("Assembly checkpoint is inconsistent.");
+    if(draft && cursor===job.totalChunks){
+      validateCompleteGeminiAssembly(draft,job.id,job.recapId,job.totalChunks);
+      const updated=await env.DB.prepare("UPDATE campaign_recap_processing_jobs "+
+        "SET assembly_cursor=?,assembled_transcript_key=?,assembled_at=?,"+
+        "assembly_lease_token=NULL,assembly_lease_expires_at=NULL,updated_at=? "+
+        "WHERE id=? AND status='awaiting_review' AND assembly_lease_token=? "+
+        "AND assembled_at IS NULL AND paused_at IS NULL")
+        .bind(cursor,key,now,now,job.id,token).run();
+      if(updated.meta.changes!==1)throw new Error("Assembly checkpoint changed.");
+      return true;
+    }
     const limit=Math.min(GEMINI_ASSEMBLY_BATCH_SIZE,job.totalChunks-cursor);
     const chunks=await env.DB.prepare("SELECT track_index AS trackIndex,"+
       "chunk_index AS chunkIndex,start_ms AS startMs,end_ms AS endMs,"+

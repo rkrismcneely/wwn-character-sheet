@@ -123,6 +123,8 @@ test("GM sees explanatory actions, but never receives temporary Gemini file URI"
   assert.match(route,/getSessionActor/u);
   assert.match(route,/request\.headers\.get\("origin"\)!==CANONICAL_ORIGIN/u);
   assert.match(ui,/Retry AI processing/u);
+  assert.match(ui,/View partial AI notes/u);
+  assert.match(ui,/newest\.generatedMarkdown&&<details>/u);
   assert.match(ui,/recapAttentionText/u);
   assert.match(ui,/Copy diagnostics/u);
   assert.match(ui,/Test Gemini connection/u);

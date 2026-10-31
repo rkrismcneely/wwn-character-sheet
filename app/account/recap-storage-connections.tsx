@@ -18,6 +18,27 @@ type StorageStatus = {
 
 const ENDPOINT = "/api/account/storage/google-drive";
 
+// Fixed, actionable descriptions only. Never display arbitrary callback parameters
+// or Google's potentially sensitive OAuth response text.
+const DRIVE_CONNECT_ERRORS: Record<string, string> = {
+  invalid_origin: "Open Connect Google Drive from https://taleswithoutend.com/account.",
+  session_missing: "Your TWE sign-in expired during Google authorization. Sign in to TWE and connect again.",
+  oauth_denied: "Google could not authorize Drive access. Review the app permissions and try again.",
+  callback_incomplete: "Google did not return a complete authorization. Try Connect Google Drive again.",
+  state_cookie_missing: "Your browser did not return TWE's temporary connection cookie. Enable cookies for taleswithoutend.com and retry from this same browser tab.",
+  state_expired: "This Google Drive connection attempt expired or was already used. Click Connect Google Drive again.",
+  server_config: "TWE's Google Drive credentials or encryption configuration need attention. This is a site setup issue.",
+  token_exchange: "TWE could not exchange Google's approval for a Drive connection. The site's Google OAuth client credentials may need checking.",
+  missing_refresh_token: "Google did not provide a long-term Drive authorization. Try Connect Google Drive again and approve the requested access.",
+  missing_scope: "Google did not grant the limited file access TWE needs. Connect again and approve access to files created or shared with TWE.",
+  drive_api_disabled: "Google Drive API is not enabled for TWE's Google Cloud project. The site owner must enable Google Drive API, then connect again.",
+  drive_access_denied: "Google approved sign-in but denied Drive API access. Check that Google Drive API is enabled for the TWE project and retry.",
+  drive_api_unavailable: "Google Drive API did not respond successfully. Retry later; no recording was uploaded.",
+  secure_storage_error: "TWE could not securely encrypt the Drive permission. This is a server configuration issue.",
+  database_error: "TWE could not complete the Drive connection in its database. The site owner needs to check the recap database setup.",
+  unexpected: "TWE could not complete the connection after Google's approval. Please retry.",
+};
+
 async function readStatus(response: Response): Promise<StorageStatus> {
   // Cloudflare errors can contain an empty or non-JSON response. Don't expose
   // a JSON parser exception in the Account screen.
@@ -55,6 +76,7 @@ export function RecapStorageConnections() {
     const controller = new AbortController();
     const currentUrl = new URL(window.location.href);
     const outcome = currentUrl.searchParams.get("drive");
+    const errorCode = currentUrl.searchParams.get("drive_error");
     // Defer state updates until after the first render (React effect safety).
     const notification = window.setTimeout(() => {
       if (controller.signal.aborted) return;
@@ -63,11 +85,13 @@ export function RecapStorageConnections() {
       } else if (outcome === "cancelled") {
         setMessage("Google Drive connection cancelled. Nothing was changed.");
       } else if (outcome === "error") {
-        setError("Google couldn't complete the connection. Try again. If Google reports a redirect error, TWE needs to finish its Google authorization setup.");
+        setError(DRIVE_CONNECT_ERRORS[errorCode ?? ""] ??
+          "Google Drive could not be connected. Try again; the site owner may need to inspect its setup.");
       }
     }, 0);
     if (outcome === "connected" || outcome === "cancelled" || outcome === "error") {
       currentUrl.searchParams.delete("drive");
+      currentUrl.searchParams.delete("drive_error");
       window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search + currentUrl.hash);
     }
     const requestTimer = window.setTimeout(() => {

@@ -221,7 +221,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>
           <p className="campaign-empty-copy">
             These older tools remain available, but are not needed for a Recap Only workflow.
-            External AI processing can consume your provider's own quota.
+            External AI processing can consume your provider&apos;s own quota.
           </p>
           <SessionRecapRecordingSetup campaignId={campaignId} date={editing.date} onBack={cancelEdit}/>
           <SessionRecapTranscriptionOptions key={"providers-"+editing.id} campaignId={campaignId}

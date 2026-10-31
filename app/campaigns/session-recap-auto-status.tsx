@@ -46,7 +46,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,published=fal
   useEffect(()=>{
     const controller=new AbortController();
     void fetch("/api/account/recap-preferences",{cache:"no-store",signal:controller.signal})
-      .then(response=>response.ok?response.json():null)
+      .then(async response=>response.ok?await response.json() as {detail?:string}:null)
       .then((result:{detail?:string}|null)=>{
         if(!controller.signal.aborted&&["brief","standard","detailed"].includes(result?.detail??"")){
           const detail=result!.detail as "brief"|"standard"|"detailed";

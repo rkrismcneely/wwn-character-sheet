@@ -167,7 +167,7 @@ export async function relayGmDriveAudioUpload(db:D1Database,actor:CampaignActor|
     .bind(assetId,campaign.id,actor!.userId).first<{id:string;byteSize:number;recapId:string}>();
   if(!asset)throw new CampaignServiceError("This recording upload is no longer available.",404);
   // Check the recap remains visible/manageable by the requesting GM.
-  await getCampaignSessionRecap(db,actor,campaign.id,asset.recapId);
+  await getCampaignSessionRecap(db,actor,campaignId,asset.recapId);
   const url=request.headers.get("x-twe-drive-upload-session")??"";
   const issuedAt=Number(request.headers.get("x-twe-drive-upload-issued-at")??"");
   const ticket=request.headers.get("x-twe-drive-upload-ticket")??"";
@@ -235,7 +235,7 @@ export async function recoverGmDriveAudioUpload(
   input:{assetId?:unknown;recapId?:unknown},settings:DriveSettings,
 ):Promise<{found:boolean;ready:boolean}>{
   const campaign=await requireGm(db,actor,campaignId);
-  const recap=await getCampaignSessionRecap(db,actor,campaign.id,input.recapId);
+  const recap=await getCampaignSessionRecap(db,actor,campaignId,input.recapId);
   if(typeof input.assetId!=="string"||!UUID_PATTERN.test(input.assetId))
     throw new CampaignServiceError("Choose a valid recording upload to recover.",422);
   const asset=await db.prepare(
@@ -279,7 +279,7 @@ export async function recoverGmDriveAudioUpload(
   if(!remoteFileId)return {found:false,ready:false};
   // Reuse the original secured final verification, including matching actual
   // metadata, before changing the TWE asset from preparing to ready.
-  await finishGmDriveAudioUpload(db,actor,campaign.id,{
+  await finishGmDriveAudioUpload(db,actor,campaignId,{
     assetId:asset.id,remoteFileId,
   },settings);
   return {found:true,ready:true};

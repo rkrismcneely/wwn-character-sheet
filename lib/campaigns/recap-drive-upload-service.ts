@@ -1,6 +1,7 @@
 import { canManageCampaignContent } from "./authorization.ts";
 import { validateAudioUploadDraft, validateDriveSessionUrl, type UploadDraft } from "./recap-drive-upload.ts";
 import { getGmDriveAccessToken } from "./recap-drive-token.ts";
+import { ensureRecapDriveFolder } from "./recap-drive-folder.ts";
 import { getCampaignSessionRecap } from "./session-recaps.ts";
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
@@ -64,9 +65,11 @@ export async function beginGmDriveAudioUpload(
   }
   const accessToken=await getGmDriveAccessToken(db,settings,actor!.userId,input.connectionId);
   const assetId=crypto.randomUUID();
+  const folderId=processingJobId?null:await ensureRecapDriveFolder(accessToken);
   // The appProperties marker is verified *server-side* when upload completes.
   const metadata={
     name:draft.filename,mimeType:draft.mimeType,
+    ...(folderId?{parents:[folderId]}:{}),
     appProperties:{tweAudioAssetId:assetId,tweCampaignId:campaign.id},
   };
   const response=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,size,appProperties",{

@@ -25,13 +25,17 @@ export async function GET(request:Request,ctx:Context){
   try{
     const info=await gm(request,ctx,new URL(request.url).searchParams.get("recapId"));
     const rows=await info.db.prepare("SELECT id,audio_asset_id AS audioAssetId,status,detail,model,generated_markdown AS generatedMarkdown,"+
-      "error_code AS errorCode,created_at AS createdAt,updated_at AS updatedAt,"+
+      "error_code AS errorCode,stage_error_code AS stageErrorCode,"+
+      "stage_offset AS stageBytes,"+
+      "(SELECT byte_size FROM campaign_recap_audio_assets a WHERE a.id=audio_asset_id) AS totalBytes,"+
+      "created_at AS createdAt,updated_at AS updatedAt,"+
       "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId "+
       "FROM campaign_recap_audio_summary_jobs WHERE campaign_id=? AND recap_id=? "+
       "AND requested_by=? AND confirmed_at IS NOT NULL ORDER BY created_at DESC LIMIT 4")
       .bind(info.campaign.id,info.recap.id,info.actor.userId).all<{
         id:string;audioAssetId:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
-        errorCode:string|null;createdAt:string;updatedAt:string;
+        errorCode:string|null;stageErrorCode:string|null;stageBytes:number;totalBytes:number|null;
+        createdAt:string;updatedAt:string;
         fileUri:string|null;fileName:string|null;interactionId:string|null;
       }>();
     // Only return a boolean; the Gemini file URI and interaction ID must not

@@ -105,7 +105,7 @@ test("GM-only staging connects FLAC source to private Drive with verified upload
     read("../package.json"),read("../package-lock.json"),
   ]);
   for(const expected of ["streamCraigFlacSpeech","planCraigFlacSpeechParts",
-    "Prepare entire FLAC in my Drive","openPrivateCraigRangeReader",
+    "Prepare full Craig audio (FLAC or AAC) in my Drive","openPrivateCraigRangeReader",
     "sourceTransfer","bytesLabel(expectedStorage)","sourceDigest",
     "old.sourceDigest!==digest","uploadRecordingToDrive",
     'action:"attach"','action:"plan"',"Auto","Keep this page open"]){

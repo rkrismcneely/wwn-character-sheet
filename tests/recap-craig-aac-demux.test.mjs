@@ -63,6 +63,6 @@ test("AAC inspection UI keeps decoding and billable Gemini disabled",async()=>{
   const ui=await readFile(new URL("../app/campaigns/session-recap-gemini-drive-staging.tsx",import.meta.url),"utf8");
   assert.match(ui,/inspectCraigAacMp4/u);
   assert.match(ui,/AAC metadata verified/u);
-  assert.match(ui,/AAC decoding\/Drive upload is not yet implemented/u);
+  assert.match(ui,/AAC metadata is ready for browser WebCodecs/u);
   assert.match(ui,/Automatic Gemini submission remains disabled/u);
 });

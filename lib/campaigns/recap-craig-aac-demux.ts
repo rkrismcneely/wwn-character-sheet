@@ -13,6 +13,7 @@ type TimeRun={count:number;delta:number};
 export type CraigAacSample={offset:number;length:number;timestampUs:number;durationUs:number};
 export type CraigAacIndex={
   durationMs:number;sampleRate:number;channels:number;sampleCount:number;
+  totalFrames:number;
   codec:"mp4a.40.2";description:Uint8Array;
   /** New iterator per attempt. Packets reference original private source ranges. */
   samples:()=>IterableIterator<CraigAacSample>;
@@ -215,6 +216,15 @@ export async function inspectCraigAacMp4(source:CraigFlacSource):Promise<CraigAa
   }
   if(timedSamples!==sampleCount||Math.abs(timedUnits-totalTime)>timeScale)
     invalid("AAC packet count or duration differs from media timeline.");
+  // AAC codec output must have an exact PCM sample timeline. Reject packet
+  // durations with fractional sample counts rather than shifting captions.
+  if(timeRuns.some(run=>(run.delta*sampleRate)%timeScale!==0)||
+    (timedUnits*sampleRate)%timeScale!==0)
+    invalid("AAC packet timing cannot be mapped to exact PCM frames.");
+  const totalFrames=timedUnits*sampleRate/timeScale;
+  if(!Number.isSafeInteger(totalFrames)||totalFrames<sampleRate||
+    totalFrames>sampleRate*8*3600)
+    invalid("AAC frame timeline exceeds the supported session limit.");
   const stsc=table(metadata,one(parts,"stsc")!,o,12,CRAIG_AAC_MAX_SAMPLES);
   const chunkRuns:SampleRun[]=[];
   for(let i=0;i<stsc.count;i++){
@@ -259,6 +269,6 @@ export async function inspectCraigAacMp4(source:CraigFlacSource):Promise<CraigAa
   }
   // Preflight every offset before reporting readiness. Generator keeps no per-packet objects.
   for(const _ of samples()){void _;}
-  return {durationMs:Math.round(duration*1000),sampleRate,channels,
-    sampleCount,codec:"mp4a.40.2",description,samples};
+  return {durationMs:Math.round(totalFrames/sampleRate*1000),sampleRate,channels,
+    sampleCount,totalFrames,codec:"mp4a.40.2",description,samples};
 }

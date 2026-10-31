@@ -11,8 +11,10 @@ import { decodeShortCraigAudio,makeDecodedGeminiSpeechClip,
 import { openPrivateCraigRangeReader,inspectCraigFlacStreamInfo,
   type CraigLongSourceMetadata } from "@/lib/campaigns/recap-craig-range-browser";
 import { CRAIG_RANGE_WINDOW_BYTES } from "@/lib/campaigns/recap-craig-audio-ranges";
-import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES } from "@/lib/campaigns/recap-craig-flac-stream";
+import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES,
+  type CraigFlacSpeechPart } from "@/lib/campaigns/recap-craig-flac-stream";
 import { inspectCraigAacMp4 } from "@/lib/campaigns/recap-craig-aac-demux";
+import {streamCraigAacSpeech,planCraigAacSpeechParts} from "@/lib/campaigns/recap-craig-aac-stream";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
@@ -269,16 +271,16 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         setSourceMessage("AAC metadata verified: "+index.sampleCount+
           " AAC-LC packets mapped to their original byte offsets. "+
           "Only bounded container metadata was downloaded. "+
-          "AAC decoding/Drive upload is not yet implemented.");
+          "AAC metadata is ready for browser WebCodecs conversion where supported.");
       }
       setLongSource({meta:stream.metadata,durationMs,sampleRate,aacPackets});
     }catch(e){setError(errorMessage(e));}
     finally{longAbort.current=null;setSourceBusy(false);}
   }
-  async function prepareFullFlacToDrive(){
+  async function prepareFullCraigToDrive(){
     if(busy||sourceBusy||!job||job.status!=="awaiting_source"||job.pausedAt||
       !connectionId||!importId||trackIndex==="")return;
-    setBusy(true);setError("");setMessage("");setCount(0);
+    setBusy(true);setSourceBusy(true);setError("");setMessage("");setCount(0);
     setUploadBytes({sent:0,total:0});setSourceTransfer({bytes:0,total:0});
     stopRequested.current=false;
     const controller=new AbortController();longAbort.current=controller;
@@ -288,13 +290,15 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         signal:controller.signal,
         onProgress:p=>setSourceTransfer({bytes:p.receivedBytes,total:p.totalSourceBytes}),
       });
-      if(source.metadata.mimeType!=="audio/flac")
-        throw new Error("Full-length conversion currently supports FLAC only. AAC/M4A needs separate demuxing.");
-      const header=inspectCraigFlacStreamInfo(await source.read(0,64));
-      const parts=planCraigFlacSpeechParts(header);
+      const isFlac=source.metadata.mimeType==="audio/flac";
+      const aacIndex=isFlac?null:await inspectCraigAacMp4(source);
+      const parts=isFlac?
+        planCraigFlacSpeechParts(inspectCraigFlacStreamInfo(await source.read(0,64))):
+        planCraigAacSpeechParts(aacIndex!);
       const expectedStorage=parts.reduce((sum,part)=>sum+44+part.targetFrames*2,0);
-      setSourceMessage("Decoding in small ranges: "+parts.length+" clips; estimated Drive storage "+
-        bytesLabel(expectedStorage)+". Keep this page open. Returning later re-decodes the FLAC but skips matching uploaded clips.");
+      setSourceMessage("Preparing "+(isFlac?"FLAC":"AAC-LC")+" in bounded batches: "+
+        parts.length+" clips. Projected GM Drive storage "+bytesLabel(expectedStorage)+
+        ". Keep this page open; repeat preparation to verify and skip matching staged clips.");
       const current=await refresh(selectedJob.id);
       let existing=current.clips.filter(part=>part.trackIndex===index);
       if(existing.length===0){
@@ -307,21 +311,15 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       }
       if(existing.length!==parts.length||existing.some((part,i)=>
         part.chunkIndex!==i||part.startMs!==parts[i].startMs||part.endMs!==parts[i].endMs))
-        throw new Error("The verified FLAC duration differs from the saved plan. The recording cannot be silently replaced.");
+        throw new Error("The verified original audio differs from the saved clip plan. The recording cannot be silently replaced.");
       const planned=existing;
-      await streamCraigFlacSpeech({
-        source,signal:controller.signal,
-        onProgress:p=>setSourceMessage(
-          "Decoded "+p.clipsCompleted+"/"+p.clipsTotal+" audio clips. "+
-          "Downloaded "+bytesLabel(p.sourceBytes)+"/"+bytesLabel(p.sourceTotal)+
-          " of original FLAC in up to "+p.estimatedR2Reads+" private reads."),
-        onClip:async(converted,part)=>{
+      const uploadClip=async(converted:File,part:CraigFlacSpeechPart)=>{
           if(stopRequested.current||controller.signal.aborted)
-            throw new Error("FLAC preparation stopped. Uploaded clips remain in Drive.");
+            throw new Error("Audio preparation stopped. Uploaded clips remain in Drive.");
           const digest=await sha(converted),old=planned[part.chunkIndex];
           if(old.staged){
             if(old.sourceDigest!==digest)
-              throw new Error("Previously uploaded FLAC speech clip did not match its checksum.");
+              throw new Error("Previously uploaded speech clip did not match its checksum.");
             setCount(part.chunkIndex+1);return;
           }
           const started=await readJSON<{assetId:string;uploadSessionUrl:string;chunkBytes:number}>(
@@ -349,12 +347,30 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
               assetId:started.assetId,sourceDigest:digest}),
           });
           setCount(part.chunkIndex+1);await refresh(selectedJob.id);
-        },
-      });
-      setMessage("Full FLAC speaker track prepared and verified in your Google Drive. "+
+      };
+      if(isFlac){
+        await streamCraigFlacSpeech({
+          source,signal:controller.signal,onClip:uploadClip,
+          onProgress:p=>setSourceMessage(
+            "FLAC clips staged "+p.clipsCompleted+"/"+p.clipsTotal+
+            ". Source retrieved "+bytesLabel(p.sourceBytes)+"/"+bytesLabel(p.sourceTotal)+
+            "; approximately "+p.estimatedR2Reads+" Cloudflare R2 reads."),
+        });
+      }else{
+        await streamCraigAacSpeech({
+          source,index:aacIndex!,signal:controller.signal,onClip:uploadClip,
+          onProgress:p=>setSourceMessage(
+            "AAC packets decoded "+p.packetsDecoded+"/"+p.packetsTotal+
+            "; Drive clips staged "+p.clipsCompleted+"/"+p.clipsTotal+
+            ". Audio retrieved "+bytesLabel(p.sourceBytes)+
+            " using "+p.sourceReadRequests+" bounded Cloudflare R2 reads. "+
+            "Gemini transcription remains disabled."),
+        });
+      }
+      setMessage("Full "+(isFlac?"FLAC":"AAC")+" speaker track prepared and verified in your Google Drive. "+
         "Prepare the other Craig speakers, then seal the job. Automatic Gemini submission remains disabled.");
     }catch(e){
-      setError(errorMessage(e)+" Confirmed clips remain saved. Retry the same Craig source to resume.");
+      setError(errorMessage(e)+" Confirmed clips remain saved. Retry the same Craig source and browser to resume.");
     }finally{longAbort.current=null;setBusy(false);setSourceBusy(false);}
   }
   async function saveLongCraigToComputer(){
@@ -715,22 +731,22 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             and uploads them to your connected Drive. This uses Cloudflare R2 reads,
             your device&apos;s CPU and Google Drive space. Keep the page open; closing it
             stops local decoding, but completed clips stay saved. Reopening must
-            re-decode the source to verify earlier clip checksums. Long AAC/M4A can be inspected but not decoded or uploaded yet.
+            re-decode the source to verify earlier clip checksums. Long AAC/M4A uses browser WebCodecs where supported. FLAC uses local WASM. Neither requires owner-funded transcoding.
           </p>
           <p className="campaign-empty-copy">
             Inspect this Craig speaker track without opening the whole file.
             Only 1 MiB may be read in a request; repeated reads still count
             toward TWE hosting usage. Remaining Cloudflare R2 read quota is not available here.
-            The inspection button only checks metadata. <strong>Prepare entire FLAC</strong>
+            The inspection button only checks metadata. <strong>Prepare full Craig audio</strong>
             performs local decoding and Drive uploads; it does not transcribe.
-            Full-length AAC packet metadata is now inspected with bounded reads, but decoding and Drive upload are not yet available. Inspection uses hosting R2 reads; quota remaining is unknown.
+            Full-length AAC-LC requires a supported WebCodecs browser and rejects edited/fragmented MP4. Export FLAC or PCM WAV if incompatible. These reads consume hosting R2 requests; remaining quota is unknown.
           </p>
           <div className="session-recap-form-actions">
             <button type="button" className="campaign-primary"
               disabled={busy||sourceBusy||!job||job.status!=="awaiting_source"||
                 Boolean(job.pausedAt)||!connectionId||!importId}
-              onClick={()=>void prepareFullFlacToDrive()}>
-              {busy?"Preparing FLAC…":"Prepare entire FLAC in my Drive"}
+              onClick={()=>void prepareFullCraigToDrive()}>
+              {busy?"Preparing Craig audio…":"Prepare full Craig audio (FLAC or AAC) in my Drive"}
             </button>
             <button type="button" className="campaign-secondary"
               disabled={busy||sourceBusy} onClick={()=>void inspectLongCraig()}>
@@ -756,7 +772,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             <p>Source bytes retrieved: {bytesLabel(sourceTransfer.bytes)} /
               {" "}{bytesLabel(sourceTransfer.total)}
               {" "}({clipPercent(sourceTransfer.bytes,sourceTransfer.total)}%).
-              Inspection reads only the file header, so a small percentage is normal.
+              Inspection only reads metadata, so a small percentage is normal.
             </p>
             <progress value={sourceTransfer.bytes} max={sourceTransfer.total}
               aria-label="Original Craig audio transfer bytes"/>
@@ -772,9 +788,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         <p className="campaign-empty-copy">
           <strong>Compressed-track warning:</strong> Direct AAC/FLAC decoding is
           browser-dependent and limited to four minutes and 16 MiB per track,
-          with a 96 MiB decoded-audio safety budget. Multi-hour Craig recordings
-          must still be converted to an ordinary PCM WAV or processed by a future
-          streaming decoder; this tool never attempts to decode hours of compressed audio at once.
+          with a 96 MiB decoded-audio safety budget. Multi-hour Craig recordings use bounded FLAC/AAC preparation above; this short-file tool never attempts to decode hours of compressed audio at once.
         </p>
         <label>Or select PCM WAV / short AAC or FLAC for this speaker
           <input type="file" accept=".wav,.flac,.m4a,.mp4,audio/wav,audio/flac,audio/mp4"

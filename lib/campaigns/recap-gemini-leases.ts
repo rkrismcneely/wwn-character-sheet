@@ -63,7 +63,10 @@ export async function leaseOnePreparedGeminiChunk(db:D1Database,config:{
       "WHERE job_id=? AND track_index=? AND chunk_index=? AND status='pending' "+
       "AND attempts<25 AND audio_key=? "+
       "AND EXISTS(SELECT 1 FROM campaign_recap_processing_jobs j "+
-      "WHERE j.id=? AND j.status='queued' AND j.paused_at IS NULL)")
+      "WHERE j.id=? AND j.status='queued' AND j.paused_at IS NULL "+
+      "AND EXISTS(SELECT 1 FROM user_recap_ai_connections a "+
+      "WHERE a.id=j.provider_connection_id AND a.user_id=j.requested_by "+
+      "AND a.provider='gemini' AND a.status='connected' AND a.key_ciphertext IS NOT NULL))")
       .bind(leaseToken,expires,config.now,item.jobId,item.trackIndex,
         item.chunkIndex,item.audioKey,item.jobId).run();
     if(applied.meta.changes!==1)continue;

@@ -55,7 +55,7 @@ function database() {
                 const items=[...recaps.values()].filter(x=>!sql.includes("is_published = 1")||x.isPublished===1);
                 const sorted=items.sort((a,b)=>b.date.localeCompare(a.date));
                 const data=sql.includes("LIMIT ? OFFSET ?")
-                  ? sorted.slice(params[1],params[1]+params[2]) : sorted;
+                  ? sorted.slice(params[2],params[2]+params[1]) : sorted;
                 return {results:data.map(row)};
               }
               throw Error("Unexpected all query: "+sql);

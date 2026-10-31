@@ -11,8 +11,10 @@ import { decodeShortCraigAudio,makeDecodedGeminiSpeechClip,
 import { openPrivateCraigRangeReader,inspectCraigFlacStreamInfo,
   type CraigLongSourceMetadata } from "@/lib/campaigns/recap-craig-range-browser";
 import { CRAIG_RANGE_WINDOW_BYTES } from "@/lib/campaigns/recap-craig-audio-ranges";
-import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES } from "@/lib/campaigns/recap-craig-flac-stream";
+import { streamCraigFlacSpeech,planCraigFlacSpeechParts,CRAIG_FLAC_READ_BYTES,
+  type CraigFlacSpeechPart } from "@/lib/campaigns/recap-craig-flac-stream";
 import { inspectCraigAacMp4 } from "@/lib/campaigns/recap-craig-aac-demux";
+import {streamCraigAacSpeech,planCraigAacSpeechParts} from "@/lib/campaigns/recap-craig-aac-stream";
 
 type Storage={id:string;provider:string;displayName:string;status:string};
 type Track={index:number;displayName:string;discordName:string};
@@ -269,16 +271,16 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         setSourceMessage("AAC metadata verified: "+index.sampleCount+
           " AAC-LC packets mapped to their original byte offsets. "+
           "Only bounded container metadata was downloaded. "+
-          "AAC decoding/Drive upload is not yet implemented.");
+          "AAC metadata is ready for browser WebCodecs conversion where supported.");
       }
       setLongSource({meta:stream.metadata,durationMs,sampleRate,aacPackets});
     }catch(e){setError(errorMessage(e));}
     finally{longAbort.current=null;setSourceBusy(false);}
   }
-  async function prepareFullFlacToDrive(){
+  async function prepareFullCraigToDrive(){
     if(busy||sourceBusy||!job||job.status!=="awaiting_source"||job.pausedAt||
       !connectionId||!importId||trackIndex==="")return;
-    setBusy(true);setError("");setMessage("");setCount(0);
+    setBusy(true);setSourceBusy(true);setError("");setMessage("");setCount(0);
     setUploadBytes({sent:0,total:0});setSourceTransfer({bytes:0,total:0});
     stopRequested.current=false;
     const controller=new AbortController();longAbort.current=controller;
@@ -288,13 +290,15 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         signal:controller.signal,
         onProgress:p=>setSourceTransfer({bytes:p.receivedBytes,total:p.totalSourceBytes}),
       });
-      if(source.metadata.mimeType!=="audio/flac")
-        throw new Error("Full-length conversion currently supports FLAC only. AAC/M4A needs separate demuxing.");
-      const header=inspectCraigFlacStreamInfo(await source.read(0,64));
-      const parts=planCraigFlacSpeechParts(header);
+      const isFlac=source.metadata.mimeType==="audio/flac";
+      const aacIndex=isFlac?null:await inspectCraigAacMp4(source);
+      const parts=isFlac?
+        planCraigFlacSpeechParts(inspectCraigFlacStreamInfo(await source.read(0,64))):
+        planCraigAacSpeechParts(aacIndex!);
       const expectedStorage=parts.reduce((sum,part)=>sum+44+part.targetFrames*2,0);
-      setSourceMessage("Decoding in small ranges: "+parts.length+" clips; estimated Drive storage "+
-        bytesLabel(expectedStorage)+". Keep this page open. Returning later re-decodes the FLAC but skips matching uploaded clips.");
+      setSourceMessage("Preparing "+(isFlac?"FLAC":"AAC-LC")+" in bounded batches: "+
+        parts.length+" clips. Projected GM Drive storage "+bytesLabel(expectedStorage)+
+        ". Keep this page open; repeat preparation to verify and skip matching staged clips.");
       const current=await refresh(selectedJob.id);
       let existing=current.clips.filter(part=>part.trackIndex===index);
       if(existing.length===0){
@@ -307,7 +311,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       }
       if(existing.length!==parts.length||existing.some((part,i)=>
         part.chunkIndex!==i||part.startMs!==parts[i].startMs||part.endMs!==parts[i].endMs))
-        throw new Error("The verified FLAC duration differs from the saved plan. The recording cannot be silently replaced.");
+        throw new Error("The verified original audio differs from the saved clip plan. The recording cannot be silently replaced.");
       const planned=existing;
       await streamCraigFlacSpeech({
         source,signal:controller.signal,

@@ -30,7 +30,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [editing, setEditing] = useState<CampaignSessionRecap | "new" | null>(null);
   const [draft, setDraft] = useState<Draft>({ date: localToday(), title: "", content: "" });
   const [preview, setPreview] = useState(false);
-  const [createMethod, setCreateMethod] = useState<"manual" | "recording">("manual");
+  const [createMethod, setCreateMethod] = useState<"manual" | "recording">("recording");
   const [loading, setLoading] = useState(() => !cachedPage(campaignId));
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -61,7 +61,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }, [campaignId, loadPage]);
 
   function startNew() {
-    setEditing("new"); setCreateMethod("manual"); setDraft({ date: localToday(), title: "", content: "" });
+    setEditing("new"); setCreateMethod("recording"); setDraft({ date: localToday(), title: "", content: "" });
     setError(""); setPreview(false); setImportNotice(""); setJournalNotice("");
   }
 
@@ -90,11 +90,11 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     }
   }
   function openRecap(recap: CampaignSessionRecap) {
-    setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.content });
+    setEditing(recap); setDraft({ date: recap.date, title: recap.title, content: recap.isPublished ? recap.content : "" });
     setError(""); setPreview(false); setImportNotice("");
   }
   async function addToJournal(){
-    if(!editing||editing==="new"||saving||addingToJournal)return;
+    if(!editing||editing==="new"||!editing.isPublished||saving||addingToJournal)return;
     setAddingToJournal(true);setError("");setJournalNotice("");
     try{
       const url="/api/campaigns/"+encodeURIComponent(campaignId)+"/journal";
@@ -115,6 +115,27 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     finally{setAddingToJournal(false);}
   }
   function cancelEdit() { setEditing(null); setError(""); setPreview(false); setImportNotice(""); }
+
+  async function createRecordingDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !draft.date || !draft.title.trim()) return;
+    setSaving(true); setError("");
+    try {
+      const response = await fetch("/api/campaigns/" + encodeURIComponent(campaignId) + "/session-recaps", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({date:draft.date,title:draft.title,draftOnly:true}),
+      });
+      const result = await response.json() as {recap?:CampaignSessionRecap;error?:string};
+      if (!response.ok || !result.recap || result.recap.isPublished)
+        throw new Error(result.error || "Could not create a private recording draft.");
+      setEditing(result.recap);
+      setDraft({date:result.recap.date,title:result.recap.title,content:""});
+      setImportNotice("Private draft created. Attach your recording below. Only campaign GMs can see this draft until you publish an approved recap.");
+      recapPageCache.delete(campaignId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create a private recording draft.");
+    } finally { setSaving(false); }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -143,8 +164,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       onChange={event => void importObsidianNote(event)} />
     {editing ? <>
       <div className="campaign-section-heading">
-        <div><p className="campaign-kicker">SESSION JOURNAL</p><h2 id="gm-session-recaps-title">{editing === "new" ? "New Session Recap" : "Edit Session Recap"}</h2></div>
-        <div className="session-recap-heading-actions">{editing!=="new"&&<button type="button" className="campaign-secondary" disabled={saving||addingToJournal} onClick={()=>void addToJournal()}>{addingToJournal?"Adding…":"Add to Journal"}</button>}<button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Back to Recaps</button></div>
+        <div><p className="campaign-kicker">SESSION JOURNAL</p><h2 id="gm-session-recaps-title">{editing === "new" ? "New Session Recap" : editing.isPublished ? "Edit Session Recap" : "Private Recording Draft"}</h2></div>
+        <div className="session-recap-heading-actions">{editing!=="new"&&editing.isPublished&&<button type="button" className="campaign-secondary" disabled={saving||addingToJournal} onClick={()=>void addToJournal()}>{addingToJournal?"Adding…":"Add to Journal"}</button>}<button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Back to Recaps</button></div>
       </div>
       {importNotice && <p className="session-recap-import-notice" role="status">{importNotice}</p>}
       {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}
@@ -153,7 +174,27 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("recording")}>Import recording</button>
       </div>}
       {editing === "new" && createMethod === "recording"
-        ? <SessionRecapRecordingSetup campaignId={campaignId} date={draft.date} onBack={cancelEdit} />
+        ? <form className="session-recap-form" onSubmit={event=>void createRecordingDraft(event)}>
+            <h3>Recap Only — start with a recording</h3>
+            <p className="session-recap-editor-help">
+              Create a private draft, then upload your full mixed MP3/M4A/WAV/FLAC/AAC
+              recording straight to your own Google Drive. No transcript or separate
+              Craig tracks are required. Direct AI audio summarization is being added
+              next; creating this draft does not send audio to any AI provider.
+            </p>
+            <div className="session-recap-form-fields">
+              <label><span>Session date</span><input type="date" required value={draft.date}
+                onChange={event=>setDraft(current=>({...current,date:event.target.value}))}/></label>
+              <label><span>Working title</span><input type="text" required maxLength={120}
+                placeholder="Session recording" value={draft.title}
+                onChange={event=>setDraft(current=>({...current,title:event.target.value}))}/></label>
+            </div>
+            {error&&<p className="campaign-error" role="alert">{error}</p>}
+            <button type="submit" className="campaign-primary"
+              disabled={saving||!draft.date||!draft.title.trim()}>
+              {saving?"Creating…":"Create private recording draft"}
+            </button>
+          </form>
         : <form className="session-recap-form" onSubmit={event => void save(event)}>
         <div className="session-recap-form-fields">
           <label><span>Session date</span><input type="date" required value={draft.date} onChange={event => setDraft(current => ({ ...current, date: event.target.value }))} /></label>
@@ -164,9 +205,11 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           : <textarea id="session-recap-body" required rows={14} maxLength={30000} value={draft.content}
               placeholder={"## The adventure continues…\n\n- A discovery\n- An unexpected encounter\n\n**Next time:** …"}
               onChange={event => setDraft(current => ({ ...current, content: event.target.value }))} />}
-        <p className="session-recap-editor-help">Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Players see the formatted recap after you save it. For full Craig captions, save this recap first, then use Full session transcript below.</p>
+        <p className="session-recap-editor-help">{editing!=="new"&&!editing.isPublished
+          ? "This draft is private. Review your recap before publishing; only publishing makes it visible to players."
+          : "Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Saving publishes this recap to campaign members."}</p>
         {error && <p className="campaign-error" role="alert">{error}</p>}
-        <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
+        <div className="session-recap-form-actions"><button type="submit" className="campaign-primary" disabled={saving || !draft.date || !draft.title.trim() || !draft.content.trim()}>{saving ? "Saving…" : editing!=="new"&&!editing.isPublished ? "Publish approved recap" : "Save Session Recap"}</button><button type="button" className="campaign-secondary" disabled={saving} onClick={cancelEdit}>Cancel</button></div>
       </form>}
       {editing !== "new" && <>
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId} recapId={editing.id} />

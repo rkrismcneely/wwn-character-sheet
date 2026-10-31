@@ -39,7 +39,7 @@ test("Gemini account endpoints never display the key and enforce owner and origi
     "encryptGeminiUserKey","decryptGeminiUserKey","readBoundedJson",
     "user_recap_ai_connections","ON CONFLICT(user_id,provider)",
     "key_ciphertext=NULL","key_nonce=NULL","key_version=NULL",
-    "x-goog-api-key","generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe",
+    "x-goog-api-key","generativelanguage.googleapis.com/v1beta/models?pageSize=1",
     "private, no-store",
   ])assert.ok(code.includes(fragment),"Missing owner-secret boundary: "+fragment);
   assert.doesNotMatch(code,/console\.log|process\.env\.GEMINI_API_KEY|openai\.com|script:eval/u);

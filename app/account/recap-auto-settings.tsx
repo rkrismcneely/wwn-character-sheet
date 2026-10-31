@@ -16,8 +16,8 @@ export function RecapAutoSettings(){
   useEffect(()=>{
     const ctrl=new AbortController();
     void Promise.all([
-      fetch("/api/account/recap-preferences",{cache:"no-store",signal:ctrl.signal}).then(r=>r.json()),
-      fetch("/api/account/recap-setup",{cache:"no-store",signal:ctrl.signal}).then(r=>r.json()),
+      fetch("/api/account/recap-preferences",{cache:"no-store",signal:ctrl.signal}).then(r=>r.json() as Promise<Preferences>),
+      fetch("/api/account/recap-setup",{cache:"no-store",signal:ctrl.signal}).then(r=>r.json() as Promise<{storageConnected:boolean;aiConnected:boolean}>),
     ]).then(([prefs,setup])=>{
       if(ctrl.signal.aborted)return;
       if(typeof prefs.autoEnabled!=="boolean"||typeof setup.storageConnected!=="boolean")
@@ -33,8 +33,8 @@ export function RecapAutoSettings(){
     const controller=new AbortController();
     const refresh=()=>{
       void fetch("/api/account/recap-setup",{cache:"no-store",signal:controller.signal})
-        .then(response=>response.json())
-        .then((details:{storageConnected?:boolean;aiConnected?:boolean})=>{
+        .then(response=>response.json() as Promise<{storageConnected?:boolean;aiConnected?:boolean}>)
+        .then(details=>{
           if(!controller.signal.aborted)setReady({
             storageConnected:details.storageConnected===true,
             aiConnected:details.aiConnected===true,

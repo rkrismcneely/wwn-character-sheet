@@ -25,7 +25,7 @@ test("invalid extensions, huge recordings and untrusted filenames are rejected",
   assert.throws(()=>describeAudioUploadFile({name:"too-big.m4a",size:5*1024**3}),/size/);
   assert.throws(()=>describeAudioUploadFile({name:"empty.mp3",size:0}),/size/);
 });
-test("existing GM recap editor hosts independent direct Drive uploader",async()=>{
+test("existing GM recap editor uses secure same-origin Drive upload relay",async()=>{
   const read=path=>readFile(new URL(path,import.meta.url),"utf8");
   const [manager,ui,browser]=await Promise.all([
     read("../app/campaigns/session-recap-manager.tsx"),
@@ -46,5 +46,5 @@ test("existing GM recap editor hosts independent direct Drive uploader",async()=
   assert.match(ui,/Keep this page and section open while uploading/u);
   assert.match(ui,/Manage storage accounts/u);
   assert.doesNotMatch(ui,/RECAP_STORAGE_ENCRYPTION_KEY|GOOGLE_DRIVE_CLIENT_SECRET|fetch\("https:\/\/oauth2.googleapis.com\/token/u);
-  assert.match(browser,/body: file\.slice\(next\.start, next\.endExclusive\)/u);
+  assert.match(browser,/send\(next\.contentRange,file\.slice\(next\.start, next\.endExclusive\)\)/u);
 });

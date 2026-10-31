@@ -348,7 +348,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
               throw new Error("Previously uploaded speech clip did not match its checksum.");
             setCount(part.chunkIndex+1);return;
           }
-          const started=await readJSON<{assetId:string;uploadSessionUrl:string;chunkBytes:number}>(
+          const started=await readJSON<{assetId:string;uploadSessionUrl:string;uploadTicket:string;uploadIssuedAt:number;chunkBytes:number}>(
             base+"/session-recaps/audio/upload/start",{
               method:"POST",headers:{"content-type":"application/json"},
               signal:controller.signal,
@@ -359,7 +359,10 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           setUploadBytes({sent:0,total:converted.size});
           const remote=await uploadRecordingToDrive(converted,started.uploadSessionUrl,
             (sent,total)=>setUploadBytes({sent,total}),
-            {chunkBytes:started.chunkBytes,signal:controller.signal});
+            {chunkBytes:started.chunkBytes,signal:controller.signal,relay:{
+              endpoint:base+"/session-recaps/audio/upload/relay",assetId:started.assetId,
+              ticket:started.uploadTicket,issuedAt:started.uploadIssuedAt,
+            }});
           await readJSON<{ready:boolean}>(base+"/session-recaps/audio/upload/finish",{
             method:"POST",headers:{"content-type":"application/json"},
             signal:controller.signal,
@@ -524,7 +527,7 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             throw new Error("This chunk differs from the one already uploaded. Use the original WAV.");
           uploaded++;setCount(uploaded);continue;
         }
-        const started=await readJSON<{assetId:string;uploadSessionUrl:string;chunkBytes:number}>(
+        const started=await readJSON<{assetId:string;uploadSessionUrl:string;uploadTicket:string;uploadIssuedAt:number;chunkBytes:number}>(
           base+"/session-recaps/audio/upload/start",{
             method:"POST",headers:{"content-type":"application/json"},signal:abort.signal,
             body:JSON.stringify({recapId,connectionId,filename:converted.name,
@@ -534,7 +537,10 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         setUploadBytes({sent:0,total:converted.size});
         const remote=await uploadRecordingToDrive(converted,started.uploadSessionUrl,
           (sent,total)=>setUploadBytes({sent,total}),
-          {chunkBytes:started.chunkBytes,signal:abort.signal});
+          {chunkBytes:started.chunkBytes,signal:abort.signal,relay:{
+            endpoint:base+"/session-recaps/audio/upload/relay",assetId:started.assetId,
+            ticket:started.uploadTicket,issuedAt:started.uploadIssuedAt,
+          }});
         await readJSON<{ready:boolean}>(base+"/session-recaps/audio/upload/finish",{
           method:"POST",headers:{"content-type":"application/json"},signal:abort.signal,
           body:JSON.stringify({assetId:started.assetId,remoteFileId:remote.id}),

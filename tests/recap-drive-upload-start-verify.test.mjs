@@ -24,7 +24,7 @@ test("session start verifies host, binds file marker and does not return GM OAut
   assert.match(service,/tweAudioAssetId:assetId,tweCampaignId:campaign\.id/u);
   assert.match(service,/x-upload-content-length/u);
   assert.match(service,/status='preparing'|,'preparing'/u);
-  assert.match(service,/return \{assetId,uploadSessionUrl,chunkBytes:/u);
+  assert.match(service,/return \{assetId,uploadSessionUrl,uploadTicket,uploadIssuedAt,chunkBytes:/u);
   const returned=service.slice(service.indexOf("return {assetId,uploadSessionUrl"));
   assert.doesNotMatch(returned.slice(0,110),/accessToken|refreshToken/u);
 });

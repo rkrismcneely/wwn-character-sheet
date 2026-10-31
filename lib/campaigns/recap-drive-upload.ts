@@ -1,7 +1,8 @@
 /**
- * Browser-to-GM-Drive upload protocol planning. No audio bytes or OAuth tokens
- * pass through TWE's Worker. The session URL is a short-lived bearer capability
- * and must be disclosed only to the initiating, authorized GM.
+ * GM-owned Drive resumable upload protocol. The Worker initiates a Google upload
+ * session, then forwards small authenticated chunks without storing audio.
+ * OAuth tokens stay server-side. Google session URLs are bearer capabilities
+ * and must remain private to the initiating authorized GM.
  */
 export const DRIVE_UPLOAD_BLOCK_BYTES = 256 * 1024;
 export const DRIVE_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;

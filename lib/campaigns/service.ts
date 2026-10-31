@@ -22,7 +22,7 @@ import type {
 import { hashOpaqueToken } from "../security/opaque-tokens.ts";
 import { effectiveDisplayName } from "../account/display-name.ts";
 
-export type CampaignServiceStatus = 400 | 401 | 403 | 404 | 409 | 422;
+export type CampaignServiceStatus = 400 | 401 | 403 | 404 | 409 | 422 | 502 | 503;
 
 export class CampaignServiceError extends Error {
   public readonly status: CampaignServiceStatus;

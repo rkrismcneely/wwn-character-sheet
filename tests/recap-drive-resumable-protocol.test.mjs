@@ -38,7 +38,7 @@ test("browser sends entire recording directly to Drive with no intermediary body
   const requests=[];const progress=[];
   const fakeFetch=async (url,opts)=>{
     assert.equal(url,session);
-    const range=opts.headers["Content-Range"];
+    const range=opts.headers.get("Content-Range");
     requests.push(range);
     if(requests.length<3){
       const match=/^bytes (\d+)-(\d+)\/(\d+)$/u.exec(range);
@@ -58,7 +58,7 @@ test("lost upload response probes Drive status and resumes from its actual accep
   const file=new Blob([new Uint8Array(2*MiB)]);
   const requests=[];
   const fakeFetch=async (url,opts)=>{
-    requests.push(opts.headers["Content-Range"]);
+    requests.push(opts.headers.get("Content-Range"));
     if(requests.length===1) throw Error("connection dropped after chunk arrived");
     if(requests.length===2) return new Response(null,{status:308,headers:{Range:"bytes=0-1048575"}});
     return Response.json({id:"file_resume_123"});

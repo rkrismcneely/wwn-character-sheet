@@ -1,4 +1,5 @@
 import { canManageCampaignContent } from "./authorization.ts";
+import {issueDriveUploadTicket,verifyDriveUploadTicket,parseDriveRelayRange} from "./recap-drive-upload-relay.ts";
 import { validateAudioUploadDraft, validateDriveSessionUrl, type UploadDraft } from "./recap-drive-upload.ts";
 import { getGmDriveAccessToken } from "./recap-drive-token.ts";
 import { ensureRecapDriveFolder } from "./recap-drive-folder.ts";
@@ -34,7 +35,7 @@ function draftUpload(input:StartInput): UploadDraft {
 }
 export async function beginGmDriveAudioUpload(
   db:D1Database,actor:CampaignActor|null,campaignId:string,input:StartInput,settings:DriveSettings,
-):Promise<{assetId:string;uploadSessionUrl:string;chunkBytes:number}> {
+):Promise<{assetId:string;uploadSessionUrl:string;uploadTicket:string;uploadIssuedAt:number;chunkBytes:number}> {
   const campaign=await requireGm(db,actor,campaignId);
   const recap=await getCampaignSessionRecap(db,actor,campaignId,input.recapId);
   if(typeof input.connectionId!=="string" || !UUID_PATTERN.test(input.connectionId)) {
@@ -96,7 +97,11 @@ export async function beginGmDriveAudioUpload(
     draft.mimeType,draft.byteSize,draft.durationMs,now,now,processingJobId).run();
   // This URL grants upload permission only. It must never be shown to players
   // or included in persistent logs / normal player asset responses.
-  return {assetId,uploadSessionUrl,chunkBytes:8*1024*1024};
+  const uploadIssuedAt=Date.now();
+  const uploadTicket=await issueDriveUploadTicket(settings,{
+    userId:actor!.userId,campaignId:campaign.id,assetId,uploadSessionUrl,issuedAt:uploadIssuedAt,
+  });
+  return {assetId,uploadSessionUrl,uploadTicket,uploadIssuedAt,chunkBytes:8*1024*1024};
 }
 
 export async function finishGmDriveAudioUpload(
@@ -142,4 +147,77 @@ export async function finishGmDriveAudioUpload(
   ).bind(input.remoteFileId,new Date().toISOString(),asset.id,campaign.id,actor!.userId).run();
   if(result.meta.changes!==1)throw new CampaignServiceError("Recording upload was changed elsewhere.",409);
   return {assetId:asset.id,ready:true};
+}
+
+/** Relay only authenticated GM-owned, still-preparing uploads to their original
+ * signed Google session URL. This is a bounded streaming transfer; no audio
+ * bytes are buffered in memory, placed in R2 or persisted in D1.
+ */
+export async function relayGmDriveAudioUpload(db:D1Database,actor:CampaignActor|null,
+  campaignId:string,request:Request,settings:DriveSettings):Promise<Response>{
+  const campaign=await requireGm(db,actor,campaignId);
+  const inputUrl=new URL(request.url);
+  const assetId=inputUrl.searchParams.get("assetId");
+  if(!assetId||!UUID_PATTERN.test(assetId))
+    throw new CampaignServiceError("Choose a valid recording upload.",422);
+  const asset=await db.prepare("SELECT id,byte_size AS byteSize,recap_id AS recapId "+
+    "FROM campaign_recap_audio_assets WHERE id=? AND campaign_id=? "+
+    "AND storage_owner_user_id=? AND status='preparing' LIMIT 1")
+    .bind(assetId,campaign.id,actor!.userId).first<{id:string;byteSize:number;recapId:string}>();
+  if(!asset)throw new CampaignServiceError("This recording upload is no longer available.",404);
+  // Check the recap remains visible/manageable by the requesting GM.
+  await getCampaignSessionRecap(db,actor,campaign.id,asset.recapId);
+  const url=request.headers.get("x-twe-drive-upload-session")??"";
+  const issuedAt=Number(request.headers.get("x-twe-drive-upload-issued-at")??"");
+  const ticket=request.headers.get("x-twe-drive-upload-ticket")??"";
+  const authorized=await verifyDriveUploadTicket(settings,{
+    userId:actor!.userId,campaignId:campaign.id,assetId,uploadSessionUrl:url,issuedAt,
+  },ticket);
+  if(!authorized)throw new CampaignServiceError("Upload authorization expired. Start the upload again.",403);
+  const range=request.headers.get("content-range");
+  const parsed=parseDriveRelayRange(range,asset.byteSize);
+  if(!parsed)throw new CampaignServiceError("Invalid recording chunk or upload offset.",422);
+  const body=request.body;
+  const declaredSize=request.headers.get("content-length");
+  if((parsed.kind==="chunk"&&!body)||(parsed.kind==="probe"&&body)||
+      (declaredSize!==null&&Number(declaredSize)!==parsed.length)){
+    throw new CampaignServiceError("Upload chunk size does not match the recording.",422);
+  }
+  let response:Response;
+  try{
+    response=await fetch(validateDriveSessionUrl(url),{
+      method:"PUT",redirect:"manual",headers:{"content-range":range!},
+      ...(body?{body}:{}),
+      signal:AbortSignal.timeout(60_000),
+    });
+  }catch{
+    throw new CampaignServiceError("Could not reach Google Drive for this chunk. Retry the recording upload.",503);
+  }
+  const headers=new Headers({"cache-control":"private, no-store","referrer-policy":"no-referrer"});
+  if(response.status===308){
+    // Only the acknowledged offset is returned, not Google's upload URL or OAuth credentials.
+    const acknowledged=response.headers.get("range");
+    if(acknowledged&&/^bytes=0-\d+$/u.test(acknowledged))headers.set("range",acknowledged);
+    return new Response(null,{status:308,headers});
+  }
+  if(response.status===200||response.status===201){
+    let remote:unknown;
+    try{remote=await response.json();}
+    catch{throw new CampaignServiceError("Google Drive returned an invalid upload receipt.",502);}
+    const file=remote as {id?:unknown;name?:unknown;size?:unknown;mimeType?:unknown};
+    if(!file||typeof file.id!=="string"||!/^[a-zA-Z0-9_-]{5,256}$/u.test(file.id))
+      throw new CampaignServiceError("Google Drive did not confirm the saved recording.",502);
+    return Response.json({id:file.id,...(typeof file.name==="string"?{name:file.name}:{}),
+      ...(typeof file.size==="string"?{size:file.size}:{}),
+      ...(typeof file.mimeType==="string"?{mimeType:file.mimeType}:{})},
+      {status:response.status,headers});
+  }
+  // Google error details may reveal private info; never echo them.
+  if(response.status===404||response.status===410)
+    throw new CampaignServiceError("Google Drive upload session expired. Restart the upload.",409);
+  if(response.status===403)
+    throw new CampaignServiceError("Google Drive declined this upload. Reconnect Drive in Account if this continues.",403);
+  if(response.status===429||response.status>=500)
+    throw new CampaignServiceError("Google Drive is temporarily unable to receive this chunk. Retry the upload.",503);
+  throw new CampaignServiceError("Google Drive rejected this recording chunk. Check the file and retry.",409);
 }

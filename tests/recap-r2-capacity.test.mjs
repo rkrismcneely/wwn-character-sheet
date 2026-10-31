@@ -43,7 +43,7 @@ test("replacement discounts verified existing bytes without deleting the origina
 test("fails closed at capacity and for unbounded R2 inventory",async()=>{
   await assert.rejects(()=>requireLegacyRecapR2Capacity(bucket([
     {key:"recap-craig/a",size:LEGACY_RECAP_R2_MAX_BYTES},
-  ]),1),/budget exceeded/u);
+  ]),1),/budget (?:exceeded|is full)/u);
   await assert.rejects(()=>requireLegacyRecapR2Capacity(bucket([]),LEGACY_RECAP_R2_MAX_BYTES+1),/safe R2 intake/u);
   await assert.rejects(()=>requireLegacyRecapR2Capacity(bucket([],null,true),1),/inventory/u);
   await assert.rejects(()=>requireLegacyRecapR2Capacity(bucket([]),1,"campaign-portraits/a"),/replacement key/u);

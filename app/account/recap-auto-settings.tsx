@@ -29,6 +29,21 @@ export function RecapAutoSettings(){
       .finally(()=>{if(!ctrl.signal.aborted)setLoading(false);});
     return ()=>ctrl.abort();
   },[]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    const refresh=()=>{
+      void fetch("/api/account/recap-setup",{cache:"no-store",signal:controller.signal})
+        .then(response=>response.json())
+        .then((details:{storageConnected?:boolean;aiConnected?:boolean})=>{
+          if(!controller.signal.aborted)setReady({
+            storageConnected:details.storageConnected===true,
+            aiConnected:details.aiConnected===true,
+          });
+        }).catch(()=>{});
+    };
+    window.addEventListener("twe:recap-account-changed",refresh);
+    return ()=>{controller.abort();window.removeEventListener("twe:recap-account-changed",refresh);};
+  },[]);
   async function save(){
     if(saving)return;
     setSaving(true);setError("");setNotice("");

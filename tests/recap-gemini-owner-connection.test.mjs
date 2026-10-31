@@ -45,16 +45,19 @@ test("invalid Gemini keys and missing encryption config fail closed",async()=>{
     "d9e1c237-8868-44bb-8111-21539a56d310",raw),/not configured/);
 });
 test("Gemini account endpoints never display the key and enforce owner and origin",async()=>{
-  const code=await read("../app/api/account/recap-ai/gemini/route.ts");
+  const [code,verification]=await Promise.all([read("../app/api/account/recap-ai/gemini/route.ts"),
+    read("../lib/account/recap-gemini-verification.ts")]);
   for(const fragment of [
     "getSessionActor(request)","who.id","originOk(request)",
     "encryptGeminiUserKey","decryptGeminiUserKey","readBoundedJson",
     "user_recap_ai_connections","ON CONFLICT(user_id,provider)",
     "key_ciphertext=NULL","key_nonce=NULL","key_version=NULL",
-    "x-goog-api-key","generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+    "checkGeminiModelAccess",
     "Copy the API key string from AI Studio",
     "private, no-store",
   ])assert.ok(code.includes(fragment),"Missing owner-secret boundary: "+fragment);
+  assert.match(verification,/x-goog-api-key/u);
+  assert.match(verification,/generativelanguage\.googleapis\.com\/v1beta\/models\?pageSize=1/u);
   assert.doesNotMatch(code,/console\.log|process\.env\.GEMINI_API_KEY|openai\.com|script:eval/u);
   assert.ok(!code.includes('return Response.json({apiKey'));
 });

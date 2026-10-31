@@ -66,9 +66,14 @@ test("recap setup endpoint is user scoped and exposes only redacted readiness",a
 });
 
 test("Gemini GET responds with safe JSON on errors and key test does not require one model",async()=>{
-  const api=await read("app/api/account/recap-ai/gemini/route.ts");
+  const [api,models]=await Promise.all([
+    read("app/api/account/recap-ai/gemini/route.ts"),
+    read("lib/account/recap-gemini-verification.ts"),
+  ]);
   assert.match(api,/try\{[\s\S]*Gemini account status is temporarily unavailable/u);
-  assert.match(api,/generativelanguage.googleapis.com\/v1beta\/models\?pageSize=1/u);
-  assert.doesNotMatch(api,/models\/gemini-3\.5-transcribe/u);
-  assert.match(api,/Array\.isArray\(modelList\.models\)/u);
+  assert.match(api,/checkGeminiModelAccess\(plain\)/u);
+  assert.match(models,/generativelanguage.googleapis.com\/v1beta\/models\?pageSize=1/u);
+  assert.doesNotMatch(models,/models\/gemini-3\.5-transcribe/u);
+  assert.match(models,/Array\.isArray/u);
+  assert.match(models,/redirect:"manual"/u);
 });

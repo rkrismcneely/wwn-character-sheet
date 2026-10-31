@@ -1,9 +1,9 @@
 import { GEMINI_TRANSCRIBE_MODEL,normalizeGeminiWords } from "./recap-gemini-transcribe.ts";
+import {validateGeminiUserKey} from "../account/recap-gemini-key.ts";
 import type { CaptionCue } from "./recap-full-transcript.ts";
 
 const HOST="https://generativelanguage.googleapis.com";
 const MAX_RESULT_BYTES=900_000;
-const KEY=/^[A-Za-z0-9_-]{24,200}$/u;
 const INTERACTION=/^[A-Za-z0-9_-]{6,240}$/u;
 type GeminiResponse={id?:unknown;status?:unknown;steps?:unknown;output_text?:unknown};
 export type GeminiProviderOutcome=
@@ -15,7 +15,7 @@ export class GeminiAmbiguousResult extends Error {
   constructor(){super("Gemini submission outcome is uncertain; do not retry automatically.");}
 }
 function keyHeader(key:string){
-  if(!KEY.test(key))throw new Error("GM Gemini credential is invalid.");
+  validateGeminiUserKey(key);
   return {"x-goog-api-key":key};
 }
 function fixedUploadUrl(raw:string){

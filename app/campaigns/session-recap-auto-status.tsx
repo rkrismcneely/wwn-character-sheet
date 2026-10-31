@@ -235,7 +235,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
             quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
           {" "}{quotaEstimate.message}{" "}
           <a href="https://aistudio.google.com/rate-limit" target="_blank"
-            rel="noopener noreferrer">Check your project's active limits in Google AI Studio</a>.
+            rel="noopener noreferrer">Check your project&apos;s active limits in Google AI Studio</a>.
         </p>
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={privacy} disabled={starting}

@@ -34,8 +34,8 @@ export async function enqueueConfirmedRecapAudio(
   const detail=preferences?.detail??"detailed";
   const now=new Date().toISOString();
   const result=await db.prepare("INSERT OR IGNORE INTO campaign_recap_audio_summary_jobs "+
-    "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,created_at,updated_at) "+
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+    "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at) "+
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
       "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now).run();
   if(result.meta.changes!==1){

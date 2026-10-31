@@ -1,0 +1,22 @@
+name: Opt-in Gemini Recap Protocol Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Synthetic audio Gemini API test (requires test-project key)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Test Gemini Files + background Interactions with synthetic 1-second audio
+        env:
+          TWE_GEMINI_SMOKE_API_KEY: ${{ secrets.TWE_GEMINI_SMOKE_API_KEY }}
+        run: node scripts/smoke-gemini-recap.mjs

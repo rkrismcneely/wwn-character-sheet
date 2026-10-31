@@ -6,7 +6,7 @@ import {GEMINI_STAGING_RATE,GEMINI_STAGING_SECONDS,
 import {CRAIG_RANGE_WINDOW_BYTES} from "./recap-craig-audio-ranges.ts";
 
 export const CRAIG_FLAC_READ_BYTES=512*1024;
-export const CRAIG_FLAC_MAX_DECODED_FRAMES_PER_READ=4*60*96000;
+export const CRAIG_FLAC_MAX_DECODED_FRAMES_PER_READ=4*1000000;
 const TARGET_FRAMES=GEMINI_STAGING_RATE*GEMINI_STAGING_SECONDS;
 const WAV:{channels:number;sampleRate:number;bitsPerSample:number;blockAlign:number;dataOffset:number;dataBytes:number}={
   channels:1,sampleRate:GEMINI_STAGING_RATE,bitsPerSample:16,blockAlign:2,
@@ -51,6 +51,7 @@ export function planCraigFlacSpeechParts(info:CraigFlacStreamInfo):CraigFlacSpee
 export class CraigFlacPcmWriter{
   readonly parts:CraigFlacSpeechPart[];
   private pending=new Uint8Array(TARGET_FRAMES*2);
+  private view=new DataView(this.pending.buffer);
   private pendingFrames=0;
   private sourceFrame=0;
   private accumulated=0;
@@ -76,14 +77,14 @@ export class CraigFlacPcmWriter{
       this.name.replace(/\.flac$/iu,"")+"-gemini-"+
         String(this.index+1).padStart(3,"0")+".wav",{type:"audio/wav"});
     await this.onClip(file,part);
-    this.index++;this.pendingFrames=0;this.pending.fill(0);
+    this.index++;this.pendingFrames=0;
   }
-  private async add(value:number){
+  private add(value:number):boolean{
     if(this.index>=this.parts.length)throw new Error("FLAC decoded more audio than its header promised.");
     const scaled=Math.round(Math.max(-1,Math.min(1,value))*32767);
-    new DataView(this.pending.buffer).setInt16(this.pendingFrames*2,scaled,true);
+    this.view.setInt16(this.pendingFrames*2,scaled,true);
     this.pendingFrames++;this.emittedFrames++;
-    if(this.pendingFrames===this.parts[this.index].targetFrames)await this.emit();
+    return this.pendingFrames===this.parts[this.index].targetFrames;
   }
   async write(frame:CraigDecodedFrames):Promise<void>{
     if(frame.errors?.length)throw new Error("FLAC decoding reported damaged frames. Previously completed clips remain staged.");
@@ -108,13 +109,17 @@ export class CraigFlacPcmWriter{
       this.sourceFrame++;
       const now=Math.floor(this.sourceFrame*GEMINI_STAGING_RATE/this.info.sampleRate);
       if(now>previous){
-        await this.add(this.accumulated/this.count);
+        const full=this.add(this.accumulated/this.count);
         this.accumulated=0;this.count=0;
+        if(full)await this.emit();
       }
     }
   }
   async finish():Promise<void>{
-    if(this.count>0)await this.add(this.accumulated/this.count);
+    if(this.count>0){
+      const full=this.add(this.accumulated/this.count);
+      if(full)await this.emit();
+    }
     if(this.info.totalSamples!==this.sourceFrame||
       this.index!==this.parts.length||this.pendingFrames!==0||
       this.emittedFrames!==this.parts.reduce((n,p)=>n+p.targetFrames,0))

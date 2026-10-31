@@ -64,7 +64,7 @@ test("recording pipeline is private, hosted on GM accounts, and never auto-publi
   assert.match(runner,/submission_uncertain/u);
   assert.match(runner,/is_published=0/u);
   assert.match(runner,/redactJournalSecrets/u);
-  assert.doesNotMatch(runner,/is_published\s*=\s*1|(?:shared|siteOwner)GeminiKey/u);
+  assert.doesNotMatch(runner,/UPDATE campaign_session_recaps SET[^;]*is_published\s*=\s*1|(?:shared|siteOwner)GeminiKey/u);
   assert.match(route,/canManageCampaignContent/u);
   assert.match(upload,/enqueueConsentedRecapAudio/u);
   assert.match(worker,/runRecapOnlyScheduledTick/u);

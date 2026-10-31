@@ -43,7 +43,7 @@ if (!applied.has(migrationName)) {
 const nowApplied = new Set(query("SELECT name FROM d1_migrations").map(row => row.name));
 if (!nowApplied.has(migrationName)) throw new Error("Gemini resumable staging migration not recorded.");
 const columns=new Set(query("PRAGMA table_info(campaign_recap_audio_summary_jobs)").map(row=>row.name));
-for(const name of ["stage_url_ciphertext","stage_url_nonce","stage_url_version","stage_offset"]){
+for(const name of ["stage_url_ciphertext","stage_url_nonce","stage_url_version","stage_offset","stage_error_code"]){
   if(!columns.has(name))throw new Error("Gemini staging migration missing "+name);
 }
 console.log("Resumable Gemini staging schema applied and verified.");

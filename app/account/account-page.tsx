@@ -243,8 +243,8 @@ export function AccountPageClient({
               <h2 id="recap-setup-title">Configure Automatic Recap</h2>
             </div></div>
             <p className="account-explanation">
-              To prepare a recording-based recap, connect your own Google Drive for
-              audio storage, then connect your Gemini API key for future AI summaries.
+              To create automatic recording-based recaps, connect your own Google Drive for
+              audio storage, then connect your Gemini API key and approve processing below.
               Neither connection alone starts AI processing or incurs an AI usage charge.
             </p>
             <p className="account-explanation">

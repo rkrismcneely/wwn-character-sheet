@@ -87,7 +87,8 @@ export async function retrySafeRecapPreparation(
   if(recap?.published!==0)throw new CampaignServiceError("Only private recap drafts can be resumed.",409);
   // An expired Gemini staging session must be replaced on retry. Other
   // errors preserve the encrypted resumable session and accepted byte offset.
-  const reset=job.stageErrorCode==="gemini_upload_session_expired";
+  const reset=job.stageErrorCode==="gemini_upload_session_expired"||
+    job.stageErrorCode==="gemini_chunk_http_404";
   const updated=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET status=?,error_code=NULL,stage_error_code=NULL,claimed_at=NULL,updated_at=?,"+
     "stage_url_ciphertext=CASE WHEN ? THEN NULL ELSE stage_url_ciphertext END,"+

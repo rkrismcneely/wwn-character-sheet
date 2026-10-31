@@ -13,6 +13,10 @@ export type StagingErrorCode=
   | "gemini_upload_session_invalid" | "gemini_upload_offset_unknown"
   | "drive_range_unavailable" | "drive_range_invalid"
   | "gemini_chunk_rejected" | "gemini_chunk_network_error"
+  | "gemini_chunk_http_400" | "gemini_chunk_http_401" | "gemini_chunk_http_403"
+  | "gemini_chunk_http_404" | "gemini_chunk_http_409" | "gemini_chunk_http_413"
+  | "gemini_chunk_http_429" | "gemini_chunk_http_500" | "gemini_chunk_http_502"
+  | "gemini_chunk_http_503" | "gemini_chunk_http_504"
   | "gemini_upload_receipt_invalid" | "staging_data_unavailable";
 
 export class RecapStagingFailure extends Error{
@@ -102,11 +106,13 @@ async function startingSession(env:StagingEnv,job:Job,secret:string,src:StagedSo
   if(change.meta.changes!==1)throw new RecapStagingFailure("staging_data_unavailable");
   return url;
 }
-async function queryOffset(url:string,total:number):Promise<number>{
+async function queryOffset(url:string,total:number,secret:string):Promise<number>{
   let response:Response;
   try{response=await fetch(url,{
     method:"POST",redirect:"manual",
-    headers:{"x-goog-upload-command":"query"},
+    // Align with Google's official SDK: authenticate query requests as well
+    // as session creation and individual uploads. URL is origin-validated.
+    headers:{"x-goog-upload-command":"query","x-goog-api-key":secret},
     signal:AbortSignal.timeout(15000),
   });}catch{throw new RecapStagingFailure("gemini_upload_offset_unknown");}
   if(response.status===404||response.status===410)
@@ -149,7 +155,7 @@ export async function stageRecapAudioChunked(
         ciphertext:row.stageUrlCiphertext,nonce:row.stageUrlNonce,version:row.stageUrlVersion,
       }));
     }catch{throw new RecapStagingFailure("staging_data_unavailable");}
-    offset=await queryOffset(url,source.byteSize);
+    offset=await queryOffset(url,source.byteSize,secret);
     if(offset!==row.stageOffset){
       const synced=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
         "SET stage_offset=?,updated_at=? WHERE id=? AND status='transferring' "+
@@ -182,12 +188,21 @@ export async function stageRecapAudioChunked(
         method:"POST",redirect:"manual",signal:AbortSignal.timeout(45000),
         headers:{"x-goog-upload-offset":String(offset),
           "x-goog-upload-command":final?"upload, finalize":"upload",
-          "content-type":"application/octet-stream"},
+          // The Google genai SDK sends the API key with every upload chunk.
+          // Only send it to the strictly validated Google upload session URL.
+          "x-goog-api-key":secret,"content-type":"application/octet-stream"},
         body:new Uint8Array(data),
       });
     }catch{throw new RecapStagingFailure("gemini_chunk_network_error");}
-    if(!response.ok||response.redirected)
+    if(!response.ok||response.redirected){
+      // Do not echo Google's response body or URL: it could contain sensitive
+      // provider details. Record only a fixed, whitelisted HTTP status so the
+      // GM can distinguish bad requests from credentials/quota/outages.
+      const recognized=[400,401,403,404,409,413,429,500,502,503,504] as const;
+      if(!response.redirected&&recognized.some(code=>code===response.status))
+        throw new RecapStagingFailure(("gemini_chunk_http_"+response.status) as StagingErrorCode);
       throw new RecapStagingFailure("gemini_chunk_rejected");
+    }
     if(final){
       const file=validReceipt(await smallJson(response));
       const result=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+

@@ -42,10 +42,44 @@ export function planDecodedSpeechParts(source:Pick<AudioBufferLike,"length"|"sam
   }
   return parts;
 }
+/** Read browser metadata BEFORE decoding the entire compressed file.
+ * A 10 MiB file can still describe hours of near-silent audio.
+ * Unknown duration fails closed rather than risking large AudioBuffers.
+ */
+async function probeShortCraigDuration(file:File):Promise<number>{
+  const url=URL.createObjectURL(file);
+  const audio=new Audio();
+  audio.preload="metadata";
+  try{
+    const seconds=await new Promise<number>((resolve,reject)=>{
+      let settled=false;
+      const finish=(result:number|null)=>{
+        if(settled)return;
+        settled=true;window.clearTimeout(timeout);
+        if(result!==null)resolve(result);
+        else reject(new Error("Browser cannot safely inspect this compressed audio's duration. Use a PCM WAV export."));
+      };
+      const timeout=window.setTimeout(()=>finish(null),12000);
+      audio.onloadedmetadata=()=>finish(audio.duration);
+      audio.onerror=()=>finish(null);
+      audio.src=url;
+      audio.load();
+    });
+    if(!Number.isFinite(seconds)||seconds<=0||
+      seconds>GEMINI_NATIVE_MAX_DURATION_SECONDS)
+      throw new Error("The compressed Craig track is over four minutes or has unknown duration. Use PCM WAV for long audio instead.");
+    return seconds;
+  }finally{
+    audio.onloadedmetadata=null;audio.onerror=null;
+    audio.removeAttribute("src");audio.load();
+    URL.revokeObjectURL(url);
+  }
+}
 export async function decodeShortCraigAudio(file:File):Promise<{
   decoded:AudioBuffer;parts:DecodedSpeechPart[];format:"flac"|"aac";
 }> {
   const format=nativeCraigFormat(file);
+  await probeShortCraigDuration(file);
   const AudioContextConstructor=window.AudioContext;
   if(!AudioContextConstructor)
     throw new Error("This browser cannot decode Craig audio. Prepare an uncompressed PCM WAV instead.");

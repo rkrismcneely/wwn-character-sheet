@@ -25,7 +25,7 @@ test("GM can expressly allow their own paid provider plan, without automatic fal
   assert.equal(paid.billingMode, "gm-owned-paid-allowed");
   assert.throws(() => parseRecapProviderPreferences({ ...base, billingMode: "site-owner-paid" }), /GM-owned/);
   assert.throws(() => parseRecapProviderPreferences({ ...base, fallback: "paid" }), /fallback/);
-  assert.throws(() => parseRecapProviderPreferences({ ...base, transcription: "gemini" }), /does not support/);
+  assert.equal(selectRecapProvider("transcription", "gemini").id, "gemini");
   assert.throws(() => parseRecapProviderPreferences({ ...base, recap: "local-whisper" }), /does not support/);
   assert.throws(() => parseRecapProviderPreferences({ ...base, transcription: "other" }), /does not support/);
 });

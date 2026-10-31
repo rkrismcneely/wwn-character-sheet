@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RecapAudioForPlayer } from "@/lib/campaigns/recap-audio-assets";
 import { parseRecapTranscript } from "@/lib/campaigns/recap-transcript-display";
+import {recapSeekEvent} from "@/lib/campaigns/recap-audio-navigation";
 import type { StoredCaptionCue } from "@/lib/campaigns/recap-full-transcript";
 
 /** Extract explicit chapter headings only; ordinary narrative timestamps are not chapters. */
@@ -28,8 +29,8 @@ export function recapAudioChapters(content: string): { seconds: number; label: s
   return chapters.sort((a,b) => a.seconds - b.seconds);
 }
 
-export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:{
-  campaignId:string;recapId:string;content?:string;
+export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration,compact=false}:{
+  campaignId:string;recapId:string;content?:string;compact?:boolean;
   onDuration?:(assetId:string,durationMs:number)=>void;
 }) {
   const audioRef=useRef<HTMLAudioElement>(null);
@@ -41,6 +42,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:
   const [fullTranscript,setFullTranscript]=useState<StoredCaptionCue[]>([]);
   const [hasFullTranscript,setHasFullTranscript]=useState(false);
   useEffect(()=>{
+    if(compact)return;
     const controller=new AbortController();
     void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/transcript?recapId="+
       encodeURIComponent(recapId),{cache:"no-store",signal:controller.signal})
@@ -52,7 +54,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:
       .then(data=>{if(!controller.signal.aborted){setHasFullTranscript(Boolean(data.exists));setFullTranscript(data.cues??[]);}})
       .catch(()=>{/* The audio player remains available without transcript storage. */});
     return ()=>controller.abort();
-  },[campaignId,recapId]);
+  },[campaignId,recapId,compact]);
   const matchingCues=fullTranscript.filter(cue=>
     (cue.speakerName+" "+(cue.characterName??"")+" "+cue.text).toLocaleLowerCase().includes(filter.toLocaleLowerCase()));
   const visibleCues=matchingCues.slice(transcriptPage*100,transcriptPage*100+100);
@@ -94,10 +96,20 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:
   const playable=assets.filter(asset=>asset.status==="ready" && asset.provider==="google-drive");
   const selected=playable.find(asset=>asset.id===selectedId)??playable[0];
   const disconnected=assets.some(asset=>asset.status==="auth_required");
+  useEffect(()=>{
+    if(!compact)return;
+    const handle=(event:Event)=>{
+      const detail=(event as CustomEvent<{recapId?:string;seconds?:number}>).detail;
+      if(detail?.recapId===recapId&&typeof detail.seconds==="number"&&
+        Number.isFinite(detail.seconds)&&detail.seconds>=0)seekTo(detail.seconds);
+    };
+    window.addEventListener(recapSeekEvent,handle);
+    return()=>window.removeEventListener(recapSeekEvent,handle);
+  },[compact,recapId,selected]);
   if(loading)return null;
   if(!assets.length && !error && !hasFullTranscript && !transcript.length)return null;
   return <section className="session-recap-reading" aria-label="Listen to this session">
-    <h4>{selectedId || assets.length ? "Listen to this session" : "Session transcript"}</h4>
+    <h4>{compact?"Session recording":selectedId || assets.length ? "Listen to this session" : "Session transcript"}</h4>
     {playable.length>1 && <label>
       <span>Recording track</span>
       <select value={selected?.id??""} aria-label="Choose recording track"
@@ -107,7 +119,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:
         </option>)}
       </select>
     </label>}
-    {selected && chapters.length>0 && <nav aria-label="Recording chapters">
+    {!compact && selected && chapters.length>0 && <nav aria-label="Recording chapters">
       <h5>Chapters</h5>
       <ol>{chapters.map(chapter=><li key={chapter.seconds}>
         <button type="button" className="journal-inline-link" onClick={()=>seekTo(chapter.seconds)}>
@@ -115,7 +127,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:
         </button>
       </li>)}</ol>
     </nav>}
-    {hasFullTranscript && <section aria-label="Full session transcript">
+    {!compact && hasFullTranscript && <section aria-label="Full session transcript">
       <h5>Full session transcript</h5>
       <label><span className="sr-only">Search full transcript</span>
         <input type="search" value={filter} onChange={event=>{setFilter(event.target.value);setTranscriptPage(0);}}
@@ -144,7 +156,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration}:
           onClick={()=>setTranscriptPage(page=>page+1)}>Next</button>
       </div>}
     </section>}
-    {!hasFullTranscript && selected && transcript.length>0 && <section aria-label="Timestamped transcript">
+    {!compact && !hasFullTranscript && selected && transcript.length>0 && <section aria-label="Timestamped transcript">
       <h5>Transcript</h5>
       <label><span className="sr-only">Search transcript</span>
         <input type="search" value={filter} onChange={event=>setFilter(event.target.value)}

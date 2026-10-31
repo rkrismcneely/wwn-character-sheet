@@ -1,4 +1,5 @@
 import { markdownTextEntities } from "@/lib/markdown-entities";
+import {parseAudioTimestamp} from "@/lib/campaigns/recap-audio-navigation";
 import { safeJournalImage } from "@/lib/campaigns/journal-layout";
 import { markdownTableCells } from "@/lib/markdown-table";
 import { Fragment, type ReactNode } from "react";
@@ -14,13 +15,31 @@ function safeLink(href: string): string | null {
   } catch { return null; }
 }
 
-function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>void, journal = false, previewImageUrls?: ReadonlySet<string>): ReactNode[] {
+function timestampText(text:string,keyPrefix:string,onSeekAudio?: (seconds:number)=>void):ReactNode[]{
+  if(!onSeekAudio)return [markdownTextEntities(text)];
+  const pieces:ReactNode[]=[];
+  const pattern=/\b\d{1,2}:[0-5]\d:[0-5]\d\b/gu;
+  let from=0;
+  for(const match of text.matchAll(pattern)){
+    const index=match.index;
+    if(index>from)pieces.push(markdownTextEntities(text.slice(from,index)));
+    const seconds=parseAudioTimestamp(match[0]);
+    pieces.push(seconds===null?markdownTextEntities(match[0]):
+      <button type="button" key={keyPrefix+index} className="journal-inline-link"
+        title={"Play recording from "+match[0]} aria-label={"Play recording from "+match[0]}
+        onClick={()=>onSeekAudio(seconds)}>{match[0]}</button>);
+    from=index+match[0].length;
+  }
+  if(from<text.length)pieces.push(markdownTextEntities(text.slice(from)));
+  return pieces;
+}
+function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>void, journal = false, previewImageUrls?: ReadonlySet<string>, onSeekAudio?: (seconds:number)=>void): ReactNode[] {
   const pattern = /(!\[[^\]\n]*\]\([^\s)]+(?:\s+"[^"\n]*")?\)|\[[^\]\n]+\]\([^\s)]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/gu;
   const output: ReactNode[] = [];
   let start = 0;
   for (const match of text.matchAll(pattern)) {
     const index = match.index;
-    if (index > start) output.push(markdownTextEntities(text.slice(start, index)));
+    if (index > start) output.push(...timestampText(text.slice(start, index),keyPrefix+":"+start,onSeekAudio));
     const token = match[0];
     const key = keyPrefix + index;
     if (token.startsWith("![")) {
@@ -39,15 +58,15 @@ function inline(text: string, keyPrefix = "", onJournalNavigate?: (id:string)=>v
     } else if (token.startsWith("`")) {
       output.push(<code key={key}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**") || token.startsWith("__")) {
-      output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal,previewImageUrls)}</strong>);
+      output.push(<strong key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</strong>);
     } else if (token.startsWith("~~")) {
-      output.push(<del key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal,previewImageUrls)}</del>);
+      output.push(<del key={key}>{inline(token.slice(2, -2), key + ":",onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</del>);
     } else {
-      output.push(<em key={key}>{inline(token.slice(1, -1), key + ":",onJournalNavigate,journal,previewImageUrls)}</em>);
+      output.push(<em key={key}>{inline(token.slice(1, -1), key + ":",onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</em>);
     }
     start = index + token.length;
   }
-  if (start < text.length) output.push(markdownTextEntities(text.slice(start)));
+  if (start < text.length) output.push(...timestampText(text.slice(start),keyPrefix+":"+start,onSeekAudio));
   return output;
 }
 
@@ -55,7 +74,7 @@ function isSpecial(line: string) {
   return /^\s*(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s?|```|---+\s*$)/u.test(line);
 }
 
-export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false, depth = 0, previewImageUrls }: { content: string;onJournalNavigate?: (id:string)=>void;journal?:boolean;depth?:number;previewImageUrls?:ReadonlySet<string> }) {
+export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false, depth = 0, previewImageUrls,onSeekAudio }: { content: string;onJournalNavigate?: (id:string)=>void;journal?:boolean;depth?:number;previewImageUrls?:ReadonlySet<string>;onSeekAudio?:(seconds:number)=>void }) {
   const lines = content.replaceAll("\r\n", "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -72,7 +91,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       continue;
     }
     if (i + 1 < lines.length && line.trim() && /^ {0,3}(?:=+|-+)\s*$/u.test(lines[i+1])) {
-      blocks.push(<h3 key={key}>{inline(line,String(key),onJournalNavigate,journal,previewImageUrls)}</h3>);
+      blocks.push(<h3 key={key}>{inline(line,String(key),onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</h3>);
       i += 2; continue;
     }
     if (/^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/u.test(line)) {
@@ -80,7 +99,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
     }
     const heading = /^(#{1,6})\s+(.+)$/u.exec(line);
     if (heading) {
-      const text = inline(heading[2], String(key),onJournalNavigate,journal,previewImageUrls);
+      const text = inline(heading[2], String(key),onJournalNavigate,journal,previewImageUrls,onSeekAudio);
       const level = heading[1].length;
       blocks.push(level === 1 ? <h2 key={key}>{text}</h2> : level === 2 ? <h3 key={key}>{text}</h3> : <h4 key={key}>{text}</h4>);
       i++; continue;
@@ -93,10 +112,10 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       while (i < lines.length && /^\s*>/u.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/u, ""));
       const callout = journal && depth < 8 ? /^\[!(NOTE|INFO|TIP|WARNING|CAUTION|IMPORTANT)\]\s*(.*)$/iu.exec(quote[0] ?? "") : null;
       if(callout) {
-        blocks.push(<aside key={key} className={"journal-callout journal-callout-"+callout[1].toLowerCase()}>{callout[2] && <strong className="journal-callout-title">{inline(callout[2],String(key),onJournalNavigate,journal,previewImageUrls)}</strong>}<SessionRecapMarkdown content={quote.slice(1).join("\n")} onJournalNavigate={onJournalNavigate} journal depth={depth+1} previewImageUrls={previewImageUrls}/></aside>);
+        blocks.push(<aside key={key} className={"journal-callout journal-callout-"+callout[1].toLowerCase()}>{callout[2] && <strong className="journal-callout-title">{inline(callout[2],String(key),onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</strong>}<SessionRecapMarkdown content={quote.slice(1).join("\n")} onJournalNavigate={onJournalNavigate} journal depth={depth+1} previewImageUrls={previewImageUrls} onSeekAudio={onSeekAudio}/></aside>);
         continue;
       }
-      blocks.push(<blockquote key={key}>{quote.map((item, n) => <p key={n}>{inline(item, String(key) + ":" + n,onJournalNavigate,journal,previewImageUrls)}</p>)}</blockquote>);
+      blocks.push(<blockquote key={key}>{quote.map((item, n) => <p key={n}>{inline(item, String(key) + ":" + n,onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</p>)}</blockquote>);
       continue;
     }
     const isBullet = /^\s*[-*+]\s+/u.test(line);
@@ -106,7 +125,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       const matcher = isBullet ? /^\s*[-*+]\s+(.+)$/u : /^\s*\d+\.\s+(.+)$/u;
       while (i < lines.length && matcher.test(lines[i])) {
         const item = matcher.exec(lines[i])?.[1] ?? "";
-        items.push(<li key={i}>{inline(item, String(i),onJournalNavigate,journal,previewImageUrls)}</li>);
+        items.push(<li key={i}>{inline(item, String(i),onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</li>);
         i++;
       }
       blocks.push(isBullet ? <ul key={key}>{items}</ul> : <ol key={key}>{items}</ol>);
@@ -126,7 +145,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
         normalizedHeaders.some(value=>["armor class","hit points","hit dice","attack bonus","saving throw","ac","hp","hd"].includes(value))
       );
       const tableStyle=isProperties?" journal-table-properties":isStatTable?" journal-table-stats":"";
-      blocks.push(<div key={key} className={"session-recap-table-wrap"+tableStyle}><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate,journal,previewImageUrls)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate,journal,previewImageUrls)}</td>)}</tr>)}</tbody></table></div>);
+      blocks.push(<div key={key} className={"session-recap-table-wrap"+tableStyle}><table><thead><tr>{columns.map((cell, n) => <th key={n}>{inline(cell,"",onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</th>)}</tr></thead><tbody>{rows.map((cells, n) => <tr key={n}>{columns.map((_, c) => <td key={c}>{inline(cells[c] ?? "","",onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
     const para: string[] = [];
@@ -134,7 +153,7 @@ export function SessionRecapMarkdown({ content,onJournalNavigate,journal = false
       para.push(lines[i++]);
     }
     // Two trailing spaces create a deliberate Markdown hard break.
-    blocks.push(<p key={key}>{para.map((part, n) => <Fragment key={n}>{n > 0 ? (para[n - 1].endsWith("  ") ? <br /> : " ") : null}{inline(part.trim(), String(key) + ":" + n,onJournalNavigate,journal,previewImageUrls)}</Fragment>)}</p>);
+    blocks.push(<p key={key}>{para.map((part, n) => <Fragment key={n}>{n > 0 ? (para[n - 1].endsWith("  ") ? <br /> : " ") : null}{inline(part.trim(), String(key) + ":" + n,onJournalNavigate,journal,previewImageUrls,onSeekAudio)}</Fragment>)}</p>);
   }
   return <div className="session-recap-markdown">{blocks}</div>;
 }

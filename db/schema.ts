@@ -477,11 +477,17 @@ export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_process
   leaseToken: text("lease_token"),
   leaseExpiresAt: text("lease_expires_at"),
   transcriptKey: text("transcript_key"),
+  audioKey: text("audio_key"),
+  audioMimeType: text("audio_mime_type"),
+  audioBytes: integer("audio_bytes"),
+  sourceDigest: text("source_digest"),
+  nextEligibleAt: text("next_eligible_at"),
   errorCode: text("error_code"),
   updatedAt: text("updated_at").notNull(),
 }, table => [
   primaryKey({ columns: [table.jobId, table.trackIndex, table.chunkIndex] }),
   index("campaign_recap_processing_chunks_work_idx").on(table.jobId, table.status, table.trackIndex, table.chunkIndex),
+  index("campaign_recap_processing_chunks_eligible_idx").on(table.status, table.nextEligibleAt, table.leaseExpiresAt),
 ]);
 
 

@@ -26,6 +26,7 @@ async function loadLocalWhisper():Promise<Transcriber>{
     {device:hasGpu?"webgpu":"wasm",dtype:"q8"});
 }
 function localCaptionCues(result:WhisperOutput,startMs:number,durationMs:number):CaptionCue[]{
+  if((!Array.isArray(result.chunks)||result.chunks.length===0)&&result.text==="")return [];
   if(!Array.isArray(result.chunks)||result.chunks.length===0)
     throw new Error("Local Whisper returned no reliable timestamps; this clip was not saved.");
   return result.chunks.map(part=>{

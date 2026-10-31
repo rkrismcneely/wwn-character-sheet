@@ -440,6 +440,13 @@ export const campaignRecapProcessingJobs = sqliteTable("campaign_recap_processin
   sourceLane: text("source_lane", { enum: ["craig-multitrack", "audio-upload", "timed-captions"] }).notNull(),
   status: text("status", { enum: ["awaiting_source", "queued", "preparing", "transcribing", "assembling", "awaiting_review", "completed", "failed", "cancelled"] }).notNull().default("awaiting_source"),
   provider: text("provider").notNull().default("none"),
+  recapId: text("recap_id").references(() => campaignSessionRecaps.id, {onDelete: "set null"}),
+  providerConnectionId: text("provider_connection_id"),
+  quotaMode: text("quota_mode", {enum: ["provider-free-only", "gm-owned-paid-allowed"]}).notNull().default("provider-free-only"),
+  nextEligibleAt: text("next_eligible_at"),
+  pausedAt: text("paused_at"),
+  cancelledAt: text("cancelled_at"),
+  sourceManifestKey: text("source_manifest_key"),
   durationMs: integer("duration_ms"),
   speakerTracks: integer("speaker_tracks"),
   totalChunks: integer("total_chunks").notNull().default(0),
@@ -455,6 +462,8 @@ export const campaignRecapProcessingJobs = sqliteTable("campaign_recap_processin
   uniqueIndex("campaign_recap_processing_jobs_import_idx").on(table.importId),
   index("campaign_recap_processing_jobs_campaign_idx").on(table.campaignId, table.createdAt),
   index("campaign_recap_processing_jobs_status_idx").on(table.status, table.updatedAt),
+  index("campaign_recap_processing_jobs_gemini_schedule_idx").on(table.provider, table.status, table.nextEligibleAt, table.updatedAt),
+  index("campaign_recap_processing_jobs_owner_recap_idx").on(table.requestedBy, table.recapId, table.createdAt),
 ]);
 
 export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_processing_chunks", {
@@ -468,11 +477,17 @@ export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_process
   leaseToken: text("lease_token"),
   leaseExpiresAt: text("lease_expires_at"),
   transcriptKey: text("transcript_key"),
+  audioKey: text("audio_key"),
+  audioMimeType: text("audio_mime_type"),
+  audioBytes: integer("audio_bytes"),
+  sourceDigest: text("source_digest"),
+  nextEligibleAt: text("next_eligible_at"),
   errorCode: text("error_code"),
   updatedAt: text("updated_at").notNull(),
 }, table => [
   primaryKey({ columns: [table.jobId, table.trackIndex, table.chunkIndex] }),
   index("campaign_recap_processing_chunks_work_idx").on(table.jobId, table.status, table.trackIndex, table.chunkIndex),
+  index("campaign_recap_processing_chunks_eligible_idx").on(table.status, table.nextEligibleAt, table.leaseExpiresAt),
 ]);
 
 

@@ -57,8 +57,12 @@ export class CraigFlacPcmWriter{
   private count=0;
   private emittedFrames=0;
   private index=0;
-  constructor(private readonly info:CraigFlacStreamInfo,
-    private readonly name:string,private readonly onClip:(clip:File,part:CraigFlacSpeechPart)=>Promise<void>){
+  private readonly info:CraigFlacStreamInfo;
+  private readonly name:string;
+  private readonly onClip:(clip:File,part:CraigFlacSpeechPart)=>Promise<void>;
+  constructor(info:CraigFlacStreamInfo,name:string,
+    onClip:(clip:File,part:CraigFlacSpeechPart)=>Promise<void>){
+    this.info=info;this.name=name;this.onClip=onClip;
     this.parts=planCraigFlacSpeechParts(info);
   }
   private async emit(){

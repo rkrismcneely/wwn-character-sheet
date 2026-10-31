@@ -70,16 +70,22 @@ export function RecapStorageConnections() {
       currentUrl.searchParams.delete("drive");
       window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search + currentUrl.hash);
     }
-    void refresh(controller.signal)
-      .catch(cause => {
-        if (!controller.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "Google Drive is unavailable.");
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => { controller.abort(); window.clearTimeout(notification); };
+    const requestTimer = window.setTimeout(() => {
+      void refresh(controller.signal)
+        .catch(cause => {
+          if (!controller.signal.aborted) {
+            setError(cause instanceof Error ? cause.message : "Google Drive is unavailable.");
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 0);
+    return () => {
+      controller.abort();
+      window.clearTimeout(notification);
+      window.clearTimeout(requestTimer);
+    };
   }, [refresh]);
 
   // The API returns connections newest first. Use one account card rather

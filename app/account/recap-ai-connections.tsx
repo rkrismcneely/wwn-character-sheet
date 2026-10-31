@@ -69,7 +69,7 @@ export function RecapAIConnections(){
           new Date(state.connection.connectedAt).toLocaleDateString():"Pending"}</dd></div>
       </dl>}
     {state&&!state.configured&&<p className="account-error" role="status">
-      Encrypted AI connections aren't configured on this deployment. You cannot save an API key yet.
+      Encrypted AI connections are not configured on this deployment. You cannot save an API key yet.
     </p>}
     <form className="account-form" onSubmit={save}>
       <label htmlFor="recap-gemini-api-key">Personal Google AI Studio API key</label>
@@ -79,7 +79,7 @@ export function RecapAIConnections(){
       <small>
         <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noreferrer noopener">
           Create or manage your Google AI Studio key
-        </a>. Google may process uploaded audio under your account's data-use terms.
+        </a>. Google may process uploaded audio under the data-use terms of your account.
       </small>
       <label className="account-explanation">
         <input type="checkbox" checked={approved} disabled={busy||!state?.configured}

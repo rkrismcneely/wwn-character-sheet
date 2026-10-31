@@ -70,7 +70,7 @@ test("lost relay response probes same-origin and resumes accepted range",async()
   const ranges=[];
   const relay={endpoint:"/api/test/relay",assetId:ticketProps.assetId,ticket:"opaque",issuedAt:ticketProps.issuedAt};
   const fetcher=async(_target,options)=>{
-    ranges.push(options.headers["Content-Range"]);
+    ranges.push(options.headers.get("Content-Range"));
     if(ranges.length===1)throw new TypeError("Failed to fetch");
     if(ranges.length===2)return new Response(null,{status:308,headers:{range:"bytes=0-1048575"}});
     return Response.json({id:"file_own_drive_123456"});

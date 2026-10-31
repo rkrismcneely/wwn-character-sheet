@@ -22,7 +22,8 @@ export type StagingErrorCode=
   | "gemini_chunk_http_429" | "gemini_chunk_http_500" | "gemini_chunk_http_502"
   | "gemini_chunk_http_503" | "gemini_chunk_http_504"
   | "gemini_upload_receipt_invalid" | "gemini_upload_finalization_uncertain"
-  | "gemini_file_processing_failed" | "gemini_file_not_active" | "staging_data_unavailable";
+  | "gemini_file_processing_failed" | "gemini_file_not_active"
+  | "gemini_file_expired" | "staging_data_unavailable";
 
 export class RecapStagingFailure extends Error{
   readonly code:StagingErrorCode;

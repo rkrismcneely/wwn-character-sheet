@@ -70,6 +70,6 @@ test("Gemini account consent warns about free tier data use and no AI is started
     read("app/campaigns/session-recap-manager.tsx"),
     read("app/account/recap-ai-connections.tsx"),
   ]);
-  assert.match(ui, /Creating this draft alone does not start an AI request/u);
+  assert.match(ui, /Creating this draft alone does not start an AI request|Gemini starts only when you later click Auto Summarize/u);
   assert.match(accounts, /content submitted under its free[\s\S]*Gemini API tier may be used to improve/u);
 });

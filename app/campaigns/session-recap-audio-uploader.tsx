@@ -124,14 +124,17 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
         signal:abort.signal,
       });
       const session=await response.json() as {
-        assetId?:string;uploadSessionUrl?:string;chunkBytes?:number;error?:string;
+        assetId?:string;uploadSessionUrl?:string;uploadTicket?:string;uploadIssuedAt?:number;chunkBytes?:number;error?:string;
       };
-      if(!response.ok || !session.assetId || !session.uploadSessionUrl || !session.chunkBytes){
+      if(!response.ok || !session.assetId || !session.uploadSessionUrl || !session.chunkBytes || !session.uploadTicket || !session.uploadIssuedAt){
         throw new Error(session.error||"Could not start Google Drive upload.");
       }
       const remote=await uploadRecordingToDrive(file,session.uploadSessionUrl,
         (sent,total)=>setProgress(uploadPercent(sent,total)),
-        {chunkBytes:session.chunkBytes,signal:abort.signal});
+        {chunkBytes:session.chunkBytes,signal:abort.signal,relay:{
+          endpoint:base+"/upload/relay",assetId:session.assetId,
+          ticket:session.uploadTicket,issuedAt:session.uploadIssuedAt,
+        }});
       uploaded={assetId:session.assetId,remoteFileId:remote.id};
       setAwaitingVerification(uploaded);
       await verifyAsset(uploaded);
@@ -154,7 +157,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     </div>
     <p className="session-recap-editor-help">
       Save an MP3, M4A, WAV, FLAC or AAC recording in the Tales Without End folder in your own Google Drive.
-      Large 2–3-hour recordings upload in chunks directly from this browser.
+      Large 2–3-hour recordings stream in chunks through TWE to your own Google Drive; TWE does not store the audio.
       Keep this page and section open while uploading. Navigation can interrupt the transfer;
       stop the upload first if you need to leave. Uploading alone never sends audio to Gemini.
     </p>

@@ -48,18 +48,18 @@ export function RecapAIConnections(){
   return <section className="account-panel" aria-labelledby="recap-ai-connections-heading">
     <div className="account-section-heading"><div>
       <p className="account-kicker">SESSION RECAP PROVIDERS</p>
-      <h2 id="recap-ai-connections-heading">AI Transcription Accounts</h2>
+      <h2 id="recap-ai-connections-heading">AI Recap Accounts</h2>
     </div></div>
     <p className="account-explanation">
       Each GM can connect their own Gemini project. Your API key is encrypted on the TWE
       server and cannot be viewed by other GMs, campaign members, or site visitors.
       Free limits and potential charges belong to your Google AI Studio project, not TWE.
-      Connecting does not start any transcription.
+      Connecting does not submit audio or start any AI request.
     </p>
     <p className="account-explanation">
-      Gemini foreground transcription is being added to Session Recaps.
-      Unattended processing after you close the browser is still under development.
-      Local Whisper requires no account and will appear among the recap processing options.
+      Recap Only is the default direction. Direct AI audio summaries and unattended processing
+      are still under development; connecting a key does not activate either.
+      Full transcripts remain an optional advanced workflow.
     </p>
     {state?.connection&&state.connection.status!=="disconnected"&&
       <dl className="account-provider">
@@ -79,7 +79,12 @@ export function RecapAIConnections(){
       <small>
         <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noreferrer noopener">
           Create or manage your Google AI Studio key
-        </a>. Google may process uploaded audio under the data-use terms of your account.
+        </a>. <strong>Privacy:</strong> Google states that content submitted under its free
+        Gemini API tier may be used to improve its products. Paid-tier handling differs.
+        Check your project's actual data-use terms before sending private recordings.
+        <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener noreferrer">
+          {" Gemini tier terms"}
+        </a>.
       </small>
       <label className="account-explanation">
         <input type="checkbox" checked={approved} disabled={busy||!state?.configured}

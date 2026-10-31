@@ -225,9 +225,16 @@ async function poll(env:RecapOnlyEnvironment,job:Job){
 export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promise<void>{
   const db=env.DB;
   const stale=stamped(Date.now()-60*60*1000);
+  // A stale Drive-to-Gemini transfer is safely retryable: no model interaction
+  // has yet been submitted. A stale 'submitting' state is NOT safe to retry,
+  // because Google might already have accepted a billable generation request.
   await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET status='needs_attention',"+
-    "error_code='incomplete_transfer_or_submission',updated_at=? "+
-    "WHERE confirmed_at IS NOT NULL AND status IN ('transferring','submitting') AND claimed_at<?")
+    "error_code='transfer_stalled',updated_at=? "+
+    "WHERE confirmed_at IS NOT NULL AND status='transferring' AND claimed_at<?")
+    .bind(now(),stale).run();
+  await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET status='needs_attention',"+
+    "error_code='submission_uncertain',updated_at=? "+
+    "WHERE confirmed_at IS NOT NULL AND status='submitting' AND claimed_at<?")
     .bind(now(),stale).run();
   const job=await db.prepare("SELECT id,campaign_id AS campaignId,recap_id AS recapId,"+
     "audio_asset_id AS audioAssetId,requested_by AS requestedBy,status,detail,"+

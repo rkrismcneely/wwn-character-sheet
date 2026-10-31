@@ -82,6 +82,6 @@ test("Gemini transcription consumes only invoking GM's own encrypted account con
   assert.doesNotMatch(api,/sharedGeminiKey|SITE_OWNER_GEMINI_KEY|process\.env\.GOOGLE_API_KEY/u);
   assert.match(client,/connectedGemini/u);
   assert.match(client,/api\/account\/recap-ai\/gemini/u);
-  assert.match(client,/\(!key\.trim\(\)\&\&!connectedGemini\)/u);
+  assert.ok(client.includes('(!key.trim()&&!connectedGemini)'));
   assert.match(client,/if\(key\.trim\(\)\)form\.set\("apiKey",key\.trim\(\)\)/u);
 });

@@ -3,7 +3,6 @@ import {inspectCraigFlacStreamInfo,type CraigFlacStreamInfo,
   type CraigLongSourceMetadata} from "./recap-craig-range-browser.ts";
 import {GEMINI_STAGING_RATE,GEMINI_STAGING_SECONDS,
   GEMINI_STAGING_MAX_CLIPS} from "./recap-gemini-speech-wav.ts";
-import {CRAIG_RANGE_WINDOW_BYTES} from "./recap-craig-audio-ranges.ts";
 
 export const CRAIG_FLAC_READ_BYTES=512*1024;
 export const CRAIG_FLAC_MAX_DECODED_FRAMES_PER_READ=4*1000000;
@@ -140,9 +139,9 @@ export async function streamCraigFlacSpeech(input:{
   if(!Number.isSafeInteger(input.source.metadata.bytes)||
     input.source.metadata.bytes<128||input.source.metadata.bytes>256*1024*1024)
     throw new Error("FLAC source is outside the private Craig transfer limit.");
-  const module= input.createDecoder?null:await import("@wasm-audio-decoders/flac");
+  const codec= input.createDecoder?null:await import("@wasm-audio-decoders/flac");
   const decoder=input.createDecoder?await input.createDecoder():
-    new module!.FLACDecoderWebWorker() as CraigFlacDecoder;
+    new codec!.FLACDecoderWebWorker() as CraigFlacDecoder;
   let offset=0,uploaded=0;
   const count=Math.ceil(input.source.metadata.bytes/CRAIG_FLAC_READ_BYTES);
   const writer=new CraigFlacPcmWriter(info,"craig-track.flac",async(file,part)=>{

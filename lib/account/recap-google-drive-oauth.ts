@@ -10,7 +10,13 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 export const DRIVE_CALLBACK = CANONICAL_ORIGIN + "/api/account/storage/google-drive/callback";
 export const DRIVE_STATE_LIFETIME_MS = 10 * 60 * 1000;
 const OAUTH_STATE_COOKIE = "twe_drive_oauth";
-export type DriveSettings = { GOOGLE_DRIVE_CLIENT_ID: string; GOOGLE_DRIVE_CLIENT_SECRET: string; RECAP_STORAGE_ENCRYPTION_KEY?: string };
+export type DriveSettings = {
+  GOOGLE_DRIVE_CLIENT_ID?: string;
+  GOOGLE_DRIVE_CLIENT_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  RECAP_STORAGE_ENCRYPTION_KEY?: string;
+};
 type Settings = DriveSettings;
 const textEncoder = new TextEncoder();
 
@@ -26,8 +32,21 @@ function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
   for (let i=0; i<raw.length; i++) output[i] = raw.charCodeAt(i);
   return output;
 }
+/**
+ * A dedicated Drive client is preferred, but the existing, already configured
+ * Google sign-in OAuth client can support a *separate, explicit Drive consent*
+ * once the owner registers DRIVE_CALLBACK in Google Cloud Console.
+ * Never use a half-configured dedicated client or inherit Google sign-in scopes.
+ */
+export function driveOAuthClient(settings: Settings): {clientId:string;clientSecret:string}|null {
+  const dedicated=Boolean(settings.GOOGLE_DRIVE_CLIENT_ID || settings.GOOGLE_DRIVE_CLIENT_SECRET);
+  const id=dedicated ? settings.GOOGLE_DRIVE_CLIENT_ID : settings.GOOGLE_CLIENT_ID;
+  const secret=dedicated ? settings.GOOGLE_DRIVE_CLIENT_SECRET : settings.GOOGLE_CLIENT_SECRET;
+  return typeof id==="string"&&id.trim()&&typeof secret==="string"&&secret.trim()
+    ? {clientId:id,clientSecret:secret} : null;
+}
 export function driveConfiguration(settings: Settings): boolean {
-  return Boolean(settings.GOOGLE_DRIVE_CLIENT_ID && settings.GOOGLE_DRIVE_CLIENT_SECRET &&
+  return Boolean(driveOAuthClient(settings) &&
     settings.RECAP_STORAGE_ENCRYPTION_KEY && /^[a-zA-Z0-9_-]{43}$/u.test(settings.RECAP_STORAGE_ENCRYPTION_KEY));
 }
 export function requireDriveConfiguration(settings: Settings): void {
@@ -103,7 +122,7 @@ export function authorizationUrl(settings: Settings, state: string): string {
   requireDriveConfiguration(settings);
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   const query = url.searchParams;
-  query.set("client_id", settings.GOOGLE_DRIVE_CLIENT_ID);
+  query.set("client_id", driveOAuthClient(settings)!.clientId);
   query.set("redirect_uri", DRIVE_CALLBACK);
   query.set("response_type", "code");
   query.set("scope", DRIVE_SCOPE);
@@ -117,7 +136,7 @@ export async function exchangeDriveCode(settings: Settings, code: string): Promi
   requireDriveConfiguration(settings);
   if (code.length < 1 || code.length > 2048) throw new Error("Invalid OAuth code.");
   const body = new URLSearchParams({
-    code, client_id: settings.GOOGLE_DRIVE_CLIENT_ID, client_secret: settings.GOOGLE_DRIVE_CLIENT_SECRET,
+    code, client_id: driveOAuthClient(settings)!.clientId, client_secret: driveOAuthClient(settings)!.clientSecret,
     redirect_uri: DRIVE_CALLBACK, grant_type: "authorization_code",
   });
   const response = await fetch("https://oauth2.googleapis.com/token", {

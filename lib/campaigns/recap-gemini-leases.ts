@@ -9,6 +9,7 @@ import { canDispatchGeminiJob,type GeminiJobState,type GeminiQuotaMode,
 type Candidate={
   jobId:string;recapId:string;requestedBy:string;campaignId:string;
   status:GeminiJobState;quotaMode:GeminiQuotaMode;maxCostMicrousd:number;
+  spentCostMicrousd:number;
   pausedAt:string|null;nextEligibleAt:string|null;
   connectionStatus:string|null;audioKey:string;audioBytes:number;
   sourceDigest:string;mimeType:string;trackIndex:number;chunkIndex:number;
@@ -22,7 +23,8 @@ export const GEMINI_CHUNK_LEASE_MS=5*60*1000;
 export const GEMINI_LIMIT_RETRY_MS=24*60*60*1000;
 const query="SELECT j.id AS jobId,j.recap_id AS recapId,j.requested_by AS requestedBy,"+
   "j.campaign_id AS campaignId,j.status,j.quota_mode AS quotaMode,"+
-  "j.max_cost_microusd AS maxCostMicrousd,j.paused_at AS pausedAt,"+
+  "j.max_cost_microusd AS maxCostMicrousd,"+
+  "j.spent_cost_microusd AS spentCostMicrousd,j.paused_at AS pausedAt,"+
   "j.next_eligible_at AS nextEligibleAt,a.status AS connectionStatus,"+
   "c.audio_key AS audioKey,c.audio_bytes AS audioBytes,c.source_digest AS sourceDigest,"+
   "c.audio_mime_type AS mimeType,c.track_index AS trackIndex,c.chunk_index AS chunkIndex,"+
@@ -44,6 +46,10 @@ export async function leaseOnePreparedGeminiChunk(db:D1Database,config:{
   const eligible=await db.prepare(query)
     .bind(config.now,config.now,GEMINI_BACKGROUND_MAX_CLIP_BYTES).all<Candidate>();
   for(const item of eligible.results){
+    const conservativeMicrousd=Math.ceil((item.endMs-item.startMs)/60000)*10000;
+    if(item.quotaMode==="gm-owned-paid-allowed" && (
+      !Number.isSafeInteger(item.spentCostMicrousd)||
+      item.spentCostMicrousd+conservativeMicrousd>item.maxCostMicrousd))continue;
     if(!item.recapId||!item.requestedBy||!item.audioKey||!item.sourceDigest||
       !/^[0-9a-f]{64}$/u.test(item.sourceDigest)||!item.mimeType||
       item.endMs-item.startMs>GEMINI_BACKGROUND_MAX_CLIP_MS||

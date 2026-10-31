@@ -53,6 +53,11 @@ export const recapAttentionText:Record<string,{
     description:"The previous worker execution was interrupted. TWE cannot always tell whether Gemini received a request.",
     action:"If the transfer definitely ended before model submission, TWE may offer a safe retry. Otherwise check usage before starting another request.",
   },
+  interaction_result_unavailable:{
+    title:"Gemini result no longer available",
+    description:"The interaction ID can no longer be retrieved from Google. It may already have consumed quota.",
+    action:"TWE has stopped polling and will not automatically submit another AI request. Keep the original job diagnostics.",
+  },
   interaction_failed:{
     title:"Gemini reported a failed summary",
     description:"The AI generation ended with a failure. TWE will not submit it again automatically.",
@@ -125,6 +130,7 @@ export const recapStageDescriptions:Record<string,string>={
   gemini_upload_receipt_invalid:"Gemini did not return a valid receipt for the completed audio upload.",
   gemini_upload_finalization_uncertain:"Gemini may have accepted the entire temporary recording, but TWE could not uniquely verify the completed file. Retry only the original job to check again; the Drive recording is untouched.",
   gemini_file_processing_failed:"Gemini received the audio but could not finish preparing it. This temporary file cannot be used for a recap.",
+  gemini_file_expired:"The temporary Gemini audio file expired. Your original recording remains in Drive. Retry to create a fresh temporary upload without restarting a previously submitted AI generation.",
   gemini_file_not_active:"Gemini did not report an active audio file. TWE will not submit a summary using it.",
   staging_data_unavailable:"TWE could not resume its saved transfer state. The audio remains in Google Drive.",
 };

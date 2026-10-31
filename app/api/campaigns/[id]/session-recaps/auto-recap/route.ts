@@ -3,7 +3,7 @@ import {getCampaignD1,loadCampaignAccess,CampaignServiceError} from "@/lib/campa
 import {canManageCampaignContent} from "@/lib/campaigns/authorization";
 import {getCampaignSessionRecap} from "@/lib/campaigns/session-recaps";
 import {campaignErrorResponse} from "@/lib/campaigns/http";
-import {enqueueConsentedRecapAudio} from "@/lib/campaigns/recap-only-jobs";
+import {enqueueConfirmedRecapAudio} from "@/lib/campaigns/recap-only-jobs";
 import {CANONICAL_ORIGIN} from "@/lib/auth-constants";
 import {readBoundedJson,RequestBodyError} from "@/lib/http-json";
 
@@ -23,12 +23,12 @@ async function gm(request:Request,ctx:Context,recapId:unknown){
 export async function GET(request:Request,ctx:Context){
   try{
     const info=await gm(request,ctx,new URL(request.url).searchParams.get("recapId"));
-    const rows=await info.db.prepare("SELECT id,status,detail,model,generated_markdown AS generatedMarkdown,"+
+    const rows=await info.db.prepare("SELECT id,audio_asset_id AS audioAssetId,status,detail,model,generated_markdown AS generatedMarkdown,"+
       "error_code AS errorCode,created_at AS createdAt,updated_at AS updatedAt "+
       "FROM campaign_recap_audio_summary_jobs WHERE campaign_id=? AND recap_id=? "+
-      "AND requested_by=? ORDER BY created_at DESC LIMIT 4")
+      "AND requested_by=? AND confirmed_at IS NOT NULL ORDER BY created_at DESC LIMIT 4")
       .bind(info.campaign.id,info.recap.id,info.actor.userId).all<{
-        id:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
+        id:string;audioAssetId:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
         errorCode:string|null;createdAt:string;updatedAt:string;
       }>();
     return Response.json({jobs:rows.results,recap:{content:info.recap.content,isPublished:info.recap.isPublished,updatedAt:info.recap.updatedAt}},
@@ -40,7 +40,7 @@ export async function POST(request:Request,ctx:Context){
   try{
     if(request.headers.get("origin")!==CANONICAL_ORIGIN)
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
-    const body=await readBoundedJson(request,1024) as {recapId?:unknown;assetId?:unknown};
+    const body=await readBoundedJson(request,1024) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown};
     const info=await gm(request,ctx,body.recapId);
     if(info.recap.isPublished)
       throw new CampaignServiceError("Create an unpublished recap draft before starting AI processing.",409);
@@ -50,16 +50,15 @@ export async function POST(request:Request,ctx:Context){
       .bind(body.assetId,info.recap.id,info.campaign.id,info.actor.userId)
       .first<{id:string;byteSize:number}>();
     if(!asset)throw new CampaignServiceError("Choose a finished recording stored in your own Drive.",404);
-    const created=await enqueueConsentedRecapAudio(info.db,{
+    const result=await enqueueConfirmedRecapAudio(info.db,{
       campaignId:info.campaign.id,recapId:info.recap.id,audioAssetId:asset.id,
       byteSize:asset.byteSize,userId:info.actor.userId,
+      confirmed:body.confirmed===true,privacyApproved:body.privacyApproved===true,
+      billingApproved:body.billingApproved===true,
     });
-    if(!created){
-      const existing=await info.db.prepare("SELECT id FROM campaign_recap_audio_summary_jobs WHERE audio_asset_id=?")
-        .bind(asset.id).first<{id:string}>();
-      if(!existing)throw new CampaignServiceError("Enable automatic recaps in Account before starting.",409);
-    }
-    return Response.json({queued:true},{headers:noStore});
+    return Response.json({queued:true,created:result.created,alreadyQueued:result.alreadyQueued},
+      {headers:noStore});
+
   }catch(e){
     if(e instanceof RequestBodyError)return Response.json({error:e.message},{status:e.status,headers:noStore});
     return campaignErrorResponse(e,"Could not queue this audio recap.");

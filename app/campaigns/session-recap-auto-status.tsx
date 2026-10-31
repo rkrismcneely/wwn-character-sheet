@@ -1,19 +1,22 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
+import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
+
 type Job={
-  id:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
-  errorCode:string|null;createdAt:string;updatedAt:string;
+  id:string;audioAssetId:string;status:string;detail:string;model:string;
+  generatedMarkdown:string|null;errorCode:string|null;
+  createdAt:string;updatedAt:string;
 };
 type Asset={id:string;label:string;status:string;provider:string};
 const statusLabel:Record<string,string>={
-  pending_upload:"Waiting to send the saved recording to Gemini",
-  transferring:"Transferring your Drive recording to Gemini",
-  uploaded:"Preparing your temporary Gemini audio file",
-  submitting:"Starting AI recap generation",
-  submitted:"Gemini is analyzing the session — you can close this page",
-  ready:"AI draft ready for review — not published",
-  needs_attention:"Processing needs your attention",
-  failed:"Processing stopped",
+  pending_upload:"Queued for Gemini — original audio remains in Drive",
+  transferring:"Transferring a temporary copy from Drive to Gemini",
+  uploaded:"Gemini is preparing its temporary audio file",
+  submitting:"Starting AI summarization",
+  submitted:"Gemini is analyzing your session — you can close this page",
+  ready:"AI recap draft ready for review — not published",
+  needs_attention:"Summarization needs attention",
+  failed:"Summarization stopped",
 };
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   campaignId:string;recapId:string;onDraft:(content:string,updatedAt:string,overwrite:boolean)=>boolean;
@@ -23,31 +26,48 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   const [assets,setAssets]=useState<Asset[]>([]);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
-  const [starting,setStarting]=useState("");
-  const seen=useRef("");
+  const [starting,setStarting]=useState(false);
+  const [confirmAsset,setConfirmAsset]=useState<Asset|null>(null);
+  const [privacy,setPrivacy]=useState(false);
+  const [billing,setBilling]=useState(false);
   const [recapUpdatedAt,setRecapUpdatedAt]=useState("");
+  const seen=useRef("");
+  const cancelRef=useRef<HTMLButtonElement|null>(null);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
-    const [results,audio]=await Promise.all([
+    const [status,audio]=await Promise.all([
       fetch(endpoint+"?recapId="+encodeURIComponent(recapId),{cache:"no-store",signal}),
       fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio?recapId="+encodeURIComponent(recapId),{cache:"no-store",signal}),
     ]);
-    const [jobsResult,audioResult]=await Promise.all([results.json(),audio.json()]) as [
-      {jobs?:Job[];recap?:{updatedAt:string};error?:string},{assets?:Asset[];error?:string},
+    const [result,recordings]=await Promise.all([status.json(),audio.json()]) as [
+      {jobs?:Job[];recap?:{updatedAt:string};error?:string},
+      {assets?:Asset[];error?:string},
     ];
-    if(!results.ok||!Array.isArray(jobsResult.jobs))throw Error(jobsResult.error||"Could not read recap processing status.");
-    if(!audio.ok||!Array.isArray(audioResult.assets))throw Error(audioResult.error||"Could not read saved audio.");
-    if(!signal?.aborted){setJobs(jobsResult.jobs);setAssets(audioResult.assets);setRecapUpdatedAt(jobsResult.recap?.updatedAt||"");}
+    if(!status.ok||!Array.isArray(result.jobs))
+      throw Error(result.error||"Could not read automatic recap status.");
+    if(!audio.ok||!Array.isArray(recordings.assets))
+      throw Error(recordings.error||"Could not read attached audio.");
+    if(!signal?.aborted){
+      setJobs(result.jobs);
+      setAssets(recordings.assets);
+      setRecapUpdatedAt(result.recap?.updatedAt||"");
+    }
   },[campaignId,recapId,endpoint]);
   useEffect(()=>{
-    const ctrl=new AbortController();
-    const initial=window.setTimeout(()=>{
-      void refresh(ctrl.signal).catch(e=>{if(!ctrl.signal.aborted)setError(e instanceof Error?e.message:"Status unavailable.");});
-    },0);
-    const timer=window.setInterval(()=>{
-      void refresh(ctrl.signal).catch(()=>{ /* keep existing progress visible while offline */ });
-    },12000);
-    return ()=>{ctrl.abort();window.clearTimeout(initial);window.clearInterval(timer);};
-  },[refresh]);
+    const controller=new AbortController();
+    const load=()=>{void refresh(controller.signal).catch(e=>{
+      if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Recap status unavailable.");
+    });};
+    const first=window.setTimeout(load,0);
+    const interval=window.setInterval(load,12000);
+    const uploaded=(event:Event)=>{
+      if((event as CustomEvent<{recapId:string}>).detail?.recapId===recapId)load();
+    };
+    window.addEventListener("twe:recap-audio-attached",uploaded);
+    return ()=>{
+      controller.abort();window.clearTimeout(first);window.clearInterval(interval);
+      window.removeEventListener("twe:recap-audio-attached",uploaded);
+    };
+  },[recapId,refresh]);
   useEffect(()=>{
     const job=jobs.find(x=>x.status==="ready"&&x.generatedMarkdown);
     if(job?.generatedMarkdown&&seen.current!==job.id){
@@ -55,63 +75,121 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
       onDraft(job.generatedMarkdown,recapUpdatedAt,false);
     }
   },[jobs,onDraft,recapUpdatedAt]);
-  async function start(assetId:string){
-    setStarting(assetId);setError("");setNotice("");
+  useEffect(()=>{
+    if(!confirmAsset)return;
+    cancelRef.current?.focus();
+    const close=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"&&!starting){event.preventDefault();setConfirmAsset(null);}
+    };
+    window.addEventListener("keydown",close);
+    return ()=>window.removeEventListener("keydown",close);
+  },[confirmAsset,starting]);
+  function openConfirmation(asset:Asset){
+    if(starting)return;
+    setConfirmAsset(asset);setPrivacy(false);setBilling(false);setError("");setNotice("");
+  }
+  async function summarize(){
+    if(!confirmAsset||!privacy||!billing||starting)return;
+    const asset=confirmAsset;
+    setStarting(true);setError("");setNotice("");
     try{
       const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({recapId,assetId})});
-      const data=await response.json() as {queued?:boolean;error?:string};
-      if(!response.ok||!data.queued)throw Error(data.error||"Could not queue audio recap.");
-      setNotice("Recording queued for private Gemini recap generation.");
+        body:JSON.stringify({recapId,assetId:asset.id,confirmed:true,
+          privacyApproved:true,billingApproved:true})});
+      const data=await response.json() as {
+        queued?:boolean;created?:boolean;alreadyQueued?:boolean;error?:string;
+      };
+      if(!response.ok||!data.queued)throw Error(data.error||"Could not start Gemini summarization.");
+      setConfirmAsset(null);
+      setNotice(data.alreadyQueued
+        ?"This recording was already submitted; no duplicate request was created."
+        :"Auto Summarize confirmed. TWE will process the recording in the background using your Gemini account.");
       await refresh();
-    }catch(e){setError(e instanceof Error?e.message:"Could not start audio recap.");}
-    finally{setStarting("");}
+    }catch(e){setError(e instanceof Error?e.message:"Could not start summarization.");}
+    finally{setStarting(false);}
   }
+  const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
+  const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id));
   const newest=jobs[0];
-  const pending=assets.filter(x=>x.status==="ready"&&x.provider==="google-drive"&&jobs.length===0);
-  return <section className="session-recap-reading" aria-label="Automatic recap progress">
-    <h4>Automatic audio recap</h4>
+  return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
+    <h4>Session recording</h4>
     <p className="campaign-empty-copy">
-      The recording stays in your Google Drive. Gemini receives a temporary copy
-      only after your account&apos;s processing and billing approvals are saved.
-      The AI recap is private until you publish it.
+      Step 1: upload your recording to Google Drive. It stays attached to this private recap
+      whether or not you ever use AI.
     </p>
-    {newest&&<p role="status"><strong>{statusLabel[newest.status]||"Processing status: "+newest.status}</strong>
+    {playable.length>0&&<SessionRecapAudioPlayer
+      key={playable.map(a=>a.id).join(":")} campaignId={campaignId} recapId={recapId}/>}
+    {playable.length===0&&<p className="campaign-empty-copy">
+      Once your upload finishes, the recording will appear here with playback controls.
+    </p>}
+    <h4>Step 2 — AI summarization (optional)</h4>
+    <p className="campaign-empty-copy">
+      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>
+      and confirm for this recording. It uses your own Gemini API key, may consume
+      free-tier quota or incur charges, and creates a private draft for review.
+    </p>
+    {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
+      <span>{asset.label}</span>
+      <button type="button" className="campaign-primary" disabled={starting}
+        onClick={()=>openConfirmation(asset)}>Auto Summarize</button>
+    </div>)}
+    {newest&&<p role="status"><strong>{statusLabel[newest.status]||"Status: "+newest.status}</strong>
       {" · "}{newest.detail} recap</p>}
-    {newest?.status==="submitted"&&<p className="campaign-empty-copy">
-      TWE checks the result automatically while your computer is off. Free-tier
-      provider quotas and audio processing may affect completion time.
+    {newest?.status==="ready"&&newest.generatedMarkdown&&<details>
+      <summary>View or apply saved Gemini draft</summary>
+      <p className="campaign-empty-copy">Review for inaccurate names or events before publishing.</p>
+      <button type="button" className="campaign-secondary" onClick={()=>{
+        if(!window.confirm("Replace your unsaved editor notes with Gemini's draft?"))return;
+        if(onDraft(newest.generatedMarkdown!,recapUpdatedAt,true))
+          setNotice("Gemini draft copied into the editor for review.");
+      }}>Use Gemini draft in editor</button>
+      <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
+    </details>}
+    {newest?.status==="needs_attention"&&<p className="campaign-error" role="alert">
+      {newest.errorCode==="submission_uncertain"
+        ?"Gemini might have received the request. TWE will not submit it again automatically, to avoid a second charge."
+        :"The AI job needs attention. Your original Google Drive recording is still saved."}
     </p>}
-    {newest?.status==="ready"&&<>
-      <p className="campaign-empty-copy">
-        Review the AI draft in the editor below. Check names, timeline and NPC details before publishing.
-        The audio player will appear in the published recap.
-      </p>
-      {newest.generatedMarkdown&&<details>
-        <summary>View saved Gemini draft or replace the editor text</summary>
-        <button type="button" className="campaign-secondary"
-          onClick={()=>{
-            if(!window.confirm("Replace your current unsaved editor text with the saved Gemini draft?"))return;
-            if(onDraft(newest.generatedMarkdown!,recapUpdatedAt,true))
-              setNotice("Gemini draft copied into the editor. Review before publishing.");
-          }}>Use Gemini draft in editor</button>
-        <pre style={{maxHeight:280,overflow:"auto",whiteSpace:"pre-wrap"}}>
-          {newest.generatedMarkdown}
-        </pre>
-      </details>}
-    </>}
-    {newest?.status==="needs_attention"&&<p className="campaign-error">
-      {newest.errorCode==="audio_exceeds_2gb"
-        ?"The original recording is saved in Drive, but Gemini cannot accept an audio file over 2 GB."
-        :newest.errorCode==="submission_uncertain"
-          ?"Gemini may have received this request. TWE will not retry automatically and risk a second charge."
-          :"Processing could not complete safely. Your original Drive recording is still saved; no recap was published."}
-    </p>}
-    {pending.map(asset=><p key={asset.id} className="campaign-empty-copy">
-      {asset.label} {" "}
-      <button type="button" className="campaign-secondary" disabled={Boolean(starting)}
-        onClick={()=>void start(asset.id)}>{starting===asset.id?"Starting…":"Generate recap from this recording"}</button>
-    </p>)}
+    {confirmAsset&&<div role="presentation" style={{
+      position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",display:"flex",
+      justifyContent:"center",alignItems:"center",padding:16,zIndex:2000,
+    }}>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="recap-confirm-title"
+        aria-describedby="recap-confirm-description"
+        style={{background:"var(--parchment,#f5e9d0)",color:"#302315",
+          width:"min(100%,520px)",padding:24,borderRadius:8,boxShadow:"0 12px 40px rgba(0,0,0,.4)"}}>
+        <h3 id="recap-confirm-title">Auto Summarize this recording?</h3>
+        <p id="recap-confirm-description">
+          <strong>{confirmAsset.label}</strong> is already saved in your Drive.
+          TWE will send a temporary copy of the audio, relevant campaign Journal
+          entries, and earlier recaps to your connected Gemini project.
+        </p>
+        <p>
+          Google may use free-tier submitted content to improve its products.
+          The request may count toward free limits or incur charges in your own
+          Google project. TWE cannot verify your remaining free quota.
+          Nothing will be published to players automatically.
+        </p>
+        <label style={{display:"block",marginBlock:12}}>
+          <input type="checkbox" checked={privacy} disabled={starting}
+            onChange={e=>setPrivacy(e.target.checked)}/>
+          {" "}I approve sending this recording and campaign context to Gemini.
+        </label>
+        <label style={{display:"block",marginBlock:12}}>
+          <input type="checkbox" checked={billing} disabled={starting}
+            onChange={e=>setBilling(e.target.checked)}/>
+          {" "}I understand this request could use my quota or incur provider charges.
+        </label>
+        <div className="session-recap-form-actions">
+          <button ref={cancelRef} type="button" className="campaign-secondary" disabled={starting}
+            onClick={()=>setConfirmAsset(null)}>Cancel</button>
+          <button type="button" className="campaign-primary"
+            disabled={starting||!privacy||!billing} onClick={()=>void summarize()}>
+            {starting?"Submitting…":"Confirm Auto Summarize"}
+          </button>
+        </div>
+      </div>
+    </div>}
     {notice&&<p className="session-recap-import-notice" role="status">{notice}</p>}
     {error&&<p className="campaign-error" role="alert">{error}</p>}
   </section>;

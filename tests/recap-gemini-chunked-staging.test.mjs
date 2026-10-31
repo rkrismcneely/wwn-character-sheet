@@ -45,7 +45,8 @@ function responseFor(s){
     if(url==="https://generativelanguage.googleapis.com/upload/v1beta/files"){
       assert.equal(opts.headers["x-goog-api-key"],"private-test-key");
       s.history.started++;
-      return new Response(null,{status:200,headers:{"x-goog-upload-url":sessionUrl}});
+      return new Response(null,{status:200,headers:{"x-goog-upload-url":sessionUrl,
+        "x-goog-upload-chunk-granularity":String(256*1024)}});
     }
     if(url===sessionUrl){
       // Google official SDK authenticates all resumable upload operations.
@@ -55,6 +56,7 @@ function responseFor(s){
         return new Response(null,{status:200,headers:{"x-goog-upload-size-received":String(s.row.stageOffset),
           "x-goog-upload-status":"active"}});
       }
+      assert.equal(opts.headers["content-type"],"application/json");
       const count=opts.body.byteLength;
       assert.ok(count<=RECAP_STAGING_CHUNK_BYTES);
       const offset=Number(opts.headers["x-goog-upload-offset"]);
@@ -84,7 +86,9 @@ test("GM-owned audio stages in bounded fixed-length chunks, with encrypted URL a
     assert.deepEqual(once,{done:false,bytes:RECAP_STAGING_CHUNK_BYTES*RECAP_STAGING_CHUNKS_PER_TICK,
       total:source.byteSize});
     assert.equal(s.row.stageOffset,24*MiB);
-    assert.equal(s.history.offsets.length,6);
+    assert.equal(RECAP_STAGING_CHUNK_BYTES,8*MiB);
+    assert.equal(RECAP_STAGING_CHUNKS_PER_TICK,3);
+    assert.equal(s.history.offsets.length,3);
     assert.ok(s.row.stageUrlCiphertext);
     assert.ok(!s.row.stageUrlCiphertext.includes("signed-twe-test"));
     const second=await stageRecapAudioChunked(s.env,job,"private-test-key",source,"fake-drive-bearer");
@@ -110,6 +114,28 @@ test("mismatch in Drive Range is refused before any bytes go to Gemini",async()=
     assert.equal(s.history.offsets.length,0);
   }finally{globalThis.fetch=original;}
 });
+test("Gemini resumable session enforces provider-advertised upload chunk granularity",async()=>{
+  const original=globalThis.fetch;
+  const s=simulate(),base=responseFor(s);
+  let uploaded=0;
+  globalThis.fetch=async(url,opts)=>{
+    if(url==="https://generativelanguage.googleapis.com/upload/v1beta/files")
+      return new Response(null,{status:200,headers:{
+        "x-goog-upload-url":sessionUrl,"x-goog-upload-chunk-granularity":String(16*MiB),
+      }});
+    if(url===sessionUrl&&opts.headers["x-goog-upload-command"]!=="query")uploaded++;
+    return base(url,opts);
+  };
+  try{
+    await assert.rejects(
+      ()=>stageRecapAudioChunked(s.env,job,"private-test-key",source,"fake-token"),
+      e=>e instanceof RecapStagingFailure&&e.code==="gemini_chunk_granularity_mismatch");
+    assert.equal(uploaded,0);
+    assert.equal(s.row.stageUrlCiphertext,null);
+    assert.equal(s.row.stageOffset,0);
+  }finally{globalThis.fetch=original;}
+});
+
 test("Gemini HTTP chunk rejections preserve only safe status codes; never expose provider secrets",async()=>{
   const original=globalThis.fetch;
   try{

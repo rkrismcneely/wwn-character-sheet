@@ -39,7 +39,7 @@ export async function enqueueConfirmedRecapAudio(
     throw new CampaignServiceError("Choose a supported recap detail level.",422);
   if(input.requestId!==undefined&&
     (typeof input.requestId!=="string"||
-      !/^[0-9a-f]{8}-[0-9a-f-]{27}$/iu.test(input.requestId)))
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.requestId)))
     throw new CampaignServiceError("Invalid recap request identifier.",422);
   const detail=(input.detail??preferences?.detail??"detailed") as Preferences["detail"];
   const now=new Date().toISOString();

@@ -8,7 +8,7 @@ const KEY_PATTERN=/^[A-Za-z0-9_-]{43}$/u;
 // Google AI Studio can issue different key types. Reject unsafe control/space
 // characters and unreasonably large values, but do not invent an API key
 // alphabet/length rule; Google's own read-only models endpoint verifies access.
-const API_KEY_PATTERN=/^[\\x21-\\x7e]{16,512}$/u;
+const API_KEY_PATTERN=/^[\x21-\x7e]{16,512}$/u;
 const encoder=new TextEncoder();
 
 export function recapAIEncryptionReady(config:RecapAIEncryptionSettings):boolean {

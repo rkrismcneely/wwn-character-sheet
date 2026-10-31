@@ -76,7 +76,7 @@ test("recap UI presents truthful provider quota and Drive storage usage, progres
     'aria-label="Current Google Drive upload bytes"',
     'aria-label="Prepared audio clip progress"',
     'aria-label="Completed Gemini transcript clips"',
-    "not your remaining Gemini quota","full-length",
+    "not your remaining Gemini quota","Multi-hour Craig recordings",
     "craig-manifest?importId=","revokeObjectURL"]){
       if(marker==="revokeObjectURL")continue;
       assert.ok(ui.includes(marker),"Missing usage/format warning: "+marker);

@@ -26,7 +26,7 @@ function simulate(){
           Object.assign(row,{stageUrlCiphertext:args[0],stageUrlNonce:args[1],
             stageUrlVersion:args[2],stageOffset:0});
         }else if(sql.includes("SET status='uploaded'")){
-          assert.equal(row.stageOffset,args.at(-1));
+          assert.equal(args.at(-1),job.id);
           Object.assign(row,{status:"uploaded",fileUri:args[0],fileName:args[1],
             stageUrlCiphertext:null,stageUrlNonce:null,stageUrlVersion:null,stageOffset:args[2]});
           history.finals++;

@@ -86,9 +86,11 @@ export async function GET(request:Request,context:Context):Promise<Response>{
     const object=await env.BUCKET.get(key,{range:{offset:part.start,length:part.length}});
     if(!object||!("body" in object)||!object.body)
       return fail("Craig audio byte range is unavailable.",409);
-    if(object.etag!==head.etag||
-      object.range?.offset!==part.start||
-      object.range?.length!==part.length)
+    const returnedRange=object.range;
+    if(object.etag!==head.etag||!returnedRange||
+      !("offset" in returnedRange)||!("length" in returnedRange)||
+      returnedRange.offset!==part.start||
+      returnedRange.length!==part.length)
       return fail("The source file changed during download.",409);
     return new Response(object.body,{status:206,headers:{
       ...craigRangeHeaders(part,head.httpEtag,mime),

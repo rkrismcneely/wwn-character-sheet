@@ -447,6 +447,11 @@ export const campaignRecapProcessingJobs = sqliteTable("campaign_recap_processin
   pausedAt: text("paused_at"),
   cancelledAt: text("cancelled_at"),
   sourceManifestKey: text("source_manifest_key"),
+  assembledTranscriptKey: text("assembled_transcript_key"),
+  assembledAt: text("assembled_at"),
+  assemblyCursor: integer("assembly_cursor").notNull().default(0),
+  assemblyLeaseToken: text("assembly_lease_token"),
+  assemblyLeaseExpiresAt: text("assembly_lease_expires_at"),
   durationMs: integer("duration_ms"),
   speakerTracks: integer("speaker_tracks"),
   totalChunks: integer("total_chunks").notNull().default(0),
@@ -466,6 +471,7 @@ export const campaignRecapProcessingJobs = sqliteTable("campaign_recap_processin
   index("campaign_recap_processing_jobs_status_idx").on(table.status, table.updatedAt),
   index("campaign_recap_processing_jobs_gemini_schedule_idx").on(table.provider, table.status, table.nextEligibleAt, table.updatedAt),
   index("campaign_recap_processing_jobs_owner_recap_idx").on(table.requestedBy, table.recapId, table.createdAt),
+  index("campaign_recap_processing_jobs_assembly_idx").on(table.provider,table.status,table.assembledAt,table.assemblyLeaseExpiresAt),
 ]);
 
 export const campaignRecapProcessingChunks = sqliteTable("campaign_recap_processing_chunks", {

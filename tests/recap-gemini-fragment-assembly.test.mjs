@@ -80,9 +80,9 @@ test("GM-only assembled route must fail on existing published transcript or unex
   const route=await read("../app/api/campaigns/[id]/session-recaps/background-gemini/assembled/route.ts");
   for(const term of ["getSessionActor(request)","canManageCampaignContent",
     "getCampaignSessionRecap","job.requestedBy!==actor.userId",
-    'status!=="awaiting_review"',"validateCompleteGeminiAssembly",
+    'includes(job.status)',"validateCompleteGeminiAssembly",
     "prior.value?.published","body.replace!==true","prior.value.updatedAt!==body.expectedUpdatedAt",
-    "etagMatches","If-None-Match","published:false","cues:draft.cues",
+    "etagMatches","If-None-Match","published:false","cues:draft.cues","status='completed'",
     "cache-control","private, no-store"]){
     assert.ok(route.includes(term),"Missing GM review/import guard: "+term);
   }

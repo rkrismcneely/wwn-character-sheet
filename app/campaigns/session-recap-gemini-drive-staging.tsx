@@ -21,6 +21,10 @@ type Staged={trackIndex:number;chunkIndex:number;startMs:number;endMs:number;
   sourceDigest:string|null;staged:boolean};
 type Progress={jobId:string;status:string;totalChunks:number;speakerTracks:number;clips:Staged[]};
 const errorMessage=(e:unknown)=>e instanceof Error?e.message:"Could not prepare this recording.";
+const bytesLabel=(bytes:number)=>bytes>=1024**3?
+  (bytes/1024**3).toFixed(2)+" GiB":(bytes/1024**2).toFixed(1)+" MiB";
+const clipPercent=(done:number,total:number)=>total>0?
+  Math.min(100,Math.round(100*done/total)):0;
 function readableState(item:Job){
   if(item.status==="cancelled")return "Cancelled";
   if(item.pausedAt)return "Paused";
@@ -395,6 +399,12 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
     finally{setBusy(false);}
   }
   const attached=staged?.clips.filter(x=>x.staged).length??0;
+  const selectedParts=nativeBuffer?nativeClips:clips;
+  const estimatedUploadBytes=selectedParts.reduce((total,part)=>total+44+part.targetFrames*2,0);
+  const chosenCraigEntry=trackIndex!==""?craigEntries[Number(trackIndex)]:undefined;
+  const activeClipPercent=clipPercent(count,selectedParts.length);
+  const uploadedPercent=clipPercent(uploadBytes.sent,uploadBytes.total);
+  const transcribed=job?.progress?.completed??job?.completedChunks??0;
   return <section className="session-recap-reading" aria-label="Prepare Gemini background transcription audio">
     <h4>Prepare Gemini for unattended transcription</h4>
     <p className="campaign-empty-copy">
@@ -403,6 +413,16 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
       source audio to TWE storage. Keep the browser open for the initial upload only.
       The unattended Gemini runner is not enabled yet, so staging will not start AI charges.
     </p>
+    <div className="session-recap-import-notice" role="note">
+      <strong>Usage and privacy:</strong> Each prepared clip uses storage in your Google Drive.
+      Gemini requests, when enabled, consume your own Google AI Studio project's quota and
+      may incur charges if your project has billing enabled. TWE cannot read Google's
+      remaining free transcription allowance from this connection. Check the
+      <a href="https://aistudio.google.com/usage" target="_blank" rel="noopener noreferrer">
+        {" Google AI Studio usage dashboard"}
+      </a> for actual provider limits and usage. Clip progress below measures TWE processing,
+      <strong> not your remaining Gemini quota</strong>.
+    </div>
     {driveAccounts.length===0&&<p className="session-recap-import-notice">
       <a href="/account">Connect Google Drive in Account</a> before preparing speech clips.
     </p>}
@@ -454,11 +474,16 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         <p><strong>{readableState(job)}</strong></p>
         <p className="campaign-empty-copy">
           Prepared audio: {attached} of {staged?.totalChunks??0} clips.
-          {" "}Transcribed: {job.progress?.completed??job.completedChunks} of {job.totalChunks}.
+          {" "}Transcribed: {transcribed} of {job.totalChunks}
+          {" "}({clipPercent(transcribed,job.totalChunks)}%).
           {" "}Submitted to Gemini: {job.progress?.submitted??0}.
           {" "}Processing: {job.progress?.leased??0}.
           {" "}Needing attention: {job.progress?.failed??job.failedChunks}.
         </p>
+        {job.totalChunks>0&&<progress value={transcribed} max={job.totalChunks}
+          aria-label="Completed Gemini transcript clips"/>}
+        {staged&&staged.totalChunks>0&&<progress value={attached}
+          max={staged.totalChunks} aria-label="Prepared audio upload progress"/>}
         {tracks.length>0&&staged&&<p className="campaign-empty-copy">
           {tracks.map(track=>{
             const items=staged.clips.filter(c=>c.trackIndex===track.index);
@@ -499,16 +524,41 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
             </option>)}
           </select>
         </label>
-        <label>Converted or recorded uncompressed PCM WAV for this speaker
-          <input type="file" accept=".wav,audio/wav" disabled={busy||trackIndex===""}
-            onChange={event=>void chooseWav(event)}/>
-        </label>
-        {file&&<p className="campaign-empty-copy">
-          {file.name} · {clips.length} independently playable four-minute clips
+        {chosenCraigEntry&&<p className="campaign-empty-copy">
+          Craig source: {chosenCraigEntry.filename} · {bytesLabel(chosenCraigEntry.uncompressedBytes)}.
+          {chosenCraigEntry.uncompressedBytes>16*1024*1024?
+            " This track is too large for direct browser loading.":" Short native source decoding may be available in this browser."}
         </p>}
+        <button type="button" className="campaign-secondary"
+          disabled={busy||trackIndex===""||
+            (chosenCraigEntry?.uncompressedBytes??0)>16*1024*1024}
+          onClick={()=>void loadShortCraigTrack()}>
+          {busy?"Loading Craig track…":"Load short original Craig track"}
+        </button>
+        <p className="campaign-empty-copy">
+          <strong>Compressed-track warning:</strong> Direct AAC/FLAC decoding is
+          browser-dependent and limited to four minutes and 16 MiB per track,
+          with a 96 MiB decoded-audio safety budget. Multi-hour Craig recordings
+          must still be converted to an ordinary PCM WAV or processed by a future
+          streaming decoder; this tool never attempts to decode hours of compressed audio at once.
+        </p>
+        <label>Or select PCM WAV / short AAC or FLAC for this speaker
+          <input type="file" accept=".wav,.flac,.m4a,.mp4,audio/wav,audio/flac,audio/mp4"
+            disabled={busy||trackIndex===""} onChange={event=>void chooseWav(event)}/>
+        </label>
+        {file&&<div className="session-recap-reading" role="status">
+          <p>{file.name} · {selectedParts.length} independently playable speech clips.
+            {nativeFormat?" Decoded locally from "+nativeFormat.toUpperCase()+".":" PCM WAV, read in four-minute slices."}
+          </p>
+          <p className="campaign-empty-copy">
+            <strong>Estimated new Drive storage:</strong> {bytesLabel(estimatedUploadBytes)}
+            {" "}({selectedParts.length} files). Your actual Drive free space is not exposed
+            by the TWE connection; confirm capacity in Google Drive.
+          </p>
+        </div>}
         <div className="session-recap-form-actions">
           <button type="button" className="campaign-primary"
-            disabled={busy||!file||!clips.length||!connectionId}
+            disabled={busy||!file||!selectedParts.length||!connectionId}
             onClick={()=>void upload()}>
             {busy?"Preparing and uploading…":"Prepare and upload this voice"}
           </button>
@@ -519,7 +569,15 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
           <button type="button" className="campaign-secondary" disabled={busy||!attached}
             onClick={()=>void seal()}>Seal fully prepared job</button>
         </div>
-        {busy&&<p role="status">Checked or uploaded {count} / {clips.length} clips for this voice.</p>}
+        {busy&&<div role="status" className="session-recap-reading">
+          <p>Checked or uploaded {count} / {selectedParts.length} clips ({activeClipPercent}%).</p>
+          <progress max={selectedParts.length} value={count} aria-label="Prepared audio clip progress"/>
+          {uploadBytes.total>0&&<>
+            <p>Current Drive upload: {bytesLabel(uploadBytes.sent)} / {bytesLabel(uploadBytes.total)}
+              {" "}({uploadedPercent}%).</p>
+            <progress max={uploadBytes.total} value={uploadBytes.sent} aria-label="Current Google Drive upload bytes"/>
+          </>}
+        </div>}
       </>}
       {(["queued","awaiting_review","completed"].includes(job.status))&&<div className="session-recap-reading">
         <h5>Assembled Gemini transcript</h5>

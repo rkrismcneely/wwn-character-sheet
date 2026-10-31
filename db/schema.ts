@@ -455,6 +455,8 @@ export const campaignRecapProcessingJobs = sqliteTable("campaign_recap_processin
   maxCostMicrousd: integer("max_cost_microusd").notNull().default(0),
   spentCostMicrousd: integer("spent_cost_microusd").notNull().default(0),
   sourceCheckedAt: text("source_checked_at"),
+  sourceVerifyAttemptedAt: text("source_verify_attempted_at"),
+  sourceVerifiedAt: text("source_verified_at"),
   failureCode: text("failure_code"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),

@@ -73,7 +73,7 @@ test("one-bounded-range decoder with injected WASM worker rejects truncated sour
   });
   assert.equal(result.parts.length,1);assert.equal(saved.length,1);assert.equal(freed,1);
   assert.equal(saved[0].part.endMs,1000);
-  const bad=await assert.rejects(streamCraigFlacSpeech({
+  await assert.rejects(streamCraigFlacSpeech({
     source:make(),
     createDecoder:async()=>({...decoder,decode:async()=>({
       samplesDecoded:100,sampleRate:48000,channelData:[new Float32Array(100)],

@@ -33,9 +33,9 @@ export const recapProviders: readonly RecapProviderInfo[] = [
   },
   {
     id: "gemini", name: "Google Gemini API",
-    connectionMethod: "api-key", transcription: false, recap: true,
+    connectionMethod: "api-key", transcription: true, recap: true,
     execution: "remote", accountUrl: "https://aistudio.google.com/api-keys",
-    privacyNote: "Recap text sent to Google. Free and paid tiers differ in limits and data-use terms.",
+    privacyNote: "Audio and recap text may be sent to Google under the GM\'s own project. Free-tier data handling and paid limits differ.",
     availability: "free-or-user-paid", needsSeparateConnection: true,
   },
   {

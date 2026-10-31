@@ -313,19 +313,13 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
         part.chunkIndex!==i||part.startMs!==parts[i].startMs||part.endMs!==parts[i].endMs))
         throw new Error("The verified original audio differs from the saved clip plan. The recording cannot be silently replaced.");
       const planned=existing;
-      await streamCraigFlacSpeech({
-        source,signal:controller.signal,
-        onProgress:p=>setSourceMessage(
-          "Decoded "+p.clipsCompleted+"/"+p.clipsTotal+" audio clips. "+
-          "Downloaded "+bytesLabel(p.sourceBytes)+"/"+bytesLabel(p.sourceTotal)+
-          " of original FLAC in up to "+p.estimatedR2Reads+" private reads."),
-        onClip:async(converted,part)=>{
+      const uploadClip=async(converted:File,part:CraigFlacSpeechPart)=>{
           if(stopRequested.current||controller.signal.aborted)
-            throw new Error("FLAC preparation stopped. Uploaded clips remain in Drive.");
+            throw new Error("Audio preparation stopped. Uploaded clips remain in Drive.");
           const digest=await sha(converted),old=planned[part.chunkIndex];
           if(old.staged){
             if(old.sourceDigest!==digest)
-              throw new Error("Previously uploaded FLAC speech clip did not match its checksum.");
+              throw new Error("Previously uploaded speech clip did not match its checksum.");
             setCount(part.chunkIndex+1);return;
           }
           const started=await readJSON<{assetId:string;uploadSessionUrl:string;chunkBytes:number}>(
@@ -353,12 +347,30 @@ export function SessionRecapGeminiStaging({campaignId,recapId,onSaved}:{
               assetId:started.assetId,sourceDigest:digest}),
           });
           setCount(part.chunkIndex+1);await refresh(selectedJob.id);
-        },
-      });
-      setMessage("Full FLAC speaker track prepared and verified in your Google Drive. "+
+      };
+      if(isFlac){
+        await streamCraigFlacSpeech({
+          source,signal:controller.signal,onClip:uploadClip,
+          onProgress:p=>setSourceMessage(
+            "FLAC clips staged "+p.clipsCompleted+"/"+p.clipsTotal+
+            ". Source retrieved "+bytesLabel(p.sourceBytes)+"/"+bytesLabel(p.sourceTotal)+
+            "; approximately "+p.estimatedR2Reads+" Cloudflare R2 reads."),
+        });
+      }else{
+        await streamCraigAacSpeech({
+          source,index:aacIndex!,signal:controller.signal,onClip:uploadClip,
+          onProgress:p=>setSourceMessage(
+            "AAC packets decoded "+p.packetsDecoded+"/"+p.packetsTotal+
+            "; Drive clips staged "+p.clipsCompleted+"/"+p.clipsTotal+
+            ". Audio retrieved "+bytesLabel(p.sourceBytes)+
+            " using "+p.sourceReadRequests+" bounded Cloudflare R2 reads. "+
+            "Gemini transcription remains disabled."),
+        });
+      }
+      setMessage("Full "+(isFlac?"FLAC":"AAC")+" speaker track prepared and verified in your Google Drive. "+
         "Prepare the other Craig speakers, then seal the job. Automatic Gemini submission remains disabled.");
     }catch(e){
-      setError(errorMessage(e)+" Confirmed clips remain saved. Retry the same Craig source to resume.");
+      setError(errorMessage(e)+" Confirmed clips remain saved. Retry the same Craig source and browser to resume.");
     }finally{longAbort.current=null;setBusy(false);setSourceBusy(false);}
   }
   async function saveLongCraigToComputer(){

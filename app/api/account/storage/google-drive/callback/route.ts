@@ -10,9 +10,9 @@ import {
 
 /** Completes one-use, user-bound Google Drive consent. Never redirects with a token. */
 export async function GET(request: Request): Promise<Response> {
-  const end = (state: "connected" | "error") => new Response(null, {
+  const end = (state: "connected" | "error" | "cancelled") => new Response(null, {
     status: 303, headers: {
-      location: CANONICAL_ORIGIN + "/account?drive=" + state,
+      location: CANONICAL_ORIGIN + "/account?drive=" + state + "#recap-setup",
       "set-cookie": stateCookie("", true),
       "cache-control": "private, no-store",
       "referrer-policy": "no-referrer",
@@ -24,6 +24,8 @@ export async function GET(request: Request): Promise<Response> {
     if (!actor) return end("error");
     const params = new URL(request.url).searchParams;
     const state = params.get("state");
+    // Google's explicit denial is a cancellation, not a broken account.
+    if (params.get("error") === "access_denied") return end("cancelled");
     const code = params.get("code");
     if (!state || !code || !hasDriveStateCookie(request, state)) return end("error");
     const db = await getCampaignD1();

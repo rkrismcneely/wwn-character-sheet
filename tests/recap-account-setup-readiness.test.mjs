@@ -58,7 +58,8 @@ test("recap setup endpoint is user scoped and exposes only redacted readiness",a
   assert.match(ui,/recapSetup==="ready"/u);
   assert.match(account,/id="recap-setup"/u);
   assert.match(drive,/Connect Google Drive/u);
-  assert.match(drive,/https:\/\/taleswithoutend.com\/api\/account\/storage\/google-drive\/callback/u);
+  assert.match(drive,/ENDPOINT \+ "\/start"/u);
+  assert.doesNotMatch(drive,/console\.cloud\.google\.com|RECAP_STORAGE_ENCRYPTION_KEY/u);
   assert.match(gemini,/Get a Gemini API key from Google AI Studio/u);
   assert.match(gemini,/aistudio.google.com\/api-keys/u);
   assert.match(gemini,/readAccountReply/u);

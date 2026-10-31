@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type StorageConnection = {
   id: string;
@@ -10,122 +10,169 @@ type StorageConnection = {
   connectedAt: string | null;
 };
 
-export function RecapStorageConnections() {
-  const [connections,setConnections] = useState<StorageConnection[]>([]);
-  const [available,setAvailable] = useState(false);
-  const [loading,setLoading] = useState(true);
-  const [busy,setBusy] = useState("");
-  const [confirmId,setConfirmId] = useState("");
-  const [message,setMessage] = useState("");
-  const [error,setError] = useState("");
+type StorageStatus = {
+  available?: boolean;
+  connections?: StorageConnection[];
+  error?: string;
+};
 
-  async function refresh() {
-    try {
-      const res = await fetch("/api/account/storage/google-drive",{cache:"no-store"});
-      const result = await res.json() as {
-        available?: boolean; connections?: StorageConnection[]; error?: string;
-      };
-      if (!res.ok || !Array.isArray(result.connections)) {
-        throw new Error(result.error || "Could not load storage connections.");
-      }
-      setConnections(result.connections);
-      setAvailable(Boolean(result.available));
-    } catch(e) {
-      setError(e instanceof Error ? e.message : "Storage connections unavailable.");
-    } finally { setLoading(false); }
+const ENDPOINT = "/api/account/storage/google-drive";
+
+async function readStatus(response: Response): Promise<StorageStatus> {
+  // Cloudflare errors can contain an empty or non-JSON response. Don't expose
+  // a JSON parser exception in the Account screen.
+  const raw = await response.text();
+  let result: StorageStatus;
+  try {
+    result = JSON.parse(raw) as StorageStatus;
+  } catch {
+    throw new Error("Google Drive connection status is unavailable. Reload Account and try again.");
   }
+  if (!response.ok || !Array.isArray(result.connections)) {
+    throw new Error(result.error || "Could not check your Google Drive connection.");
+  }
+  return result;
+}
 
-  useEffect(() => {
-    let active = true;
-    void fetch("/api/account/storage/google-drive", {cache:"no-store"})
-      .then(async response => {
-        const data = await response.json() as {available?: boolean;connections?: StorageConnection[];error?: string};
-        if (!response.ok || !Array.isArray(data.connections)) {
-          throw new Error(data.error || "Could not load storage connections.");
-        }
-        return data;
-      })
-      .then(data => {
-        if (!active) return;
-        setConnections(data.connections ?? []);
-        setAvailable(Boolean(data.available));
-        const result = new URLSearchParams(window.location.search).get("drive");
-        if (result === "connected") setMessage("Google Drive connected for your session recordings.");
-        if (result === "error") setError("Drive connection wasn't completed. Please try again.");
-      })
-      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Storage connections unavailable."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+export function RecapStorageConnections() {
+  const [connections, setConnections] = useState<StorageConnection[]>([]);
+  const [available, setAvailable] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(ENDPOINT, { cache: "no-store", signal });
+    const result = await readStatus(response);
+    if (signal?.aborted) return;
+    setConnections(result.connections ?? []);
+    setAvailable(result.available === true);
   }, []);
 
-  async function disconnect(connectionId: string) {
-    setBusy(connectionId); setError(""); setMessage("");
+  useEffect(() => {
+    const controller = new AbortController();
+    const currentUrl = new URL(window.location.href);
+    const outcome = currentUrl.searchParams.get("drive");
+    // Defer state updates until after the first render (React effect safety).
+    const notification = window.setTimeout(() => {
+      if (controller.signal.aborted) return;
+      if (outcome === "connected") {
+        setMessage("Google Drive connected. Your session recordings will be saved to your Drive.");
+      } else if (outcome === "cancelled") {
+        setMessage("Google Drive connection cancelled. Nothing was changed.");
+      } else if (outcome === "error") {
+        setError("Google couldn't complete the connection. Try again. If Google reports a redirect error, TWE needs to finish its Google authorization setup.");
+      }
+    }, 0);
+    if (outcome === "connected" || outcome === "cancelled" || outcome === "error") {
+      currentUrl.searchParams.delete("drive");
+      window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search + currentUrl.hash);
+    }
+    const requestTimer = window.setTimeout(() => {
+      void refresh(controller.signal)
+        .catch(cause => {
+          if (!controller.signal.aborted) {
+            setError(cause instanceof Error ? cause.message : "Google Drive is unavailable.");
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 0);
+    return () => {
+      controller.abort();
+      window.clearTimeout(notification);
+      window.clearTimeout(requestTimer);
+    };
+  }, [refresh]);
+
+  // The API returns connections newest first. Use one account card rather
+  // than showing old disconnected entries or multiple competing buttons.
+  const drive = connections.find(x => x.provider === "google-drive" && x.status === "connected")
+    ?? connections.find(x => x.provider === "google-drive" && x.status === "reconnect_required");
+  const connected = drive?.status === "connected";
+
+  function connect() {
+    if (!available || disconnecting) return;
+    setError("");
+    window.location.assign(ENDPOINT + "/start");
+  }
+
+  async function disconnect() {
+    if (!drive || disconnecting) return;
+    setDisconnecting(true);
+    setMessage("");
+    setError("");
     try {
-      const response = await fetch("/api/account/storage/google-drive/disconnect",{
-        method:"POST", headers:{"content-type":"application/json"},
-        body: JSON.stringify({connectionId}),
+      const response = await fetch(ENDPOINT + "/disconnect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ connectionId: drive.id }),
       });
-      const json = await response.json() as {disconnected?:boolean;error?:string};
-      if(!response.ok || !json.disconnected) throw new Error(json.error || "Disconnect failed.");
-      setMessage("Google Drive disconnected. Your files have not been deleted.");
-      setConfirmId("");
+      const body = await response.json() as { disconnected?: boolean; error?: string };
+      if (!response.ok || !body.disconnected) {
+        throw new Error(body.error || "Google Drive couldn't be disconnected.");
+      }
+      setConfirmDisconnect(false);
+      setMessage("Google Drive disconnected. Your recordings are still in your Drive.");
       await refresh();
-    } catch(e){setError(e instanceof Error?e.message:"Disconnect failed.");}
-    finally{setBusy("");}
+      window.dispatchEvent(new Event("twe:recap-account-changed"));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Google Drive couldn't be disconnected.");
+    } finally {
+      setDisconnecting(false);
+    }
   }
 
   return <section className="account-panel account-connections-panel" aria-labelledby="storage-connections-title">
     <div className="account-section-heading"><div>
       <p className="account-kicker">SESSION RECORDINGS</p>
-      <h2 id="storage-connections-title">Storage</h2>
+      <h2 id="storage-connections-title">Google Drive Storage</h2>
     </div></div>
     <p className="account-explanation">
-      Connect your own Google Drive to store and play Session Recap recordings, including 2–3-hour audio files.
-      Your files stay in your account. Players won&apos;t need to connect their own Drive.
+      Keep your session recordings in your own Google Drive. TWE creates a
+      <strong> Tales Without End</strong> folder for uploaded recordings, and
+      Google asks your permission before connecting.
     </p>
+    {loading ? <p role="status">Checking Google Drive…</p> : <>
+      {connected ? <div className="account-connection">
+        <div>
+          <strong>{drive.displayName || "Google Drive"}</strong>
+          <span><span aria-hidden="true">✓ </span>Connected</span>
+        </div>
+        <button type="button" className="account-secondary" disabled={disconnecting}
+          onClick={() => setConfirmDisconnect(true)}>Disconnect</button>
+      </div> : <div className="account-actions">
+        <button type="button" className="account-primary" disabled={!available || disconnecting}
+          onClick={connect}>
+          {drive?.status === "reconnect_required" ? "Reconnect Google Drive" : "Connect Google Drive"}
+        </button>
+      </div>}
+      {!connected && !available && <p className="account-explanation" role="status">
+        Google Drive connection is temporarily unavailable. TWE needs to finish its
+        Google authorization setup; no changes to your Drive are required.
+      </p>}
+      {!connected && available && <p className="account-explanation">
+        You can approve access on Google&apos;s permission screen. TWE only requests
+        access to files it creates or that you explicitly share with TWE.
+      </p>}
+      {confirmDisconnect && drive && <div className="account-disconnect-confirmation"
+        role="group" aria-label="Confirm disconnect Google Drive">
+        <p>Disconnect Google Drive? Your recordings won&apos;t be deleted, but TWE
+          cannot upload or play them until you reconnect.</p>
+        <div className="account-actions">
+          <button type="button" className="account-secondary" disabled={disconnecting}
+            onClick={() => setConfirmDisconnect(false)}>Cancel</button>
+          <button type="button" className="account-secondary" disabled={disconnecting}
+            onClick={() => void disconnect()}>
+            {disconnecting ? "Disconnecting…" : "Confirm disconnect"}
+          </button>
+        </div>
+      </div>}
+    </>}
     {message && <p className="account-notice" role="status">{message}</p>}
     {error && <p className="account-error" role="alert">{error}</p>}
-    {loading ? <p role="status">Loading storage connections…</p> : <>
-      <div className="account-connections-list">
-        {connections.filter(x=>x.provider==="google-drive").map(c=><div className="account-connection" key={c.id}>
-          <div><strong>{c.displayName || "Google Drive"}</strong>
-            <span>{c.status === "connected" ? "Connected" : c.status === "reconnect_required" ? "Reconnect required" : "Disconnected"}</span>
-          </div>
-          {c.status === "connected" && (confirmId === c.id
-            ? <div className="account-actions">
-                <button type="button" className="account-secondary" onClick={()=>setConfirmId("")}>Cancel</button>
-                <button type="button" className="account-secondary" disabled={busy===c.id}
-                  onClick={()=>void disconnect(c.id)}>{busy===c.id ? "Disconnecting…" : "Confirm disconnect"}</button>
-              </div>
-            : <button type="button" className="account-secondary" onClick={()=>setConfirmId(c.id)}>Disconnect</button>)}
-        </div>)}
-      </div>
-      {available
-        ? <div className="account-actions"><a href="/api/account/storage/google-drive/start" className="account-secondary">Connect Google Drive</a></div>
-        : <div className="account-explanation" role="status">
-            <strong>Google Drive needs one-time site setup before you can connect.</strong>
-            <p>Your normal Google sign-in does not automatically grant access to Drive.</p>
-            <details>
-              <summary>Site owner: enable Google Drive connections</summary>
-              <ol>
-                <li>In <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener noreferrer">Google Auth Platform — Clients</a>,
-                    open the existing TWE Google sign-in OAuth client (or create a separate Web client).</li>
-                <li>Authorize this exact redirect URI:
-                    <code>https://taleswithoutend.com/api/account/storage/google-drive/callback</code></li>
-                <li>Enable the <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener noreferrer">Google Drive API</a>
-                    and declare the <code>drive.file</code> scope on the consent screen. Publish or configure testing access as required by Google.</li>
-                <li>Set the <code>RECAP_STORAGE_ENCRYPTION_KEY</code> secret on the production Cloudflare Worker.
-                    It must be a cryptographically random 32-byte value encoded in unpadded base64url (43 characters).
-                    If using a separate OAuth client, also configure <code>GOOGLE_DRIVE_CLIENT_ID</code> and
-                    <code>GOOGLE_DRIVE_CLIENT_SECRET</code>. Never enter these site credentials into a GM&apos;s account form.</li>
-                <li>Reload this page and choose <strong>Connect Google Drive</strong>.
-                    Google will then ask for permission for your individual account.</li>
-              </ol>
-              <p>Cloudflare Worker settings and Google OAuth configuration can only be changed by the site operator.
-                 Existing Google sign-in credentials can be reused for the separate Drive consent after the redirect URI is approved.</p>
-            </details>
-          </div>}
-    </>}
-    <p className="account-explanation">Disconnecting removes TWE&apos;s access, not the recordings in your Drive. Existing playback and new uploads will stop until storage is reconnected. Recordings remain under your control.</p>
   </section>;
 }

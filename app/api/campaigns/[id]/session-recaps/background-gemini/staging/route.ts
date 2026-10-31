@@ -123,7 +123,8 @@ export async function POST(request:Request,context:Context){
     }
     if(body.action==="attach"){
       const index=body.trackIndex,part=body.chunkIndex;
-      if(!Number.isSafeInteger(index)||!Number.isSafeInteger(part)||index<0||index>127||
+      if(typeof index!=="number"||typeof part!=="number"||
+        !Number.isSafeInteger(index)||!Number.isSafeInteger(part)||index<0||index>127||
         part<0||part>511||typeof body.sourceDigest!=="string"||
         !/^[0-9a-f]{64}$/u.test(body.sourceDigest))
         return respond("Choose a valid signed-off audio clip and SHA-256 digest.",422);

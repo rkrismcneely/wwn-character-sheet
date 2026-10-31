@@ -57,7 +57,7 @@ export async function POST(request:Request,context:Context){
     if(typeof body.receipt!=="string"||!/^[a-f0-9]{64}$/u.test(body.receipt))
       throw new CampaignServiceError("Invalid audio clip checkpoint.",422);
     const {db,key,campaignId}=await scope(request,context,body.recapId);
-    const raw=validateRecapCaptionCues(body.cues);
+    const raw:Array<CaptionCue>=Array.isArray(body.cues)&&body.cues.length===0?[]:validateRecapCaptionCues(body.cues);
     if(raw.length>1000)throw new CampaignServiceError("Save at most 1000 timed cues per local audio chunk.",422);
     const speakerId=body.speakerId;
     let speaker:TranscriptionAttribution;

@@ -92,7 +92,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     setAwaitingVerification(null);
     setFile(null);
     if(fileInputRef.current)fileInputRef.current.value="";
-    setNotice("Recording saved to your Google Drive and linked to this recap.");
+    setNotice("Recording saved in your Tales Without End Drive folder. If automatic recaps are enabled, Gemini processing will begin independently.");
     try {
       const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
       if(updated.ok){
@@ -152,7 +152,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
       <a href="/account">Manage storage accounts</a>
     </div>
     <p className="session-recap-editor-help">
-      Save an MP3, M4A, WAV, FLAC or AAC recording in your own Google Drive.
+      Save an MP3, M4A, WAV, FLAC or AAC recording in the Tales Without End folder in your own Google Drive.
       Large 2–3-hour recordings upload in chunks directly from this browser.
       Keep this page and section open while uploading. Navigation can interrupt the transfer;
       stop the upload first if you need to leave.

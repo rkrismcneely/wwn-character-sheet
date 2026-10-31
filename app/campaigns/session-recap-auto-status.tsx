@@ -40,18 +40,19 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft}:{
   },[campaignId,recapId,endpoint]);
   useEffect(()=>{
     const ctrl=new AbortController();
-    void refresh(ctrl.signal).catch(e=>{if(!ctrl.signal.aborted)setError(e instanceof Error?e.message:"Status unavailable.");});
+    const initial=window.setTimeout(()=>{
+      void refresh(ctrl.signal).catch(e=>{if(!ctrl.signal.aborted)setError(e instanceof Error?e.message:"Status unavailable.");});
+    },0);
     const timer=window.setInterval(()=>{
       void refresh(ctrl.signal).catch(()=>{ /* keep existing progress visible while offline */ });
     },12000);
-    return ()=>{ctrl.abort();window.clearInterval(timer);};
+    return ()=>{ctrl.abort();window.clearTimeout(initial);window.clearInterval(timer);};
   },[refresh]);
   useEffect(()=>{
     const job=jobs.find(x=>x.status==="ready"&&x.generatedMarkdown);
     if(job?.generatedMarkdown&&seen.current!==job.id){
       seen.current=job.id;
-      if(onDraft(job.generatedMarkdown,recapUpdatedAt,false))
-        setNotice("Gemini wrote a private draft into the recap editor. Review and publish when ready.");
+      onDraft(job.generatedMarkdown,recapUpdatedAt,false);
     }
   },[jobs,onDraft,recapUpdatedAt]);
   async function start(assetId:string){

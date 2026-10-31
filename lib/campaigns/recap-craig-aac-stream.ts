@@ -43,7 +43,7 @@ function browserAacCodec():CraigAacCodecFactory{
   if(!Decoder||!Chunk)
     throw new Error("This browser has no WebCodecs AAC decoder. Use FLAC or export PCM WAV instead.");
   return {
-    supported:async config=>(await Decoder.isConfigSupported(config)).supported,
+    supported:async config=>Boolean((await Decoder.isConfigSupported(config)).supported),
     create:callbacks=>new Decoder(callbacks),
     chunk:packet=>new Chunk(packet),
   };

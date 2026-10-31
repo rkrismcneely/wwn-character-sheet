@@ -181,6 +181,23 @@ export function SessionRecapGeminiStaging({campaignId,recapId}:{
     }catch(e){setError(errorMessage(e));}
     finally{setBusy(false);}
   }
+  async function verifyOneStagedClip(){
+    if(!job||busy||job.status!=="queued")return;
+    const clip=staged?.clips.find(item=>item.staged);
+    if(!clip){setError("Stage a recording before verification.");return;}
+    setBusy(true);setError("");setMessage("");
+    try{
+      const result=await readJSON<{verified:boolean;durationMs:number;notice?:string}>(
+        jobs+"/verify-source",{
+          method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({recapId,jobId:job.id,
+            trackIndex:clip.trackIndex,chunkIndex:clip.chunkIndex}),
+        });
+      if(!result.verified)throw new Error("Google Drive source verification was not confirmed.");
+      setMessage(result.notice??"One staged clip was verified without calling Gemini.");
+    }catch(e){setError(errorMessage(e));}
+    finally{setBusy(false);}
+  }
   const attached=staged?.clips.filter(x=>x.staged).length??0;
   return <section className="session-recap-reading" aria-label="Prepare Gemini background transcription audio">
     <h4>Prepare Gemini for unattended transcription</h4>
@@ -262,10 +279,20 @@ export function SessionRecapGeminiStaging({campaignId,recapId}:{
         </div>
         {busy&&<p role="status">Checked or uploaded {count} / {clips.length} clips for this voice.</p>}
       </>}
-      {job.status==="queued"&&<p className="session-recap-import-notice">
-        Audio prepared. Scheduled Gemini inference is not enabled yet; no automatic
-        requests or provider charges will occur.
-      </p>}
+      {job.status==="queued"&&<div>
+        <p className="session-recap-import-notice">
+          Audio prepared. Scheduled Gemini inference is not enabled yet; no automatic
+          requests or provider charges will occur.
+        </p>
+        <button type="button" className="campaign-secondary" disabled={busy||!attached}
+          onClick={()=>void verifyOneStagedClip()}>
+          {busy?"Verifying Drive audio…":"Verify one saved clip from my Drive"}
+        </button>
+        <p className="campaign-empty-copy">
+          Checks the first staged clip, including its checksum and playable audio format.
+          This does not transcribe audio, and verification is limited to once every two minutes.
+        </p>
+      </div>}
     </>}
     {message&&<p className="session-recap-import-notice" role="status">{message}</p>}
     {error&&<p className="campaign-error" role="alert">{error}</p>}

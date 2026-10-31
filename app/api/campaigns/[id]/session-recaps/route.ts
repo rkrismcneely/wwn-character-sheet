@@ -42,7 +42,7 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     if (!actor) return Response.json({ error: "Sign in is required." }, { status: 401 });
     const { id } = await context.params;
     const body = await readBoundedJson(request, 40 * 1024) as {
-      id?: unknown; date?: unknown; title?: unknown; content?: unknown; updatedAt?: unknown;
+      id?: unknown; date?: unknown; title?: unknown; content?: unknown; updatedAt?: unknown; publish?: unknown;
     };
     return Response.json({ recap: await updateCampaignSessionRecap(await getCampaignD1(), actor, id, body ?? {}) });
   } catch (error) {

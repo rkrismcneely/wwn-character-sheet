@@ -136,7 +136,7 @@ export async function stageRecapAudioChunked(
   if(!GOOGLE_ID.test(source.remoteFileId)||!Number.isSafeInteger(source.byteSize)||
     source.byteSize<=0||source.byteSize>2*1024*1024*1024)
     throw new RecapStagingFailure("drive_file_unavailable");
-  let row=await stageRow(env.DB,job.id);
+  const row=await stageRow(env.DB,job.id);
   let url:string;
   let offset:number;
   if(!row.stageUrlCiphertext){

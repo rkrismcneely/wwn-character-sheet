@@ -40,13 +40,26 @@ export function RecapAIConnections(){
         body:body?JSON.stringify(body):undefined,cache:"no-store"});
       const json=await readAccountReply<{saved?:boolean;disconnected?:boolean;verified?:boolean;
         notice?:string;error?:string}>(response);
+      let savedNotice="";
+      if(method==="PUT"&&json.saved){
+        // Key validation uses Google's read-only models list: no audio or
+        // billable generation request. Keep a saved key even if Google is offline.
+        try{
+          const check=await fetch(url,{method:"POST",cache:"no-store"});
+          await readAccountReply<{verified:boolean;notice?:string}>(check);
+          savedNotice="Gemini key securely saved and verified with Google. No AI request was started.";
+        }catch(e){
+          savedNotice="Gemini key securely saved, but Google couldn't verify access: "+
+            (e instanceof Error?e.message:"Try Test connection again.");
+        }
+      }
       const refreshed=await fetch(url,{cache:"no-store"});
       const detail=await readAccountReply<State>(refreshed);
       setState(detail);
       window.dispatchEvent(new Event("twe:recap-account-changed"));
       if(method==="PUT"){setKey("");setApproved(false);}
-      setNotice(json.notice??(method==="PUT"?"Gemini key stored encrypted. Verify model access when ready.":
-        method==="DELETE"?"Gemini key disconnected from TWE.":"Gemini access verified."));
+      setNotice(savedNotice||json.notice||(method==="DELETE"
+        ?"Gemini key disconnected from TWE.":"Gemini access verified."));
     }catch(e){setError(e instanceof Error?e.message:"Could not update Gemini connection.");}
     finally{setBusy(false);}
   }
@@ -90,7 +103,7 @@ export function RecapAIConnections(){
     </div>
     <p className="account-explanation">
       Open Google AI Studio, create or select a project, choose <strong>Create API key</strong>,
-      copy the key, and paste it below. Check its quotas and billing settings before using AI.
+      copy the API key string (not the key ID), and paste it below. Check quotas and billing before using AI.
     </p>
     <form className="account-form" onSubmit={save}>
       <label htmlFor="recap-gemini-api-key">Personal Google AI Studio API key</label>

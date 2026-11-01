@@ -134,7 +134,7 @@ test("unsupported long audio is stopped before a model request, not sent as fake
     await assert.rejects(()=>planLongAudio({mimeType,byteSize:140_000_000,durationMs:8_000_000},
       async()=>new Uint8Array(65536)),e=>e instanceof LongAudioFormatError&&e.code==="format_unsupported");
   }
-  assert.equal(LONG_AUDIO_THRESHOLD_MS,95*60_000);
+  assert.equal(LONG_AUDIO_THRESHOLD_MS,100*60_000);
 });
 
 test("absolute audio timestamps are preserved across section joins",()=>{

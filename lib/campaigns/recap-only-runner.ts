@@ -394,7 +394,22 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
             "AND processing_mode='segmented' AND claimed_at=?")
             .bind(now(),job.id,claimTime).run();
         }
-      }else await uploadAudio(env,job,claimTime);
+      }else{
+        // An older transferring job may have started before the segmented
+        // scheduler existed, or initial planning may have been interrupted.
+        // Audio has NOT been submitted to the model, so switch to safe
+        // segments instead of accidentally finishing one over-limit upload.
+        const source=await sourceFor(env,job);
+        const duration=source.durationMs??await probeRecordingDuration(env,job,source);
+        if(typeof duration==="number"&&duration>LONG_AUDIO_THRESHOLD_MS){
+          if(!migrated){
+            await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+              "SET status='pending_upload',claimed_at=NULL WHERE id=? "+
+              "AND status='transferring' AND claimed_at=?")
+              .bind(job.id,claimTime).run();
+          }else await initializeSegmentedRecap(env,job,{...source,durationMs:duration});
+        }else await uploadAudio(env,job,claimTime);
+      }
     }else if(job.status==="uploaded")await submit(env,job);
     else if(job.status==="submitted")await poll(env,job);
   }catch(error){

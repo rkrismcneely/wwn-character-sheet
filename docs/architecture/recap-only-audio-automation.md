@@ -13,12 +13,13 @@
    prior recaps and any possible personal Gemini quota usage or billing.
 4. An authenticated GM-only API verifies that file is ready in the GM's own Drive,
    checks the personal encrypted Gemini connection and private recap, records a
-   per-job `confirmed_at` timestamp, and inserts at most one job per audio asset.
+   per-job `confirmed_at` timestamp, and permits one active job per audio asset; later confirmed summaries are preserved as separate versions.
    No inference occurs in the confirmation API response itself.
 5. The existing scheduled Worker processes **only** jobs with `confirmed_at IS NOT NULL`.
    Previous account-wide automatic jobs without this timestamp cannot initiate new work.
-   It streams the Drive recording to a temporary Gemini Files upload, then submits a
+   The worker first checks whether the same GM's previously confirmed upload of the exact Drive asset is still ACTIVE in the current Gemini project. If the file's name, URI, MIME type, byte size and TWE upload identity match, and it is not near expiry, it reuses the file without another Drive transfer. Otherwise it streams the Drive recording to a new temporary Gemini Files upload. The worker then submits a
    `gemini-3.8-flash` background Interactions request and polls the saved interaction ID.
+   Reusing the temporary file saves bandwidth and transfer time, **not** the model's input-token or per-request quota. Every newly approved detail level requires a separate Gemini inference.
    The original never passes through site-owned R2 and remains in the GM's Drive.
 6. A completed Markdown recap is saved privately. The AI result cannot auto-publish
    or replace GM-edited text. The GM reviews it, edits, and explicitly publishes.

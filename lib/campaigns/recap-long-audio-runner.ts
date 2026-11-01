@@ -5,6 +5,7 @@ import {stageRecapAudioChunked,RecapStagingFailure} from "./recap-gemini-chunked
 import {planLongAudio,estimateAudioDurationMs,LongAudioFormatError,offsetRecapSceneHeadings}
   from "./recap-long-audio-plan.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
+import {geminiAudioMime} from "./recap-gemini-audio-mime.ts";
 import {planM4a,estimateM4aDuration,prepareM4aSection} from "./recap-m4a-remux.ts";
 
 const API="https://generativelanguage.googleapis.com/v1beta";
@@ -213,7 +214,7 @@ async function submitPart(env:Env,job:Job,part:Segment,key:string,context:string
           "This section covers approximately "+Math.round(part.startMs/60000)+" to "+
           Math.round(part.endMs/60000)+" minutes of the full session. "+
           "Journal names and earlier recaps are reference only; the audio takes priority.\n"+context},
-        {type:"audio",uri:part.fileUri,mime_type:part.mimeType},
+        {type:"audio",uri:part.fileUri,mime_type:geminiAudioMime(part.mimeType)},
       ]}),
     }),250000);
     if(typeof result.id!=="string"||!ID.test(result.id))

@@ -10,12 +10,13 @@ import {planM4a} from "@/lib/campaigns/recap-m4a-remux";
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
   generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
-  stageBytes:number;totalBytes:number|null;canRetry:boolean;
+  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
+type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null};
 const statusLabel:Record<string,string>={
   pending_upload:"Queued for Gemini — original audio remains in Drive",
   transferring:"Transferring a temporary copy from Drive to Gemini",
@@ -39,7 +40,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const [starting,setStarting]=useState(false);
   const [retrying,setRetrying]=useState(false);
   const [diagnosing,setDiagnosing]=useState(false);
-  const [diagnosis,setDiagnosis]=useState<{jobId:string;value:FailureDiagnosis}|null>(null);
+  const [diagnosis,setDiagnosis]=useState<DiagnosisState|null>(null);
+  const diagnosedJob=useRef("");
   const [confirmAsset,setConfirmAsset]=useState<Asset|null>(null);
   const [defaultDetail,setDefaultDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [selectedDetail,setSelectedDetail]=useState<"brief"|"standard"|"detailed">("detailed");
@@ -171,21 +173,25 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     }catch(e){setError(e instanceof Error?e.message:"Could not start summarization.");}
     finally{setStarting(false);}
   }
-  async function diagnoseFailure(job:Job){
-    if(diagnosing||job.status!=="needs_attention"||job.errorCode!=="interaction_failed")return;
-    setDiagnosing(true);setError("");setDiagnosis(null);
+  const diagnoseFailure=useCallback(async(job:Job)=>{
+    if(job.status!=="needs_attention"||
+      !["interaction_failed","segment_interaction_failed"].includes(job.errorCode??""))return;
+    setDiagnosing(true);setError("");
     try{
       const response=await fetch(endpoint+"/diagnose",{
         method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,jobId:job.id}),
       });
-      const data=await response.json() as {diagnosis?:FailureDiagnosis;error?:string};
+      const data=await response.json() as {
+        diagnosis?:FailureDiagnosis;section?:number|null;sectionCount?:number|null;error?:string
+      };
       if(!response.ok||!data.diagnosis)
         throw Error(data.error||"Gemini did not provide a failure diagnosis.");
-      setDiagnosis({jobId:job.id,value:data.diagnosis});
+      setDiagnosis({jobId:job.id,value:data.diagnosis,
+        section:data.section??null,sectionCount:data.sectionCount??null});
     }catch(e){setError(e instanceof Error?e.message:"Could not check Gemini failure details.");}
     finally{setDiagnosing(false);}
-  }
+  },[endpoint,recapId]);
   async function retryJob(job:Job){
     if(retrying||starting||!job.canRetry||job.status!=="needs_attention")return;
     if(!window.confirm("Retry this AI processing job? TWE will reuse your original Drive recording and previous approval. No new recap job will be created, but Gemini requests can use quota or incur charges. This option is available only because no model submission was confirmed or attempted in the failed stage."))return;
@@ -202,11 +208,42 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     }catch(e){setError(e instanceof Error?e.message:"Could not retry processing.");}
     finally{setRetrying(false);}
   }
+  async function retrySection(job:Job){
+    if(retrying||starting||!job.canRetryFailedSection||job.status!=="needs_attention")return;
+    if(!window.confirm("Retry ONLY the failed Gemini audio section? TWE verifies that the old interaction failed, reuses the uploaded section when possible, and preserves all other notes. This creates one NEW Gemini analysis request, which can consume quota or incur charges. Continue?"))return;
+    setRetrying(true);setError("");setNotice("");
+    try{
+      const response=await fetch(endpoint,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,retryApproved:true,retryFailedSection:true}),
+      });
+      const data=await response.json() as {resumed?:boolean;error?:string};
+      if(!response.ok||!data.resumed)
+        throw Error(data.error||"Could not safely resume the failed section.");
+      setDiagnosis(null);diagnosedJob.current="";
+      setNotice(data.resumed
+        ?"The failed section is queued again. Completed sections and your original Drive recording are unchanged. Background processing continues if you leave."
+        :"Could not resume this section.");
+      await refresh();
+    }catch(e){
+      setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
+    }finally{setRetrying(false);}
+  }
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
   const activeStatuses=new Set(["pending_upload","transferring","uploaded","submitting","submitted"]);
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
   const completeVersions=jobs.filter(job=>job.status==="ready"&&job.generatedMarkdown);
   const newest=jobs[0];
+  // One read-only lookup per failed job when this page is opened. Unlike a
+  // model interaction POST, this checks Google's stored failure without
+  // uploading audio or generating another result. Free results expire quickly.
+  useEffect(()=>{
+    if(newest?.status!=="needs_attention"||
+      !["segment_interaction_failed","interaction_failed"].includes(newest.errorCode??"")||
+      diagnosedJob.current===newest.id)return;
+    diagnosedJob.current=newest.id;
+    void diagnoseFailure(newest);
+  },[newest,diagnoseFailure]);
   const duration=confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null;
   const quotaEstimate=recapQuotaNotice(duration);
   const longRecording=typeof duration==="number"&&duration>100*60_000;
@@ -227,7 +264,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     </p>}
     <h4>Step 2 — AI summarization (optional)</h4>
     <p className="campaign-empty-copy">
-      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>
+      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>{" "}
       and confirm for this recording. It uses your own Gemini API key, may consume
       free-tier quota or incur charges, and creates a private draft for review.
       Long compatible recordings are divided and summarized automatically; M4A audio uses natural low-activity breaks where identifiable,
@@ -253,7 +290,15 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </p>
         <progress style={{width:"100%"}} value={newest.segmentsReady??0}
           max={newest.segmentCount} aria-label="Summarized audio sections"/>
-      </>:<SessionRecapProgress job={newest}/>}
+      </>:<>
+        {newest.segmentCount&&newest.status==="needs_attention"&&
+          newest.errorCode?.startsWith("segment_interaction")&&<p className="campaign-empty-copy">
+          Gemini stopped while analyzing a section; this is not an audio-transfer failure.
+          {newest.segmentsReady??0} of {newest.segmentCount} sections have completed notes.
+          Completed notes remain saved.
+        </p>}
+        <SessionRecapProgress job={newest}/>
+      </>}
     </>}
     {completeVersions.length>0&&<details>
       <summary>Saved AI recap versions ({completeVersions.length})</summary>
@@ -295,6 +340,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       <p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
       </p>
+      {newest.canRetryFailedSection&&<p className="campaign-empty-copy">
+        After reviewing the failure reason, you can explicitly approve a retry
+        of <strong>only the failed section</strong>. TWE will check that Gemini
+        marked it failed before submitting anything new. This may consume a
+        Gemini request; earlier section notes are preserved.
+      </p>}
       {newest.generatedMarkdown&&<details>
         <summary>View partial AI notes — not a complete recap</summary>
         <p className="campaign-empty-copy">
@@ -303,13 +354,16 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </p>
         <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
       </details>}
-      {newest.errorCode==="interaction_failed"&&<>
+      {["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&<>
         <button type="button" className="campaign-secondary" disabled={diagnosing}
           onClick={()=>void diagnoseFailure(newest)}>
-          {diagnosing?"Checking Gemini…":"Check failure reason (no new AI request)"}
+          {diagnosing?"Checking Gemini…":"Recheck failure reason (no new AI request)"}
         </button>
         {diagnosis?.jobId===newest.id&&<div className="session-recap-import-notice" role="status">
           <strong>{diagnosis.value.title}</strong>
+          {diagnosis.section!==null&&<p>
+            Gemini section {diagnosis.section} of {diagnosis.sectionCount??"?"} failed.
+          </p>}
           <p>{diagnosis.value.explanation}</p>
           {diagnosis.value.inputTokens!==null&&<p>
             Gemini reported {diagnosis.value.inputTokens.toLocaleString()} input tokens for this interaction.
@@ -320,6 +374,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </div>}
       </>}
       <div className="session-recap-form-actions">
+        {newest.canRetryFailedSection&&<button type="button" className="campaign-primary"
+          disabled={retrying||starting||diagnosing} onClick={()=>void retrySection(newest)}>
+          {retrying?"Verifying failed section…":"Retry failed section only"}
+        </button>}
         {newest.canRetry&&<button type="button" className="campaign-primary"
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}

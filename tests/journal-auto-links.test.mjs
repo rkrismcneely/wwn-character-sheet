@@ -53,3 +53,42 @@ test("Journal internal links have visible underline and keyboard focus styling",
  assert.match(css,/text-decoration:underline/u);
  assert.match(css,/journal-inline-link:focus-visible/u);
 });
+
+test("AI-generated timestamp headings link known Journal NPCs and locations without changing timestamps",()=>{
+ const npc={id:"55555555-5555-5555-5555-555555555555",title:"Doolan Tversky",parentId:null,kind:"page",content:""};
+ const recap={id:"66666666-6666-6666-6666-666666666666",title:"26-10-31 — The Night Watch",parentId:null,kind:"page",content:""};
+ const input=[
+  "<!-- twe-session-recap:77777777-7777-7777-7777-777777777777 -->",
+  "",
+  "## 01:12:30 — Doolan Tversky confronts the party",
+  "",
+  "### 02:04:11 — Return to Rotthold",
+  "",
+  "Later Doolan Tversky slips away.",
+ ].join("\n");
+ const linked=autoLinkJournalTitles(input,recap,[npc,pages[1],recap]);
+ assert.match(linked,/^## 01:12:30 — \[Doolan Tversky\]\(\/journal-page\/55555555-5555-5555-5555-555555555555\) confronts the party$/mu);
+ assert.match(linked,/^### 02:04:11 — Return to \[Rotthold\]\(\/journal-page\/22222222-2222-2222-2222-222222222222\)$/mu);
+ assert.match(linked,/<!-- twe-session-recap:77777777-7777-7777-7777-777777777777 -->/u);
+ assert.match(linked,/Later Doolan Tversky slips away\./u);
+ assert.equal((linked.match(/\/journal-page\/55555555/g)||[]).length,1);
+ assert.deepEqual(journalBacklinks(npc,[npc,{...recap,content:input}]).map(page=>page.id),[recap.id]);
+ assert.deepEqual(journalBacklinks(pages[1],[pages[1],{...recap,content:input}]).map(page=>page.id),[recap.id]);
+});
+test("headings still protect pre-existing links, code and Markdown reference definitions",()=>{
+ const npc={id:"55555555-5555-5555-5555-555555555555",title:"Doolan Tversky",parentId:null,kind:"page"};
+ const recap={id:"66666666-6666-6666-6666-666666666666",title:"Session recap",parentId:null,kind:"page"};
+ const content=[
+  "~~~md",
+  "## Doolan Tversky is sample text",
+  "~~~",
+  "[Doolan Tversky]: https://example.com",
+  "## [Doolan Tversky](https://example.com) meets the others",
+  "## The real Doolan Tversky arrives",
+ ].join("\n");
+ const output=autoLinkJournalTitles(content,recap,[npc,recap]);
+ assert.match(output,/~~~md\n## Doolan Tversky is sample text\n~~~/u);
+ assert.match(output,/^\[Doolan Tversky\]: https:\/\/example\.com$/mu);
+ assert.match(output,/^## \[Doolan Tversky\]\(https:\/\/example\.com\) meets the others$/mu);
+ assert.match(output,/^## The real \[Doolan Tversky\]\(\/journal-page\/55555555/mu);
+});

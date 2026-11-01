@@ -365,45 +365,29 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           width:"min(100%,520px)",padding:24,borderRadius:8,boxShadow:"0 12px 40px rgba(0,0,0,.4)"}}>
         <h3 id="recap-confirm-title">Auto Summarize this recording?</h3>
         <p id="recap-confirm-description">
-          <strong>{confirmAsset.label}</strong> is already saved in your Drive.
-          TWE will send a temporary copy of the audio, relevant campaign Journal
-          entries, and earlier recaps to your connected Gemini project.
+          Send <strong>{confirmAsset.label}</strong>, relevant Journal entries and
+          earlier recaps to Gemini. The result stays private until you publish it.
         </p>
-        <p>
-          Google may use free-tier submitted content to improve its products.
-          The request may count toward free limits or incur charges in your own
-          Google project. TWE cannot verify your remaining free quota.
-          Nothing will be published to players automatically.
-        </p>
-        <label style={{display:"block",marginBlock:12}}>Detail level for this run
+        <p>Google may use free-tier content to improve its products. TWE cannot check your remaining quota.</p>
+        <label style={{display:"block",marginBlock:12}}>Recap detail
           <select value={selectedDetail} disabled={starting}
             onChange={event=>setSelectedDetail(event.target.value as typeof selectedDetail)}>
             <option value="brief">Brief — highlights</option>
             <option value="standard">Standard — major scenes</option>
             <option value="detailed">Most detailed — scenes, names, timestamps and consequences</option>
           </select>
-          <span className="campaign-empty-copy">Default from Account; changes here apply only to this run.</span>
         </label>
-        {published&&<p className="campaign-empty-copy"><strong>Your published Journal entry will not change.</strong>
-          The new result will be saved as another private AI version for you to review.</p>}
+        {published&&<p className="campaign-empty-copy">Your published recap will not change. This creates a private version.</p>}
         <p role="note" className="campaign-empty-copy">
-          {longRecording&&segmentSupported?<>
-            <strong>Long-session processing:</strong> TWE will analyze roughly {segmentCount} verified
-            audio sections separately, then make one final text-only request to assemble
-            your recap ({segmentCount+1} Gemini requests in total). Each section is
-            approximately {Math.round(100*60*32).toLocaleString()} audio input tokens or less,
-            plus Journal context. These requests count toward your personal project&apos;s
-            daily and per-minute limits, and may incur charges.
-          </>:<>
-            <strong>Estimated audio input:</strong>{" "}
-            {quotaEstimate.estimatedTokens===null?"Duration unavailable":
-              quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
-            {" "}{quotaEstimate.message}
-            {longRecording&&!segmentSupported&&
-              " Automatic long-audio segmentation supports AAC M4A, CBR MP3, and PCM WAV; unsupported codecs cannot safely be divided on the free backend."}
-          </>}
+          {longRecording&&segmentSupported
+            ? <>Estimated {segmentCount} audio sections + 1 recap request.</>
+            : longRecording
+              ? <>This audio format may exceed Gemini&apos;s limits.</>
+              : quotaEstimate.size!=="ordinary"
+                ? <>Audio duration or limits could not be verified.</>
+                : <>Gemini requests count toward your account&apos;s quota.</>}
           {" "}<a href="https://aistudio.google.com/rate-limit" target="_blank"
-            rel="noopener noreferrer">Check your project&apos;s active limits in Google AI Studio</a>.
+            rel="noopener noreferrer">Check limits</a>.
         </p>
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={privacy} disabled={starting}

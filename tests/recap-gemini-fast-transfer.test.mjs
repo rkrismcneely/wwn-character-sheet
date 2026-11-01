@@ -11,22 +11,30 @@ const id="99b86e3f-d410-4d2a-82e9-28fe02263381";
 function storage({claim=lease,offset=24*1024*1024,status="transferring"}={}){
   let state={claim,offset,status};
   const calls=[];
-  const db={prepare(sql){
-    return {bind(...args){return {async run(){
-      calls.push({sql,args});
-      assert.match(sql,/SET claimed_at=NULL,updated_at=\?/u);
-      assert.match(sql,/claimed_at=\? AND stage_offset=\?/u);
-      const [timestamp,jobId,requiredLease,requiredOffset]=args;
-      assert.equal(jobId,id);
-      assert.ok(Number.isFinite(Date.parse(timestamp)));
-      if(state.status==="transferring"&&state.claim===requiredLease&&
-        state.offset===requiredOffset){
-        state={...state,claim:null};
-        return {meta:{changes:1}};
-      }
-      return {meta:{changes:0}};
-    }};}};}
-  }};
+  const db={
+    prepare(sql){
+      return {
+        bind(...args){
+          return {
+            async run(){
+              calls.push({sql,args});
+              assert.match(sql,/SET claimed_at=NULL,updated_at=\?/u);
+              assert.match(sql,/claimed_at=\? AND stage_offset=\?/u);
+              const [timestamp,jobId,requiredLease,requiredOffset]=args;
+              assert.equal(jobId,id);
+              assert.ok(Number.isFinite(Date.parse(timestamp)));
+              if(state.status==="transferring"&&state.claim===requiredLease&&
+                state.offset===requiredOffset){
+                state={...state,claim:null};
+                return {meta:{changes:1}};
+              }
+              return {meta:{changes:0}};
+            },
+          };
+        },
+      };
+    },
+  };
   return {db,calls,get state(){return state;}};
 }
 

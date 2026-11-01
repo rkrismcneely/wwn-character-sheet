@@ -30,3 +30,15 @@ test("both summarization paths require reference sections and creative tone-matc
   assert.match(source,/ominous title/);
   assert.match(source,/Presto Change-O/);
 });
+
+test("all detail levels receive short GM-ready opening with scene and goal",()=>{
+  assert.match(source,/Last Time — Read-Aloud/);
+  assert.match(source,/60–75 spoken words/);
+  assert.match(source,/current goal/);
+  assert.match(source,/present goal/);
+  assert.match(source,/ALL\s*detail settings/);
+  const segment=readFileSync(new URL("../lib/campaigns/recap-long-audio-runner.ts",import.meta.url),"utf8");
+  assert.match(segment,/part\.segmentIndex===0/);
+  assert.match(segment,/introductory recap STYLE/);
+  assert.match(segment,/Do not mistake the GM's recap of a prior session/);
+});

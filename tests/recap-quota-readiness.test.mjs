@@ -55,7 +55,9 @@ test("GM receives estimate in approval dialog and recorded duration from player"
     read("app/api/account/recap-ai/gemini/route.ts"),
   ]);
   assert.match(dialog,/recapQuotaNotice\(/u);
-  assert.match(dialog,/estimatedTokens\.toLocaleString\(\)/u);
+  assert.match(dialog,/recapQuotaNotice\(duration\)/u);
+  assert.match(dialog,/Estimated \{segmentCount\} audio sections \+ 1 recap request/u);
+  assert.match(dialog,/quotaEstimate\.size!=="ordinary"/u);
   assert.match(dialog,/aistudio\.google\.com\/rate-limit/u);
   assert.match(player,/onLoadedMetadata=/u);
   assert.match(player,/onDuration\?\.\(selected\.id,/u);

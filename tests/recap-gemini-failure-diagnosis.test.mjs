@@ -53,7 +53,7 @@ test("the diagnose route only reads existing GM-owned failed interaction",async(
   assert.match(route,/canManageCampaignContent/u);
   assert.match(route,/getCampaignSessionRecap/u);
   assert.match(route,/requested_by=\? AND confirmed_at IS NOT NULL/u);
-  assert.match(route,/job\.errorCode!=="interaction_failed"/u);
+  assert.match(route,/\["interaction_failed","segment_interaction_failed"\]/u);
   assert.match(route,/request\.headers\.get\("origin"\)!==CANONICAL_ORIGIN/u);
   assert.match(route,/method:"GET"/u);
   assert.match(route,/\/v1beta\/interactions\//u);
@@ -61,6 +61,6 @@ test("the diagnose route only reads existing GM-owned failed interaction",async(
   assert.doesNotMatch(route,/\/upload\/v1beta\/files|\/v1beta\/interactions",\{/u);
   assert.match(route,/summarizeRecapGeminiFailure\(detail\)/u);
   assert.match(route,/resubmitted:false/u);
-  assert.match(ui,/Check failure reason \(no new AI request\)/u);
+  assert.match(ui,/Recheck failure reason \(no new AI request\)/u);
   assert.match(ui,/endpoint\+"\/diagnose"/u);
 });

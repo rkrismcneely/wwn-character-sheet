@@ -123,7 +123,7 @@ test("segmented jobs preserve individual consent, resumability and billable requ
   assert.match(schema,/processing_mode TEXT NOT NULL DEFAULT 'single'/u);
   assert.match(schema,/UNIQUE\(job_id,segment_index\)/u);
   assert.match(runner,/duration>LONG_AUDIO_THRESHOLD_MS/u);
-  assert.match(runner,/initializeSegmentedRecap\(env,job,source\)/u);
+  assert.match(runner,/initializeSegmentedRecap\(env,job,\{\.\.\.source,durationMs:duration\}\)/u);
   assert.match(runner,/advanceSegmentedRecap\(env,job,source,key/u);
   assert.match(runner,/combinedSegmentNotes\(env\.DB,job.id\)/u);
   assert.match(longRunner,/DB\.batch\(updates\)/u);

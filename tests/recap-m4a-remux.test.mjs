@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {spawnSync} from "node:child_process";
+import {mkdtempSync,readFileSync,writeFileSync,rmSync} from "node:fs";
+import {join} from "node:path";
+import {tmpdir} from "node:os";
 import {inspectM4a,planM4a,estimateM4aDuration} from "../lib/campaigns/recap-m4a-remux.ts";
 
 const as=(s)=>Uint8Array.from([...s].map(c=>c.charCodeAt(0)));
@@ -106,4 +110,32 @@ test("M4A with no convincing activity drop falls back to evenly balanced cuts",a
   const parts=await planM4a(f.source,f.read);
   assert.equal(parts.length,2);
   assert.ok(Math.abs(parts[0].endMs-parts[1].endMs/2)<1000);
+});
+
+test("real AAC M4A source remains decodable after native no-reencode remux",async(t)=>{
+  const ffmpeg=spawnSync("ffmpeg",["-version"],{encoding:"utf8"});
+  const ffprobe=spawnSync("ffprobe",["-version"],{encoding:"utf8"});
+  if(ffmpeg.error||ffprobe.error){t.skip("FFmpeg/FFprobe not installed");return;}
+  const folder=mkdtempSync(join(tmpdir(),"twe-aac-remux-"));
+  try{
+    const original=join(folder,"original.m4a"),remuxed=join(folder,"section.m4a");
+    const encode=spawnSync("ffmpeg",["-hide_banner","-loglevel","error","-f","lavfi",
+      "-i","sine=frequency=330:sample_rate=48000:duration=2","-c:a","aac",
+      "-b:a","64k","-movflags","+faststart","-y",original],{encoding:"utf8"});
+    assert.equal(encode.status,0,encode.stderr);
+    const audio=readFileSync(original);
+    const source={byteSize:audio.byteLength,mimeType:"audio/mp4",durationMs:null};
+    const sections=await planM4a(source,async(start,length)=>audio.subarray(start,start+length));
+    assert.equal(sections.length,1);
+    const section=sections[0],prefix=Buffer.from(section.prefixBase64,"base64");
+    writeFileSync(remuxed,Buffer.concat([prefix,audio.subarray(section.sourceStart,section.sourceEnd)]));
+    const decoded=spawnSync("ffmpeg",["-v","error","-i",remuxed,
+      "-f","null","-"],{encoding:"utf8"});
+    assert.equal(decoded.status,0,decoded.stderr);
+    const info=spawnSync("ffprobe",["-v","error","-show_entries",
+      "format=duration","-of","default=noprint_wrappers=1:nokey=1",remuxed],
+    {encoding:"utf8"});
+    assert.equal(info.status,0,info.stderr);
+    assert.ok(Math.abs(Number(info.stdout.trim())-2)<0.2);
+  }finally{rmSync(folder,{recursive:true,force:true});}
 });

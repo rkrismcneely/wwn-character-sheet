@@ -5,7 +5,7 @@ import {stageRecapAudioChunked,RecapStagingFailure} from "./recap-gemini-chunked
 import {planLongAudio,estimateAudioDurationMs,LongAudioFormatError,offsetRecapSceneHeadings}
   from "./recap-long-audio-plan.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
-import {planM4a,estimateM4aDuration} from "./recap-m4a-remux.ts";
+import {planM4a,estimateM4aDuration,prepareM4aSection} from "./recap-m4a-remux.ts";
 
 const API="https://generativelanguage.googleapis.com/v1beta";
 const ID=/^[a-zA-Z0-9_-]{6,240}$/u;
@@ -62,7 +62,7 @@ export async function initializeSegmentedRecap(env:Env,job:Job,source:Original):
   let segments;
   try{
     segments=source.mimeType==="audio/mp4"?
-      await planM4a(source,(start,len)=>sourceRange(source,drive,start,len)):
+      await planM4a(source,(start,len)=>sourceRange(source,drive,start,len),{includeHeaders:false}):
       await planLongAudio(source,(start,len)=>sourceRange(source,drive,start,len));
   }catch(e){
     if(e instanceof LongAudioFormatError){
@@ -101,7 +101,7 @@ export async function initializeSegmentedRecap(env:Env,job:Job,source:Original):
     const same=candidate&&candidate.startMs===segment.startMs&&
       candidate.endMs===segment.endMs&&candidate.sourceStart===segment.sourceStart&&
       candidate.sourceEnd===segment.sourceEnd&&candidate.mimeType===segment.mimeType&&
-      candidate.prefixBase64===segment.prefixBase64;
+      (segment.mimeType==="audio/mp4"||candidate.prefixBase64===segment.prefixBase64);
     return env.DB.prepare("INSERT INTO campaign_recap_audio_summary_segments "+
       "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
       "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
@@ -250,6 +250,22 @@ export async function advanceSegmentedRecap(env:Env,job:Job,source:Original,key:
       "SET status='uploaded',claimed_at=NULL,updated_at=? "+
       "WHERE id=? AND status='transferring' AND processing_mode='segmented'")
       .bind(now(),job.id).run();
+    return;
+  }
+  if(part.mimeType==="audio/mp4"&&!part.prefixBase64){
+    if(part.status!=="pending_upload"){
+      await fail(env.DB,job.id,"long_audio_metadata_invalid");
+      return;
+    }
+    // Separate the CPU-heavy header construction from the original boundary
+    // planning operation. Workers Free has a 10ms CPU allowance per tick.
+    const token=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);
+    const prefix=await prepareM4aSection(source,
+      (start,len)=>sourceRange(source,token,start,len),part.sourceStart,part.sourceEnd);
+    await env.DB.prepare("UPDATE campaign_recap_audio_summary_segments "+
+      "SET prefix_base64=?,updated_at=? WHERE id=? AND job_id=? "+
+      "AND status='pending_upload' AND prefix_base64=''")
+      .bind(prefix,now(),part.id,job.id).run();
     return;
   }
   if(part.status==="pending_upload"||part.status==="transferring")

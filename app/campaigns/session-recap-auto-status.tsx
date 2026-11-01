@@ -264,7 +264,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     </p>}
     <h4>Step 2 — AI summarization (optional)</h4>
     <p className="campaign-empty-copy">
-      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>
+      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>{" "}
       and confirm for this recording. It uses your own Gemini API key, may consume
       free-tier quota or incur charges, and creates a private draft for review.
       Long compatible recordings are divided and summarized automatically; M4A audio uses natural low-activity breaks where identifiable,

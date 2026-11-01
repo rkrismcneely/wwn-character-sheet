@@ -21,7 +21,7 @@ export function autoLinkJournalTitles(markdown:string,current:LinkedPage,pages:r
   // Link their named subjects too so that "Referenced By" finds recaps where
   // an NPC or location appears only in a heading. Reference definitions stay
   // protected, as do fenced code blocks and existing links.
-  if(fenced||/^\\s*!?\\[[^\\]]+\\]:/u.test(line))return line;
+  if(fenced||/^\s*!?\[[^\]]+\]:/u.test(line))return line;
   // Do not interpret existing links, images, inline code, or HTML as prose.
   const protectedPattern=/(<!--[\s\S]*?-->|!?\[[^\]\n]*\]\([^)]+\)|!?\[\[[^\]\n]+\]\]|`[^`\n]*`|<[^>]*>|https?:\/\/\S+)/gu;
   const parts=line.split(protectedPattern);

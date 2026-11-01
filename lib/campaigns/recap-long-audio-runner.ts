@@ -149,6 +149,11 @@ async function submitted(env:Env,job:Job,part:Segment,key:string):Promise<void>{
   if(result.status===404||result.status===410){
     await fail(env.DB,job.id,"segment_result_unavailable");return;
   }
+  // Polling is read-only: temporary provider outages and throttling must not
+  // discard the original interaction ID or trigger another billed submission.
+  // The next scheduled tick can safely inspect the same interaction again.
+  if(result.status===429||result.status===500||result.status===502||
+    result.status===503||result.status===504)return;
   const data=await responseJson(result);
   const lifecycle=classifyRecapInteraction(data.status);
   if(lifecycle.kind==="waiting")return;

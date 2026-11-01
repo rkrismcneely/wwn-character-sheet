@@ -40,7 +40,7 @@ export function validateBrowserM4aPlan(
     const prefixBytes=prefix.length/4*3-padding;
     const startMs=part.startMs as number,endMs=part.endMs as number,
       start=part.sourceStart as number,end=part.sourceEnd as number;
-    if(startMs!==previousEndMs||endMs<=startMs||endMs-startMs>100*60_000+1000||
+    if(startMs!==previousEndMs||endMs<=startMs||endMs-startMs>60*60_000+1000||
       prefixBytes+end-start>2*1024*1024*1024||
       start<=0||end>byteSize||end<=start||
       (i>0&&start!==previousEndByte)||

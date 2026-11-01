@@ -71,7 +71,7 @@ export async function POST(request:Request,ctx:Context){
   try{
     if(request.headers.get("origin")!==CANONICAL_ORIGIN)
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
-    const body=await readBoundedJson(request,1024) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown;detail?:unknown;requestId?:unknown};
+    const body=await readBoundedJson(request,1024) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown;detail?:unknown;requestId?:unknown;durationMs?:unknown};
     const info=await gm(request,ctx,body.recapId);
     const asset=await info.db.prepare("SELECT id,byte_size AS byteSize FROM campaign_recap_audio_assets "+
       "WHERE id=? AND recap_id=? AND campaign_id=? AND storage_owner_user_id=? "+
@@ -79,6 +79,15 @@ export async function POST(request:Request,ctx:Context){
       .bind(body.assetId,info.recap.id,info.campaign.id,info.actor.userId)
       .first<{id:string;byteSize:number}>();
     if(!asset)throw new CampaignServiceError("Choose a finished recording stored in your own Drive.",404);
+    // The browser's metadata-loaded audio player supplies duration for the
+    // existing Drive file; no extra upload or approval is required. A separate
+    // server-side MP3/WAV probe handles clients with unavailable metadata.
+    if(typeof body.durationMs==="number"&&Number.isSafeInteger(body.durationMs)&&
+      body.durationMs>0&&body.durationMs<=8*60*60*1000){
+      await info.db.prepare("UPDATE campaign_recap_audio_assets SET duration_ms=COALESCE(duration_ms,?) "+
+        "WHERE id=? AND recap_id=? AND campaign_id=? AND storage_owner_user_id=? "+
+        "AND status='ready'").bind(body.durationMs,asset.id,info.recap.id,info.campaign.id,info.actor.userId).run();
+    }
     const result=await enqueueConfirmedRecapAudio(info.db,{
       campaignId:info.campaign.id,recapId:info.recap.id,audioAssetId:asset.id,
       byteSize:asset.byteSize,userId:info.actor.userId,

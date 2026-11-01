@@ -48,7 +48,8 @@ test("GM can create and reopen a private recording draft with long Google Drive 
   assert.match(ui, /Private GM draft · not visible to players/u);
   assert.match(ui, /<details className="session-recap-reading"[\s\S]*Advanced: Craig speaker tracks and full transcripts \(optional\)/u);
   assert.match(uploader, /uploadRecordingToDrive/u);
-  assert.match(uploader, /Large 2–3-hour recordings stream in chunks/u);
+  assert.match(uploader, /uploadRecordingToDrive\(file,session\.uploadSessionUrl/u);
+  assert.match(uploader, /chunkBytes:session\.chunkBytes/u);
   assert.match(route, /createCampaignSessionRecap/u);
 });
 
@@ -67,9 +68,9 @@ test("new visibility migration is explicitly verified before production Worker d
 
 test("Gemini account consent warns about free tier data use and no AI is started by recording drafts", async () => {
   const [ui, accounts] = await Promise.all([
-    read("app/campaigns/session-recap-manager.tsx"),
+    read("app/campaigns/session-recap-audio-uploader.tsx"),
     read("app/account/recap-ai-connections.tsx"),
   ]);
-  assert.match(ui, /Creating this draft alone does not start an AI request|Gemini starts only when you later click Auto Summarize/u);
+  assert.match(ui, /AI summarization starts only when you approve it/u);
   assert.match(accounts, /content submitted under its free[\s\S]*Gemini API tier may be used to improve/u);
 });

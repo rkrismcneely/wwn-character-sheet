@@ -17,16 +17,6 @@ type Job={
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
 type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null};
-const statusLabel:Record<string,string>={
-  pending_upload:"Queued for Gemini — original audio remains in Drive",
-  transferring:"Transferring a temporary copy from Drive to Gemini",
-  uploaded:"Gemini is preparing its temporary audio file",
-  submitting:"Starting AI summarization",
-  submitted:"Gemini is analyzing your session — you can close this page",
-  ready:"AI recap draft ready for review — not published",
-  needs_attention:"Summarization needs attention",
-  failed:"Summarization stopped",
-};
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTitle,published=false}:{
   campaignId:string;recapId:string;published?:boolean;
   onDraft:(content:string,updatedAt:string,overwrite:boolean,suggestedTitle:string|null)=>boolean;
@@ -203,7 +193,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       });
       const data=await response.json() as {resumed?:boolean;error?:string};
       if(!response.ok||!data.resumed)throw Error(data.error||"Could not safely retry this job.");
-      setNotice("Processing resumed using your existing recording. The recap will update here when Gemini finishes.");
+      setNotice("Processing resumed.");
       await refresh();
     }catch(e){setError(e instanceof Error?e.message:"Could not retry processing.");}
     finally{setRetrying(false);}
@@ -221,9 +211,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       if(!response.ok||!data.resumed)
         throw Error(data.error||"Could not safely resume the failed section.");
       setDiagnosis(null);diagnosedJob.current="";
-      setNotice(data.resumed
-        ?"The failed section is queued again. Completed sections and your original Drive recording are unchanged. Background processing continues if you leave."
-        :"Could not resume this section.");
+      setNotice(data.resumed?"Failed section queued again.":"Could not resume this section.");
       await refresh();
     }catch(e){
       setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
@@ -234,6 +222,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
   const completeVersions=jobs.filter(job=>job.status==="ready"&&job.generatedMarkdown);
   const newest=jobs[0];
+  const currentDiagnosis=diagnosis?.jobId===newest?.id?diagnosis:null;
   // One read-only lookup per failed job when this page is opened. Unlike a
   // model interaction POST, this checks Google's stored failure without
   // uploading audio or generating another result. Free results expire quickly.
@@ -250,26 +239,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const segmentCount=longRecording?Math.ceil(duration/(100*60_000)):0;
   const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3","audio/mp4"].includes(confirmAsset.mimeType??"");
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
-    <h4>Session recording</h4>
-    <p className="campaign-empty-copy">
-      Your recording remains in Google Drive. Every approved AI run saves a separate result;
-      existing edits and published Journal pages are preserved.
-    </p>
-    {playable.length>0&&<SessionRecapAudioPlayer
+     {playable.length>0&&<SessionRecapAudioPlayer
       key={playable.map(a=>a.id).join(":")} campaignId={campaignId} recapId={recapId}
       onDuration={(assetId,durationMs)=>setDurations(previous=>
         previous[assetId]===durationMs?previous:{...previous,[assetId]:durationMs})}/>}
-    {playable.length===0&&<p className="campaign-empty-copy">
-      Once your upload finishes, the recording will appear here with playback controls.
-    </p>}
-    <h4>Step 2 — AI summarization (optional)</h4>
-    <p className="campaign-empty-copy">
-      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>{" "}
-      and confirm for this recording. It uses your own Gemini API key, may consume
-      free-tier quota or incur charges, and creates a private draft for review.
-      Long compatible recordings are divided and summarized automatically; M4A audio uses natural low-activity breaks where identifiable,
-      then combined into one recap. No separate files or extra setup needed.
-    </p>
+    <h4>AI recap</h4>
+    <p className="campaign-empty-copy">Summarize with your Gemini account. Review before publishing.</p>
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
       <span>{asset.label}</span>
       <button type="button" className="campaign-primary" disabled={starting}
@@ -277,35 +252,20 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         {jobs.some(j=>j.audioAssetId===asset.id)?"Summarize again":"Auto Summarize"}
       </button>
     </div>)}
-    {newest&&<>
-      <p role="status"><strong>{
-        newest.segmentCount&&newest.status==="transferring"
-          ?"Analyzing session in "+newest.segmentCount+" sections"
-          :statusLabel[newest.status]||"Status: "+newest.status
-      }</strong>{" · "}{newest.detail} recap</p>
-      {newest.segmentCount&&newest.status==="transferring"?<>
-        <p className="campaign-empty-copy">
-          {newest.segmentsReady??0} of {newest.segmentCount} sections summarized.
-          Your recording stays in Drive. TWE keeps completed sections if you leave.
-        </p>
-        <progress style={{width:"100%"}} value={newest.segmentsReady??0}
-          max={newest.segmentCount} aria-label="Summarized audio sections"/>
-      </>:<>
-        {newest.segmentCount&&newest.status==="needs_attention"&&
-          newest.errorCode?.startsWith("segment_interaction")&&<p className="campaign-empty-copy">
-          Gemini stopped while analyzing a section; this is not an audio-transfer failure.
-          {newest.segmentsReady??0} of {newest.segmentCount} sections have completed notes.
-          Completed notes remain saved.
-        </p>}
-        <SessionRecapProgress job={newest}/>
-      </>}
-    </>}
+    {newest&&!(newest.status==="needs_attention"||newest.status==="failed")&&(
+      newest.status==="ready"
+        ? <p role="status"><strong>AI recap ready to review</strong> · {newest.detail}</p>
+        : newest.segmentCount&&newest.status==="transferring"
+          ? <div className="recap-ai-progress" role="status">
+            <strong>Processing recording · {newest.segmentsReady??0} of {newest.segmentCount} sections complete</strong>
+            <progress style={{width:"100%"}} value={newest.segmentsReady??0}
+              max={newest.segmentCount} aria-label="Summarized audio sections"/>
+            <p className="recap-ai-progress__hint">Processing continues if you leave this page.</p>
+          </div>
+          : <SessionRecapProgress job={newest}/>
+    )}
     {completeVersions.length>0&&<details>
       <summary>Saved AI recap versions ({completeVersions.length})</summary>
-      <p className="campaign-empty-copy">
-        Every version is preserved. Choosing one only copies it into the editor;
-        your saved recap and Journal entry remain unchanged until you save.
-      </p>
       {completeVersions.map(version=>{
         const parsed=parseGeneratedRecapTitle(version.generatedMarkdown!);
         return <details key={version.id}>
@@ -316,88 +276,82 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             <span className="campaign-empty-copy">AI-suggested title: <strong>{parsed.title}</strong></span>
             <button type="button" className="campaign-secondary" onClick={()=>{
               onSuggestedTitle(parsed.title!);
-              setNotice("AI title copied into the title field. Review and save to keep it.");
+              setNotice("AI title copied to editor.");
             }}>Use AI title</button>
           </div>}
           <button type="button" className="campaign-secondary" onClick={()=>{
             if(!window.confirm("Replace the current editor text with this AI version? Unsaved editor changes will be lost. Your saved and published Journal entries won't change."))return;
             if(onDraft(parsed.content,recapUpdatedAt,true,parsed.title))
-              setNotice("Saved version copied into the editor. Review and save only if you want to use it.");
+              setNotice("Version copied to editor. Save to keep it.");
           }}>Copy this version into editor</button>
           <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{parsed.content}</pre>
         </details>;
       })}
     </details>}
     {newest?.status==="needs_attention"&&<div className="session-recap-reading" role="alert">
-      <strong>{recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>
-      <p className="campaign-empty-copy">
+      <strong>{currentDiagnosis?.value.title??
+        recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>
+      {currentDiagnosis?<p className="campaign-empty-copy">
+        {currentDiagnosis.section!==null&&
+          <>Section {currentDiagnosis.section} of {currentDiagnosis.sectionCount??"?"}: </>}
+        {currentDiagnosis.value.explanation}
+      </p>:<p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.description??recapAttentionText.unexpected.description}
-      </p>
+      </p>}
       {newest.stageErrorCode&&<p className="campaign-empty-copy">
-        <strong>Specific issue:</strong> {recapStageDescriptions[newest.stageErrorCode]??
-          "The preparation step failed; the saved recording is unchanged."}
+        {recapStageDescriptions[newest.stageErrorCode]??
+          "The preparation step stopped. Your recording is unchanged."}
       </p>}
-      <p className="campaign-empty-copy">
+      {!newest.canRetry&&!newest.canRetryFailedSection&&<p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
-      </p>
-      {newest.canRetryFailedSection&&<p className="campaign-empty-copy">
-        After reviewing the failure reason, you can explicitly approve a retry
-        of <strong>only the failed section</strong>. TWE will check that Gemini
-        marked it failed before submitting anything new. This may consume a
-        Gemini request; earlier section notes are preserved.
       </p>}
-      {newest.generatedMarkdown&&<details>
-        <summary>View partial AI notes — not a complete recap</summary>
-        <p className="campaign-empty-copy">
-          Gemini returned only part of the recap. These notes are private, unverified,
-          and have not been copied into the published session summary.
-        </p>
-        <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
-      </details>}
-      {["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&<>
-        <button type="button" className="campaign-secondary" disabled={diagnosing}
-          onClick={()=>void diagnoseFailure(newest)}>
-          {diagnosing?"Checking Gemini…":"Recheck failure reason (no new AI request)"}
-        </button>
-        {diagnosis?.jobId===newest.id&&<div className="session-recap-import-notice" role="status">
-          <strong>{diagnosis.value.title}</strong>
-          {diagnosis.section!==null&&<p>
-            Gemini section {diagnosis.section} of {diagnosis.sectionCount??"?"} failed.
-          </p>}
-          <p>{diagnosis.value.explanation}</p>
-          {diagnosis.value.inputTokens!==null&&<p>
-            Gemini reported {diagnosis.value.inputTokens.toLocaleString()} input tokens for this interaction.
-          </p>}
-          <p className="campaign-empty-copy">
-            Only the existing interaction was read. No audio was uploaded or summarized again.
-          </p>
-        </div>}
-      </>}
       <div className="session-recap-form-actions">
         {newest.canRetryFailedSection&&<button type="button" className="campaign-primary"
           disabled={retrying||starting||diagnosing} onClick={()=>void retrySection(newest)}>
-          {retrying?"Verifying failed section…":"Retry failed section only"}
+          {retrying?"Verifying…":"Retry failed section only"}
         </button>}
         {newest.canRetry&&<button type="button" className="campaign-primary"
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}
         </button>}
-        <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
-        <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
-          rel="noopener noreferrer">Open Google AI Studio</a>
+        {!currentDiagnosis&&["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&
+          <button type="button" className="campaign-secondary" disabled={diagnosing}
+            onClick={()=>void diagnoseFailure(newest)}>
+            {diagnosing?"Checking Gemini…":"Check error (no AI request)"}
+          </button>}
       </div>
       <details>
-        <summary>Technical details</summary>
+        <summary>More options and diagnostics</summary>
+        {["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&
+          <button type="button" className="campaign-secondary" disabled={diagnosing}
+            onClick={()=>void diagnoseFailure(newest)}>
+            {diagnosing?"Checking Gemini…":"Recheck Gemini error (no AI request)"}
+          </button>}
+        {currentDiagnosis?.value.inputTokens!==null&&currentDiagnosis&&
+          <p className="campaign-empty-copy">
+            Gemini input: {currentDiagnosis.value.inputTokens.toLocaleString()} tokens.
+          </p>}
+        {newest.generatedMarkdown&&<details>
+          <summary>View partial AI notes</summary>
+          <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
+        </details>}
+        <div className="session-recap-form-actions">
+          <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
+          <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
+            rel="noopener noreferrer">Google AI Studio</a>
+        </div>
         <p className="campaign-empty-copy">Job ID: <code>{newest.id}</code></p>
-        <p className="campaign-empty-copy">Error code: <code>{newest.errorCode||"unknown"}</code></p>
-        {newest.stageErrorCode&&<p className="campaign-empty-copy">Preparation stage: <code>{newest.stageErrorCode}</code></p>}
-        <p className="campaign-empty-copy">Last updated: {new Date(newest.updatedAt).toLocaleString()}</p>
+        <p className="campaign-empty-copy">Error: <code>{newest.errorCode||"unknown"}</code></p>
+        {newest.stageErrorCode&&<p className="campaign-empty-copy">
+          Preparation: <code>{newest.stageErrorCode}</code>
+        </p>}
+        <p className="campaign-empty-copy">Updated {new Date(newest.updatedAt).toLocaleString()}</p>
         <button type="button" className="campaign-secondary" onClick={()=>
           void navigator.clipboard.writeText("TWE recap job: "+newest.id+
             "\\nError: "+(newest.errorCode||"unknown")+
             "\\nPreparation: "+(newest.stageErrorCode||"not available")+
             "\\nUpdated: "+newest.updatedAt)
-            .then(()=>setNotice("Diagnostic copied.")).catch(()=>setError("Could not copy diagnostics."))
+            .then(()=>setNotice("Diagnostics copied.")).catch(()=>setError("Could not copy diagnostics."))
         }>Copy diagnostics</button>
       </details>
     </div>}
@@ -411,45 +365,29 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           width:"min(100%,520px)",padding:24,borderRadius:8,boxShadow:"0 12px 40px rgba(0,0,0,.4)"}}>
         <h3 id="recap-confirm-title">Auto Summarize this recording?</h3>
         <p id="recap-confirm-description">
-          <strong>{confirmAsset.label}</strong> is already saved in your Drive.
-          TWE will send a temporary copy of the audio, relevant campaign Journal
-          entries, and earlier recaps to your connected Gemini project.
+          Send <strong>{confirmAsset.label}</strong>, relevant Journal entries and
+          earlier recaps to Gemini. The result stays private until you publish it.
         </p>
-        <p>
-          Google may use free-tier submitted content to improve its products.
-          The request may count toward free limits or incur charges in your own
-          Google project. TWE cannot verify your remaining free quota.
-          Nothing will be published to players automatically.
-        </p>
-        <label style={{display:"block",marginBlock:12}}>Detail level for this run
+        <p>Google may use free-tier content to improve its products. TWE cannot check your remaining quota.</p>
+        <label style={{display:"block",marginBlock:12}}>Recap detail
           <select value={selectedDetail} disabled={starting}
             onChange={event=>setSelectedDetail(event.target.value as typeof selectedDetail)}>
             <option value="brief">Brief — highlights</option>
             <option value="standard">Standard — major scenes</option>
             <option value="detailed">Most detailed — scenes, names, timestamps and consequences</option>
           </select>
-          <span className="campaign-empty-copy">Default from Account; changes here apply only to this run.</span>
         </label>
-        {published&&<p className="campaign-empty-copy"><strong>Your published Journal entry will not change.</strong>
-          The new result will be saved as another private AI version for you to review.</p>}
+        {published&&<p className="campaign-empty-copy">Your published recap will not change. This creates a private version.</p>}
         <p role="note" className="campaign-empty-copy">
-          {longRecording&&segmentSupported?<>
-            <strong>Long-session processing:</strong> TWE will analyze roughly {segmentCount} verified
-            audio sections separately, then make one final text-only request to assemble
-            your recap ({segmentCount+1} Gemini requests in total). Each section is
-            approximately {Math.round(100*60*32).toLocaleString()} audio input tokens or less,
-            plus Journal context. These requests count toward your personal project&apos;s
-            daily and per-minute limits, and may incur charges.
-          </>:<>
-            <strong>Estimated audio input:</strong>{" "}
-            {quotaEstimate.estimatedTokens===null?"Duration unavailable":
-              quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
-            {" "}{quotaEstimate.message}
-            {longRecording&&!segmentSupported&&
-              " Automatic long-audio segmentation supports AAC M4A, CBR MP3, and PCM WAV; unsupported codecs cannot safely be divided on the free backend."}
-          </>}
+          {longRecording&&segmentSupported
+            ? <>Estimated {segmentCount} audio sections + 1 recap request.</>
+            : longRecording
+              ? <>This audio format may exceed Gemini&apos;s limits.</>
+              : quotaEstimate.size!=="ordinary"
+                ? <>Audio duration or limits could not be verified.</>
+                : <>Gemini requests count toward your account&apos;s quota.</>}
           {" "}<a href="https://aistudio.google.com/rate-limit" target="_blank"
-            rel="noopener noreferrer">Check your project&apos;s active limits in Google AI Studio</a>.
+            rel="noopener noreferrer">Check limits</a>.
         </p>
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={privacy} disabled={starting}

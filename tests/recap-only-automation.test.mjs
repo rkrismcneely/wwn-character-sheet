@@ -114,9 +114,10 @@ test("UI shows playable audio first, Auto Summarize button, and confirmation pop
   assert.match(status,/Confirm Auto Summarize/u);
   assert.match(status,/privacyApproved:true,billingApproved:true/u);
   assert.match(status,/onClick=\{\(\)=>setConfirmAsset\(null\)\}/u);
-  assert.match(uploader,/Gemini has not been started/u);
+  assert.match(uploader,/AI summarization starts only when you approve it/u);
   assert.match(uploader,/twe:recap-audio-attached/u);
   assert.match(setup,/ready:storageConnected/u);
-  assert.match(manager,/Step 1: upload and play the recording/u);
+  assert.match(manager,/Start with a recording/u);
+  assert.match(manager,/SHOW_LEGACY_RECAP_TOOLS&&<details/u);
   assert.match(wizard,/Every AI\s+request requires its own confirmation/u);
 });

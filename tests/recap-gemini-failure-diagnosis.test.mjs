@@ -61,6 +61,6 @@ test("the diagnose route only reads existing GM-owned failed interaction",async(
   assert.doesNotMatch(route,/\/upload\/v1beta\/files|\/v1beta\/interactions",\{/u);
   assert.match(route,/summarizeRecapGeminiFailure\(detail\)/u);
   assert.match(route,/resubmitted:false/u);
-  assert.match(ui,/Recheck failure reason \(no new AI request\)/u);
+  assert.match(ui,/Recheck Gemini error \(no AI request\)/u);
   assert.match(ui,/endpoint\+"\/diagnose"/u);
 });

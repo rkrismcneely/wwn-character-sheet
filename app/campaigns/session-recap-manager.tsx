@@ -14,6 +14,8 @@ import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/camp
 import {isPlaceholderRecapTitle,RECORDING_WORKING_TITLE} from "@/lib/campaigns/recap-ai-title";
 
 type Draft = { date: string; title: string; content: string };
+// Legacy Craig/transcription components stay in source but are hidden until intentionally re-enabled.
+const SHOW_LEGACY_RECAP_TOOLS=process.env.NEXT_PUBLIC_TWE_RECAP_ADVANCED_TOOLS==="true";
 const recapCacheDurationMs = 60_000;
 const recapPageCache = new Map<string, { data: SessionRecapPage; savedAt: number }>();
 const sessionRecapChangedEvent = "twe:session-recaps-changed";
@@ -154,7 +156,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         throw new Error(result.error || "Could not create a private recording draft.");
       setEditing(result.recap);
       setDraft({date:result.recap.date,title:result.recap.title,content:""});
-      setImportNotice("Private draft created. Attach your recording below. Only campaign GMs can see this draft until you publish an approved recap.");
+      setImportNotice("Private draft created. Add your recording below.");
       recapPageCache.delete(campaignId);
       void loadPage(1);
     } catch (cause) {
@@ -176,7 +178,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       if (!response.ok || !result.recap) throw new Error(result.error || "Could not save the session recap.");
       if(!publish){
         setEditing(result.recap);
-        setImportNotice("Private recap draft saved. It is still hidden from players.");
+        setImportNotice("Private draft saved.");
         recapPageCache.delete(campaignId);
         void loadPage(1);
         return;
@@ -211,11 +213,6 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
             : <a className="campaign-secondary" href="/account#recap-setup">Configure Automatic Recap</a>}
       </div>}
       {editing !== "new"&&!editing.isPublished&&<>
-        <p className="session-recap-import-notice" role="status">
-          Step 1: upload and play the recording in this private recap. Step 2: click
-          Auto Summarize and confirm if you want Gemini to create a draft.
-          Uploading alone never starts AI, and nothing is published automatically.
-        </p>
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId}
           recapId={editing.id} onBusyChange={trackUploadBusy}/>
         <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id}
@@ -232,14 +229,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       </>}
       {editing === "new" && createMethod === "recording"
         ? <form className="session-recap-form" onSubmit={event=>void createRecordingDraft(event)}>
-            <h3>Recap Only — start with a recording</h3>
-            <p className="session-recap-editor-help">
-              Create a private draft, then upload your full mixed MP3/M4A/WAV/FLAC/AAC
-              recording straight to your own Google Drive. No transcript or separate
-              Craig tracks are required. The recording will be attached and playable as soon as
-              it is saved in Drive. Gemini starts only when you later click Auto Summarize
-              and confirm the request. The result stays private for your review.
-            </p>
+            <h3>Start with a recording</h3>
+            <p className="session-recap-editor-help">Create a private draft, then attach your audio.</p>
             <div className="session-recap-form-fields">
               <label><span>Session date</span><input type="date" required value={draft.date}
                 onChange={event=>setDraft(current=>({...current,date:event.target.value}))}/></label>
@@ -264,8 +255,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
               placeholder={"## The adventure continues…\n\n- A discovery\n- An unexpected encounter\n\n**Next time:** …"}
               onChange={event => setDraft(current => ({ ...current, content: event.target.value }))} />}
         <p className="session-recap-editor-help">{editing!=="new"&&!editing.isPublished
-          ? "This draft is private. Review your recap before publishing; only publishing makes it visible to players."
-          : "Markdown supports headings, **bold**, *italic*, lists, links, tables, quotes and code. Saving publishes this recap to campaign members."}</p>
+          ? "Only publishing makes this recap visible to players."
+          : "Saving updates the published recap for campaign members."}</p>
         {error && <p className="campaign-error" role="alert">{error}</p>}
         <div className="session-recap-form-actions">
           {editing!=="new"&&!editing.isPublished&&<button type="button"
@@ -294,7 +285,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
             }}
             onSuggestedTitle={title=>setDraft(current=>({...current,title}))}/>
         </>}
-        <details className="session-recap-reading" onToggle={event=>setShowAdvanced(event.currentTarget.open)}>
+        {SHOW_LEGACY_RECAP_TOOLS&&<details className="session-recap-reading" onToggle={event=>setShowAdvanced(event.currentTarget.open)}>
           <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>
           <p className="campaign-empty-copy">
             These older tools remain available, but are not needed for a Recap Only workflow.
@@ -314,7 +305,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
               return true;
             }}/>
           </>}
-        </details>
+        </details>}
       </>}
     </> : <>
       <div className="campaign-section-heading">
@@ -325,7 +316,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
           <button type="button" className="campaign-primary" onClick={startNew}>New Session</button>
         </div>
       </div>
-      <p className="session-recap-import-help">Import an existing Markdown note (.md) from your Obsidian vault using your device’s file picker.</p>
+      
       {error && <p className="campaign-error" role="alert">{error}</p>}
       {loading && <p className="campaign-empty-copy" role="status">Loading session recaps…</p>}
       {!loading && !data?.recaps.length && <p className="campaign-empty-copy">No session recaps yet. Select New Session to record the first one.</p>}

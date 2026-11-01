@@ -8,6 +8,7 @@
  * evidence of a break; in that case use safe, balanced timed boundaries.
  */
 import {LongAudioFormatError,type AudioSegmentPlan,MAX_RECAP_SEGMENTS} from "./recap-long-audio-plan.ts";
+import {Buffer} from "node:buffer";
 
 type Read=(start:number,length:number)=>Promise<Uint8Array>;
 type Box={type:string;start:number;end:number;data:number};
@@ -92,11 +93,9 @@ function unitMatrix():Uint8Array{
     encode32(0),encode32(0),encode32(0x40000000)]);
 }
 function toBase64(data:Uint8Array):string{
-  // JS strings are transient here and never contain the compressed recording.
-  let content="";
-  for(let i=0;i<data.length;i+=8192)
-    content+=String.fromCharCode(...data.subarray(i,i+8192));
-  return btoa(content);
+  // Native buffer encoding avoids iterating over hundreds of thousands of
+  // metadata bytes in JS within Workers Free's strict CPU allowance.
+  return Buffer.from(data.buffer,data.byteOffset,data.byteLength).toString("base64");
 }
 type Timing={count:number;delta:number};
 type Parsed={

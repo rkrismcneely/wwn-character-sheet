@@ -350,7 +350,15 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           void navigator.clipboard.writeText("TWE recap job: "+newest.id+
             "\\nError: "+(newest.errorCode||"unknown")+
             "\\nPreparation: "+(newest.stageErrorCode||"not available")+
-            "\\nUpdated: "+newest.updatedAt)
+            "\\nUpdated: "+newest.updatedAt+
+            (currentDiagnosis?"\\nGemini diagnosis: "+currentDiagnosis.value.title+
+              "\\nDiagnosis category: "+currentDiagnosis.value.kind+
+              "\\nExplanation: "+currentDiagnosis.value.explanation+
+              (currentDiagnosis.value.inputTokens!==null?
+                "\\nInput tokens: "+currentDiagnosis.value.inputTokens:"")+
+              (currentDiagnosis.section!==null?
+                "\\nFailed section: "+currentDiagnosis.section+" of "+(currentDiagnosis.sectionCount??"unknown"):""):
+              "\\nGemini diagnosis: not available (use Recheck Gemini error first)"))
             .then(()=>setNotice("Diagnostics copied.")).catch(()=>setError("Could not copy diagnostics."))
         }>Copy diagnostics</button>
       </details>

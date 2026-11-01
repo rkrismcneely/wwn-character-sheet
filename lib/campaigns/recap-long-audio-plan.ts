@@ -5,9 +5,9 @@
  * Only support formats we can split without decoding/transcoding in Workers
  * Free's 10ms CPU budget. Never guess playable byte boundaries for M4A/FLAC.
  */
-export const LONG_AUDIO_THRESHOLD_MS=100*60_000;
-export const SEGMENT_TARGET_MS=100*60_000;
-export const SEGMENT_MAX_MS=100*60_000;
+export const LONG_AUDIO_THRESHOLD_MS=60*60_000;
+export const SEGMENT_TARGET_MS=60*60_000;
+export const SEGMENT_MAX_MS=60*60_000;
 export const MAX_RECAP_SEGMENTS=16;
 type Source={byteSize:number;durationMs:number|null;mimeType:string};
 export type AudioSegmentPlan={

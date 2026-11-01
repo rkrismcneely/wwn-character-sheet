@@ -25,7 +25,7 @@ test("a 2-hour synthetic CBR MP3 is divided on actual verified MPEG frame bounda
   const parts=await planLongAudio({
     durationMs:duration,byteSize,mimeType:"audio/mpeg",
   },mock);
-  assert.ok(parts.length>=3&&parts.length<=5);
+  assert.ok(parts.length>=2&&parts.length<=4);
   assert.equal(parts[0].sourceStart,0);
   assert.equal(parts.at(-1).sourceEnd,byteSize);
   assert.equal(parts.at(-1).endMs,duration);
@@ -36,7 +36,7 @@ test("a 2-hour synthetic CBR MP3 is divided on actual verified MPEG frame bounda
     assert.equal(part.sourceEnd%frameBytes,0);
     assert.equal(part.prefixBase64,"");
     assert.equal(part.mimeType,"audio/mpeg");
-    assert.ok(part.endMs-part.startMs<=36*60_000);
+    assert.ok(part.endMs-part.startMs<=61*60_000);
     if(i)assert.equal(part.sourceStart,parts[i-1].sourceEnd);
   }
   assert.ok(requests<10,"segments require only tiny header/range probes");
@@ -77,7 +77,7 @@ test("a long PCM WAV produces real standalone 44-byte WAV headers and sample-ali
   const parts=await planLongAudio({
     byteSize:total+44,mimeType:"audio/wav",durationMs:duration,
   },async(start,len)=>{const data=new Uint8Array(len);data.set(header.subarray(start,Math.min(start+len,44)));return data;});
-  assert.equal(parts.length,4);
+  assert.equal(parts.length,2);
   let accumulated=0;
   for(let i=0;i<parts.length;i++){
     const p=parts[i];

@@ -90,5 +90,5 @@ test("headings still protect pre-existing links, code and Markdown reference def
  assert.match(output,/~~~md\n## Doolan Tversky is sample text\n~~~/u);
  assert.match(output,/^\[Doolan Tversky\]: https:\/\/example\.com$/mu);
  assert.match(output,/^## \[Doolan Tversky\]\(https:\/\/example\.com\) meets the others$/mu);
- assert.match(output,/^## The real \[Doolan Tversky\]\(\/journal-page\/55555555/u);
+ assert.match(output,/^## The real \[Doolan Tversky\]\(\/journal-page\/55555555/mu);
 });

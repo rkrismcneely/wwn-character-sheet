@@ -1,6 +1,6 @@
 ## Long recording handling (Gemini with GM-owned Google Drive)
 
-The existing **Auto Summarize** confirmation supports sessions longer than 95 minutes
+The existing **Auto Summarize** confirmation supports sessions longer than 100 minutes
 without requiring the GM to split, convert, or reupload their original recording.
 
 ### Verified inputs and segmentation

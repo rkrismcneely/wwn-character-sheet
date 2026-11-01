@@ -252,3 +252,30 @@ test("migration, cron and status all retain stage state while protecting private
   const progress=await read("lib/campaigns/recap-progress.ts");
   assert.match(progress,/bytes\*100\/total/u);
 });
+
+test("a virtual audio segment prepends a WAV header and reads only its original Drive byte range",async()=>{
+  const state=simulate(),base=responseFor(state);
+  const original=globalThis.fetch;
+  const header=new Uint8Array(44);
+  header.set([82,73,70,70],0); // RIFF
+  header.set([87,65,86,69],8); // WAVE
+  const cut={...source,mimeType:"audio/wav",byteSize:2*MiB+44,
+    segment:{sourceStart:4*MiB,sourceEnd:6*MiB,originalBytes:source.byteSize,prefix:header}};
+  let uploaded:null|Uint8Array=null;
+  globalThis.fetch=async(url,opts)=>{
+    if(url===sessionUrl&&opts.headers["x-goog-upload-command"]==="upload, finalize"){
+      uploaded=opts.body;
+    }
+    return base(url,opts);
+  };
+  try{
+    const result=await stageRecapAudioChunked(state.env,job,"private-test-key",cut,"private-drive-bearer");
+    assert.deepEqual(result,{done:true,bytes:cut.byteSize,total:cut.byteSize});
+    assert.deepEqual(state.history.driveRanges,[[4*MiB,6*MiB-1]]);
+    assert.ok(uploaded);
+    assert.deepEqual([...uploaded.subarray(0,44)],[...header]);
+    assert.equal(uploaded.byteLength,2*MiB+44);
+    assert.equal(state.row.status,"uploaded");
+  }finally{globalThis.fetch=original;}
+});
+

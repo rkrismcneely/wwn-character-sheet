@@ -155,7 +155,20 @@ a short expressive sentence can work. Never copy previous titles or use dates,
 timestamps, unsupported names or the words "Session Recap" in the title.
 Examples of STYLE ONLY (never copy): "Presto Change-O", "It's Been a Day",
 "#NotAllPaladins", "When to Walk Away", "Lost in Flames", "You Forget Yourself".
-Then write a descriptive opening summary, followed by chronological section headings of the form
+Then write a separate opening section headed '## Last Time — Read-Aloud'. Its text
+must be ONE natural, GM-ready paragraph to read aloud at the start of the NEXT session:
+recall the most important story beats from this recording, the party's current goal,
+and their exact situation as play resumes (where they are, what they are doing,
+and any immediate tension). Aim for 60–75 spoken words (about 30 seconds),
+varying modestly for unusually dense sessions. This opening is mandatory at ALL
+detail settings and should be short even in Detailed mode. Write in a conversational
+spoken voice, not bullet points or florid narration. Listen for how the GM opened
+THIS recording; take cues from their tone and framing (e.g. 'Last time, the party...'),
+but never copy old recap events as if they happened in this recording, mimic private
+speech verbatim, or invent facts. If no clear GM intro exists, use a neutral natural
+recap voice. This is a forward-looking reminder of this session, not a summary of
+the earlier session recalled at the beginning of this audio.
+After it, write chronological section headings of the form
 '## 00:00:00 — Scene title' with APPROXIMATE actual playback times, or omit a timestamp
 when not confident. After the chronological account, include compact, non-repetitive reference sections
 with the EXACT headings 'Relevant NPCs & Creatures', 'Decisions',
@@ -183,6 +196,7 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
         "original session recording. Timestamps in those notes are already mapped to the "+
         "ORIGINAL full recording. Keep them in headings of the form ## HH:MM:SS — Scene title. "+
         "First line must be # followed by a creative, distinctive episode title suited to the session's tone: playful puns, witty expressions or clever allusions for funny/light sessions; poetic, mysterious or ominous titles for serious ones. Avoid generic fantasy titles and formulaic 'The X of Y' names; never force a joke or copy earlier titles. Style examples only (do not copy): Presto Change-O, It's Been a Day, Lost in Flames, #NotAllPaladins. "+
+        "Immediately after the H1 title, ALWAYS include a section headed ## Last Time — Read-Aloud with ONE conversational paragraph for the GM to read aloud next session. Aim for 60–75 spoken words (about 30 seconds); modestly adjust for dense sessions, regardless of Brief/Standard/Detailed setting. Summarize this session's major story beats, party's present goal, and exact situation where play will resume. Draw style and tone cues from the GM's introduction if recorded in section notes; do NOT present earlier-session events mentioned in that intro as events from this recording. If no introduction style is available, use neutral natural GM narration. No bullet points or elaborate prose in this opening. "+
         "Cover ALL consequential events from EVERY supplied section, especially the final section; allocate detail by importance, never chronological position. "+
         "Before writing, account for the first and last meaningful event in each section. "+
         "Use concise factual sentences; combine routine travel and minor conversation; avoid decorative prose and repetition. "+

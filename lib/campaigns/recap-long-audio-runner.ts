@@ -4,6 +4,7 @@ import {stageRecapAudioChunked,RecapStagingFailure} from "./recap-gemini-chunked
 import {planLongAudio,estimateAudioDurationMs,LongAudioFormatError,offsetRecapSceneHeadings}
   from "./recap-long-audio-plan.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
+import {planM4a,estimateM4aDuration} from "./recap-m4a-remux.ts";
 
 const API="https://generativelanguage.googleapis.com/v1beta";
 const ID=/^[a-zA-Z0-9_-]{6,240}$/u;
@@ -26,7 +27,7 @@ const fail=async(db:D1Database,jobId:string,code:string)=>{
 };
 async function sourceRange(source:Original,token:string,start:number,length:number):Promise<Uint8Array>{
   if(!Number.isSafeInteger(start)||!Number.isSafeInteger(length)||
-    start<0||length<=0||length>65536||start+length>source.byteSize)
+    start<0||length<=0||length>6*1024*1024||start+length>source.byteSize)
     throw new LongAudioFormatError("metadata_invalid");
   const result=await fetch("https://www.googleapis.com/drive/v3/files/"+
     encodeURIComponent(source.remoteFileId)+"?alt=media",{
@@ -46,8 +47,9 @@ async function sourceRange(source:Original,token:string,start:number,length:numb
  */
 export async function probeRecordingDuration(env:Env,job:Job,source:Original):Promise<number|null>{
   if(source.durationMs!==null)return source.durationMs;
-  if(!["audio/mpeg","audio/mp3","audio/wav"].includes(source.mimeType))return null;
+  if(!["audio/mpeg","audio/mp3","audio/wav","audio/mp4"].includes(source.mimeType))return null;
   const drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);
+  if(source.mimeType==="audio/mp4")return estimateM4aDuration(source,(start,len)=>sourceRange(source,drive,start,len));
   return estimateAudioDurationMs(source,(start,len)=>sourceRange(source,drive,start,len));
 }
 /** Called only once, before any model request, on the already approved job.
@@ -58,7 +60,9 @@ export async function initializeSegmentedRecap(env:Env,job:Job,source:Original):
   const drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);
   let segments;
   try{
-    segments=await planLongAudio(source,(start,len)=>sourceRange(source,drive,start,len));
+    segments=source.mimeType==="audio/mp4"?
+      await planM4a(source,(start,len)=>sourceRange(source,drive,start,len)):
+      await planLongAudio(source,(start,len)=>sourceRange(source,drive,start,len));
   }catch(e){
     if(e instanceof LongAudioFormatError){
       await fail(env.DB,job.id,"long_audio_"+e.code);
@@ -163,7 +167,7 @@ async function upload(env:Env,job:Job,part:Segment,key:string,source:Original):P
   let prefix=new Uint8Array(0);
   if(part.prefixBase64){
     const binary=atob(part.prefixBase64);
-    if(binary.length>512)throw new RecapStagingFailure("staging_data_unavailable");
+    if(binary.length>1250*1024)throw new RecapStagingFailure("staging_data_unavailable");
     prefix=Uint8Array.from(binary,code=>code.charCodeAt(0));
   }
   if(part.sourceStart<0||part.sourceEnd>source.byteSize||

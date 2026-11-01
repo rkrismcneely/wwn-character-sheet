@@ -61,14 +61,40 @@ export async function initializeSegmentedRecap(env:Env,job:Job,source:Original):
     await fail(env.DB,job.id,"long_audio_metadata_invalid");
     return;
   }
+  // A new detail level for the *same* immutable Drive audio asset can reuse
+  // completed section notes. This skips both re-uploading and re-analyzing
+  // hours of audio: only the final text-only consolidation needs a new request.
+  // Never cross campaigns, owners or assets, and verify every boundary.
+  const prior=await env.DB.prepare("SELECT id FROM campaign_recap_audio_summary_jobs "+
+    "WHERE id!=? AND campaign_id=? AND recap_id=? AND audio_asset_id=? "+
+    "AND requested_by=? AND confirmed_at IS NOT NULL AND processing_mode='segmented' "+
+    "ORDER BY created_at DESC LIMIT 1")
+    .bind(job.id,job.campaignId,job.recapId,job.audioAssetId,job.requestedBy)
+    .first<{id:string}>();
+  const previous=prior?await env.DB.prepare(
+    "SELECT segment_index AS segmentIndex,start_ms AS startMs,end_ms AS endMs,"+
+    "source_start AS sourceStart,source_end AS sourceEnd,prefix_base64 AS prefixBase64,"+
+    "mime_type AS mimeType,status,notes FROM campaign_recap_audio_summary_segments "+
+    "WHERE job_id=? ORDER BY segment_index").bind(prior.id)
+    .all<{segmentIndex:number;startMs:number;endMs:number;sourceStart:number;
+      sourceEnd:number;prefixBase64:string;mimeType:string;status:string;notes:string|null}>():null;
+  const reusable=new Map((previous?.results??[]).filter(section=>
+    section.status==="ready"&&section.notes&&section.notes.length<=12000)
+    .map(section=>[section.segmentIndex,section]));
   const created=now();
-  const updates=segments.map(segment=>env.DB.prepare(
-    "INSERT INTO campaign_recap_audio_summary_segments "+
-    "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
-    "status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(crypto.randomUUID(),job.id,segment.index,segment.startMs,segment.endMs,
-      segment.sourceStart,segment.sourceEnd,segment.prefixBase64,segment.mimeType,
-      "pending_upload",created,created));
+  const updates=segments.map(segment=>{
+    const candidate=reusable.get(segment.index);
+    const same=candidate&&candidate.startMs===segment.startMs&&
+      candidate.endMs===segment.endMs&&candidate.sourceStart===segment.sourceStart&&
+      candidate.sourceEnd===segment.sourceEnd&&candidate.mimeType===segment.mimeType&&
+      candidate.prefixBase64===segment.prefixBase64;
+    return env.DB.prepare("INSERT INTO campaign_recap_audio_summary_segments "+
+      "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
+      "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(),job.id,segment.index,segment.startMs,segment.endMs,
+        segment.sourceStart,segment.sourceEnd,segment.prefixBase64,segment.mimeType,
+        same?"ready":"pending_upload",same?candidate!.notes:null,created,created);
+  });
   updates.push(env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
     "SET processing_mode='segmented',claimed_at=NULL,updated_at=? "+
     "WHERE id=? AND status='transferring' AND processing_mode='single'")

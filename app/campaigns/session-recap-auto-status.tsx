@@ -125,7 +125,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     try{
       const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,assetId:asset.id,confirmed:true,
-          privacyApproved:true,billingApproved:true,detail:selectedDetail,requestId})});
+          privacyApproved:true,billingApproved:true,detail:selectedDetail,requestId,
+          durationMs:durations[asset.id]??asset.durationMs??null})});
       const data=await response.json() as {
         queued?:boolean;created?:boolean;alreadyQueued?:boolean;error?:string;
       };

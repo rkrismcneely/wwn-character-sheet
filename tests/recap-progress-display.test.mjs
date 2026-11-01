@@ -58,13 +58,13 @@ test("the UI uses native accessible progress, no pretend ETA or overall percenta
     read("app/campaigns/campaign-ui.css"),
     read("app/api/campaigns/[id]/session-recaps/auto-recap/route.ts"),
   ]);
-  assert.match(ui,/<progress className="recap-ai-progress__meter" value=\{progressValue\} max=\{100\}/u);
-  assert.match(ui,/aria-label=\{progressLabel\}/u);
-  assert.match(ui,/aria-valuetext=/u);
-  assert.match(ui,/progress\.indeterminate/u);
-  assert.match(ui,/Step \{progress\.activeStep\+1\} of 4/u);
-  assert.match(ui,/Gemini reports processing status, not a percentage or reliable time remaining/u);
-  assert.match(ui,/background processing continues if you leave/u);
+  assert.match(ui,/<progress className="recap-ai-progress__meter"/u);
+  assert.match(ui,/value=\{progress\.transferPercent\?\?undefined\}/u);
+  assert.match(ui,/aria-label="Audio transfer to Gemini"/u);
+  assert.match(ui,/showTransfer&&!analysisFailure/u);
+  assert.match(ui,/Processing continues if you leave this page/u);
+  assert.match(ui,/<summary>Processing details<\/summary>/u);
+  assert.doesNotMatch(ui,/recap-ai-progress__steps/u);
   assert.match(container,/<SessionRecapProgress job=\{newest\}\/>/u);
   assert.match(container,/window\.setInterval\(load,12000\)/u);
   assert.match(route,/stage_offset AS stageBytes/u);

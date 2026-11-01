@@ -62,9 +62,11 @@ function fixture({samples=312000,lowStart=140000,lowEnd=156000,mdatFirst=false}=
   return {source:{byteSize:totalFile,durationMs:null,mimeType:"audio/mp4"},
     read,samples,total,ftyp,mdatFirst};
 }
-test("long untouched M4A is split into independently valid virtual MP4 headers",async()=>{
+test("long untouched M4A is split into independently valid virtual MP4 headers",async(t)=>{
   const input=fixture();
+  const planStarted=performance.now();
   const plan=await planM4a(input.source,input.read);
+  t.diagnostic("Long M4A metadata-only planning CPU/wall benchmark: "+(performance.now()-planStarted).toFixed(1)+"ms");
   assert.equal(plan.length,2);
   assert.equal(plan[0].sourceStart+ (plan[0].sourceEnd-plan[0].sourceStart),plan[1].sourceStart);
   assert.equal(plan[1].sourceEnd-plan[0].sourceStart,input.total);

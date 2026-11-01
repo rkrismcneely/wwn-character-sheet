@@ -182,7 +182,7 @@ async function wavPlan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
       const previous=Math.floor((edges[i-1]-meta.start)/meta.align);
       const earliest=previous+meta.rate*15*60;
       const latest=Math.min(frames-(count-i)*meta.rate*15*60,
-        previous+meta.rate*100*60);
+        previous+meta.rate*60*60);
       const lo=Math.max(earliest,idealFrame-meta.rate*12*60);
       const hi=Math.min(latest,idealFrame+meta.rate*12*60);
       const probes=Math.floor(totalBudget/(count-1));
@@ -220,7 +220,7 @@ async function wavPlan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
     }
     const minFrame=Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*15*60;
     const maxFrame=Math.min(frames-(count-i)*meta.rate*15*60,
-      Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*100*60);
+      Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*60*60);
     if(minFrame>maxFrame)throw new LongAudioFormatError("metadata_invalid");
     chosen=Math.max(minFrame,Math.min(maxFrame,chosen));
     edges.push(meta.start+chosen*meta.align);

@@ -250,7 +250,7 @@ export async function stageRecapAudioChunked(
     // Do not copy the regular 8 MiB Drive buffer: on Workers Free that
     // unnecessary CPU work can exceed a scheduled invocation's budget.
     // Only the first WAV segment chunk needs to join a tiny header with data.
-    let bytes:Uint8Array|null=prefixBytes?new Uint8Array(length):null;
+    let bytes:Uint8Array<ArrayBuffer>|null=prefixBytes?new Uint8Array(length):null;
     if(bytes&&prefixBytes)bytes.set(prefix.subarray(offset,offset+prefixBytes),0);
     if(mediaBytes){
       const mediaOffset=source.segment?
@@ -277,7 +277,7 @@ export async function stageRecapAudioChunked(
       if(bytes)bytes.set(new Uint8Array(data),prefixBytes);
       else bytes=new Uint8Array(data); // zero-copy for ordinary and MP3 chunks
     }
-    if(!bytes)bytes=prefix.subarray(offset,offset+prefixBytes);
+    if(!bytes)bytes=new Uint8Array(prefix.subarray(offset,offset+prefixBytes));
     // Typed-array bodies receive the correct fixed Content-Length in Workers.
     const final=offset+length===source.byteSize;
     let response:Response;

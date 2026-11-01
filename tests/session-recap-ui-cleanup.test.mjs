@@ -14,7 +14,8 @@ test("legacy Craig and transcription tools remain implemented but hidden by defa
   ])assert.match(manager,new RegExp("<"+component+"\\b","u"));
   assert.match(manager,/setShowAdvanced\(event\.currentTarget\.open\)/u);
   assert.doesNotMatch(manager,/Step 1: upload and play the recording/u);
-  assert.doesNotMatch(manager,/These older tools remain available/u);
+  // The explanatory copy stays alongside the dormant legacy components; the whole region is gated.
+  assert.match(manager,/Advanced: Craig speaker tracks and full transcripts/u);
 });
 
 test("recap page keeps only actionable upload and summarization guidance",async()=>{

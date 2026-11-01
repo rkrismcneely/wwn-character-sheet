@@ -42,6 +42,28 @@ test("a 2-hour synthetic CBR MP3 is divided on actual verified MPEG frame bounda
   assert.ok(requests<10,"segments require only tiny header/range probes");
 });
 
+test("MP3 Xing/Info full-file duration frame is excluded from the first segment",async()=>{
+  const duration=2*60*60*1000,frameBytes=417;
+  const size=Math.floor(duration*128/8/frameBytes)*frameBytes;
+  const parts=await planLongAudio({byteSize:size,durationMs:duration,mimeType:"audio/mpeg"},
+    async(start,len)=>{
+      const data=new Uint8Array(len);
+      for(let i=0;i<len;i++){
+        const global=start+i,phase=global%frameBytes;
+        if(phase===0)data[i]=0xff;
+        if(phase===1)data[i]=0xfb;
+        if(phase===2)data[i]=0x90;
+        const name="Info";
+        if(global>=21&&global<25)data[i]=name.charCodeAt(global-21);
+      }
+      return data;
+    });
+  assert.equal(parts[0].sourceStart,frameBytes,
+    "Do not copy duration metadata for the entire recording into the first section");
+  assert.equal(parts[0].startMs,0);
+  assert.equal(parts.at(-1).sourceEnd,size);
+});
+
 test("a long PCM WAV produces real standalone 44-byte WAV headers and sample-aligned ranges",async()=>{
   const duration=2*60*60*1000,byteRate=64000,total=byteRate*duration/1000;
   const header=new Uint8Array(44),view=new DataView(header.buffer);

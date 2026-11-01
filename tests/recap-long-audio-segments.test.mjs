@@ -39,7 +39,7 @@ test("a 2-hour synthetic CBR MP3 is divided on actual verified MPEG frame bounda
     assert.ok(part.endMs-part.startMs<=61*60_000);
     if(i)assert.equal(part.sourceStart,parts[i-1].sourceEnd);
   }
-  assert.ok(requests<10,"segments require only tiny header/range probes");
+  assert.ok(requests<20,"segments require only bounded header/range probes");
 });
 
 test("MP3 Xing/Info full-file duration frame is excluded from the first segment",async()=>{
@@ -114,19 +114,19 @@ test("long PCM session chooses a sustained 6-minute break instead of a timed mid
     reads++;
     const bytes=new Uint8Array(size);
     const moment=(start-44)/rate/align/60;
-    const sample=moment>=82&&moment<=88?200:14000;
+    const sample=moment>=57&&moment<=63?200:14000;
     if(start>=44){
       const view=new DataView(bytes.buffer);
       for(let j=0;j+1<size;j+=2)view.setInt16(j,sample,true);
     }else bytes.set(header.subarray(start,Math.min(44,start+size)));
     return bytes;
   });
-  assert.equal(segments.length,2);
-  assert.ok(segmentAtBreak(segments[0].endMs),"should pick the break between minutes 82 and 88");
+  assert.equal(segments.length,3);
+  assert.ok(segmentAtBreak(segments[0].endMs),"should pick the break between minutes 57 and 63");
   assert.ok(reads<=25,"must not exceed bounded cloud subrequest budget");
   assert.equal(segments[0].sourceEnd,segments[1].sourceStart);
   assert.equal(segments.at(-1).endMs,minutes*60_000);
-  function segmentAtBreak(ms){return ms>=82*60_000&&ms<=88*60_000;}
+  function segmentAtBreak(ms){return ms>=57*60_000&&ms<=63*60_000;}
 });
 
 test("unsupported long audio is stopped before a model request, not sent as fake arbitrary bytes",async()=>{
@@ -134,7 +134,7 @@ test("unsupported long audio is stopped before a model request, not sent as fake
     await assert.rejects(()=>planLongAudio({mimeType,byteSize:140_000_000,durationMs:8_000_000},
       async()=>new Uint8Array(65536)),e=>e instanceof LongAudioFormatError&&e.code==="format_unsupported");
   }
-  assert.equal(LONG_AUDIO_THRESHOLD_MS,100*60_000);
+  assert.equal(LONG_AUDIO_THRESHOLD_MS,60*60_000);
 });
 
 test("absolute audio timestamps are preserved across section joins",()=>{

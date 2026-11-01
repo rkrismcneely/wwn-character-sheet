@@ -13,7 +13,7 @@ type Read=(start:number,length:number)=>Promise<Uint8Array>;
 type Box={type:string;start:number;end:number;data:number};
 const LIMIT_MOOV=6*1024*1024;
 const LIMIT_PREFIX=1250*1024; // D1 string parameter + per-job memory bound.
-const MAX_PART_MS=100*60_000;
+const MAX_PART_MS=60*60_000;
 const MIN_PART_MS=15*60_000;
 const DEFAULT_FTYP=new Uint8Array([0,0,0,20,102,116,121,112,77,52,65,32,0,0,0,0,105,115,111,109]);
 
@@ -287,16 +287,17 @@ function chooseCuts(parsed:Parsed):number[]{
     const scanFrom=Math.max(lower,middle-25*60_000),
       scanTo=Math.min(upper,middle+25*60_000);
     const probes=40;
-    // Require at least two minutes of consistently small AAC packets, not
-    // merely a one-second pause in a conversation.
+    // Look for sustained low AAC packet activity over a 20-second window.
+    // This is a proxy for quietness, not decoded silence; reject weak signals.
+    // A multi-minute pause is not required: natural table breaks are often short.
     for(let i=0;i<=probes;i++){
       const center=scanFrom+(scanTo-scanFrom)*i/probes;
-      const left=nearestSample(parsed.timing,Math.round((center-60_000)/1000*parsed.timeScale));
-      const right=nearestSample(parsed.timing,Math.round((center+60_000)/1000*parsed.timeScale));
+      const left=nearestSample(parsed.timing,Math.round((center-10_000)/1000*parsed.timeScale));
+      const right=nearestSample(parsed.timing,Math.round((center+10_000)/1000*parsed.timeScale));
       if(left<0||right>n||right<=left)continue;
       const average=(parsed.offsets[right]-parsed.offsets[left])/(right-left);
       const ratio=average/avgBytes;
-      if(ratio>0.55)continue;
+      if(ratio>0.35)continue;
       const score=ratio+Math.abs(center-middle)/60_000*0.001;
       if(score<bestScore){bestScore=score;best=nearestSample(parsed.timing,
         Math.round(center/1000*parsed.timeScale));}

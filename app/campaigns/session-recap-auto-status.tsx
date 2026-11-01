@@ -178,8 +178,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const duration=confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null;
   const quotaEstimate=recapQuotaNotice(duration);
   const longRecording=typeof duration==="number"&&duration>95*60_000;
-  const segmentCount=longRecording?Math.ceil(duration/(35*60_000)):0;
-  const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3"].includes(confirmAsset.mimeType??"");
+  const segmentCount=longRecording?Math.ceil(duration/(100*60_000)):0;
+  const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3","audio/mp4"].includes(confirmAsset.mimeType??"");
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
     <h4>Session recording</h4>
     <p className="campaign-empty-copy">
@@ -198,7 +198,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>
       and confirm for this recording. It uses your own Gemini API key, may consume
       free-tier quota or incur charges, and creates a private draft for review.
-      Long compatible recordings are divided and summarized in sections automatically,
+      Long compatible recordings are divided and summarized automatically; M4A audio uses natural low-activity breaks where identifiable,
       then combined into one recap. No separate files or extra setup needed.
     </p>
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
@@ -347,7 +347,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             <strong>Long-session processing:</strong> TWE will analyze roughly {segmentCount} verified
             audio sections separately, then make one final text-only request to assemble
             your recap ({segmentCount+1} Gemini requests in total). Each section is
-            approximately {Math.round(35*60*32).toLocaleString()} audio input tokens or less,
+            approximately {Math.round(100*60*32).toLocaleString()} audio input tokens or less,
             plus Journal context. These requests count toward your personal project&apos;s
             daily and per-minute limits, and may incur charges.
           </>:<>
@@ -356,7 +356,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
               quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
             {" "}{quotaEstimate.message}
             {longRecording&&!segmentSupported&&
-              " Automatic long-audio segmentation currently requires CBR MP3 or PCM WAV; other formats cannot safely be divided on the free backend."}
+              " Automatic long-audio segmentation supports AAC M4A, CBR MP3, and PCM WAV; unsupported codecs cannot safely be divided on the free backend."}
           </>}
           {" "}<a href="https://aistudio.google.com/rate-limit" target="_blank"
             rel="noopener noreferrer">Check your project&apos;s active limits in Google AI Studio</a>.

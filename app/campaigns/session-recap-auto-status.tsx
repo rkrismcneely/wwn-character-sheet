@@ -11,6 +11,7 @@ type Job={
   generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
   stageBytes:number;totalBytes:number|null;canRetry:boolean;
   createdAt:string;updatedAt:string;
+  segmentCount?:number;segmentsReady?:number;
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
@@ -192,6 +193,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>
       and confirm for this recording. It uses your own Gemini API key, may consume
       free-tier quota or incur charges, and creates a private draft for review.
+      Long compatible recordings are divided and summarized in sections automatically,
+      then combined into one recap. No separate files or extra setup needed.
     </p>
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
       <span>{asset.label}</span>
@@ -201,9 +204,19 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       </button>
     </div>)}
     {newest&&<>
-      <p role="status"><strong>{statusLabel[newest.status]||"Status: "+newest.status}</strong>
-        {" · "}{newest.detail} recap</p>
-      <SessionRecapProgress job={newest}/>
+      <p role="status"><strong>{
+        newest.segmentCount&&newest.status==="transferring"
+          ?"Analyzing session in "+newest.segmentCount+" sections"
+          :statusLabel[newest.status]||"Status: "+newest.status
+      }</strong>{" · "}{newest.detail} recap</p>
+      {newest.segmentCount&&newest.status==="transferring"?<>
+        <p className="campaign-empty-copy">
+          {newest.segmentsReady??0} of {newest.segmentCount} sections summarized.
+          Your recording stays in Drive. TWE keeps completed sections if you leave.
+        </p>
+        <progress style={{width:"100%"}} value={newest.segmentsReady??0}
+          max={newest.segmentCount} aria-label="Summarized audio sections"/>
+      </>:<SessionRecapProgress job={newest}/>}
     </>}
     {completeVersions.length>0&&<details>
       <summary>Saved AI recap versions ({completeVersions.length})</summary>

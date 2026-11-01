@@ -18,6 +18,6 @@ test("both recap paths target dense complete coverage instead of longer recaps",
   assert.match(summary, /entire recording/i);
   assert.match(summary, /EVERY supplied section/);
   assert.match(summary, /compress prose rather than deleting events/);
-  assert.match(summary, /compact, nonduplicative reference sections/);
-  assert.match(summary, /Omit empty sections/);
+  assert.match(summary, /ALWAYS include these five exact headings/);
+  assert.match(summary, /None noted/);
 });

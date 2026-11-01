@@ -72,7 +72,7 @@ export async function POST(request:Request,ctx:Context){
   try{
     if(request.headers.get("origin")!==CANONICAL_ORIGIN)
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
-    const body=await readBoundedJson(request,8192) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown;detail?:unknown;requestId?:unknown;durationMs?:unknown;m4aPlan?:unknown};
+    const body=await readBoundedJson(request,4*1024*1024) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown;detail?:unknown;requestId?:unknown;durationMs?:unknown;m4aPlan?:unknown};
     const info=await gm(request,ctx,body.recapId);
     const asset=await info.db.prepare("SELECT id,byte_size AS byteSize,mime_type AS mimeType FROM campaign_recap_audio_assets "+
       "WHERE id=? AND recap_id=? AND campaign_id=? AND storage_owner_user_id=? "+
@@ -132,7 +132,7 @@ export async function POST(request:Request,ctx:Context){
           "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
           "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
           .bind(crypto.randomUUID(),parent.id,part.index,part.startMs,part.endMs,
-            part.sourceStart,part.sourceEnd,"","audio/mp4",
+            part.sourceStart,part.sourceEnd,part.prefixBase64,"audio/mp4",
             (()=>{const prior=reusable.get(part.index);return prior&&
               prior.startMs===part.startMs&&prior.endMs===part.endMs&&
               prior.sourceStart===part.sourceStart&&prior.sourceEnd===part.sourceEnd&&

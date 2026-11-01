@@ -8,7 +8,7 @@ import {geminiAudioMime} from "./recap-gemini-audio-mime.ts";
 import {parseGeneratedRecapTitle} from "./recap-ai-title.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
 import {LONG_AUDIO_THRESHOLD_MS} from "./recap-long-audio-plan.ts";
-import {initializeSegmentedRecap,advanceSegmentedRecap,combinedSegmentNotes}
+import {initializeSegmentedRecap,probeRecordingDuration,advanceSegmentedRecap,combinedSegmentNotes}
   from "./recap-long-audio-runner.ts";
 
 export type RecapOnlyEnvironment=DriveSettings&RecapAIEncryptionSettings&{DB:D1Database};
@@ -359,14 +359,15 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
         }
         return;
       }
-      if(typeof source.durationMs==="number"&&source.durationMs>LONG_AUDIO_THRESHOLD_MS){
+      const duration=source.durationMs??await probeRecordingDuration(env,job,source);
+      if(typeof duration==="number"&&duration>LONG_AUDIO_THRESHOLD_MS){
         if(!migrated){
           await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
             "SET status='pending_upload',claimed_at=NULL WHERE id=? AND status='transferring' "+
             "AND claimed_at=?").bind(job.id,claimTime).run();
           return;
         }
-        await initializeSegmentedRecap(env,job,source);
+        await initializeSegmentedRecap(env,job,{...source,durationMs:duration});
         return;
       }
       await uploadAudio(env,job,claimTime);

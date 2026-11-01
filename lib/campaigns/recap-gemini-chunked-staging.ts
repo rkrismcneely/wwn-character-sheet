@@ -32,7 +32,12 @@ export class RecapStagingFailure extends Error{
     this.name="RecapStagingFailure";this.code=code;
   }
 }
-type StagedSource={remoteFileId:string;byteSize:number;mimeType:string};
+export type StagedSource={remoteFileId:string;byteSize:number;mimeType:string;
+  segment?:{sourceStart:number;sourceEnd:number;originalBytes:number;prefix:Uint8Array};
+};
+const JOB_TABLE="campaign_recap_audio_summary_jobs";
+const SEGMENT_TABLE="campaign_recap_audio_summary_segments";
+const tableFor=(src:StagedSource)=>src.segment?SEGMENT_TABLE:JOB_TABLE;
 type Job={id:string;requestedBy:string};
 type StageRow={
   stageUrlCiphertext:string|null;stageUrlNonce:string|null;
@@ -74,10 +79,10 @@ function downloadRange(source:StagedSource,offset:number,len:number,driveToken:s
     },signal:AbortSignal.timeout(30000),
   });
 }
-async function stageRow(db:D1Database,id:string):Promise<StageRow>{
+async function stageRow(db:D1Database,id:string,table:string):Promise<StageRow>{
   const row=await db.prepare("SELECT stage_url_ciphertext AS stageUrlCiphertext,"+
     "stage_url_nonce AS stageUrlNonce,stage_url_version AS stageUrlVersion,"+
-    "stage_offset AS stageOffset FROM campaign_recap_audio_summary_jobs "+
+    "stage_offset AS stageOffset FROM "+table+" "+
     "WHERE id=? AND status='transferring'").bind(id).first<StageRow>();
   if(!row)throw new RecapStagingFailure("staging_data_unavailable");
   return row;
@@ -109,7 +114,7 @@ async function startingSession(env:StagingEnv,job:Job,secret:string,src:StagedSo
       throw new RecapStagingFailure("gemini_chunk_granularity_mismatch");
   }
   const encrypted=await encryptDriveRefreshToken(env,job.requestedBy,job.id,url);
-  const change=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+  const change=await env.DB.prepare("UPDATE "+tableFor(src)+" "+
     "SET stage_url_ciphertext=?,stage_url_nonce=?,stage_url_version=?,stage_offset=0,updated_at=? "+
     "WHERE id=? AND status='transferring' AND stage_url_ciphertext IS NULL")
     .bind(encrypted.ciphertext,encrypted.nonce,encrypted.version,new Date().toISOString(),job.id).run();
@@ -188,7 +193,7 @@ async function recoverCompletedFile(job:Job,source:StagedSource,secret:string){
 async function storeCompletedFile(
   env:StagingEnv,job:Job,source:StagedSource,file:{uri:string;name:string},
 ):Promise<void>{
-  const result=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+  const result=await env.DB.prepare("UPDATE "+tableFor(source)+" "+
     "SET status='uploaded',file_uri=?,file_name=?,stage_url_ciphertext=NULL,"+
     "stage_url_nonce=NULL,stage_url_version=NULL,stage_offset=?,updated_at=? "+
     "WHERE id=? AND status='transferring'")
@@ -207,7 +212,7 @@ export async function stageRecapAudioChunked(
   if(!GOOGLE_ID.test(source.remoteFileId)||!Number.isSafeInteger(source.byteSize)||
     source.byteSize<=0||source.byteSize>2*1024*1024*1024)
     throw new RecapStagingFailure("drive_file_unavailable");
-  const row=await stageRow(env.DB,job.id);
+  const row=await stageRow(env.DB,job.id,tableFor(source));
   let url:string;
   let offset:number;
   if(!row.stageUrlCiphertext){
@@ -228,7 +233,7 @@ export async function stageRecapAudioChunked(
     }
     offset=checkpoint.bytes;
     if(offset!==row.stageOffset){
-      const synced=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+      const synced=await env.DB.prepare("UPDATE "+tableFor(source)+" "+
         "SET stage_offset=?,updated_at=? WHERE id=? AND status='transferring' "+
         "AND stage_offset=?").bind(offset,new Date().toISOString(),job.id,row.stageOffset).run();
       if(synced.meta.changes!==1)throw new RecapStagingFailure("staging_data_unavailable");
@@ -236,21 +241,43 @@ export async function stageRecapAudioChunked(
   }
   for(let i=0;i<RECAP_STAGING_CHUNKS_PER_TICK&&offset<source.byteSize;i++){
     const length=Math.min(RECAP_STAGING_CHUNK_BYTES,source.byteSize-offset);
-    let drive:Response;
-    try{drive=await downloadRange(source,offset,length,driveToken);}
-    catch{throw new RecapStagingFailure("drive_range_unavailable");}
-    if(drive.status!==206||drive.redirected)
-      throw new RecapStagingFailure("drive_range_unavailable");
-    const contentRange=drive.headers.get("content-range");
-    if(contentRange!=="bytes "+offset+"-"+(offset+length-1)+"/"+source.byteSize)
-      throw new RecapStagingFailure("drive_range_invalid");
-    if(Number(drive.headers.get("content-length")||length)>length)
-      throw new RecapStagingFailure("drive_range_invalid");
-    let data:ArrayBuffer;
-    try{data=await drive.arrayBuffer();}catch{
-      throw new RecapStagingFailure("drive_range_unavailable");
+    // A segment is a virtual file: a short WAV header (when necessary)
+    // followed by a bounded contiguous range of the ORIGINAL Drive audio.
+    // Never assume that arbitrary 8 MiB resumable upload chunks are playable.
+    const prefix=source.segment?.prefix??new Uint8Array(0);
+    const prefixBytes=Math.max(0,Math.min(length,prefix.length-offset));
+    const mediaBytes=length-prefixBytes;
+    // Do not copy the regular 8 MiB Drive buffer: on Workers Free that
+    // unnecessary CPU work can exceed a scheduled invocation's budget.
+    // Only the first WAV segment chunk needs to join a tiny header with data.
+    let bytes:Uint8Array<ArrayBuffer>|null=prefixBytes?new Uint8Array(length):null;
+    if(bytes&&prefixBytes)bytes.set(prefix.subarray(offset,offset+prefixBytes),0);
+    if(mediaBytes){
+      const mediaOffset=source.segment?
+        source.segment.sourceStart+offset+prefixBytes-prefix.length:offset;
+      const originalTotal=source.segment?.originalBytes??source.byteSize;
+      if(mediaOffset<0||mediaOffset+mediaBytes>originalTotal||
+        (source.segment&&mediaOffset+mediaBytes>source.segment.sourceEnd))
+        throw new RecapStagingFailure("drive_range_invalid");
+      let drive:Response;
+      try{drive=await downloadRange(source,mediaOffset,mediaBytes,driveToken);}
+      catch{throw new RecapStagingFailure("drive_range_unavailable");}
+      if(drive.status!==206||drive.redirected)
+        throw new RecapStagingFailure("drive_range_unavailable");
+      const contentRange=drive.headers.get("content-range");
+      if(contentRange!=="bytes "+mediaOffset+"-"+(mediaOffset+mediaBytes-1)+"/"+originalTotal)
+        throw new RecapStagingFailure("drive_range_invalid");
+      if(Number(drive.headers.get("content-length")||mediaBytes)>mediaBytes)
+        throw new RecapStagingFailure("drive_range_invalid");
+      let data:ArrayBuffer;
+      try{data=await drive.arrayBuffer();}catch{
+        throw new RecapStagingFailure("drive_range_unavailable");
+      }
+      if(data.byteLength!==mediaBytes)throw new RecapStagingFailure("drive_range_invalid");
+      if(bytes)bytes.set(new Uint8Array(data),prefixBytes);
+      else bytes=new Uint8Array(data); // zero-copy for ordinary and MP3 chunks
     }
-    if(data.byteLength!==length)throw new RecapStagingFailure("drive_range_invalid");
+    if(!bytes)bytes=new Uint8Array(prefix.subarray(offset,offset+prefixBytes));
     // Typed-array bodies receive the correct fixed Content-Length in Workers.
     const final=offset+length===source.byteSize;
     let response:Response;
@@ -265,7 +292,7 @@ export async function stageRecapAudioChunked(
           // Match Google's first-party Go SDK for raw resumable chunks. The
           // body is still an 8 MiB binary Uint8Array, NOT serialized JSON.
           "content-type":"application/json"},
-        body:new Uint8Array(data),
+        body:bytes,
       });
     }catch{throw new RecapStagingFailure("gemini_chunk_network_error");}
     if(!response.ok||response.redirected){
@@ -287,7 +314,7 @@ export async function stageRecapAudioChunked(
     }
     if(acknowledgement!=="active")
       throw new RecapStagingFailure("gemini_upload_offset_unknown");
-    const updated=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+    const updated=await env.DB.prepare("UPDATE "+tableFor(source)+" "+
       "SET stage_offset=?,updated_at=? WHERE id=? AND status='transferring' "+
       "AND stage_offset=?").bind(offset+length,new Date().toISOString(),job.id,offset).run();
     if(updated.meta.changes!==1)throw new RecapStagingFailure("staging_data_unavailable");

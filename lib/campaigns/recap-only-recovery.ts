@@ -61,6 +61,41 @@ export const recapAttentionText:Record<string,{
     description:"The interaction ID can no longer be retrieved from Google. It may already have consumed quota.",
     action:"TWE has stopped polling and will not automatically submit another AI request. Keep the original job diagnostics.",
   },
+  long_audio_format_unsupported:{
+    title:"This recording needs a supported audio format",
+    description:"TWE can automatically divide long MP3 recordings and standard PCM WAV files. This recording uses an audio format that cannot yet be safely divided in the background on Cloudflare's free plan.",
+    action:"Keep the recording in Drive. Convert a copy to MP3 or standard PCM WAV, then attach that version for summarization. No Gemini request was submitted by this attempt.",
+  },
+  long_audio_metadata_invalid:{
+    title:"Recording could not be safely divided",
+    description:"The audio's timing or container structure did not match what TWE can verify without decoding the entire recording.",
+    action:"Keep the original Drive file. Try an MP3 export with constant bitrate. No Gemini request was submitted.",
+  },
+  long_audio_too_many_segments:{
+    title:"Recording is too long for automatic division",
+    description:"This recording exceeds the bounded background section count.",
+    action:"Divide it into shorter recordings before requesting a recap. TWE did not submit a Gemini model request.",
+  },
+  segment_submission_uncertain:{
+    title:"One Gemini section submission could not be verified",
+    description:"Gemini may already have started analyzing a section. TWE stopped rather than silently making a duplicate provider request.",
+    action:"Check Google AI Studio usage and preserve this job ID. Completed sections are retained.",
+  },
+  segment_interaction_failed:{
+    title:"Gemini failed to summarize one audio section",
+    description:"The recording was divided successfully, but Gemini returned a failed result for one section.",
+    action:"Check Google AI Studio limits and the job ID. TWE stopped without resubmitting the section or discarding earlier section notes.",
+  },
+  segment_result_unavailable:{
+    title:"A section's Gemini result expired",
+    description:"The saved interaction could no longer be retrieved from Gemini.",
+    action:"Completed sections remain saved. The missing result cannot safely be regenerated automatically.",
+  },
+  segment_invalid_output:{
+    title:"Gemini returned invalid section notes",
+    description:"One section did not produce enough usable information to assemble a reliable recap.",
+    action:"No final recap was created or published. Completed sections remain saved.",
+  },
   interaction_failed:{
     title:"Gemini reported a failed summary",
     description:"The AI generation ended with a failure. TWE will not submit it again automatically.",

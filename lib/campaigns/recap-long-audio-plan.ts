@@ -160,6 +160,36 @@ async function wavPlan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
     };
   });
 }
+/** Recover a missing recording duration from small Drive metadata ranges.
+ * The upload UI historically saved duration_ms=null. This avoids silently
+ * sending a multi-hour MP3/WAV as one over-limit Gemini request.
+ */
+export async function estimateAudioDurationMs(source:Source,read:Reader):Promise<number|null>{
+  try{
+    const head=await read(0,Math.min(source.byteSize,64*1024));
+    if(source.mimeType==="audio/wav"){
+      const info=wavInfo(head,source.byteSize);
+      return Math.round(info.dataBytes/(info.rate*info.align)*1000);
+    }
+    if(source.mimeType==="audio/mpeg"||source.mimeType==="audio/mp3"){
+      let first=0;
+      if(head.length>=10&&String.fromCharCode(...head.subarray(0,3))==="ID3"){
+        first=10+((head[6]&127)<<21)+((head[7]&127)<<14)+((head[8]&127)<<7)+(head[9]&127);
+        if(head[5]&16)first+=10;
+      }
+      if(first>=head.length-3000)return null;
+      const frameIndex=frameAt(head.subarray(first),0,null);
+      if(frameIndex===null)return null;
+      first+=frameIndex;
+      const frame=mp3Frame(head,first);
+      if(!frame)return null;
+      return Math.round((source.byteSize-first)*8/frame.rate);
+    }
+  }catch{
+    return null;
+  }
+  return null;
+}
 export async function planLongAudio(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
   if(!Number.isSafeInteger(source.byteSize)||source.byteSize<=0)
     throw new LongAudioFormatError("metadata_invalid");

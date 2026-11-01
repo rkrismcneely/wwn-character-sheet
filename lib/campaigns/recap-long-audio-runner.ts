@@ -208,6 +208,7 @@ async function submitPart(env:Env,job:Job,part:Segment,key:string,context:string
       headers:{"x-goog-api-key":key,"content-type":"application/json","Api-Revision":"2026-05-20"},
       body:JSON.stringify({model:"gemini-3.8-flash",background:true,store:true,input:[
         {type:"text",text:"Listen to this section of a tabletop RPG session, and write factual chronological scene notes, not a transcript. "+
+          (part.segmentIndex===0?"At the beginning, briefly note the GM's introductory recap STYLE and tone, if discernible, separately from events actually played this session. Do not mistake the GM's recap of a prior session for new events. ":"")+
           "Use timestamps RELATIVE to the start of this section, in ## HH:MM:SS — Scene format. "+
           "Capture ALL consequential events throughout this section, including its very end: decisions, NPCs, location changes, discoveries, quest progress, combat outcomes, damage, spells, consumables and other resources spent, and unresolved threads when actually mentioned. "+
           "Be concise and information-dense: one or two factual sentences per event; group routine travel, table chatter and uneventful rests; avoid flowery prose, filler, and repetition. "+

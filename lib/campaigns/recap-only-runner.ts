@@ -57,7 +57,20 @@ async function sourceFor(env:RecapOnlyEnvironment,job:Job):Promise<Source>{
     throw Error("Recording exceeds Gemini's 2 GB upload limit.");
   return src;
 }
-async function uploadAudio(env:RecapOnlyEnvironment,job:Job){
+/** Release a completed, checkpointed upload slice immediately. A failed or
+ * interrupted slice retains its time-bounded lease for safe recovery; a newer
+ * worker's claim cannot be cleared by an older invocation.
+ */
+export async function releaseRecapTransferSlice(
+  db:D1Database,jobId:string,claimTime:string,acceptedBytes:number,
+):Promise<boolean>{
+  const released=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+    "SET claimed_at=NULL,updated_at=? WHERE id=? AND status='transferring' "+
+    "AND claimed_at=? AND stage_offset=?")
+    .bind(now(),jobId,claimTime,acceptedBytes).run();
+  return released.meta.changes===1;
+}
+async function uploadAudio(env:RecapOnlyEnvironment,job:Job,claimTime:string){
   let secret:string;
   try{secret=await keyFor(env,job);}
   catch{throw new RecapStagingFailure("gemini_key_unavailable");}
@@ -71,7 +84,15 @@ async function uploadAudio(env:RecapOnlyEnvironment,job:Job){
   let drive:string;
   try{drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);}
   catch{throw new RecapStagingFailure("drive_permission_unavailable");}
-  await stageRecapAudioChunked(env,job,secret,source,drive);
+  const slice=await stageRecapAudioChunked(env,job,secret,source,drive);
+  if(!slice.done){
+    // Each bounded transfer slice is now independently checkpointed. Do not
+    // wait the 90-second crash-recovery timeout before scheduling more audio.
+    // If this lease-release query fails, ordinary stale-lease recovery still
+    // picks up the exact accepted byte offset without retransmitting it.
+    try{await releaseRecapTransferSlice(env.DB,job.id,claimTime,slice.bytes);}
+    catch{ /* The stale lease is the safe fallback. */ }
+  }
 }
 
 async function contextFor(env:RecapOnlyEnvironment,job:Job):Promise<string>{
@@ -264,7 +285,7 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
     "claimed_at AS claimedAt "+
     "FROM campaign_recap_audio_summary_jobs "+
     "WHERE confirmed_at IS NOT NULL AND (status IN ('submitted','uploaded','pending_upload') "+
-    "OR (status='transferring' AND claimed_at<?)) "+
+    "OR (status='transferring' AND (claimed_at IS NULL OR claimed_at<?))) "+
     // Oldest job first: otherwise repeated result polling can starve all new
     // uploads indefinitely. Each tick runs one bounded provider operation.
     "ORDER BY updated_at ASC,id ASC LIMIT 1")
@@ -272,19 +293,24 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
   if(!job)return;
   try{
     if(job.status==="pending_upload"){
+      const claimTime=now();
       const claimed=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
         "SET status='transferring',claimed_at=?,updated_at=? WHERE id=? AND status='pending_upload'")
-        .bind(now(),now(),job.id).run();
+        .bind(claimTime,claimTime,job.id).run();
       if(claimed.meta.changes!==1)return;
-      await uploadAudio(env,job);
+      await uploadAudio(env,job,claimTime);
     }else if(job.status==="transferring"){
-      // Reclaim the same incomplete transfer only after the previous worker's
-      // lease has expired. Chunk offset is reconciled with Gemini before use.
+      // Immediately resume a successfully yielded slice (NULL lease), or
+      // recover a crashed slice after the 90-second timeout. Compare the old
+      // lease value atomically so overlapping cron invocations cannot claim
+      // the same job while the previous transfer is still active.
+      const claimTime=now();
       const claimed=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
-        "SET claimed_at=?,updated_at=? WHERE id=? AND status='transferring' AND claimed_at=?")
-        .bind(now(),now(),job.id,job.claimedAt).run();
+        "SET claimed_at=?,updated_at=? WHERE id=? AND status='transferring' "+
+        "AND ((claimed_at IS NULL AND ? IS NULL) OR claimed_at=?)")
+        .bind(claimTime,claimTime,job.id,job.claimedAt,job.claimedAt).run();
       if(claimed.meta.changes!==1)return;
-      await uploadAudio(env,job);
+      await uploadAudio(env,job,claimTime);
     }else if(job.status==="uploaded")await submit(env,job);
     else if(job.status==="submitted")await poll(env,job);
   }catch(error){

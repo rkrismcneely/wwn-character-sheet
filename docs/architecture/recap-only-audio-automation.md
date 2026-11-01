@@ -41,6 +41,29 @@
 - Old auto-created jobs remain in the database but are excluded from the scheduler
   unless explicitly confirmed under the new workflow. They are not bulk-deleted.
 
+## Faster background Drive-to-Gemini transfer
+
+- The existing free Cloudflare Cron Trigger now runs once per minute instead of
+  once per five minutes. Cron scheduling is best effort; trigger configuration
+  can take up to 15 minutes to propagate following deployment.
+- Each run still downloads and uploads **at most three 8 MiB chunks (24 MiB)**,
+  preserving the fixed-length requests, provider resumable offset checks and
+  owner-owned storage boundaries.
+- After a successful bounded run that did not finish the file, TWE keeps the
+  accepted-byte checkpoint but **releases its ownership lease** so the next
+  minute can continue immediately. Before this, it waited at least 90 seconds
+  for the prior lease to look stale even after a successful checkpoint.
+- An interrupted or uncertain transfer **retains the 90-second recovery lease**
+  and uses Gemini's reported offset, preventing blind retransmission of bytes.
+  A CAS on the exact prior lease and offset prevents older runs from clearing
+  another worker's claim.
+- This shortens the scheduler-induced delay but cannot guarantee network
+  throughput. For a 125.5 MiB recording, approximately six bounded runs are
+  still needed; additional service and Gemini inference time are variable.
+- More frequent trigger invocations increase free Workers/D1 usage but do not
+  make additional Gemini inference requests or require site-owned paid services.
+  The background transcript scheduler shares the same Cron Trigger.
+
 ## Known integration validation limits
 - Real Gemini audio inference and multi-hour Drive-to-Files stream need an actual
   connected GM account and sample. Automated tests can prove consent, schema,

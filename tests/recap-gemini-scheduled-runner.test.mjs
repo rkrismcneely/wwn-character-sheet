@@ -99,7 +99,7 @@ test("scheduled wiring is fail closed on free quota and cost capped for GM-owned
   assert.match(lease,/spentCostMicrousd\+conservativeMicrousd>item\.maxCostMicrousd/u);
   assert.match(worker,/async scheduled\(/u);
   assert.match(worker,/runGeminiScheduledTick/u);
-  assert.match(wrangler,/"crons": \["\*\/5 \* \* \* \*"\]/u);
+  assert.match(wrangler,/"crons": \["\* \* \* \* \*"\]/u);
   assert.match(migration,/ADD COLUMN provider_interaction_id/u);
   assert.match(schema,/providerInteractionId: text\("provider_interaction_id"\)/u);
   assert.doesNotMatch(scheduler,/env\.AI|@cf\/openai\/whisper|SITE_OWNER_GEMINI_API_KEY|process\.env\.GEMINI_API_KEY/u);

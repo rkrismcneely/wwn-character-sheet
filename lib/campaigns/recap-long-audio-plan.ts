@@ -121,11 +121,32 @@ async function mp3Plan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
   const edges=[first];
   for(let i=1;i<count;i++){
     const guess=first+Math.floor((source.byteSize-first)*i/count);
-    const lo=Math.max(first,guess-4096);
-    const window=await read(lo,Math.min(12288,source.byteSize-lo));
-    const match=frameAt(window,guess-lo,frame);
-    if(match===null)throw new LongAudioFormatError("format_unsupported");
-    const boundary=lo+match;
+    // MP3 frames do not reveal decoded silence. For VBR files, sustained
+    // low-bitrate frames can indicate a pause; sample a bounded neighborhood
+    // and prefer it only when the evidence is substantially below baseline.
+    // CBR files retain the technically valid, balanced frame boundary.
+    let boundary:number|null=null;
+    const candidateScores:{position:number;rate:number}[]=[];
+    for(const delta of [-120_000,-60_000,0,60_000,120_000]){
+      const estimate=Math.max(first+4096,Math.min(source.byteSize-16384,
+        guess+Math.round(delta/1000*frame.rate/8)));
+      const lo=Math.max(first,estimate-2048);
+      const window=await read(lo,Math.min(8192,source.byteSize-lo));
+      const match=frameAt(window,estimate-lo,frame);
+      if(match===null)continue;
+      let sum=0,seen=0,offset=match;
+      while(offset+4<window.length&&seen<12){
+        const packet=mp3Frame(window,offset);
+        if(!packet||packet.sampleRate!==frame.sampleRate)break;
+        sum+=packet.rate;seen++;offset+=packet.bytes;
+      }
+      if(seen>=6)candidateScores.push({position:lo+match,rate:sum/seen});
+    }
+    if(!candidateScores.length)throw new LongAudioFormatError("format_unsupported");
+    const baseline=candidateScores.reduce((sum,v)=>sum+v.rate,0)/candidateScores.length;
+    const quiet=candidateScores.filter(v=>v.rate<baseline*0.65);
+    boundary=(quiet.length?quiet:candidateScores).reduce((best,v)=>
+      Math.abs(v.position-guess)<Math.abs(best.position-guess)?v:best).position;
     if(boundary<=edges[i-1])throw new LongAudioFormatError("metadata_invalid");
     edges.push(boundary);
   }

@@ -352,20 +352,44 @@ function makeHeader(parsed:Parsed,first:number,last:number):Uint8Array{
     fixed(109,100,97,116)]); // "mdat"
 }
 export async function planM4a(source:{byteSize:number;durationMs:number|null;mimeType:string},
-  read:Read):Promise<AudioSegmentPlan[]>{
+  read:Read,options:{includeHeaders?:boolean}={}):Promise<AudioSegmentPlan[]>{
   const parsed=await inspectM4a(source,read);
   const cuts=chooseCuts(parsed);
   return cuts.slice(0,-1).map((first,i)=>{
-    const last=cuts[i+1],prefix=makeHeader(parsed,first,last);
+    const last=cuts[i+1];
     return {
       index:i,startMs:Math.round(sampleUnits(parsed.timing,first)/parsed.timeScale*1000),
       endMs:i===cuts.length-2?parsed.durationMs:
         Math.round(sampleUnits(parsed.timing,last)/parsed.timeScale*1000),
       sourceStart:parsed.dataStart+parsed.offsets[first],
       sourceEnd:parsed.dataStart+parsed.offsets[last],
-      prefixBase64:toBase64(prefix),mimeType:"audio/mp4",
+      prefixBase64:options.includeHeaders===false?"":toBase64(makeHeader(parsed,first,last)),
+      mimeType:"audio/mp4",
     };
   });
+}
+/** Build only one standalone section header in a new cron invocation. The
+ * exact selected source sample offsets are verified against the fresh Drive
+ * metadata, preventing a malformed or stale persisted split from being used.
+ */
+export async function prepareM4aSection(source:{byteSize:number;durationMs:number|null;mimeType:string},
+  read:Read,sourceStart:number,sourceEnd:number):Promise<string>{
+  const parsed=await inspectM4a(source,read);
+  const findSample=(position:number):number=>{
+    const relative=position-parsed.dataStart;
+    let lo=0,hi=parsed.offsets.length-1;
+    while(lo<hi){
+      const mid=Math.floor((lo+hi)/2);
+      if(parsed.offsets[mid]<relative)lo=mid+1;
+      else hi=mid;
+    }
+    if(parsed.offsets[lo]!==relative)invalid();
+    return lo;
+  };
+  if(sourceStart<parsed.dataStart||sourceEnd>parsed.dataEnd||sourceEnd<=sourceStart)invalid();
+  const first=findSample(sourceStart),last=findSample(sourceEnd);
+  if(last<=first)invalid();
+  return toBase64(makeHeader(parsed,first,last));
 }
 export async function estimateM4aDuration(source:{byteSize:number;durationMs:number|null;mimeType:string},
   read:Read):Promise<number|null>{

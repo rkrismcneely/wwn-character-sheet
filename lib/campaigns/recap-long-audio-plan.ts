@@ -96,7 +96,20 @@ async function mp3Plan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
   if(firstOffset>=head.length-3000)throw new LongAudioFormatError("format_unsupported");
   const relative=frameAt(head.subarray(firstOffset),0,null);
   if(relative===null)throw new LongAudioFormatError("format_unsupported");
-  const first=firstOffset+relative,frame=mp3Frame(head,first)!;
+  let first=firstOffset+relative;
+  const frame=mp3Frame(head,first)!;
+  // LAME/FFmpeg often writes Xing/Info duration metadata into a first, non-
+  // audible MP3 frame. Its duration describes the FULL recording, not the
+  // virtual first segment. Exclude that metadata frame so the first section
+  // is independently timed and playable without lying about its duration.
+  const firstFrame=head.subarray(first,first+frame.bytes);
+  const ascii=new TextDecoder("latin1").decode(firstFrame);
+  if(ascii.includes("Xing")||ascii.includes("Info")){
+    first+=frame.bytes;
+    const audio=mp3Frame(head,first);
+    if(!audio||audio.rate!==frame.rate||audio.sampleRate!==frame.sampleRate)
+      throw new LongAudioFormatError("format_unsupported");
+  }
   const inferredMs=Math.round((source.byteSize-first)*8/frame.rate);
   const duration=source.durationMs??inferredMs;
   if(!Number.isSafeInteger(duration)||duration<1||

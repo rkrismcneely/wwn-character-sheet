@@ -38,9 +38,33 @@ export async function POST(request:Request,ctx:Context){
       "AND requested_by=? AND confirmed_at IS NOT NULL")
       .bind(body.jobId,access.campaign.id,recap.id,actor.userId)
       .first<{interactionId:string|null;status:string;errorCode:string|null}>();
-    if(!job||job.status!=="needs_attention"||job.errorCode!=="interaction_failed"||
-      !job.interactionId||!ID.test(job.interactionId))
+    if(!job||job.status!=="needs_attention"||
+      !["interaction_failed","segment_interaction_failed"].includes(job.errorCode??""))
       throw new CampaignServiceError("No completed failed Gemini interaction is available for this job.",409);
+    // One segmented recap owns multiple independent Gemini interactions.
+    // The parent interaction_id is intentionally empty until the final
+    // text-only consolidation. Retrieve only the exact failed child, without
+    // exposing its Google identifier or using another generation request.
+    let interactionId=job.interactionId;
+    let section:number|null=null,sections:number|null=null;
+    if(job.errorCode==="segment_interaction_failed"){
+      const part=await db.prepare(
+        "SELECT interaction_id AS interactionId,segment_index AS segmentIndex "+
+        "FROM campaign_recap_audio_summary_segments "+
+        "WHERE job_id=? AND status='submitted' AND interaction_id IS NOT NULL "+
+        "ORDER BY segment_index ASC LIMIT 1"
+      ).bind(body.jobId).first<{interactionId:string;segmentIndex:number}>();
+      if(!part)throw new CampaignServiceError(
+        "The failed section's Gemini interaction is no longer available.",409);
+      interactionId=part.interactionId;
+      section=part.segmentIndex+1;
+      const aggregate=await db.prepare(
+        "SELECT COUNT(*) AS total FROM campaign_recap_audio_summary_segments WHERE job_id=?"
+      ).bind(body.jobId).first<{total:number}>();
+      sections=aggregate?.total??null;
+    }
+    if(!interactionId||!ID.test(interactionId))
+      throw new CampaignServiceError("No verified failed interaction is saved for this job.",409);
     const connection=await db.prepare("SELECT id,key_ciphertext AS ciphertext,key_nonce AS nonce,"+
       "key_version AS version FROM user_recap_ai_connections WHERE user_id=? "+
       "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
@@ -55,7 +79,7 @@ export async function POST(request:Request,ctx:Context){
     // generation request, upload audio, or consume a fresh recap job.
     let provider:Response;
     try{
-      provider=await fetch(API+encodeURIComponent(job.interactionId),{
+      provider=await fetch(API+encodeURIComponent(interactionId),{
         method:"GET",redirect:"manual",
         headers:{"x-goog-api-key":key,"Api-Revision":"2026-05-20"},
         signal:AbortSignal.timeout(12000),
@@ -85,8 +109,8 @@ export async function POST(request:Request,ctx:Context){
     if(status!=="failed")
       return Response.json({error:"The Gemini interaction no longer reports a failed state. No new request was submitted."},
         {status:409,headers:noStore});
-    return Response.json({diagnosis:summarizeRecapGeminiFailure(detail),resubmitted:false},
-      {headers:noStore});
+    return Response.json({diagnosis:summarizeRecapGeminiFailure(detail),
+      section,sectionCount:sections,resubmitted:false}, {headers:noStore});
   }catch(e){
     if(e instanceof RequestBodyError)
       return Response.json({error:e.message},{status:e.status,headers:noStore});

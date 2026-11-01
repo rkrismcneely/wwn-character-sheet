@@ -261,7 +261,7 @@ test("a virtual audio segment prepends a WAV header and reads only its original 
   header.set([87,65,86,69],8); // WAVE
   const cut={...source,mimeType:"audio/wav",byteSize:2*MiB+44,
     segment:{sourceStart:4*MiB,sourceEnd:6*MiB,originalBytes:source.byteSize,prefix:header}};
-  let uploaded:null|Uint8Array=null;
+  let uploaded=null;
   globalThis.fetch=async(url,opts)=>{
     if(url===sessionUrl&&opts.headers["x-goog-upload-command"]==="upload, finalize"){
       uploaded=opts.body;

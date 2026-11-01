@@ -311,6 +311,10 @@ async function poll(env:RecapOnlyEnvironment,job:Job){
 }
 export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promise<void>{
   const db=env.DB;
+  // Cloudflare may deploy the Worker before GitHub's D1 migration action
+  // finishes. Old jobs keep running and new long jobs remain queued safely.
+  const migrated=Boolean(await db.prepare("SELECT name FROM sqlite_master "+
+    "WHERE type='table' AND name='campaign_recap_audio_summary_segments'").first());
   const stale=stamped(Date.now()-60*60*1000);
   // A stale Drive-to-Gemini transfer is safely retryable: no model interaction
   // has yet been submitted. A stale 'submitting' state is NOT safe to retry,
@@ -326,7 +330,7 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
   const job=await db.prepare("SELECT id,campaign_id AS campaignId,recap_id AS recapId,"+
     "audio_asset_id AS audioAssetId,requested_by AS requestedBy,status,detail,"+
     "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId,updated_at AS updatedAt,"+
-    "claimed_at AS claimedAt,processing_mode AS processingMode "+
+    "claimed_at AS claimedAt,"+(migrated?"processing_mode AS processingMode ":"'single' AS processingMode ")+
     "FROM campaign_recap_audio_summary_jobs "+
     "WHERE confirmed_at IS NOT NULL AND (status IN ('submitted','uploaded','pending_upload') "+
     "OR (status='transferring' AND (claimed_at IS NULL OR claimed_at<?))) "+
@@ -343,7 +347,25 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
         .bind(claimTime,claimTime,job.id).run();
       if(claimed.meta.changes!==1)return;
       const source=await sourceFor(env,job);
+      if(job.processingMode==="segmented"){
+        try{
+          await advanceSegmentedRecap(env,job,source,await keyFor(env,job),
+            ()=>contextFor(env,job));
+        }finally{
+          await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+            "SET claimed_at=NULL,updated_at=? WHERE id=? AND status='transferring' "+
+            "AND processing_mode='segmented' AND claimed_at=?")
+            .bind(now(),job.id,claimTime).run();
+        }
+        return;
+      }
       if(typeof source.durationMs==="number"&&source.durationMs>LONG_AUDIO_THRESHOLD_MS){
+        if(!migrated){
+          await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+            "SET status='pending_upload',claimed_at=NULL WHERE id=? AND status='transferring' "+
+            "AND claimed_at=?").bind(job.id,claimTime).run();
+          return;
+        }
         await initializeSegmentedRecap(env,job,source);
         return;
       }

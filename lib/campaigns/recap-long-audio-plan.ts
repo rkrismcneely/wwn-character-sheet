@@ -21,7 +21,7 @@ export class LongAudioFormatError extends Error{
   }
 }
 type Reader=(start:number,length:number)=>Promise<Uint8Array>;
-function format(data:Uint8Array,start:number,byteCount:number,channels:number,rate:number,
+function format(start:number,byteCount:number,channels:number,rate:number,
   blockAlign:number):string{
   if(byteCount>0xffffffff-36)throw new LongAudioFormatError("metadata_invalid");
   const header=new Uint8Array(44),v=new DataView(header.buffer);
@@ -142,7 +142,7 @@ async function wavPlan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
       index:i,startMs:Math.round((start-meta.start)/byteRate*1000),
       endMs:Math.round((edges[i+1]-meta.start)/byteRate*1000),
       sourceStart:start,sourceEnd:edges[i+1],
-      prefixBase64:format(first,meta.codec,dataSize,meta.channels,meta.rate,meta.align),
+      prefixBase64:format(meta.codec,dataSize,meta.channels,meta.rate,meta.align),
       mimeType:"audio/wav",
     };
   });

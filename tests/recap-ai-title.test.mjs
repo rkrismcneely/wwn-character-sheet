@@ -46,7 +46,7 @@ test("AI output contract, server persistence and Journal title synchronization",
     read("app/campaigns/session-recap-auto-status.tsx"),
     read("lib/campaigns/session-recaps.ts"),
   ]);
-  assert.match(runner,/First line: # A short, evocative session title/u);
+  assert.match(runner,/First line: # A distinctive, inventive episode title/u);
   assert.match(runner,/const suggestion=parseGeneratedRecapTitle\(markdown\)/u);
   assert.match(runner,/SET status='ready',generated_markdown=\?/u);
   assert.match(runner,/AND is_published=0/u);

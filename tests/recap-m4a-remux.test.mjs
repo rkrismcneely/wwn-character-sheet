@@ -64,9 +64,10 @@ function fixture({samples=312000,lowStart=140000,lowEnd=156000,mdatFirst=false}=
 }
 test("long untouched M4A is split into independently valid virtual MP4 headers",async(t)=>{
   const input=fixture();
-  const planStarted=performance.now();
+  const planStarted=performance.now(),cpuStarted=process.cpuUsage();
   const plan=await planM4a(input.source,input.read);
-  t.diagnostic("Long M4A metadata-only planning CPU/wall benchmark: "+(performance.now()-planStarted).toFixed(1)+"ms");
+  const cpuUsed=process.cpuUsage(cpuStarted);
+  t.diagnostic("Long M4A metadata-only planning CPU/wall benchmark: "+(performance.now()-planStarted).toFixed(1)+"ms wall, "+((cpuUsed.user+cpuUsed.system)/1000).toFixed(1)+"ms CPU");
   assert.equal(plan.length,2);
   assert.equal(plan[0].sourceStart+ (plan[0].sourceEnd-plan[0].sourceStart),plan[1].sourceStart);
   assert.equal(plan[1].sourceEnd-plan[0].sourceStart,input.total);
@@ -97,22 +98,25 @@ test("long untouched M4A is split into independently valid virtual MP4 headers",
 });
 test("long M4A checkpoints cheap split planning and prepares each playable header on its own cron tick",async(t)=>{
   const input=fixture();
-  const start=performance.now();
+  const start=performance.now(),cpuStart=process.cpuUsage();
   const planned=await planM4a(input.source,input.read,{includeHeaders:false});
   const firstDuration=performance.now()-start;
+  const firstCpu=process.cpuUsage(cpuStart);
   assert.equal(planned.length,2);
   assert.ok(planned.every(section=>section.prefixBase64===""));
-  const durations=[];
+  const durations=[],cpuDurations=[];
   for(const part of planned){
-    const at=performance.now();
+    const at=performance.now(),c=process.cpuUsage();
     const prefix=await prepareM4aSection(input.source,input.read,part.sourceStart,part.sourceEnd);
     durations.push(performance.now()-at);
+    const used=process.cpuUsage(c);cpuDurations.push((used.user+used.system)/1000);
     assert.ok(prefix.length>1000);
     const data=Uint8Array.from(atob(prefix),c=>c.charCodeAt(0));
     assert.equal(String.fromCharCode(...data.subarray(data.length-4)),"mdat");
   }
-  t.diagnostic("M4A CPU-separated phases: plan="+firstDuration.toFixed(1)+
-    "ms, section1="+durations[0].toFixed(1)+"ms, section2="+durations[1].toFixed(1)+"ms");
+  t.diagnostic("M4A separated phases (wall/CPU): plan="+firstDuration.toFixed(1)+"/"+
+    ((firstCpu.user+firstCpu.system)/1000).toFixed(1)+"ms, section1="+durations[0].toFixed(1)+"/"+cpuDurations[0].toFixed(1)+
+    "ms, section2="+durations[1].toFixed(1)+"/"+cpuDurations[1].toFixed(1)+"ms");
 });
 test("M4A can retain its metadata at the end of the Drive file",async()=>{
   const f=fixture({mdatFirst:true,samples:350000});

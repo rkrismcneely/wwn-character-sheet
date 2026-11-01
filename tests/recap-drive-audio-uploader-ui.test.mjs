@@ -43,7 +43,8 @@ test("existing GM recap editor uses secure same-origin Drive upload relay",async
   assert.match(ui,/Retry verification/u);
   assert.match(ui,/controller\.current\?\.abort\(\)/u);
   assert.match(ui,/<progress max=\{100\}/u);
-  assert.match(ui,/Keep this page and section open while uploading/u);
+  assert.match(ui,/Keep this page open until the upload completes/u);
+  assert.match(ui,/busy&&!awaitingVerification/u);
   assert.match(ui,/Manage storage accounts/u);
   assert.doesNotMatch(ui,/RECAP_STORAGE_ENCRYPTION_KEY|GOOGLE_DRIVE_CLIENT_SECRET|fetch\("https:\/\/oauth2.googleapis.com\/token/u);
   assert.match(browser,/send\(next\.contentRange,file\.slice\(next\.start, next\.endExclusive\)\)/u);

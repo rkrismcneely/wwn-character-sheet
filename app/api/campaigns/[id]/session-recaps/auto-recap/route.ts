@@ -5,6 +5,9 @@ import {getCampaignSessionRecap} from "@/lib/campaigns/session-recaps";
 import {campaignErrorResponse} from "@/lib/campaigns/http";
 import {enqueueConfirmedRecapAudio,retrySafeRecapPreparation} from "@/lib/campaigns/recap-only-jobs";
 import {safeRecapRetryTarget} from "@/lib/campaigns/recap-only-recovery";
+import {retryFailedRecapSection} from "@/lib/campaigns/recap-section-recovery";
+import {env} from "cloudflare:workers";
+import type {RecapAIEncryptionSettings} from "@/lib/account/recap-gemini-key";
 import {validateBrowserM4aPlan} from "@/lib/campaigns/recap-m4a-browser-preflight";
 import {CANONICAL_ORIGIN} from "@/lib/auth-constants";
 import {readBoundedJson,RequestBodyError} from "@/lib/http-json";
@@ -45,14 +48,16 @@ export async function GET(request:Request,ctx:Context){
       "WHERE type='table' AND name='campaign_recap_audio_summary_segments'").first());
     const totals=migrated?await info.db.prepare("SELECT job_id AS jobId,COUNT(*) AS total,"+
       "SUM(CASE WHEN status='ready' THEN 1 ELSE 0 END) AS completed,"+
+      "SUM(CASE WHEN status='submitted' AND interaction_id IS NOT NULL "+
+      "AND error_code IS NULL THEN 1 ELSE 0 END) AS retryable,"+
       "SUM(stage_offset) AS transferred,"+
       "SUM(source_end-source_start) AS bytes "+
       "FROM campaign_recap_audio_summary_segments WHERE job_id IN "+
       "(SELECT id FROM campaign_recap_audio_summary_jobs WHERE campaign_id=? "+
       "AND recap_id=? AND requested_by=? AND confirmed_at IS NOT NULL) GROUP BY job_id")
       .bind(info.campaign.id,info.recap.id,info.actor.userId)
-      .all<{jobId:string;total:number;completed:number;transferred:number;bytes:number}>()
-      :{results:[] as {jobId:string;total:number;completed:number;transferred:number;bytes:number}[]};
+      .all<{jobId:string;total:number;completed:number;retryable:number;transferred:number;bytes:number}>()
+      :{results:[] as {jobId:string;total:number;completed:number;retryable:number;transferred:number;bytes:number}[]};
     const byJob=new Map(totals.results.map(row=>[row.jobId,row]));
     // Only return a boolean; the Gemini file URI and interaction ID must not
     // be exposed by status polling or used for user-supplied retry targets.
@@ -61,7 +66,9 @@ export async function GET(request:Request,ctx:Context){
       return {...job,segmentCount:sections?.total??0,segmentsReady:sections?.completed??0,
         stageBytes:sections?.total?Math.min(sections.transferred,sections.bytes):job.stageBytes,
         totalBytes:sections?.total?sections.bytes:job.totalBytes,
-        canRetry:Boolean(safeRecapRetryTarget({...job,fileUri,fileName,interactionId}))};
+        canRetry:Boolean(safeRecapRetryTarget({...job,fileUri,fileName,interactionId})),
+        canRetryFailedSection:job.status==="needs_attention"&&
+          job.errorCode==="segment_interaction_failed"&&sections?.retryable===1};
     });
     return Response.json({jobs:safeJobs,recap:{content:info.recap.content,isPublished:info.recap.isPublished,updatedAt:info.recap.updatedAt}},
       {headers:noStore});
@@ -172,16 +179,20 @@ export async function PATCH(request:Request,ctx:Context){
     if(request.headers.get("origin")!==CANONICAL_ORIGIN)
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
     const body=await readBoundedJson(request,1024) as {
-      recapId?:unknown;jobId?:unknown;retryApproved?:unknown;
+      recapId?:unknown;jobId?:unknown;retryApproved?:unknown;retryFailedSection?:unknown;
     };
     if(body.retryApproved!==true)throw new CampaignServiceError(
       "Confirm that restarting AI processing may consume your Gemini quota.",422);
     const info=await gm(request,ctx,body.recapId);
 
     const jobId=typeof body.jobId==="string"?body.jobId:"";
-    const outcome=await retrySafeRecapPreparation(info.db,{
-      jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
-    });
+    const outcome=body.retryFailedSection===true?
+      await retryFailedRecapSection({...env as unknown as RecapAIEncryptionSettings,
+        DB:info.db},{
+        jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
+      }):await retrySafeRecapPreparation(info.db,{
+        jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
+      });
     return Response.json(outcome,{headers:noStore});
   }catch(e){
     if(e instanceof RequestBodyError)return Response.json({error:e.message},{status:e.status,headers:noStore});

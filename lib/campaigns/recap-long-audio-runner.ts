@@ -1,7 +1,7 @@
 import type {DriveSettings} from "../account/recap-google-drive-oauth.ts";
 import {getGmDriveAccessToken} from "./recap-drive-token.ts";
 import {stageRecapAudioChunked,RecapStagingFailure} from "./recap-gemini-chunked-staging.ts";
-import {planLongAudio,LongAudioFormatError,offsetRecapSceneHeadings}
+import {planLongAudio,estimateAudioDurationMs,LongAudioFormatError,offsetRecapSceneHeadings}
   from "./recap-long-audio-plan.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
 
@@ -40,6 +40,15 @@ async function sourceRange(source:Original,token:string,start:number,length:numb
   const data=new Uint8Array(await result.arrayBuffer());
   if(data.byteLength!==length)throw new RecapStagingFailure("drive_range_invalid");
   return data;
+}
+/** Probe a source whose audio duration was not persisted by the uploader.
+ * Small format-only Drive reads are always safe (no Gemini submission).
+ */
+export async function probeRecordingDuration(env:Env,job:Job,source:Original):Promise<number|null>{
+  if(source.durationMs!==null)return source.durationMs;
+  if(!["audio/mpeg","audio/mp3","audio/wav"].includes(source.mimeType))return null;
+  const drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);
+  return estimateAudioDurationMs(source,(start,len)=>sourceRange(source,drive,start,len));
 }
 /** Called only once, before any model request, on the already approved job.
  * Batch inserts and mode transition are atomic. No new GM permission required:

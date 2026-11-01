@@ -281,12 +281,12 @@ export function ensureRecapEndingSections(markdown:string):string{
     "Next Time",
   ];
   const normalized=(s:string)=>s.toLowerCase().replace(/[^a-z0-9]+/gu," ").trim();
-  const existing=new Set([...markdown.matchAll(/^#{2,3}\\s+(.+)$/gmu)]
+  const existing=new Set([...markdown.matchAll(/^#{2,3}\s+(.+)$/gmu)]
     .map(match=>normalized(match[1])));
   const missing=headings.filter(heading=>!existing.has(normalized(heading)));
   if(missing.length===0)return markdown;
-  return markdown.trimEnd()+"\\n\\n"+missing.map(heading=>
-    "## "+heading+"\\n\\nNone noted.").join("\\n\\n");
+  return markdown.trimEnd()+"\n\n"+missing.map(heading=>
+    "## "+heading+"\n\nNone noted.").join("\n\n");
 }
 
 export function cleanGeneratedRecap(raw:string):string{

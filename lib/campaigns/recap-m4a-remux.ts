@@ -198,12 +198,19 @@ function parseMeta(meta:Uint8Array,ftyp:Uint8Array,mdat:Box):Parsed{
     timing.push({count,delta});
   }
   if(sampleCount>1_500_000||sampleCount<2||!Number.isSafeInteger(totalUnits))invalid();
-  const sz=child(meta,stbl,"stsz");
-  const fixedSize=u32(meta,sz.data+4),nSizes=u32(meta,sz.data+8);
-  if(nSizes!==sampleCount||sz.data+12+(fixedSize===0?nSizes*4:0)>sz.end)invalid();
+  const sz=find(meta,stbl,"stsz"),compact=find(meta,stbl,"stz2");
+  if(Boolean(sz)===Boolean(compact))invalid();
+  const sizeBox=(sz??compact)!;
+  const compact16=Boolean(compact);
+  const fixedSize=sz?u32(meta,sz.data+4):0;
+  const nSizes=u32(meta,sizeBox.data+8);
+  if(nSizes!==sampleCount||sizeBox.data+12+
+    (compact16?nSizes*2:fixedSize===0?nSizes*4:0)>sizeBox.end||
+    (compact16&&(u32(meta,sizeBox.data+4)&255)!==16))invalid();
   const sizes=new Uint16Array(sampleCount),offsets=new Uint32Array(sampleCount+1);
   for(let i=0;i<sampleCount;i++){
-    const value=fixedSize||u32(meta,sz.data+12+i*4);
+    const value=compact16?dv(meta).getUint16(sizeBox.data+12+i*2,false):
+      fixedSize||u32(meta,sizeBox.data+12+i*4);
     if(value<1||value>65535)invalid();
     sizes[i]=value;
     offsets[i+1]=offsets[i]+value;

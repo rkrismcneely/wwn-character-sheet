@@ -83,7 +83,7 @@ export async function retryFailedRecapSection(
   }
   if(old.status===404||old.status===410)
     throw new CampaignServiceError(
-      "Gemini no longer retains the failed interaction, so a safe targeted retry cannot be verified. No AI request was made.",410);
+      "Gemini no longer retains the failed interaction, so a safe targeted retry cannot be verified. No AI request was made.",409);
   const original=await safeRead(old,350_000);
   if(original.status!=="failed")
     throw new CampaignServiceError(

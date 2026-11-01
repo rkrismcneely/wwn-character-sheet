@@ -3,6 +3,7 @@ import type {DriveSettings} from "../account/recap-google-drive-oauth.ts";
 import {getGmDriveAccessToken} from "./recap-drive-token.ts";
 import {redactJournalSecrets} from "./journal.ts";
 import {RecapStagingFailure,stageRecapAudioChunked} from "./recap-gemini-chunked-staging.ts";
+import {reusePreviouslyUploadedGeminiAudio} from "./recap-gemini-file-reuse.ts";
 import {geminiAudioMime} from "./recap-gemini-audio-mime.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
 
@@ -62,6 +63,10 @@ async function uploadAudio(env:RecapOnlyEnvironment,job:Job){
   let source:Source;
   try{source=await sourceFor(env,job);}
   catch{throw new RecapStagingFailure("drive_file_unavailable");}
+  // A second detail-level recap can reuse the same verified temporary Gemini
+  // File. Only attempt this before a new resumable transfer has started.
+  if(job.status==="pending_upload"&&
+    await reusePreviouslyUploadedGeminiAudio(env.DB,job,source,secret))return;
   let drive:string;
   try{drive=await getGmDriveAccessToken(env.DB,env,job.requestedBy,source.connectionId);}
   catch{throw new RecapStagingFailure("drive_permission_unavailable");}

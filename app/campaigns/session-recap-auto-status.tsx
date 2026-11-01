@@ -222,6 +222,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
   const completeVersions=jobs.filter(job=>job.status==="ready"&&job.generatedMarkdown);
   const newest=jobs[0];
+  const currentDiagnosis=diagnosis?.jobId===newest?.id?diagnosis:null;
   // One read-only lookup per failed job when this page is opened. Unlike a
   // model interaction POST, this checks Google's stored failure without
   // uploading audio or generating another result. Free results expire quickly.
@@ -288,75 +289,69 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       })}
     </details>}
     {newest?.status==="needs_attention"&&<div className="session-recap-reading" role="alert">
-      <strong>{recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>
-      <p className="campaign-empty-copy">
+      <strong>{currentDiagnosis?.value.title??
+        recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>
+      {currentDiagnosis?<p className="campaign-empty-copy">
+        {currentDiagnosis.section!==null&&
+          <>Section {currentDiagnosis.section} of {currentDiagnosis.sectionCount??"?"}: </>}
+        {currentDiagnosis.value.explanation}
+      </p>:<p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.description??recapAttentionText.unexpected.description}
-      </p>
+      </p>}
       {newest.stageErrorCode&&<p className="campaign-empty-copy">
-        <strong>Specific issue:</strong> {recapStageDescriptions[newest.stageErrorCode]??
-          "The preparation step failed; the saved recording is unchanged."}
+        {recapStageDescriptions[newest.stageErrorCode]??
+          "The preparation step stopped. Your recording is unchanged."}
       </p>}
-      <p className="campaign-empty-copy">
+      {!newest.canRetry&&!newest.canRetryFailedSection&&<p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
-      </p>
-      {newest.canRetryFailedSection&&<p className="campaign-empty-copy">
-        After reviewing the failure reason, you can explicitly approve a retry
-        of <strong>only the failed section</strong>. TWE will check that Gemini
-        marked it failed before submitting anything new. This may consume a
-        Gemini request; earlier section notes are preserved.
       </p>}
-      {newest.generatedMarkdown&&<details>
-        <summary>View partial AI notes — not a complete recap</summary>
-        <p className="campaign-empty-copy">
-          Gemini returned only part of the recap. These notes are private, unverified,
-          and have not been copied into the published session summary.
-        </p>
-        <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
-      </details>}
-      {["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&<>
-        <button type="button" className="campaign-secondary" disabled={diagnosing}
-          onClick={()=>void diagnoseFailure(newest)}>
-          {diagnosing?"Checking Gemini…":"Recheck failure reason (no new AI request)"}
-        </button>
-        {diagnosis?.jobId===newest.id&&<div className="session-recap-import-notice" role="status">
-          <strong>{diagnosis.value.title}</strong>
-          {diagnosis.section!==null&&<p>
-            Gemini section {diagnosis.section} of {diagnosis.sectionCount??"?"} failed.
-          </p>}
-          <p>{diagnosis.value.explanation}</p>
-          {diagnosis.value.inputTokens!==null&&<p>
-            Gemini reported {diagnosis.value.inputTokens.toLocaleString()} input tokens for this interaction.
-          </p>}
-          <p className="campaign-empty-copy">
-            Only the existing interaction was read. No audio was uploaded or summarized again.
-          </p>
-        </div>}
-      </>}
       <div className="session-recap-form-actions">
         {newest.canRetryFailedSection&&<button type="button" className="campaign-primary"
           disabled={retrying||starting||diagnosing} onClick={()=>void retrySection(newest)}>
-          {retrying?"Verifying failed section…":"Retry failed section only"}
+          {retrying?"Verifying…":"Retry failed section only"}
         </button>}
         {newest.canRetry&&<button type="button" className="campaign-primary"
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}
         </button>}
-        <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
-        <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
-          rel="noopener noreferrer">Open Google AI Studio</a>
+        {!currentDiagnosis&&["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&
+          <button type="button" className="campaign-secondary" disabled={diagnosing}
+            onClick={()=>void diagnoseFailure(newest)}>
+            {diagnosing?"Checking Gemini…":"Check error (no AI request)"}
+          </button>}
       </div>
       <details>
-        <summary>Technical details</summary>
+        <summary>More options and diagnostics</summary>
+        {["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&
+          <button type="button" className="campaign-secondary" disabled={diagnosing}
+            onClick={()=>void diagnoseFailure(newest)}>
+            {diagnosing?"Checking Gemini…":"Recheck Gemini error (no AI request)"}
+          </button>}
+        {currentDiagnosis?.value.inputTokens!==null&&currentDiagnosis&&
+          <p className="campaign-empty-copy">
+            Gemini input: {currentDiagnosis.value.inputTokens.toLocaleString()} tokens.
+          </p>}
+        {newest.generatedMarkdown&&<details>
+          <summary>View partial AI notes</summary>
+          <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
+        </details>}
+        <div className="session-recap-form-actions">
+          <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
+          <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
+            rel="noopener noreferrer">Google AI Studio</a>
+        </div>
         <p className="campaign-empty-copy">Job ID: <code>{newest.id}</code></p>
-        <p className="campaign-empty-copy">Error code: <code>{newest.errorCode||"unknown"}</code></p>
-        {newest.stageErrorCode&&<p className="campaign-empty-copy">Preparation stage: <code>{newest.stageErrorCode}</code></p>}
-        <p className="campaign-empty-copy">Last updated: {new Date(newest.updatedAt).toLocaleString()}</p>
+        <p className="campaign-empty-copy">Error: <code>{newest.errorCode||"unknown"}</code></p>
+        {newest.stageErrorCode&&<p className="campaign-empty-copy">
+          Preparation: <code>{newest.stageErrorCode}</code>
+        </p>}
+        <p className="campaign-empty-copy">Updated {new Date(newest.updatedAt).toLocaleString()}</p>
         <button type="button" className="campaign-secondary" onClick={()=>
           void navigator.clipboard.writeText("TWE recap job: "+newest.id+
             "\\nError: "+(newest.errorCode||"unknown")+
             "\\nPreparation: "+(newest.stageErrorCode||"not available")+
             "\\nUpdated: "+newest.updatedAt)
-            .then(()=>setNotice("Diagnostic copied.")).catch(()=>setError("Could not copy diagnostics."))
+            .then(()=>setNotice("Diagnostics copied.")).catch(()=>setError("Could not copy diagnostics."))
         }>Copy diagnostics</button>
       </details>
     </div>}

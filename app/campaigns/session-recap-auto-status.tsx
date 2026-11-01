@@ -148,7 +148,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
               const bytes=new Uint8Array(await response.arrayBuffer());
               if(bytes.length!==length)throw Error("Audio metadata range was incomplete.");
               return bytes;
-            },{includeHeaders:false});
+            });
           durationMs=m4aPlan.at(-1)?.endMs??durationMs;
           if(m4aPlan.length<2)m4aPlan=undefined;
         }catch{

@@ -77,11 +77,11 @@ function frameAt(data:Uint8Array,estimated:number,required:Mp3Frame|null):number
   let best:{off:number;dist:number}|null=null;
   for(let off=0;off<data.length-2400;off++){
     const f=mp3Frame(data,off);
-    if(!f||(required&&(f.rate!==required.rate||f.sampleRate!==required.sampleRate)))continue;
+    if(!f||(required&&(f.sampleRate!==required.sampleRate)))continue;
     const next=mp3Frame(data,off+f.bytes);
-    if(!next||next.rate!==f.rate||next.sampleRate!==f.sampleRate)continue;
+    if(!next||next.sampleRate!==f.sampleRate)continue;
     const third=mp3Frame(data,off+f.bytes+next.bytes);
-    if(!third||third.rate!==f.rate||third.sampleRate!==f.sampleRate)continue;
+    if(!third||third.sampleRate!==f.sampleRate)continue;
     const dist=Math.abs(off-estimated);
     if(!best||dist<best.dist)best={off,dist};
   }

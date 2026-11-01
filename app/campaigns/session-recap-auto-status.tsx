@@ -5,6 +5,7 @@ import {SessionRecapProgress} from "./session-recap-progress";
 import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
 import {recapQuotaNotice} from "@/lib/campaigns/recap-quota-estimate";
 import {parseGeneratedRecapTitle} from "@/lib/campaigns/recap-ai-title";
+import {planM4a} from "@/lib/campaigns/recap-m4a-remux";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
@@ -13,7 +14,7 @@ type Job={
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
-type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null};
+type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
 const statusLabel:Record<string,string>={
   pending_upload:"Queued for Gemini — original audio remains in Drive",
@@ -123,10 +124,41 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     const asset=confirmAsset;
     setStarting(true);setError("");setNotice("");
     try{
+      let durationMs=durations[asset.id]??asset.durationMs??null;
+      let m4aPlan:Awaited<ReturnType<typeof planM4a>>|undefined;
+      // This invisible, non-billable preparation uses the existing private
+      // Range-capable Drive playback route. No additional GM action is needed.
+      // Once the approved job is stored, all remaining work runs on cron.
+      if(asset.mimeType==="audio/mp4"&&
+        (durationMs===null||durationMs>100*60_000)){
+        const total=asset.byteSize;
+        if(!Number.isSafeInteger(total)||!total||total<=0)
+          throw Error("The M4A recording size is unavailable. Reload the recap before summarizing.");
+        const playback="/api/campaigns/"+encodeURIComponent(campaignId)+
+          "/session-recaps/audio/"+encodeURIComponent(asset.id)+"/stream";
+        try{
+          m4aPlan=await planM4a({byteSize:total,durationMs,mimeType:"audio/mp4"},
+            async(start,length)=>{
+              const response=await fetch(playback,{method:"GET",cache:"no-store",
+                headers:{Range:"bytes="+start+"-"+(start+length-1)}});
+              if(response.status!==206||
+                response.headers.get("content-range")!==
+                  "bytes "+start+"-"+(start+length-1)+"/"+total)
+                throw Error("Drive could not supply a verified audio metadata range.");
+              const bytes=new Uint8Array(await response.arrayBuffer());
+              if(bytes.length!==length)throw Error("Audio metadata range was incomplete.");
+              return bytes;
+            },{includeHeaders:false});
+          durationMs=m4aPlan.at(-1)?.endMs??durationMs;
+          if(m4aPlan.length<2)m4aPlan=undefined;
+        }catch{
+          throw Error("This M4A could not be safely divided without converting it. No Gemini request was started.");
+        }
+      }
       const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,assetId:asset.id,confirmed:true,
           privacyApproved:true,billingApproved:true,detail:selectedDetail,requestId,
-          durationMs:durations[asset.id]??asset.durationMs??null})});
+          durationMs,m4aPlan})});
       const data=await response.json() as {
         queued?:boolean;created?:boolean;alreadyQueued?:boolean;error?:string;
       };

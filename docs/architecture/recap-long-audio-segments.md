@@ -5,12 +5,14 @@ without requiring the GM to split, convert, or reupload their original recording
 
 ### Verified inputs and segmentation
 
-- **AAC-LC M4A**: TWE reads the original ISO Base Media File Format sample tables
+- **AAC M4A**: The GM browser automatically reads the original ISO Base Media File Format sample tables
   (`moov`, `stts`, `stsz`, `stsc`, `stco`/`co64`) through bounded Drive range
   requests. It checks one audio track, one AAC decoder configuration, a
   contiguous sample payload, valid timing and size limits. Sections are
   assembled as valid new `ftyp + moov + mdat` streams that reference their
-  ORIGINAL audio sample bytes without transcoding. The recording stays in Drive.
+  ORIGINAL audio sample bytes without transcoding. The browser passes only
+  bounded section headers and offsets through the existing GM-approved POST;
+  TWE stores them in D1 before starting background work. The original stays in Drive.
 - **Silence-aware split for M4A**: Encoded AAC packet sizes can sometimes indicate
   sustained low activity (particularly variable-rate recordings). We require
   a marked reduction over approximately 2 minutes, near a valid section
@@ -52,9 +54,12 @@ uncertain Gemini POST is never automatically repeated.
 ### Resource and rollout considerations
 
 Workers Free allows only 10ms CPU per request/cron invocation, 128MiB memory
-and 50 subrequests. M4A parsing/remuxing is designed to be small, bounded
-and metadata-only, but **needs a real-world 2–3-hour M4A validation** against
-the actual Cloudflare runtime before production reliability can be claimed.
+and 50 subrequests. M4A parsing/remuxing of long inputs occurs in the browser while the GM confirms
+Auto Summarize, not during the constrained Worker cron. The Worker validates the
+bounded headers and authenticated request, checkpoints the resulting plan, and
+subsequently streams original Drive ranges to Gemini. The browser can close as
+soon as the job confirmation succeeds. **Actual 2–3-hour user audio still needs
+an end-to-end Gemini trial** before production reliability can be claimed.
 M4A with large or unusual metadata fails closed; it never uses arbitrary
 8MiB HTTP transfer chunks as standalone audio sections.
 

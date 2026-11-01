@@ -4,7 +4,7 @@ import {spawnSync} from "node:child_process";
 import {mkdtempSync,readFileSync,writeFileSync,rmSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-import {inspectM4a,planM4a,estimateM4aDuration} from "../lib/campaigns/recap-m4a-remux.ts";
+import {inspectM4a,planM4a,estimateM4aDuration,prepareM4aSection} from "../lib/campaigns/recap-m4a-remux.ts";
 
 const as=(s)=>Uint8Array.from([...s].map(c=>c.charCodeAt(0)));
 const u32=v=>Uint8Array.of(v>>>24,(v>>>16)&255,(v>>>8)&255,v&255);
@@ -94,6 +94,25 @@ test("long untouched M4A is split into independently valid virtual MP4 headers",
     assert.ok(Math.abs(parsed.durationMs-(section.endMs-section.startMs))<1000);
     assert.equal(parsed.dataEnd-parsed.dataStart,section.sourceEnd-section.sourceStart);
   }
+});
+test("long M4A checkpoints cheap split planning and prepares each playable header on its own cron tick",async(t)=>{
+  const input=fixture();
+  const start=performance.now();
+  const planned=await planM4a(input.source,input.read,{includeHeaders:false});
+  const firstDuration=performance.now()-start;
+  assert.equal(planned.length,2);
+  assert.ok(planned.every(section=>section.prefixBase64===""));
+  const durations=[];
+  for(const part of planned){
+    const at=performance.now();
+    const prefix=await prepareM4aSection(input.source,input.read,part.sourceStart,part.sourceEnd);
+    durations.push(performance.now()-at);
+    assert.ok(prefix.length>1000);
+    const data=Uint8Array.from(atob(prefix),c=>c.charCodeAt(0));
+    assert.equal(String.fromCharCode(...data.subarray(data.length-4)),"mdat");
+  }
+  t.diagnostic("M4A CPU-separated phases: plan="+firstDuration.toFixed(1)+
+    "ms, section1="+durations[0].toFixed(1)+"ms, section2="+durations[1].toFixed(1)+"ms");
 });
 test("M4A can retain its metadata at the end of the Drive file",async()=>{
   const f=fixture({mdatFirst:true,samples:350000});

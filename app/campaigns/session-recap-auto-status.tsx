@@ -13,6 +13,7 @@ type Job={
   createdAt:string;updatedAt:string;
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null};
+type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
 const statusLabel:Record<string,string>={
   pending_upload:"Queued for Gemini — original audio remains in Drive",
   transferring:"Transferring a temporary copy from Drive to Gemini",
@@ -35,6 +36,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const [notice,setNotice]=useState("");
   const [starting,setStarting]=useState(false);
   const [retrying,setRetrying]=useState(false);
+  const [diagnosing,setDiagnosing]=useState(false);
+  const [diagnosis,setDiagnosis]=useState<{jobId:string;value:FailureDiagnosis}|null>(null);
   const [confirmAsset,setConfirmAsset]=useState<Asset|null>(null);
   const [defaultDetail,setDefaultDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [selectedDetail,setSelectedDetail]=useState<"brief"|"standard"|"detailed">("detailed");
@@ -133,6 +136,21 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       await refresh();
     }catch(e){setError(e instanceof Error?e.message:"Could not start summarization.");}
     finally{setStarting(false);}
+  }
+  async function diagnoseFailure(job:Job){
+    if(diagnosing||job.status!=="needs_attention"||job.errorCode!=="interaction_failed")return;
+    setDiagnosing(true);setError("");setDiagnosis(null);
+    try{
+      const response=await fetch(endpoint+"/diagnose",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id}),
+      });
+      const data=await response.json() as {diagnosis?:FailureDiagnosis;error?:string};
+      if(!response.ok||!data.diagnosis)
+        throw Error(data.error||"Gemini did not provide a failure diagnosis.");
+      setDiagnosis({jobId:job.id,value:data.diagnosis});
+    }catch(e){setError(e instanceof Error?e.message:"Could not check Gemini failure details.");}
+    finally{setDiagnosing(false);}
   }
   async function retryJob(job:Job){
     if(retrying||starting||!job.canRetry||job.status!=="needs_attention")return;
@@ -235,6 +253,22 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </p>
         <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
       </details>}
+      {newest.errorCode==="interaction_failed"&&<>
+        <button type="button" className="campaign-secondary" disabled={diagnosing}
+          onClick={()=>void diagnoseFailure(newest)}>
+          {diagnosing?"Checking Gemini…":"Check failure reason (no new AI request)"}
+        </button>
+        {diagnosis?.jobId===newest.id&&<div className="session-recap-import-notice" role="status">
+          <strong>{diagnosis.value.title}</strong>
+          <p>{diagnosis.value.explanation}</p>
+          {diagnosis.value.inputTokens!==null&&<p>
+            Gemini reported {diagnosis.value.inputTokens.toLocaleString()} input tokens for this interaction.
+          </p>}
+          <p className="campaign-empty-copy">
+            Only the existing interaction was read. No audio was uploaded or summarized again.
+          </p>
+        </div>}
+      </>}
       <div className="session-recap-form-actions">
         {newest.canRetry&&<button type="button" className="campaign-primary"
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>

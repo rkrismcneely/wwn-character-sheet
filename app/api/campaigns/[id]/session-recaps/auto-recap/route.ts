@@ -109,14 +109,39 @@ export async function POST(request:Request,ctx:Context){
         .first<{id:string}>();
       if(!parent)throw new CampaignServiceError("The recap job changed before audio preparation.",409);
       const timestamp=new Date().toISOString();
+      // The same immutable Drive asset may already have analyzed section
+      // notes from a previous detail-level run. Reuse matching boundaries
+      // without resubmitting audio or spending the GM's Gemini daily quota.
+      const previousJob=await info.db.prepare("SELECT id FROM campaign_recap_audio_summary_jobs "+
+        "WHERE id!=? AND campaign_id=? AND recap_id=? AND audio_asset_id=? AND requested_by=? "+
+        "AND processing_mode='segmented' AND confirmed_at IS NOT NULL "+
+        "ORDER BY created_at DESC LIMIT 1")
+        .bind(parent.id,info.campaign.id,info.recap.id,asset.id,info.actor.userId)
+        .first<{id:string}>();
+      const priorSections=previousJob?await info.db.prepare(
+        "SELECT segment_index AS segmentIndex,start_ms AS startMs,end_ms AS endMs,"+
+        "source_start AS sourceStart,source_end AS sourceEnd,mime_type AS mimeType,status,notes "+
+        "FROM campaign_recap_audio_summary_segments WHERE job_id=?")
+        .bind(previousJob.id).all<{segmentIndex:number;startMs:number;endMs:number;
+          sourceStart:number;sourceEnd:number;mimeType:string;status:string;notes:string|null}>():null;
+      const reusable=new Map((priorSections?.results??[]).filter(v=>
+        v.status==="ready"&&v.notes&&v.notes.length<=12000).map(v=>[v.segmentIndex,v]));
       try{
         const writes=m4aPlan.map(part=>info.db.prepare(
           "INSERT INTO campaign_recap_audio_summary_segments "+
           "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
-          "status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+          "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
           .bind(crypto.randomUUID(),parent.id,part.index,part.startMs,part.endMs,
             part.sourceStart,part.sourceEnd,"","audio/mp4",
-            "pending_upload",timestamp,timestamp));
+            (()=>{const prior=reusable.get(part.index);return prior&&
+              prior.startMs===part.startMs&&prior.endMs===part.endMs&&
+              prior.sourceStart===part.sourceStart&&prior.sourceEnd===part.sourceEnd&&
+              prior.mimeType==="audio/mp4"?"ready":"pending_upload";})(),
+            (()=>{const prior=reusable.get(part.index);return prior&&
+              prior.startMs===part.startMs&&prior.endMs===part.endMs&&
+              prior.sourceStart===part.sourceStart&&prior.sourceEnd===part.sourceEnd&&
+              prior.mimeType==="audio/mp4"?prior.notes:null;})(),
+            timestamp,timestamp));
         writes.push(info.db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
           "SET processing_mode='segmented',updated_at=? WHERE id=? AND status='pending_upload' "+
           "AND processing_mode='single'").bind(timestamp,parent.id));

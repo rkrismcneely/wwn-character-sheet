@@ -10,7 +10,7 @@ import {planM4a} from "@/lib/campaigns/recap-m4a-remux";
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
   generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
-  stageBytes:number;totalBytes:number|null;canRetry:boolean;
+  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
@@ -208,6 +208,27 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     }catch(e){setError(e instanceof Error?e.message:"Could not retry processing.");}
     finally{setRetrying(false);}
   }
+  async function retrySection(job:Job){
+    if(retrying||starting||!job.canRetryFailedSection||job.status!=="needs_attention")return;
+    if(!window.confirm("Retry ONLY the failed Gemini audio section? TWE verifies that the old interaction failed, reuses the uploaded section when possible, and preserves all other notes. This creates one NEW Gemini analysis request, which can consume quota or incur charges. Continue?"))return;
+    setRetrying(true);setError("");setNotice("");
+    try{
+      const response=await fetch(endpoint,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,retryApproved:true,retryFailedSection:true}),
+      });
+      const data=await response.json() as {resumed?:boolean;error?:string};
+      if(!response.ok||!data.resumed)
+        throw Error(data.error||"Could not safely resume the failed section.");
+      setDiagnosis(null);diagnosedJob.current="";
+      setNotice(data.resumed
+        ?"The failed section is queued again. Completed sections and your original Drive recording are unchanged. Background processing continues if you leave."
+        :"Could not resume this section.");
+      await refresh();
+    }catch(e){
+      setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
+    }finally{setRetrying(false);}
+  }
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
   const activeStatuses=new Set(["pending_upload","transferring","uploaded","submitting","submitted"]);
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
@@ -319,6 +340,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       <p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
       </p>
+      {newest.canRetryFailedSection&&<p className="campaign-empty-copy">
+        After reviewing the failure reason, you can explicitly approve a retry
+        of <strong>only the failed section</strong>. TWE will check that Gemini
+        marked it failed before submitting anything new. This may consume a
+        Gemini request; earlier section notes are preserved.
+      </p>}
       {newest.generatedMarkdown&&<details>
         <summary>View partial AI notes — not a complete recap</summary>
         <p className="campaign-empty-copy">
@@ -347,6 +374,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </div>}
       </>}
       <div className="session-recap-form-actions">
+        {newest.canRetryFailedSection&&<button type="button" className="campaign-primary"
+          disabled={retrying||starting||diagnosing} onClick={()=>void retrySection(newest)}>
+          {retrying?"Verifying failed section…":"Retry failed section only"}
+        </button>}
         {newest.canRetry&&<button type="button" className="campaign-primary"
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}

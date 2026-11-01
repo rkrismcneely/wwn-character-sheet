@@ -14,8 +14,10 @@ export type AudioSegmentPlan={
   prefixBase64:string;mimeType:string;
 };
 export class LongAudioFormatError extends Error{
-  constructor(public readonly code:"format_unsupported"|"metadata_invalid"|"too_many_segments"){
+  readonly code:"format_unsupported"|"metadata_invalid"|"too_many_segments";
+  constructor(code:"format_unsupported"|"metadata_invalid"|"too_many_segments"){
     super("Long audio cannot be safely segmented: "+code);
+    this.code=code;
   }
 }
 type Reader=(start:number,length:number)=>Promise<Uint8Array>;

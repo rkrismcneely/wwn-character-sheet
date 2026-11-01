@@ -40,7 +40,9 @@ export async function GET(request:Request,ctx:Context){
       }>();
     // Segment progress is private to the originating GM and returned only as
     // counts/byte progress, never Gemini interaction IDs, filenames or content.
-    const totals=await info.db.prepare("SELECT job_id AS jobId,COUNT(*) AS total,"+
+    const migrated=Boolean(await info.db.prepare("SELECT name FROM sqlite_master "+
+      "WHERE type='table' AND name='campaign_recap_audio_summary_segments'").first());
+    const totals=migrated?await info.db.prepare("SELECT job_id AS jobId,COUNT(*) AS total,"+
       "SUM(CASE WHEN status='ready' THEN 1 ELSE 0 END) AS completed,"+
       "SUM(stage_offset) AS transferred,"+
       "SUM(source_end-source_start) AS bytes "+
@@ -48,7 +50,8 @@ export async function GET(request:Request,ctx:Context){
       "(SELECT id FROM campaign_recap_audio_summary_jobs WHERE campaign_id=? "+
       "AND recap_id=? AND requested_by=? AND confirmed_at IS NOT NULL) GROUP BY job_id")
       .bind(info.campaign.id,info.recap.id,info.actor.userId)
-      .all<{jobId:string;total:number;completed:number;transferred:number;bytes:number}>();
+      .all<{jobId:string;total:number;completed:number;transferred:number;bytes:number}>()
+      :{results:[] as {jobId:string;total:number;completed:number;transferred:number;bytes:number}[]};
     const byJob=new Map(totals.results.map(row=>[row.jobId,row]));
     // Only return a boolean; the Gemini file URI and interaction ID must not
     // be exposed by status polling or used for user-supplied retry targets.

@@ -177,7 +177,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const newest=jobs[0];
   const duration=confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null;
   const quotaEstimate=recapQuotaNotice(duration);
-  const longRecording=typeof duration==="number"&&duration>95*60_000;
+  const longRecording=typeof duration==="number"&&duration>100*60_000;
   const segmentCount=longRecording?Math.ceil(duration/(100*60_000)):0;
   const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3","audio/mp4"].includes(confirmAsset.mimeType??"");
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">

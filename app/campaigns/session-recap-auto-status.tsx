@@ -4,6 +4,7 @@ import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
 import {SessionRecapProgress} from "./session-recap-progress";
 import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
 import {recapQuotaNotice} from "@/lib/campaigns/recap-quota-estimate";
+import {parseGeneratedRecapTitle} from "@/lib/campaigns/recap-ai-title";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
@@ -22,9 +23,10 @@ const statusLabel:Record<string,string>={
   needs_attention:"Summarization needs attention",
   failed:"Summarization stopped",
 };
-export function SessionRecapAutoStatus({campaignId,recapId,onDraft,published=false}:{
+export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTitle,published=false}:{
   campaignId:string;recapId:string;published?:boolean;
-  onDraft:(content:string,updatedAt:string,overwrite:boolean)=>boolean;
+  onDraft:(content:string,updatedAt:string,overwrite:boolean,suggestedTitle:string|null)=>boolean;
+  onSuggestedTitle:(title:string)=>void;
 }){
   const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/auto-recap";
   const [jobs,setJobs]=useState<Job[]>([]);
@@ -94,7 +96,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,published=fal
     const job=jobs.find(x=>x.status==="ready"&&x.generatedMarkdown);
     if(!published&&job?.generatedMarkdown&&seen.current!==job.id){
       seen.current=job.id;
-      onDraft(job.generatedMarkdown,recapUpdatedAt,false);
+      const parsed=parseGeneratedRecapTitle(job.generatedMarkdown);
+      onDraft(parsed.content,recapUpdatedAt,false,parsed.title);
     }
   },[jobs,onDraft,recapUpdatedAt,published]);
   useEffect(()=>{
@@ -190,16 +193,27 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,published=fal
         Every version is preserved. Choosing one only copies it into the editor;
         your saved recap and Journal entry remain unchanged until you save.
       </p>
-      {completeVersions.map(version=><details key={version.id}>
-        <summary>{version.detail==="detailed"?"Most detailed":
-          version.detail==="standard"?"Standard":"Brief"} — {new Date(version.createdAt).toLocaleString()}</summary>
-        <button type="button" className="campaign-secondary" onClick={()=>{
-          if(!window.confirm("Replace the current editor text with this AI version? Unsaved editor changes will be lost. Your saved and published Journal entries won't change."))return;
-          if(onDraft(version.generatedMarkdown!,recapUpdatedAt,true))
-            setNotice("Saved version copied into the editor. Review and save only if you want to use it.");
-        }}>Copy this version into editor</button>
-        <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{version.generatedMarkdown}</pre>
-      </details>)}
+      {completeVersions.map(version=>{
+        const parsed=parseGeneratedRecapTitle(version.generatedMarkdown!);
+        return <details key={version.id}>
+          <summary>{version.detail==="detailed"?"Most detailed":
+            version.detail==="standard"?"Standard":"Brief"} — {new Date(version.createdAt).toLocaleString()}
+            {parsed.title?" — "+parsed.title:""}</summary>
+          {parsed.title&&<div className="session-recap-form-actions">
+            <span className="campaign-empty-copy">AI-suggested title: <strong>{parsed.title}</strong></span>
+            <button type="button" className="campaign-secondary" onClick={()=>{
+              onSuggestedTitle(parsed.title!);
+              setNotice("AI title copied into the title field. Review and save to keep it.");
+            }}>Use AI title</button>
+          </div>}
+          <button type="button" className="campaign-secondary" onClick={()=>{
+            if(!window.confirm("Replace the current editor text with this AI version? Unsaved editor changes will be lost. Your saved and published Journal entries won't change."))return;
+            if(onDraft(parsed.content,recapUpdatedAt,true,parsed.title))
+              setNotice("Saved version copied into the editor. Review and save only if you want to use it.");
+          }}>Copy this version into editor</button>
+          <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{parsed.content}</pre>
+        </details>;
+      })}
     </details>}
     {newest?.status==="needs_attention"&&<div className="session-recap-reading" role="alert">
       <strong>{recapAttentionText[newest.errorCode??""]?.title??recapAttentionText.unexpected.title}</strong>

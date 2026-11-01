@@ -11,6 +11,7 @@ import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcri
 import { SessionRecapTranscriptionOptions } from "./session-recap-transcription-options";
 import { SessionRecapAIWriter } from "./session-recap-ai-writer";
 import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/campaigns/obsidian-recap-import";
+import {isPlaceholderRecapTitle,RECORDING_WORKING_TITLE} from "@/lib/campaigns/recap-ai-title";
 
 type Draft = { date: string; title: string; content: string };
 const recapCacheDurationMs = 60_000;
@@ -141,12 +142,12 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
 
   async function createRecordingDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving || !draft.date || !draft.title.trim()) return;
+    if (saving || !draft.date) return;
     setSaving(true); setError("");
     try {
       const response = await fetch("/api/campaigns/" + encodeURIComponent(campaignId) + "/session-recaps", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({date:draft.date,title:draft.title,draftOnly:true}),
+        body: JSON.stringify({date:draft.date,title:draft.title.trim()||RECORDING_WORKING_TITLE,draftOnly:true}),
       });
       const result = await response.json() as {recap?:CampaignSessionRecap;error?:string};
       if (!response.ok || !result.recap || result.recap.isPublished)
@@ -218,13 +219,16 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         <SessionRecapAudioUploader key={editing.id} campaignId={campaignId}
           recapId={editing.id} onBusyChange={trackUploadBusy}/>
         <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id}
-          onDraft={(content,updatedAt,overwrite)=>{
+          onDraft={(content,updatedAt,overwrite,suggestedTitle)=>{
             if(draft.content.trim()&&!overwrite)return false;
-            setDraft(current=>({...current,content}));
+            setDraft(current=>({...current,content,
+              title:suggestedTitle&&isPlaceholderRecapTitle(current.title)?suggestedTitle:current.title}));
             setEditing(current=>current&&current!=="new"&&current.id===editing.id
-              ? {...current,content,updatedAt:updatedAt||current.updatedAt}:current);
+              ? {...current,content,updatedAt:updatedAt||current.updatedAt,
+                title:suggestedTitle&&isPlaceholderRecapTitle(current.title)?suggestedTitle:current.title}:current);
             return true;
-          }}/>
+          }}
+          onSuggestedTitle={title=>setDraft(current=>({...current,title}))}/>
       </>}
       {editing === "new" && createMethod === "recording"
         ? <form className="session-recap-form" onSubmit={event=>void createRecordingDraft(event)}>
@@ -239,13 +243,13 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
             <div className="session-recap-form-fields">
               <label><span>Session date</span><input type="date" required value={draft.date}
                 onChange={event=>setDraft(current=>({...current,date:event.target.value}))}/></label>
-              <label><span>Working title</span><input type="text" required maxLength={120}
-                placeholder="Session recording" value={draft.title}
+              <label><span>Working title (optional)</span><input type="text" maxLength={120}
+                placeholder="Gemini can name the session after analyzing it" value={draft.title}
                 onChange={event=>setDraft(current=>({...current,title:event.target.value}))}/></label>
             </div>
             {error&&<p className="campaign-error" role="alert">{error}</p>}
             <button type="submit" className="campaign-primary"
-              disabled={saving||!draft.date||!draft.title.trim()}>
+              disabled={saving||!draft.date}>
               {saving?"Creating…":"Create private recording draft"}
             </button>
           </form>
@@ -287,7 +291,8 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
                 ? {...current,content,updatedAt:updatedAt||current.updatedAt}:current);
               setPreview(false);
               return true;
-            }}/>
+            }}
+            onSuggestedTitle={title=>setDraft(current=>({...current,title}))}/>
         </>}
         <details className="session-recap-reading" onToggle={event=>setShowAdvanced(event.currentTarget.open)}>
           <summary>Advanced: Craig speaker tracks and full transcripts (optional)</summary>

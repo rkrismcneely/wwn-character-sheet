@@ -127,21 +127,18 @@ export async function POST(request:Request,ctx:Context){
       const reusable=new Map((priorSections?.results??[]).filter(v=>
         v.status==="ready"&&v.notes&&v.notes.length<=12000).map(v=>[v.segmentIndex,v]));
       try{
-        const writes=m4aPlan.map(part=>info.db.prepare(
-          "INSERT INTO campaign_recap_audio_summary_segments "+
-          "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
-          "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
-          .bind(crypto.randomUUID(),parent.id,part.index,part.startMs,part.endMs,
-            part.sourceStart,part.sourceEnd,part.prefixBase64,"audio/mp4",
-            (()=>{const prior=reusable.get(part.index);return prior&&
-              prior.startMs===part.startMs&&prior.endMs===part.endMs&&
-              prior.sourceStart===part.sourceStart&&prior.sourceEnd===part.sourceEnd&&
-              prior.mimeType==="audio/mp4"?"ready":"pending_upload";})(),
-            (()=>{const prior=reusable.get(part.index);return prior&&
-              prior.startMs===part.startMs&&prior.endMs===part.endMs&&
-              prior.sourceStart===part.sourceStart&&prior.sourceEnd===part.sourceEnd&&
-              prior.mimeType==="audio/mp4"?prior.notes:null;})(),
-            timestamp,timestamp));
+        const writes=m4aPlan.map(part=>{
+          const prior=reusable.get(part.index);
+          const same=Boolean(prior&&prior.startMs===part.startMs&&
+            prior.endMs===part.endMs&&prior.sourceStart===part.sourceStart&&
+            prior.sourceEnd===part.sourceEnd&&prior.mimeType==="audio/mp4");
+          return info.db.prepare("INSERT INTO campaign_recap_audio_summary_segments "+
+            "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
+            "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(),parent.id,part.index,part.startMs,part.endMs,
+              part.sourceStart,part.sourceEnd,same?"":part.prefixBase64,"audio/mp4",
+              same?"ready":"pending_upload",same?prior!.notes:null,timestamp,timestamp);
+        });
         writes.push(info.db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
           "SET processing_mode='segmented',updated_at=? WHERE id=? AND status='pending_upload' "+
           "AND processing_mode='single'").bind(timestamp,parent.id));

@@ -43,7 +43,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
       const data=await response.json() as {found?:boolean;ready?:boolean;error?:string};
       if(!response.ok)throw new Error(data.error||"TWE could not check Drive for the saved recording.");
       if(data.found&&data.ready){
-        setNotice("Recovered your existing Google Drive recording and attached it to this recap. No new upload or Gemini request was made.");
+        setNotice("Recording recovered from Drive.");
         const list=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
         if(list.ok){
           const updated=await list.json() as {assets?:AudioAsset[]};
@@ -52,7 +52,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
         window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId}}));
         return true;
       }
-      if(!quiet)setNotice("No completed matching file found in your Drive yet. If the upload is still running, retry recovery after it finishes.");
+      if(!quiet)setNotice("No completed recording found yet. Try again after the upload finishes.");
       return false;
     }catch(cause){
       if(!quiet)setError(cause instanceof Error?cause.message:"Could not recover the saved recording.");
@@ -125,7 +125,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     setAwaitingVerification(null);
     setFile(null);
     if(fileInputRef.current)fileInputRef.current.value="";
-    setNotice("Recording saved in your Tales Without End Drive folder and attached to this recap. Gemini has not been started. Choose Auto Summarize when ready.");
+    setNotice("Saved to Google Drive. Select Auto Summarize when ready.");
     window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId}}));
     try {
       const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
@@ -188,14 +188,12 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
       <strong>Session audio</strong>
       <a href="/account">Manage storage accounts</a>
     </div>
-    <p className="session-recap-editor-help">
-      Save an MP3, M4A, WAV, FLAC or AAC recording in the Tales Without End folder in your own Google Drive.
-      Large 2–3-hour recordings stream in chunks through TWE to your own Google Drive; TWE does not store the audio.
-      Keep this page and section open while uploading. Navigation can interrupt the transfer;
-      stop the upload first if you need to leave. Uploading alone never sends audio to Gemini.
-    </p>
-    {assets.length>0 && <div aria-label="Attached recordings">
-      {assets.map(asset=><div className="session-recap-editor-help" key={asset.id}>
+    <p className="session-recap-editor-help">Upload audio to your Google Drive. AI summarization starts only when you approve it.</p>
+    {busy&&!awaitingVerification&&<p className="session-recap-editor-help" role="status">
+      Keep this page open until the upload completes.
+    </p>}
+    {assets.some(asset=>asset.status!=="ready"||asset.canRecover) && <div aria-label="Recordings needing attention">
+      {assets.filter(asset=>asset.status!=="ready"||asset.canRecover).map(asset=><div className="session-recap-editor-help" key={asset.id}>
         {asset.label} — {asset.status==="ready"?"Saved in your storage account":asset.status==="auth_required"?"Reconnect storage to access":"Upload not ready"}
         {asset.canRecover&&<button type="button" className="campaign-secondary"
           disabled={busy||recoveringAsset!==null} onClick={()=>void recoverSavedRecording(asset.id)}>

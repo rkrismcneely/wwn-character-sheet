@@ -17,16 +17,6 @@ type Job={
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
 type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null};
-const statusLabel:Record<string,string>={
-  pending_upload:"Queued for Gemini — original audio remains in Drive",
-  transferring:"Transferring a temporary copy from Drive to Gemini",
-  uploaded:"Gemini is preparing its temporary audio file",
-  submitting:"Starting AI summarization",
-  submitted:"Gemini is analyzing your session — you can close this page",
-  ready:"AI recap draft ready for review — not published",
-  needs_attention:"Summarization needs attention",
-  failed:"Summarization stopped",
-};
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTitle,published=false}:{
   campaignId:string;recapId:string;published?:boolean;
   onDraft:(content:string,updatedAt:string,overwrite:boolean,suggestedTitle:string|null)=>boolean;
@@ -203,7 +193,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       });
       const data=await response.json() as {resumed?:boolean;error?:string};
       if(!response.ok||!data.resumed)throw Error(data.error||"Could not safely retry this job.");
-      setNotice("Processing resumed using your existing recording. The recap will update here when Gemini finishes.");
+      setNotice("Processing resumed.");
       await refresh();
     }catch(e){setError(e instanceof Error?e.message:"Could not retry processing.");}
     finally{setRetrying(false);}
@@ -221,9 +211,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       if(!response.ok||!data.resumed)
         throw Error(data.error||"Could not safely resume the failed section.");
       setDiagnosis(null);diagnosedJob.current="";
-      setNotice(data.resumed
-        ?"The failed section is queued again. Completed sections and your original Drive recording are unchanged. Background processing continues if you leave."
-        :"Could not resume this section.");
+      setNotice(data.resumed?"Failed section queued again.":"Could not resume this section.");
       await refresh();
     }catch(e){
       setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
@@ -250,26 +238,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const segmentCount=longRecording?Math.ceil(duration/(100*60_000)):0;
   const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3","audio/mp4"].includes(confirmAsset.mimeType??"");
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
-    <h4>Session recording</h4>
-    <p className="campaign-empty-copy">
-      Your recording remains in Google Drive. Every approved AI run saves a separate result;
-      existing edits and published Journal pages are preserved.
-    </p>
-    {playable.length>0&&<SessionRecapAudioPlayer
+     {playable.length>0&&<SessionRecapAudioPlayer
       key={playable.map(a=>a.id).join(":")} campaignId={campaignId} recapId={recapId}
       onDuration={(assetId,durationMs)=>setDurations(previous=>
         previous[assetId]===durationMs?previous:{...previous,[assetId]:durationMs})}/>}
-    {playable.length===0&&<p className="campaign-empty-copy">
-      Once your upload finishes, the recording will appear here with playback controls.
-    </p>}
-    <h4>Step 2 — AI summarization (optional)</h4>
-    <p className="campaign-empty-copy">
-      Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>{" "}
-      and confirm for this recording. It uses your own Gemini API key, may consume
-      free-tier quota or incur charges, and creates a private draft for review.
-      Long compatible recordings are divided and summarized automatically; M4A audio uses natural low-activity breaks where identifiable,
-      then combined into one recap. No separate files or extra setup needed.
-    </p>
+    <h4>AI recap</h4>
+    <p className="campaign-empty-copy">Summarize with your Gemini account. Review before publishing.</p>
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
       <span>{asset.label}</span>
       <button type="button" className="campaign-primary" disabled={starting}
@@ -277,35 +251,20 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         {jobs.some(j=>j.audioAssetId===asset.id)?"Summarize again":"Auto Summarize"}
       </button>
     </div>)}
-    {newest&&<>
-      <p role="status"><strong>{
-        newest.segmentCount&&newest.status==="transferring"
-          ?"Analyzing session in "+newest.segmentCount+" sections"
-          :statusLabel[newest.status]||"Status: "+newest.status
-      }</strong>{" · "}{newest.detail} recap</p>
-      {newest.segmentCount&&newest.status==="transferring"?<>
-        <p className="campaign-empty-copy">
-          {newest.segmentsReady??0} of {newest.segmentCount} sections summarized.
-          Your recording stays in Drive. TWE keeps completed sections if you leave.
-        </p>
-        <progress style={{width:"100%"}} value={newest.segmentsReady??0}
-          max={newest.segmentCount} aria-label="Summarized audio sections"/>
-      </>:<>
-        {newest.segmentCount&&newest.status==="needs_attention"&&
-          newest.errorCode?.startsWith("segment_interaction")&&<p className="campaign-empty-copy">
-          Gemini stopped while analyzing a section; this is not an audio-transfer failure.
-          {newest.segmentsReady??0} of {newest.segmentCount} sections have completed notes.
-          Completed notes remain saved.
-        </p>}
-        <SessionRecapProgress job={newest}/>
-      </>}
-    </>}
+    {newest&&!(newest.status==="needs_attention"||newest.status==="failed")&&(
+      newest.status==="ready"
+        ? <p role="status"><strong>AI recap ready to review</strong> · {newest.detail}</p>
+        : newest.segmentCount&&newest.status==="transferring"
+          ? <div className="recap-ai-progress" role="status">
+            <strong>Processing recording · {newest.segmentsReady??0} of {newest.segmentCount} sections complete</strong>
+            <progress style={{width:"100%"}} value={newest.segmentsReady??0}
+              max={newest.segmentCount} aria-label="Summarized audio sections"/>
+            <p className="recap-ai-progress__hint">Processing continues if you leave this page.</p>
+          </div>
+          : <SessionRecapProgress job={newest}/>
+    )}
     {completeVersions.length>0&&<details>
       <summary>Saved AI recap versions ({completeVersions.length})</summary>
-      <p className="campaign-empty-copy">
-        Every version is preserved. Choosing one only copies it into the editor;
-        your saved recap and Journal entry remain unchanged until you save.
-      </p>
       {completeVersions.map(version=>{
         const parsed=parseGeneratedRecapTitle(version.generatedMarkdown!);
         return <details key={version.id}>
@@ -316,13 +275,13 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             <span className="campaign-empty-copy">AI-suggested title: <strong>{parsed.title}</strong></span>
             <button type="button" className="campaign-secondary" onClick={()=>{
               onSuggestedTitle(parsed.title!);
-              setNotice("AI title copied into the title field. Review and save to keep it.");
+              setNotice("AI title copied to editor.");
             }}>Use AI title</button>
           </div>}
           <button type="button" className="campaign-secondary" onClick={()=>{
             if(!window.confirm("Replace the current editor text with this AI version? Unsaved editor changes will be lost. Your saved and published Journal entries won't change."))return;
             if(onDraft(parsed.content,recapUpdatedAt,true,parsed.title))
-              setNotice("Saved version copied into the editor. Review and save only if you want to use it.");
+              setNotice("Version copied to editor. Save to keep it.");
           }}>Copy this version into editor</button>
           <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{parsed.content}</pre>
         </details>;

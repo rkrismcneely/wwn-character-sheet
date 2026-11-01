@@ -5,6 +5,7 @@ import {SessionRecapProgress} from "./session-recap-progress";
 import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
 import {recapQuotaNotice} from "@/lib/campaigns/recap-quota-estimate";
 import {parseGeneratedRecapTitle} from "@/lib/campaigns/recap-ai-title";
+import {planM4a} from "@/lib/campaigns/recap-m4a-remux";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
@@ -13,7 +14,7 @@ type Job={
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
-type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null};
+type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
 const statusLabel:Record<string,string>={
   pending_upload:"Queued for Gemini — original audio remains in Drive",
@@ -123,10 +124,41 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     const asset=confirmAsset;
     setStarting(true);setError("");setNotice("");
     try{
+      let durationMs=durations[asset.id]??asset.durationMs??null;
+      let m4aPlan:Awaited<ReturnType<typeof planM4a>>|undefined;
+      // This invisible, non-billable preparation uses the existing private
+      // Range-capable Drive playback route. No additional GM action is needed.
+      // Once the approved job is stored, all remaining work runs on cron.
+      if(asset.mimeType==="audio/mp4"&&
+        (durationMs===null||durationMs>100*60_000)){
+        const total=asset.byteSize;
+        if(!Number.isSafeInteger(total)||!total||total<=0)
+          throw Error("The M4A recording size is unavailable. Reload the recap before summarizing.");
+        const playback="/api/campaigns/"+encodeURIComponent(campaignId)+
+          "/session-recaps/audio/"+encodeURIComponent(asset.id)+"/stream";
+        try{
+          m4aPlan=await planM4a({byteSize:total,durationMs,mimeType:"audio/mp4"},
+            async(start,length)=>{
+              const response=await fetch(playback,{method:"GET",cache:"no-store",
+                headers:{Range:"bytes="+start+"-"+(start+length-1)}});
+              if(response.status!==206||
+                response.headers.get("content-range")!==
+                  "bytes "+start+"-"+(start+length-1)+"/"+total)
+                throw Error("Drive could not supply a verified audio metadata range.");
+              const bytes=new Uint8Array(await response.arrayBuffer());
+              if(bytes.length!==length)throw Error("Audio metadata range was incomplete.");
+              return bytes;
+            });
+          durationMs=m4aPlan.at(-1)?.endMs??durationMs;
+          if(m4aPlan.length<2)m4aPlan=undefined;
+        }catch{
+          throw Error("This M4A could not be safely divided without converting it. No Gemini request was started.");
+        }
+      }
       const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,assetId:asset.id,confirmed:true,
           privacyApproved:true,billingApproved:true,detail:selectedDetail,requestId,
-          durationMs:durations[asset.id]??asset.durationMs??null})});
+          durationMs,m4aPlan})});
       const data=await response.json() as {
         queued?:boolean;created?:boolean;alreadyQueued?:boolean;error?:string;
       };
@@ -177,9 +209,9 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const newest=jobs[0];
   const duration=confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null;
   const quotaEstimate=recapQuotaNotice(duration);
-  const longRecording=typeof duration==="number"&&duration>95*60_000;
-  const segmentCount=longRecording?Math.ceil(duration/(35*60_000)):0;
-  const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3"].includes(confirmAsset.mimeType??"");
+  const longRecording=typeof duration==="number"&&duration>100*60_000;
+  const segmentCount=longRecording?Math.ceil(duration/(100*60_000)):0;
+  const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3","audio/mp4"].includes(confirmAsset.mimeType??"");
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
     <h4>Session recording</h4>
     <p className="campaign-empty-copy">
@@ -198,7 +230,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       Gemini never starts when you upload. Choose <strong>Auto Summarize</strong>
       and confirm for this recording. It uses your own Gemini API key, may consume
       free-tier quota or incur charges, and creates a private draft for review.
-      Long compatible recordings are divided and summarized in sections automatically,
+      Long compatible recordings are divided and summarized automatically; M4A audio uses natural low-activity breaks where identifiable,
       then combined into one recap. No separate files or extra setup needed.
     </p>
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
@@ -347,7 +379,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             <strong>Long-session processing:</strong> TWE will analyze roughly {segmentCount} verified
             audio sections separately, then make one final text-only request to assemble
             your recap ({segmentCount+1} Gemini requests in total). Each section is
-            approximately {Math.round(35*60*32).toLocaleString()} audio input tokens or less,
+            approximately {Math.round(100*60*32).toLocaleString()} audio input tokens or less,
             plus Journal context. These requests count toward your personal project&apos;s
             daily and per-minute limits, and may incur charges.
           </>:<>
@@ -356,7 +388,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
               quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
             {" "}{quotaEstimate.message}
             {longRecording&&!segmentSupported&&
-              " Automatic long-audio segmentation currently requires CBR MP3 or PCM WAV; other formats cannot safely be divided on the free backend."}
+              " Automatic long-audio segmentation supports AAC M4A, CBR MP3, and PCM WAV; unsupported codecs cannot safely be divided on the free backend."}
           </>}
           {" "}<a href="https://aistudio.google.com/rate-limit" target="_blank"
             rel="noopener noreferrer">Check your project&apos;s active limits in Google AI Studio</a>.

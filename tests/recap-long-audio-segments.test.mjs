@@ -25,7 +25,7 @@ test("a 2-hour synthetic CBR MP3 is divided on actual verified MPEG frame bounda
   const parts=await planLongAudio({
     durationMs:duration,byteSize,mimeType:"audio/mpeg",
   },mock);
-  assert.ok(parts.length>=3&&parts.length<=5);
+  assert.ok(parts.length>=2&&parts.length<=4);
   assert.equal(parts[0].sourceStart,0);
   assert.equal(parts.at(-1).sourceEnd,byteSize);
   assert.equal(parts.at(-1).endMs,duration);
@@ -36,7 +36,7 @@ test("a 2-hour synthetic CBR MP3 is divided on actual verified MPEG frame bounda
     assert.equal(part.sourceEnd%frameBytes,0);
     assert.equal(part.prefixBase64,"");
     assert.equal(part.mimeType,"audio/mpeg");
-    assert.ok(part.endMs-part.startMs<=36*60_000);
+    assert.ok(part.endMs-part.startMs<=61*60_000);
     if(i)assert.equal(part.sourceStart,parts[i-1].sourceEnd);
   }
   assert.ok(requests<10,"segments require only tiny header/range probes");
@@ -77,7 +77,7 @@ test("a long PCM WAV produces real standalone 44-byte WAV headers and sample-ali
   const parts=await planLongAudio({
     byteSize:total+44,mimeType:"audio/wav",durationMs:duration,
   },async(start,len)=>{const data=new Uint8Array(len);data.set(header.subarray(start,Math.min(start+len,44)));return data;});
-  assert.equal(parts.length,4);
+  assert.equal(parts.length,2);
   let accumulated=0;
   for(let i=0;i<parts.length;i++){
     const p=parts[i];
@@ -96,12 +96,45 @@ test("a long PCM WAV produces real standalone 44-byte WAV headers and sample-ali
   assert.equal(accumulated,duration);
 });
 
+test("long PCM session chooses a sustained 6-minute break instead of a timed midpoint",async()=>{
+  const minutes=180,rate=16000,align=2;
+  const length=minutes*60*rate*align;
+  const header=new Uint8Array(44),v=new DataView(header.buffer);
+  const tag=(at,name)=>{for(let i=0;i<name.length;i++)header[at+i]=name.charCodeAt(i);};
+  tag(0,"RIFF");tag(8,"WAVE");tag(12,"fmt ");tag(36,"data");
+  v.setUint32(4,length+36,true);v.setUint32(16,16,true);
+  v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,rate,true);v.setUint32(28,rate*align,true);
+  v.setUint16(32,align,true);v.setUint16(34,16,true);
+  v.setUint32(40,length,true);
+  let reads=0;
+  const segments=await planLongAudio({
+    byteSize:44+length,durationMs:minutes*60_000,mimeType:"audio/wav",
+  },async(start,size)=>{
+    reads++;
+    const bytes=new Uint8Array(size);
+    const moment=(start-44)/rate/align/60;
+    const sample=moment>=82&&moment<=88?200:14000;
+    if(start>=44){
+      const view=new DataView(bytes.buffer);
+      for(let j=0;j+1<size;j+=2)view.setInt16(j,sample,true);
+    }else bytes.set(header.subarray(start,Math.min(44,start+size)));
+    return bytes;
+  });
+  assert.equal(segments.length,2);
+  assert.ok(segmentAtBreak(segments[0].endMs),"should pick the break between minutes 82 and 88");
+  assert.ok(reads<=25,"must not exceed bounded cloud subrequest budget");
+  assert.equal(segments[0].sourceEnd,segments[1].sourceStart);
+  assert.equal(segments.at(-1).endMs,minutes*60_000);
+  function segmentAtBreak(ms){return ms>=82*60_000&&ms<=88*60_000;}
+});
+
 test("unsupported long audio is stopped before a model request, not sent as fake arbitrary bytes",async()=>{
   for(const mimeType of ["audio/mp4","audio/flac","audio/aac"]){
     await assert.rejects(()=>planLongAudio({mimeType,byteSize:140_000_000,durationMs:8_000_000},
       async()=>new Uint8Array(65536)),e=>e instanceof LongAudioFormatError&&e.code==="format_unsupported");
   }
-  assert.equal(LONG_AUDIO_THRESHOLD_MS,95*60_000);
+  assert.equal(LONG_AUDIO_THRESHOLD_MS,100*60_000);
 });
 
 test("absolute audio timestamps are preserved across section joins",()=>{

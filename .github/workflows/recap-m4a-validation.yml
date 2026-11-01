@@ -1,0 +1,36 @@
+name: Native M4A audio validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'lib/campaigns/recap-m4a-remux.ts'
+      - 'lib/campaigns/recap-long-audio-plan.ts'
+      - 'tests/recap-m4a-remux.test.mjs'
+      - '.github/workflows/recap-m4a-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recap-m4a-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  decode:
+    name: Real AAC decode and remux
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+      - name: Install real AAC decoder and inspector
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version
+          ffprobe -version
+      - name: Test actual AAC M4A decoding after virtual remux
+        run: node --experimental-strip-types --test tests/recap-m4a-remux.test.mjs

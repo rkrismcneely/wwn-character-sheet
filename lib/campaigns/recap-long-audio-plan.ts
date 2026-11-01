@@ -5,8 +5,9 @@
  * Only support formats we can split without decoding/transcoding in Workers
  * Free's 10ms CPU budget. Never guess playable byte boundaries for M4A/FLAC.
  */
-export const LONG_AUDIO_THRESHOLD_MS=95*60_000;
-export const SEGMENT_TARGET_MS=35*60_000;
+export const LONG_AUDIO_THRESHOLD_MS=100*60_000;
+export const SEGMENT_TARGET_MS=100*60_000;
+export const SEGMENT_MAX_MS=100*60_000;
 export const MAX_RECAP_SEGMENTS=16;
 type Source={byteSize:number;durationMs:number|null;mimeType:string};
 export type AudioSegmentPlan={
@@ -147,8 +148,63 @@ async function wavPlan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
   const count=Math.ceil(duration/SEGMENT_TARGET_MS);
   if(count>MAX_RECAP_SEGMENTS)throw new LongAudioFormatError("too_many_segments");
   const frames=Math.floor(meta.dataBytes/meta.align);
-  const edges=Array.from({length:count+1},(_,i)=>
-    meta.start+Math.floor(frames*i/count)*meta.align);
+  // WAV can measure actual PCM amplitude, unlike compressed AAC. Restrict
+  // the entire planning invocation to at most 24 metadata/quietness probes,
+  // comfortably below Workers Free's 50-subrequest hard ceiling.
+  const edges=[meta.start];
+  const totalBudget=24;
+  const sampleWindow=Math.min(meta.rate*meta.align,16*1024);
+  for(let i=1;i<count;i++){
+    const idealFrame=Math.floor(frames*i/count);
+    let chosen=idealFrame;
+    if(meta.codec===1&&meta.align/meta.channels===2){
+      const previous=Math.floor((edges[i-1]-meta.start)/meta.align);
+      const earliest=previous+meta.rate*15*60;
+      const latest=Math.min(frames-(count-i)*meta.rate*15*60,
+        previous+meta.rate*100*60);
+      const lo=Math.max(earliest,idealFrame-meta.rate*12*60);
+      const hi=Math.min(latest,idealFrame+meta.rate*12*60);
+      const probes=Math.floor(totalBudget/(count-1));
+      if(hi>lo&&probes>=5){
+        const results:{frame:number;rms:number}[]=[];
+        for(let n=0;n<probes;n++){
+          const frame=lo+Math.floor((hi-lo)*n/(probes-1));
+          const position=meta.start+frame*meta.align;
+          const len=Math.min(sampleWindow,meta.start+meta.dataBytes-position);
+          if(len<meta.align*100)continue;
+          const audio=await read(position,len);
+          if(audio.byteLength!==len)throw new LongAudioFormatError("metadata_invalid");
+          const view=new DataView(audio.buffer,audio.byteOffset,audio.byteLength);
+          let energy=0,measured=0;
+          for(let k=0;k+1<len;k+=32){
+            const amplitude=view.getInt16(k,true)/32768;
+            energy+=amplitude*amplitude;
+            measured++;
+          }
+          results.push({frame,rms:Math.sqrt(energy/Math.max(1,measured))});
+        }
+        const values=results.map(v=>v.rms).sort((a,b)=>a-b);
+        const baseline=values[Math.floor(values.length/2)]??0;
+        let score=Infinity;
+        for(let k=1;k+1<results.length;k++){
+          // At least three consecutive minute-scale quiet probes are needed.
+          const group=results.slice(k-1,k+2);
+          const quiet=Math.max(...group.map(v=>v.rms));
+          if(baseline<=0.003||quiet>0.05||quiet>baseline*0.35)continue;
+          const candidate=group[1].frame;
+          const value=quiet+Math.abs(candidate-idealFrame)/meta.rate/60*0.00005;
+          if(value<score){score=value;chosen=candidate;}
+        }
+      }
+    }
+    const minFrame=Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*15*60;
+    const maxFrame=Math.min(frames-(count-i)*meta.rate*15*60,
+      Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*100*60);
+    if(minFrame>maxFrame)throw new LongAudioFormatError("metadata_invalid");
+    chosen=Math.max(minFrame,Math.min(maxFrame,chosen));
+    edges.push(meta.start+chosen*meta.align);
+  }
+  edges.push(meta.start+meta.dataBytes);
   return edges.slice(0,-1).map((start,i)=>{
     const dataSize=edges[i+1]-start;
     return {

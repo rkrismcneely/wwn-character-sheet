@@ -10,6 +10,7 @@ export type RecapAudioForPlayer = {
   provider: "google-drive" | "dropbox" | "onedrive";
   mimeType: string | null;
   durationMs: number | null;
+  byteSize: number | null;
   trackIndex: number;
   offsetMs: number;
   primaryAudio: boolean;
@@ -21,7 +22,7 @@ type AudioRow = Omit<RecapAudioForPlayer, "primaryAudio" | "canRecover"> & {
 };
 const audioQuery = [
   "SELECT a.id, a.label, s.provider, a.mime_type AS mimeType, a.storage_owner_user_id AS storageOwnerUserId,",
-  "a.duration_ms AS durationMs, a.track_index AS trackIndex,",
+  "a.duration_ms AS durationMs, a.byte_size AS byteSize, a.track_index AS trackIndex,",
   "a.offset_ms AS offsetMs, a.primary_audio AS primaryAudio,",
   "CASE WHEN s.status != 'connected' THEN 'auth_required' ELSE a.status END AS status",
   "FROM campaign_recap_audio_assets a",
@@ -44,7 +45,7 @@ export async function listRecapAudioForPlayer(
   const result = await db.prepare(audioQuery).bind(campaign.id, recap.id).all<AudioRow>();
   return result.results.map(row => ({
     id: row.id, label: row.label, provider: row.provider, mimeType: row.mimeType,
-    durationMs: row.durationMs, trackIndex: row.trackIndex, offsetMs: row.offsetMs,
+    durationMs: row.durationMs, byteSize: row.byteSize, trackIndex: row.trackIndex, offsetMs: row.offsetMs,
     primaryAudio: row.primaryAudio === 1, status: row.status,
     canRecover: canManage && row.storageOwnerUserId === actor.userId && row.status === "preparing",
   }));

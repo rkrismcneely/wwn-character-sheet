@@ -5,6 +5,7 @@ import {getCampaignSessionRecap} from "@/lib/campaigns/session-recaps";
 import {campaignErrorResponse} from "@/lib/campaigns/http";
 import {enqueueConfirmedRecapAudio,retrySafeRecapPreparation} from "@/lib/campaigns/recap-only-jobs";
 import {safeRecapRetryTarget} from "@/lib/campaigns/recap-only-recovery";
+import {validateBrowserM4aPlan} from "@/lib/campaigns/recap-m4a-browser-preflight";
 import {CANONICAL_ORIGIN} from "@/lib/auth-constants";
 import {readBoundedJson,RequestBodyError} from "@/lib/http-json";
 
@@ -71,14 +72,17 @@ export async function POST(request:Request,ctx:Context){
   try{
     if(request.headers.get("origin")!==CANONICAL_ORIGIN)
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
-    const body=await readBoundedJson(request,1024) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown;detail?:unknown;requestId?:unknown;durationMs?:unknown};
+    const body=await readBoundedJson(request,4*1024*1024) as {recapId?:unknown;assetId?:unknown;confirmed?:unknown;privacyApproved?:unknown;billingApproved?:unknown;detail?:unknown;requestId?:unknown;durationMs?:unknown;m4aPlan?:unknown};
     const info=await gm(request,ctx,body.recapId);
-    const asset=await info.db.prepare("SELECT id,byte_size AS byteSize FROM campaign_recap_audio_assets "+
+    const asset=await info.db.prepare("SELECT id,byte_size AS byteSize,mime_type AS mimeType FROM campaign_recap_audio_assets "+
       "WHERE id=? AND recap_id=? AND campaign_id=? AND storage_owner_user_id=? "+
       "AND processing_job_id IS NULL AND status='ready' LIMIT 1")
       .bind(body.assetId,info.recap.id,info.campaign.id,info.actor.userId)
-      .first<{id:string;byteSize:number}>();
+      .first<{id:string;byteSize:number;mimeType:string}>();
     if(!asset)throw new CampaignServiceError("Choose a finished recording stored in your own Drive.",404);
+    const m4aPlan=body.m4aPlan===undefined?null:(asset.mimeType==="audio/mp4"?
+      validateBrowserM4aPlan(body.m4aPlan,asset.byteSize,body.durationMs):
+      (()=>{throw new CampaignServiceError("Only M4A recordings can use native audio sections.",422);})());
     // The browser's metadata-loaded audio player supplies duration for the
     // existing Drive file; no extra upload or approval is required. A separate
     // server-side MP3/WAV probe handles clients with unavailable metadata.
@@ -95,6 +99,61 @@ export async function POST(request:Request,ctx:Context){
       billingApproved:body.billingApproved===true,
       detail:body.detail,requestId:body.requestId,
     });
+    if(result.created&&m4aPlan){
+      // The original GM confirmation created this job. Child rows and the
+      // segmented mode switch are a single D1 batch, with no Gemini request.
+      const parent=await info.db.prepare("SELECT id FROM campaign_recap_audio_summary_jobs "+
+        "WHERE requested_by=? AND campaign_id=? AND recap_id=? AND audio_asset_id=? "+
+        "AND request_id=? AND confirmed_at IS NOT NULL AND status='pending_upload'")
+        .bind(info.actor.userId,info.campaign.id,info.recap.id,asset.id,body.requestId)
+        .first<{id:string}>();
+      if(!parent)throw new CampaignServiceError("The recap job changed before audio preparation.",409);
+      const timestamp=new Date().toISOString();
+      // The same immutable Drive asset may already have analyzed section
+      // notes from a previous detail-level run. Reuse matching boundaries
+      // without resubmitting audio or spending the GM's Gemini daily quota.
+      const previousJob=await info.db.prepare("SELECT id FROM campaign_recap_audio_summary_jobs "+
+        "WHERE id!=? AND campaign_id=? AND recap_id=? AND audio_asset_id=? AND requested_by=? "+
+        "AND processing_mode='segmented' AND confirmed_at IS NOT NULL "+
+        "ORDER BY created_at DESC LIMIT 1")
+        .bind(parent.id,info.campaign.id,info.recap.id,asset.id,info.actor.userId)
+        .first<{id:string}>();
+      const priorSections=previousJob?await info.db.prepare(
+        "SELECT segment_index AS segmentIndex,start_ms AS startMs,end_ms AS endMs,"+
+        "source_start AS sourceStart,source_end AS sourceEnd,mime_type AS mimeType,status,notes "+
+        "FROM campaign_recap_audio_summary_segments WHERE job_id=?")
+        .bind(previousJob.id).all<{segmentIndex:number;startMs:number;endMs:number;
+          sourceStart:number;sourceEnd:number;mimeType:string;status:string;notes:string|null}>():null;
+      const reusable=new Map((priorSections?.results??[]).filter(v=>
+        v.status==="ready"&&v.notes&&v.notes.length<=12000).map(v=>[v.segmentIndex,v]));
+      try{
+        const writes=m4aPlan.map(part=>{
+          const prior=reusable.get(part.index);
+          const same=Boolean(prior&&prior.startMs===part.startMs&&
+            prior.endMs===part.endMs&&prior.sourceStart===part.sourceStart&&
+            prior.sourceEnd===part.sourceEnd&&prior.mimeType==="audio/mp4");
+          return info.db.prepare("INSERT INTO campaign_recap_audio_summary_segments "+
+            "(id,job_id,segment_index,start_ms,end_ms,source_start,source_end,prefix_base64,mime_type,"+
+            "status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(),parent.id,part.index,part.startMs,part.endMs,
+              part.sourceStart,part.sourceEnd,same?"":part.prefixBase64,"audio/mp4",
+              same?"ready":"pending_upload",same?prior!.notes:null,timestamp,timestamp);
+        });
+        writes.push(info.db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+          "SET processing_mode='segmented',updated_at=? WHERE id=? AND status='pending_upload' "+
+          "AND processing_mode='single'").bind(timestamp,parent.id));
+        const results=await info.db.batch(writes);
+        if(results.at(-1)?.meta.changes!==1)
+          throw new Error("M4A split checkpoint not saved.");
+      }catch{
+        // Fail closed. Never let a queued long source accidentally fall back
+        // to a single over-limit Gemini interaction after a partial write.
+        await info.db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+          "SET status='needs_attention',error_code='long_audio_metadata_invalid',updated_at=? "+
+          "WHERE id=? AND status='pending_upload'").bind(new Date().toISOString(),parent.id).run();
+        throw new CampaignServiceError("Could not save M4A section checkpoints. No Gemini request was submitted.",503);
+      }
+    }
     return Response.json({queued:true,created:result.created,alreadyQueued:result.alreadyQueued},
       {headers:noStore});
 

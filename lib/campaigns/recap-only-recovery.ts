@@ -63,13 +63,13 @@ export const recapAttentionText:Record<string,{
   },
   long_audio_format_unsupported:{
     title:"This recording needs a supported audio format",
-    description:"TWE can automatically divide long MP3 recordings and standard PCM WAV files. This recording uses an audio format that cannot yet be safely divided in the background on Cloudflare's free plan.",
-    action:"Keep the recording in Drive. Convert a copy to MP3 or standard PCM WAV, then attach that version for summarization. No Gemini request was submitted by this attempt.",
+    description:"TWE can automatically divide verified AAC M4A, CBR MP3, and PCM WAV recordings. This recording has an unsupported codec or non-contiguous media layout.",
+    action:"Keep the recording in Drive. This unsupported audio needs a different remuxing/decoding pathway; no Gemini request was submitted by this attempt.",
   },
   long_audio_metadata_invalid:{
     title:"Recording could not be safely divided",
     description:"The audio's timing or container structure did not match what TWE can verify without decoding the entire recording.",
-    action:"Keep the original Drive file. Try an MP3 export with constant bitrate. No Gemini request was submitted.",
+    action:"Keep the original Drive file. TWE could not verify this recording's sample boundaries and stopped without submitting a Gemini request.",
   },
   long_audio_too_many_segments:{
     title:"Recording is too long for automatic division",

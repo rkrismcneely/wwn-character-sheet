@@ -1,46 +1,68 @@
-## Long recording handling
+## Long recording handling (Gemini with GM-owned Google Drive)
 
-The native recap job now has a second, **format-verified** backend path for recordings longer
-than 95 minutes. No different GM action is required: recording upload, explicit Auto Summarize
-approval, saved versions, title suggestion and Journal publishing behave as before.
+The existing **Auto Summarize** confirmation supports sessions longer than 100 minutes
+without requiring the GM to split, convert, or reupload their original recording.
 
-### Processing
+### Verified inputs and segmentation
 
-- Short recordings retain their current single Gemini Files upload and single Interactions request.
-- Long **CBR MPEG-1 Layer III MP3** and standard **PCM/float RIFF WAV** recordings use independently
-  playable sections of approximately 35 minutes. Segment planning uses small authenticated
-  Google Drive byte-range reads; it never downloads or transcodes a full 3-hour file in Workers.
-- MP3 section boundaries are independently verified with consecutive MPEG frame headers, and
-  compared against the original duration and bitrate. WAV sections include independently
-  valid RIFF headers and sample-aligned data. No arbitrary 8 MiB HTTP chunks are submitted
-  directly as playable audio.
-- The existing bounded 8 MiB resumable Gemini upload protocol, AES-encrypted upload
-  sessions and Gemini Files receipt checks are reused per section.
-- Each section gets its own recorded Gemini interaction ID. A failed or ambiguous submission
-  stops the job rather than silently using the GM's quota again. A completed section's
-  notes stay immutable in D1; subsequent cron runs continue with the next section.
-- Scene timestamps are shifted into the *original* full recording's timeline. A final
-  text-only Gemini interaction combines all section notes and Journal context into one
-  GM-reviewable Markdown recap. The original recording remains playable in the Journal.
-- An ordinary 2–3h session will typically use 4–6 section requests **plus one final**
-  text-only request, counting towards the GM's actual Gemini daily allowance.
-  Provider quota and reliability remain model/project dependent; no guarantee of free capacity.
-- On unsupported or malformed long audio (including MP4/M4A and FLAC containers), TWE
-  **stops before any model submission**, preserving the original recording and explaining
-  that a constant-bitrate MP3 or PCM WAV export is currently required. This avoids corrupting
-  recordings or silently exhausting the GM's free allowance.
-- Existing older jobs remain in single-file mode. Their previous results are never modified.
-  A previously failed long single-file job is not silently resubmitted; a GM must approve
-  a new attempt, as always.
+- **AAC M4A**: The GM browser automatically reads the original ISO Base Media File Format sample tables
+  (`moov`, `stts`, `stsz`, `stsc`, `stco`/`co64`) through bounded Drive range
+  requests. It checks one audio track, one AAC decoder configuration, a
+  contiguous sample payload, valid timing and size limits. Sections are
+  assembled as valid new `ftyp + moov + mdat` streams that reference their
+  ORIGINAL audio sample bytes without transcoding. The browser passes only
+  bounded section headers and offsets through the existing GM-approved POST;
+  TWE stores them in D1 before starting background work. The original stays in Drive.
+- **Silence-aware split for M4A**: Encoded AAC packet sizes can sometimes indicate
+  sustained low activity (particularly variable-rate recordings). We require
+  a marked reduction over approximately 2 minutes, near a valid section
+  boundary. **This is a heuristic and cannot prove silence**: constant-bitrate
+  AAC or background music will not provide reliable detection. In that case
+  TWE uses evenly balanced times rather than pretending to hear a break.
+- **PCM WAV**: TWE samples small source ranges near candidate times and uses
+  actual 16-bit audio RMS measurements to prefer low-level windows; other
+  sample encodings fall back to timed cuts. It writes independently valid WAV
+  headers and preserves sample alignment.
+- **Constant-bitrate MP3**: Boundaries use independently verified MPEG frame
+  headers; full-file Xing/Info duration metadata is omitted from the first
+  virtual section. Its present silence search remains future work, so splits
+  are timed and frame-aligned.
+- Most 2–3-hour recordings should now need **two audio analyses plus one
+  final text-only consolidation**. Each section is capped around 100 minutes
+  so the estimated ~192,000 audio tokens stay below the GM's observed
+  250K/minute input-token ceiling with some room for Journal context.
+  Actual quotas vary by model, tier and project, and provider requests
+  may still fail. Long/awkward recordings use more sections.
+- Over-limit, malformed, encrypted, multi-configuration, fragmented, or
+  interleaved M4A media is **rejected before any billable model request**.
+  Do not guess bytes or permit silently corrupted AAC audio.
 
-### Technical constraints
+### Background and state
 
-Cloudflare Workers Free gives scheduled invocations only 10ms CPU and 128MB RAM.
-Heavy audio decoding/FFmpeg is not suitable for that environment. This implementation
-uses a bounded amount of metadata inspection and passes existing Drive ranges through
-to Gemini. The cron continues one small operation per minute without site-owned paid
-audio storage. If we later support M4A segmentation, it must use a proven remuxer with
-verified free-tier resources, or a separate GM-side preprocessing step.
+The existing 8 MiB resumable Drive-to-Gemini Files bridge is reused.
+For M4A it prepends bounded remuxed metadata to the matching original
+compressed-audio byte range. Every section has its own durable D1 checkpoint,
+provider receipt, interaction ID and scene notes. The final Gemini text-only
+request assembles a single GM-reviewable Markdown recap using the original
+recording timeline. Timestamp seeking, original audio, prior recap versions,
+Journal references, and explicit per-recording consent remain unchanged.
 
-Completed child notes survive a later provider failure; safe resumability of such a
-failure remains a separate follow-up, and no automatic potentially billable retry occurs.
+Completed section notes are reused across new detail levels for the SAME
+GM/campaign/recap/audio asset when all recorded boundaries match. An
+uncertain Gemini POST is never automatically repeated.
+
+### Resource and rollout considerations
+
+Workers Free allows only 10ms CPU per request/cron invocation, 128MiB memory
+and 50 subrequests. M4A parsing/remuxing of long inputs occurs in the browser while the GM confirms
+Auto Summarize, not during the constrained Worker cron. The Worker validates the
+bounded headers and authenticated request, checkpoints the resulting plan, and
+subsequently streams original Drive ranges to Gemini. The browser can close as
+soon as the job confirmation succeeds. **Actual 2–3-hour user audio still needs
+an end-to-end Gemini trial** before production reliability can be claimed.
+M4A with large or unusual metadata fails closed; it never uses arbitrary
+8MiB HTTP transfer chunks as standalone audio sections.
+
+Native AAC sample sizes are not decoded waveform silence detection.
+Accurate digital silence detection for any AAC bitrate would require
+dedicated decoding and a separate viable free-tier compute architecture.

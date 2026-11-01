@@ -4,16 +4,20 @@ import {readFile} from "node:fs/promises";
 import {validateBrowserM4aPlan,RecapM4aPlanError}
   from "../lib/campaigns/recap-m4a-browser-preflight.ts";
 
+const wrappedHeader=new Uint8Array(128);
+wrappedHeader.set([0,0,0,24,102,116,121,112],0); // ftyp envelope
+wrappedHeader.set([109,100,97,116],124); // mdat
+const headerBase64=Buffer.from(wrappedHeader).toString("base64");
 const valid=[
   {index:0,startMs:0,endMs:90*60000,sourceStart:8192,sourceEnd:51_000_000,
-    mimeType:"audio/mp4",prefixBase64:""},
+    mimeType:"audio/mp4",prefixBase64:headerBase64},
   {index:1,startMs:90*60000,endMs:180*60000,sourceStart:51_000_000,
-    sourceEnd:102_000_000,mimeType:"audio/mp4",prefixBase64:""},
+    sourceEnd:102_000_000,mimeType:"audio/mp4",prefixBase64:headerBase64},
 ];
 test("browser-found M4A split boundaries are bounded and contain no playable bytes",()=>{
   const result=validateBrowserM4aPlan(valid,105_000_000,180*60000);
   assert.deepEqual(result,valid);
-  assert.ok(JSON.stringify(result).length<1024);
+  assert.ok(JSON.stringify(result).length<2048);
 });
 test("all malformed or overly-long GM-submitted M4A split plans fail closed",()=>{
   const changes=[
@@ -39,7 +43,7 @@ test("M4A client preparation and GM-only backend submission are connected",async
   const runner=await readFile(new URL("../lib/campaigns/recap-long-audio-runner.ts",import.meta.url),"utf8");
   assert.match(code,/planM4a\(\{byteSize:total,durationMs,mimeType:"audio\/mp4"\}/u);
   assert.match(code,/Range:"bytes="\+start\+"-"\+\(start\+length-1\)/u);
-  assert.match(code,/includeHeaders:false/u);
+  assert.doesNotMatch(code,/includeHeaders:false/u);
   assert.match(code,/m4aPlan\}\)/u);
   assert.match(route,/validateBrowserM4aPlan\(body\.m4aPlan,asset\.byteSize,body\.durationMs\)/u);
   assert.match(route,/processing_mode='segmented'/u);

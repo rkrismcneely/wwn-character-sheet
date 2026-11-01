@@ -76,7 +76,9 @@ export function SessionRecapProgress({job}:{job:JobProgress}){
       </p>}
       {!progress.finished&&<p className="recap-ai-progress__hint">
         {updated&&<>Last reported: {updated}. </>}
-        Status refreshes automatically while this page is open; background processing continues if you leave.
+        {progress.interrupted
+          ?"This job is paused. No further AI generation will start unless you explicitly approve a safe recovery action."
+          :"Status refreshes automatically while this page is open; background processing continues if you leave."}
       </p>}
     </>}
   </section>;

@@ -158,6 +158,7 @@ async function locate(sourceBytes:number,read:Read):Promise<{moov:Uint8Array;fty
   return {moov,ftyp:ftyp??DEFAULT_FTYP,mdat};
 }
 function parseMeta(meta:Uint8Array,ftyp:Uint8Array,mdat:Box):Parsed{
+  const view=dv(meta);
   const root=boxes(meta);
   if(root.length!==1||root[0].type!=="moov")invalid();
   const moov=root[0];
@@ -209,8 +210,8 @@ function parseMeta(meta:Uint8Array,ftyp:Uint8Array,mdat:Box):Parsed{
     (compact16&&(u32(meta,sizeBox.data+4)&255)!==16))invalid();
   const sizes=new Uint16Array(sampleCount),offsets=new Uint32Array(sampleCount+1);
   for(let i=0;i<sampleCount;i++){
-    const value=compact16?dv(meta).getUint16(sizeBox.data+12+i*2,false):
-      fixedSize||u32(meta,sizeBox.data+12+i*4);
+    const value=compact16?view.getUint16(sizeBox.data+12+i*2,false):
+      fixedSize||view.getUint32(sizeBox.data+12+i*4,false);
     if(value<1||value>65535)invalid();
     sizes[i]=value;
     offsets[i+1]=offsets[i]+value;
@@ -227,8 +228,8 @@ function parseMeta(meta:Uint8Array,ftyp:Uint8Array,mdat:Box):Parsed{
   if(runs<1||runs>10000||stsc.data+8+runs*12>stsc.end)invalid();
   const patterns:Array<{first:number;count:number}>=[];
   for(let i=0;i<runs;i++){
-    const first=u32(meta,stsc.data+8+i*12),
-      count=u32(meta,stsc.data+12+i*12),desc=u32(meta,stsc.data+16+i*12);
+    const first=view.getUint32(stsc.data+8+i*12,false),
+      count=view.getUint32(stsc.data+12+i*12,false),desc=view.getUint32(stsc.data+16+i*12,false);
     if(first<1||first>chunkCount||count<1||desc!==1||
       (i===0&&first!==1)||(i>0&&first<=patterns[i-1].first))invalid();
     patterns.push({first,count});
@@ -237,7 +238,7 @@ function parseMeta(meta:Uint8Array,ftyp:Uint8Array,mdat:Box):Parsed{
   for(let chunk=0;chunk<chunkCount;chunk++){
     if(ptr+1<patterns.length&&chunk+1>=patterns[ptr+1].first)ptr++;
     const index=chunk+1,offset=wide?u64(meta,offsetsBox.data+8+chunk*8):
-      u32(meta,offsetsBox.data+8+chunk*4);
+      view.getUint32(offsetsBox.data+8+chunk*4,false);
     const count=patterns[ptr].count;
     if(sample+count>sampleCount||offset<mdat.data||
       offset+offsets[sample+count]-offsets[sample]>mdat.end)invalid();

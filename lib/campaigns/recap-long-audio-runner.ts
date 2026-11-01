@@ -1,4 +1,5 @@
 import type {DriveSettings} from "../account/recap-google-drive-oauth.ts";
+import {Buffer} from "node:buffer";
 import {getGmDriveAccessToken} from "./recap-drive-token.ts";
 import {stageRecapAudioChunked,RecapStagingFailure} from "./recap-gemini-chunked-staging.ts";
 import {planLongAudio,estimateAudioDurationMs,LongAudioFormatError,offsetRecapSceneHeadings}
@@ -166,9 +167,9 @@ async function submitted(env:Env,job:Job,part:Segment,key:string):Promise<void>{
 async function upload(env:Env,job:Job,part:Segment,key:string,source:Original):Promise<void>{
   let prefix=new Uint8Array(0);
   if(part.prefixBase64){
-    const binary=atob(part.prefixBase64);
-    if(binary.length>1250*1024)throw new RecapStagingFailure("staging_data_unavailable");
-    prefix=Uint8Array.from(binary,code=>code.charCodeAt(0));
+    const decoded=Buffer.from(part.prefixBase64,"base64");
+    if(decoded.length>1250*1024)throw new RecapStagingFailure("staging_data_unavailable");
+    prefix=decoded;
   }
   if(part.sourceStart<0||part.sourceEnd>source.byteSize||
     part.sourceEnd<=part.sourceStart)

@@ -6,7 +6,8 @@
  * Free's 10ms CPU budget. Never guess playable byte boundaries for M4A/FLAC.
  */
 export const LONG_AUDIO_THRESHOLD_MS=95*60_000;
-export const SEGMENT_TARGET_MS=35*60_000;
+export const SEGMENT_TARGET_MS=60*60_000;
+export const SEGMENT_MAX_MS=75*60_000;
 export const MAX_RECAP_SEGMENTS=16;
 type Source={byteSize:number;durationMs:number|null;mimeType:string};
 export type AudioSegmentPlan={
@@ -147,8 +148,50 @@ async function wavPlan(source:Source,read:Reader):Promise<AudioSegmentPlan[]>{
   const count=Math.ceil(duration/SEGMENT_TARGET_MS);
   if(count>MAX_RECAP_SEGMENTS)throw new LongAudioFormatError("too_many_segments");
   const frames=Math.floor(meta.dataBytes/meta.align);
-  const edges=Array.from({length:count+1},(_,i)=>
-    meta.start+Math.floor(frames*i/count)*meta.align);
+  // Keep section length within a bounded request size. Look for low-energy
+  // audio around each nominal boundary, without decoding a multi-hour file.
+  // PCM only: float/other encodings use the deterministic fallback.
+  const edges=[meta.start];
+  const sampleBytes=meta.align*meta.rate;
+  const sampleWindow=Math.min(sampleBytes,48*1024);
+  for(let i=1;i<count;i++){
+    const idealFrame=Math.floor(frames*i/count);
+    let chosen=idealFrame;
+    if(meta.codec===1&&meta.align/meta.channels===2){
+      const left=Math.max(0,idealFrame-meta.rate*12*60);
+      const right=Math.min(frames,idealFrame+meta.rate*12*60);
+      let bestScore=Infinity;
+      // Sampling a small window every 20 seconds costs only a few bounded
+      // Drive range reads. Sustained breaks are scored below speech pauses.
+      for(let frame=left;frame<right;frame+=meta.rate*20){
+        if(frame<=Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*5)continue;
+        const position=meta.start+frame*meta.align;
+        const len=Math.min(sampleWindow,meta.start+meta.dataBytes-position);
+        if(len<meta.align*100)continue;
+        const audio=await read(position,len);
+        if(audio.byteLength!==len)throw new LongAudioFormatError("metadata_invalid");
+        const view=new DataView(audio.buffer,audio.byteOffset,audio.byteLength);
+        let energy=0;
+        const samples=Math.floor(len/2);
+        for(let k=0;k<samples;k+=16){
+          const amplitude=view.getInt16(k*2,true)/32768;
+          energy+=amplitude*amplitude;
+        }
+        const rms=Math.sqrt(energy/Math.ceil(samples/16));
+        // Prefer quiet windows, but do not drift excessively from the target.
+        const score=rms+Math.abs(frame-idealFrame)/meta.rate/60*0.00012;
+        if(score<bestScore){bestScore=score;chosen=frame;}
+      }
+      // Only use the silence search if there is convincing quiet audio.
+      if(bestScore>0.012)chosen=idealFrame;
+    }
+    const minFrame=Math.floor((edges[i-1]-meta.start)/meta.align)+meta.rate*5;
+    const maxFrame=Math.min(frames,Math.floor((edges[i-1]-meta.start)/meta.align)+
+      Math.floor(SEGMENT_MAX_MS/1000*meta.rate));
+    chosen=Math.max(minFrame,Math.min(maxFrame,chosen));
+    edges.push(meta.start+chosen*meta.align);
+  }
+  edges.push(meta.start+meta.dataBytes);
   return edges.slice(0,-1).map((start,i)=>{
     const dataSize=edges[i+1]-start;
     return {

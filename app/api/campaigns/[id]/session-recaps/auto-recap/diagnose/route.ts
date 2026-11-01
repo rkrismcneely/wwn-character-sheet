@@ -1,7 +1,7 @@
 import {env} from "cloudflare:workers";
 import {getSessionActor} from "@/lib/auth-session";
 import {CANONICAL_ORIGIN} from "@/lib/auth-constants";
-import {decryptGeminiUserKey} from "@/lib/account/recap-gemini-key";
+import {decryptGeminiUserKey,type RecapAIEncryptionSettings} from "@/lib/account/recap-gemini-key";
 import {canManageCampaignContent} from "@/lib/campaigns/authorization";
 import {CampaignServiceError,getCampaignD1,loadCampaignAccess,requireActiveCampaign}
   from "@/lib/campaigns/service";
@@ -48,7 +48,7 @@ export async function POST(request:Request,ctx:Context){
       .first<{id:string;ciphertext:string;nonce:string;version:number}>();
     if(!connection||connection.version!==1)
       throw new CampaignServiceError("Reconnect your Gemini key to check this failure.",409);
-    const key=await decryptGeminiUserKey(env,actor.userId,connection.id,{
+    const key=await decryptGeminiUserKey(env as unknown as RecapAIEncryptionSettings,actor.userId,connection.id,{
       ciphertext:connection.ciphertext,nonce:connection.nonce,version:1,
     });
     // Read-only: retrieving the same interaction does not create another

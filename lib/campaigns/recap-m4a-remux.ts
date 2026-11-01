@@ -13,7 +13,7 @@ type Read=(start:number,length:number)=>Promise<Uint8Array>;
 type Box={type:string;start:number;end:number;data:number};
 const LIMIT_MOOV=6*1024*1024;
 const LIMIT_PREFIX=1250*1024; // D1 string parameter + per-job memory bound.
-const MAX_PART_MS=100*60_000;
+const MAX_PART_MS=60*60_000;
 const MIN_PART_MS=15*60_000;
 const DEFAULT_FTYP=new Uint8Array([0,0,0,20,102,116,121,112,77,52,65,32,0,0,0,0,105,115,111,109]);
 

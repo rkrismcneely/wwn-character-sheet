@@ -13,7 +13,7 @@ type Job={
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
-type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null};
+type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
 const statusLabel:Record<string,string>={
   pending_upload:"Queued for Gemini — original audio remains in Drive",
@@ -174,7 +174,11 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
   const completeVersions=jobs.filter(job=>job.status==="ready"&&job.generatedMarkdown);
   const newest=jobs[0];
-  const quotaEstimate=recapQuotaNotice(confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null);
+  const duration=confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null;
+  const quotaEstimate=recapQuotaNotice(duration);
+  const longRecording=typeof duration==="number"&&duration>95*60_000;
+  const segmentCount=longRecording?Math.ceil(duration/(35*60_000)):0;
+  const segmentSupported=confirmAsset&&["audio/wav","audio/mpeg","audio/mp3"].includes(confirmAsset.mimeType??"");
   return <section className="session-recap-reading" aria-label="Session recording and Auto Summarize">
     <h4>Session recording</h4>
     <p className="campaign-empty-copy">
@@ -338,11 +342,22 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         {published&&<p className="campaign-empty-copy"><strong>Your published Journal entry will not change.</strong>
           The new result will be saved as another private AI version for you to review.</p>}
         <p role="note" className="campaign-empty-copy">
-          <strong>Estimated audio input:</strong>{" "}
-          {quotaEstimate.estimatedTokens===null?"Duration unavailable":
-            quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
-          {" "}{quotaEstimate.message}{" "}
-          <a href="https://aistudio.google.com/rate-limit" target="_blank"
+          {longRecording&&segmentSupported?<>
+            <strong>Long-session processing:</strong> TWE will analyze roughly {segmentCount} verified
+            audio sections separately, then make one final text-only request to assemble
+            your recap ({segmentCount+1} Gemini requests in total). Each section is
+            approximately {Math.round(35*60*32).toLocaleString()} audio input tokens or less,
+            plus Journal context. These requests count toward your personal project&apos;s
+            daily and per-minute limits, and may incur charges.
+          </>:<>
+            <strong>Estimated audio input:</strong>{" "}
+            {quotaEstimate.estimatedTokens===null?"Duration unavailable":
+              quotaEstimate.estimatedTokens.toLocaleString()+" tokens"}.
+            {" "}{quotaEstimate.message}
+            {longRecording&&!segmentSupported&&
+              " Automatic long-audio segmentation currently requires CBR MP3 or PCM WAV; other formats cannot safely be divided on the free backend."}
+          </>}
+          {" "}<a href="https://aistudio.google.com/rate-limit" target="_blank"
             rel="noopener noreferrer">Check your project&apos;s active limits in Google AI Studio</a>.
         </p>
         <label style={{display:"block",marginBlock:12}}>

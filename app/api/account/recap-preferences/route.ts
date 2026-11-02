@@ -7,7 +7,12 @@ const noStore={"cache-control":"private, no-store"};
 type Detail="brief"|"standard"|"detailed";
 type Row={autoEnabled:number;billingApproved:number;detail:Detail;consentAt:string|null;writerModel:string};
 const fallback={autoEnabled:false,billingApproved:false,detail:"detailed" as Detail,consentAt:null,writerModel:DEFAULT_RECAP_WRITER};
+async function writerReady(db:D1Database){
+  const fields=await db.prepare("PRAGMA table_info(user_recap_auto_preferences)").all<{name:string}>();
+  return fields.results.some(field=>field.name==="writer_model");
+}
 async function read(db:D1Database,userId:string){
+  if(!await writerReady(db))return fallback;
   const row=await db.prepare("SELECT auto_enabled AS autoEnabled,billing_approved AS billingApproved,"+
     "detail,consent_at AS consentAt,writer_model AS writerModel FROM user_recap_auto_preferences WHERE user_id=?")
     .bind(userId).first<Row>();
@@ -40,6 +45,8 @@ export async function PUT(request:Request){
     try{writerModel=selectRecapWriter(body.writerModel??DEFAULT_RECAP_WRITER).id;}
     catch{return Response.json({error:"Choose a supported recap writer."},{status:422,headers:noStore});}
     const db=await getCampaignD1();
+    if(!await writerReady(db))return Response.json({error:"Recap writer settings are updating. No changes made."},
+      {status:503,headers:noStore});
     if(body.autoEnabled){
       const [drive,ai]=await Promise.all([
         db.prepare("SELECT 1 AS ok FROM user_recap_storage_connections WHERE user_id=? AND provider='google-drive' AND status='connected' LIMIT 1")

@@ -17,7 +17,7 @@ const MAX_PART_MS=60*60_000;
 const MIN_PART_MS=15*60_000;
 // Standard stsz stores four bytes per sample. Bound each reconstructed header
 // conservatively below the existing 1.25 MiB D1/runtime prefix allowance.
-const MAX_PART_SAMPLES=240_000;
+const MAX_PART_SAMPLES=180_000;
 const DEFAULT_FTYP=new Uint8Array([0,0,0,20,102,116,121,112,77,52,65,32,0,0,0,0,105,115,111,109]);
 
 function invalid():never{throw new LongAudioFormatError("format_unsupported");}

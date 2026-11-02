@@ -384,7 +384,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         <h3 id="recap-confirm-title">Auto Summarize this recording?</h3>
         <p id="recap-confirm-description">
           Send <strong>{confirmAsset.label}</strong>, relevant Journal entries and
-          earlier recaps to Gemini. The result stays private until you publish it.
+          earlier recaps to Gemini for audio analysis and to your selected writing provider\n          for the finished recap. The result stays private until you publish it.
         </p>
         <p>Google may use free-tier content to improve its products. TWE cannot check your remaining quota.</p>
         <label style={{display:"block",marginBlock:12}}>Recap detail
@@ -419,7 +419,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={privacy} disabled={starting}
             onChange={e=>setPrivacy(e.target.checked)}/>
-          {" "}I approve sending this recording and campaign context to Gemini.
+          {" "}I approve sending the recording to Gemini and relevant notes and campaign context to my selected writing provider.
         </label>
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={billing} disabled={starting}

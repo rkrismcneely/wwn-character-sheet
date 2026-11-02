@@ -59,7 +59,7 @@ export async function GET(request:Request,ctx:Context){
       "AND recap_id=? AND requested_by=? AND confirmed_at IS NOT NULL) GROUP BY job_id")
       .bind(info.campaign.id,info.recap.id,info.actor.userId)
       .all<{jobId:string;total:number;completed:number;retryable:number;alternateEligible:number;transferred:number;bytes:number}>()
-      :{results:[] as {jobId:string;total:number;completed:number;retryable:number;transferred:number;bytes:number}[]};
+      :{results:[] as {jobId:string;total:number;completed:number;retryable:number;alternateEligible:number;transferred:number;bytes:number}[]};
     const byJob=new Map(totals.results.map(row=>[row.jobId,row]));
     // Only return a boolean; the Gemini file URI and interaction ID must not
     // be exposed by status polling or used for user-supplied retry targets.

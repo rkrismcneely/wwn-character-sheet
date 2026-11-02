@@ -17,7 +17,7 @@ function eligible({connected=true,published=0,already=false,confirmedAt="2026-10
         throw Error("Unexpected query: "+sql);
       },
       async run(){
-        writes++;insertParams=params;
+        if(sql.includes("INSERT OR IGNORE INTO campaign_recap_audio_summary_jobs")){writes++;insertParams=params;}
         return {meta:{changes:already?0:1}};
       },
     };}};

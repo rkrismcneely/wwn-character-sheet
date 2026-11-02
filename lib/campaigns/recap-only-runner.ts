@@ -182,8 +182,7 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
     const notes=job.processingMode==="segmented"?
       await combinedSegmentNotes(env.DB,job.id):job.audioNotes!;
     const claimed=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
-      "SET status='submitting',claimed_at=?,updated_at=? WHERE id=? AND status='uploaded' "+
-      ")
+      "SET status='submitting',claimed_at=?,updated_at=? WHERE id=? AND status='uploaded'")
       .bind(now(),now(),job.id).run();
     if(claimed.meta.changes!==1)return;
     try{

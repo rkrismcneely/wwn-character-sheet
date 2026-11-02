@@ -47,6 +47,7 @@ export async function POST(request:Request,ctx:Context){
     // exposing its Google identifier or using another generation request.
     let interactionId=job.interactionId;
     let section:number|null=null,sections:number|null=null;
+    const stage=job.errorCode==="segment_interaction_failed"?"audio_section":"main_or_final_interaction";
     if(job.errorCode==="segment_interaction_failed"){
       const part=await db.prepare(
         "SELECT interaction_id AS interactionId,segment_index AS segmentIndex "+
@@ -110,7 +111,7 @@ export async function POST(request:Request,ctx:Context){
       return Response.json({error:"The Gemini interaction no longer reports a failed state. No new request was submitted."},
         {status:409,headers:noStore});
     return Response.json({diagnosis:summarizeRecapGeminiFailure(detail),
-      section,sectionCount:sections,resubmitted:false}, {headers:noStore});
+      section,sectionCount:sections,stage,resubmitted:false}, {headers:noStore});
   }catch(e){
     if(e instanceof RequestBodyError)
       return Response.json({error:e.message},{status:e.status,headers:noStore});

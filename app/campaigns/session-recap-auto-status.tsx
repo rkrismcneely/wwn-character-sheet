@@ -6,6 +6,7 @@ import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-o
 import {recapQuotaNotice} from "@/lib/campaigns/recap-quota-estimate";
 import {parseGeneratedRecapTitle} from "@/lib/campaigns/recap-ai-title";
 import {planM4a} from "@/lib/campaigns/recap-m4a-remux";
+import {DEFAULT_RECAP_WRITER,RECAP_WRITER_CHOICES} from "@/lib/campaigns/recap-groq-writer";
 
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
@@ -36,6 +37,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const [defaultDetail,setDefaultDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [selectedDetail,setSelectedDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [requestId,setRequestId]=useState("");
+  const [defaultWriter,setDefaultWriter]=useState<string>(DEFAULT_RECAP_WRITER);
+  const [selectedWriter,setSelectedWriter]=useState<string>(DEFAULT_RECAP_WRITER);
   const [durations,setDurations]=useState<Record<string,number>>({});
   const [privacy,setPrivacy]=useState(false);
   const [billing,setBilling]=useState(false);
@@ -45,8 +48,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   useEffect(()=>{
     const controller=new AbortController();
     void fetch("/api/account/recap-preferences",{cache:"no-store",signal:controller.signal})
-      .then(async response=>response.ok?await response.json() as {detail?:string}:null)
-      .then((result:{detail?:string}|null)=>{
+      .then(async response=>response.ok?await response.json() as {detail?:string;writerModel?:string}:null)
+      .then((result:{detail?:string;writerModel?:string}|null)=>{
+        if(!controller.signal.aborted&&RECAP_WRITER_CHOICES.some(choice=>choice.id===result?.writerModel)){
+          setDefaultWriter(result!.writerModel!);
+          setSelectedWriter(result!.writerModel!);
+        }
         if(!controller.signal.aborted&&["brief","standard","detailed"].includes(result?.detail??"")){
           const detail=result!.detail as "brief"|"standard"|"detailed";
           setDefaultDetail(detail);setSelectedDetail(detail);
@@ -108,7 +115,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   },[confirmAsset,starting]);
   function openConfirmation(asset:Asset){
     if(starting)return;
-    setConfirmAsset(asset);setSelectedDetail(defaultDetail);setRequestId(crypto.randomUUID());
+    setConfirmAsset(asset);setSelectedDetail(defaultDetail);setSelectedWriter(defaultWriter);setRequestId(crypto.randomUUID());
     setPrivacy(false);setBilling(false);setError("");setNotice("");
   }
   async function summarize(){
@@ -149,7 +156,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       }
       const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,assetId:asset.id,confirmed:true,
-          privacyApproved:true,billingApproved:true,detail:selectedDetail,requestId,
+          privacyApproved:true,billingApproved:true,detail:selectedDetail,writerModel:selectedWriter,requestId,
           durationMs,m4aPlan})});
       const data=await response.json() as {
         queued?:boolean;created?:boolean;alreadyQueued?:boolean;error?:string;
@@ -388,6 +395,15 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             <option value="detailed">Most detailed — scenes, names, timestamps and consequences</option>
           </select>
         </label>
+        <label style={{display:"block",marginBlock:12}}>Recap writing model
+          <select value={selectedWriter} disabled={starting}
+            onChange={event=>setSelectedWriter(event.target.value)}>
+            {RECAP_WRITER_CHOICES.map(choice=><option key={choice.id} value={choice.id}>
+              {choice.label}{choice.id===DEFAULT_RECAP_WRITER?" (recommended)":""}
+            </option>)}
+          </select>
+        </label>
+        <p className="campaign-empty-copy">Gemini analyzes the audio. Your chosen model writes the recap; provider limits and charges may apply.</p>
         {published&&<p className="campaign-empty-copy">Your published recap will not change. This creates a private version.</p>}
         <p role="note" className="campaign-empty-copy">
           {longRecording&&segmentSupported

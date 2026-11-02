@@ -44,7 +44,7 @@ test("privacy, cost, optional AI use, version safety and publishing controls rem
     read("app/campaigns/session-recap-progress.tsx"),
   ]);
   assert.match(status,/Google may use free-tier content to improve its products/u);
-  assert.match(status,/I approve sending this recording and campaign context to Gemini/u);
+  assert.match(status,/I approve sending the recording to Gemini and relevant notes and campaign context to my selected writing provider/u);
   assert.match(status,/I understand this request could use my quota or incur provider charges/u);
   assert.match(status,/disabled=\{starting\|\|!privacy\|\|!billing\}/u);
   assert.match(status,/Your published recap will not change/u);

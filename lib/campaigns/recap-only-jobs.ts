@@ -3,7 +3,7 @@ import { RECAP_ONLY_MAX_AUDIO_BYTES } from "./recap-only-runner.ts";
 import { CampaignServiceError } from "./service.ts";
 import {safeRecapRetryTarget,type RecapRetryRecord} from "./recap-only-recovery.ts";
 
-type Preferences={detail:"brief"|"standard"|"detailed"};
+type Preferences={detail:"brief"|"standard"|"detailed";writerModel:string};
 /**
  * Only an explicit, individually confirmed GM action may create a provider job.
  * Recording uploads, verification retries, and account setup never enqueue work.
@@ -20,7 +20,7 @@ export async function enqueueConfirmedRecapAudio(
     throw new CampaignServiceError(
       "Confirm that Gemini may receive your recording and campaign context and that your Gemini project may incur charges.",422);
   const [preferences,provider,recap]=await Promise.all([
-    db.prepare("SELECT detail FROM user_recap_auto_preferences WHERE user_id=?")
+    db.prepare("SELECT detail,writer_model AS writerModel FROM user_recap_auto_preferences WHERE user_id=?")
       .bind(input.userId).first<Preferences>(),
     db.prepare("SELECT 1 AS ok FROM user_recap_ai_connections WHERE user_id=? "+
       "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
@@ -43,7 +43,7 @@ export async function enqueueConfirmedRecapAudio(
     throw new CampaignServiceError("Invalid recap request identifier.",422);
   const detail=(input.detail??preferences?.detail??"detailed") as Preferences["detail"];
   let writerModel:string;
-  try{writerModel=selectRecapWriter(input.writerModel??DEFAULT_RECAP_WRITER).id;}
+  try{writerModel=selectRecapWriter(input.writerModel??preferences?.writerModel??DEFAULT_RECAP_WRITER).id;}
   catch{throw new CampaignServiceError("Choose a supported recap writing model.",422);}
   if(writerModel.startsWith("groq:")){
     const groq=await db.prepare("SELECT 1 AS ok FROM user_recap_groq_connections "+

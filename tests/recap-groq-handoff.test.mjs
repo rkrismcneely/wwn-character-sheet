@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {splitGroqSourceNotes,GROQ_PART_CHARS} from "../lib/campaigns/recap-groq-final-runner.ts";
+import {splitGroqSourceNotes,GROQ_PART_CHARS,groqSectionMaxChars,
+  groqFinalTokenBudget,GROQ_SECTION_MAX_TOKENS} from "../lib/campaigns/recap-groq-final-runner.ts";
 const read=path=>readFile(new URL("../"+path,import.meta.url),"utf8");
 
 test("Groq note splitting never loses words at boundaries",()=>{
@@ -38,4 +39,24 @@ test("Groq writer jobs require their own connected account and explicit approval
  assert.match(enqueue,/confirmed!==true/);
  assert.match(enqueue,/writerModel.startsWith\("groq:"\)/);
  assert.match(enqueue,/audio_notes=\(/);
+});
+
+test("Groq note compression budget retains long but valid summaries for two or three sections",()=>{
+  assert.equal(groqSectionMaxChars(2),4000);
+  assert.equal(groqSectionMaxChars(3),3666);
+  assert.equal(groqSectionMaxChars(6),1833);
+  assert.ok(groqSectionMaxChars(12)*12+22<=12000);
+  assert.throws(()=>groqSectionMaxChars(0));
+  assert.throws(()=>groqSectionMaxChars(13));
+});
+test("Groq completion caps include reasoning room and scale with requested recap detail",async()=>{
+  assert.equal(GROQ_SECTION_MAX_TOKENS,3000);
+  assert.ok(groqFinalTokenBudget("brief")>1550);
+  assert.ok(groqFinalTokenBudget("standard")>groqFinalTokenBudget("brief"));
+  assert.ok(groqFinalTokenBudget("detailed")>groqFinalTokenBudget("standard"));
+  const writer=await read("lib/campaigns/recap-groq-final-runner.ts");
+  assert.match(writer,/groqSectionMaxChars\(parts.length\)/u);
+  assert.match(writer,/writer_section_too_long/u);
+  assert.match(writer,/GROQ_SECTION_MAX_TOKENS/u);
+  assert.match(writer,/groqFinalTokenBudget\(job.detail\)/u);
 });

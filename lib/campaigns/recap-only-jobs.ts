@@ -1,4 +1,5 @@
-import { RECAP_ONLY_MAX_AUDIO_BYTES, RECAP_ONLY_MODEL } from "./recap-only-runner.ts";
+import {DEFAULT_RECAP_WRITER,selectRecapWriter} from "./recap-groq-writer.ts";
+import { RECAP_ONLY_MAX_AUDIO_BYTES } from "./recap-only-runner.ts";
 import { CampaignServiceError } from "./service.ts";
 import {safeRecapRetryTarget,type RecapRetryRecord} from "./recap-only-recovery.ts";
 
@@ -12,7 +13,7 @@ export async function enqueueConfirmedRecapAudio(
   db:D1Database,input:{
     campaignId:string;recapId:string;audioAssetId:string;userId:string;byteSize:number;
     confirmed:boolean;privacyApproved:boolean;billingApproved:boolean;
-    detail?:unknown;requestId?:unknown;
+    detail?:unknown;requestId?:unknown;writerModel?:unknown;
   },
 ):Promise<{created:boolean;alreadyQueued:boolean}>{
   if(input.confirmed!==true||input.privacyApproved!==true||input.billingApproved!==true)
@@ -41,12 +42,15 @@ export async function enqueueConfirmedRecapAudio(
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.requestId))
     throw new CampaignServiceError("Invalid recap request identifier.",422);
   const detail=(input.detail??preferences?.detail??"detailed") as Preferences["detail"];
+  let writerModel:string;
+  try{writerModel=selectRecapWriter(input.writerModel??DEFAULT_RECAP_WRITER).id;}
+  catch{throw new CampaignServiceError("Choose a supported recap writing model.",422);}
   const now=new Date().toISOString();
   const result=await db.prepare("INSERT OR IGNORE INTO campaign_recap_audio_summary_jobs "+
     "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at,request_id) "+
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
-      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now,input.requestId).run();
+      "pending_upload",detail,writerModel,null,now,now,now,input.requestId).run();
   if(result.meta.changes!==1){
     const old=await db.prepare("SELECT confirmed_at AS confirmedAt FROM campaign_recap_audio_summary_jobs "+
       "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? "+

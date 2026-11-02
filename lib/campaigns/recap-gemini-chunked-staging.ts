@@ -12,6 +12,13 @@ const GOOGLE_ID=/^[a-zA-Z0-9_-]{6,240}$/u;
 export type StagingErrorCode=
   | "gemini_key_unavailable" | "drive_file_unavailable"
   | "drive_permission_unavailable" | "gemini_file_start_failed"
+  | "gemini_file_start_network_error" | "gemini_file_start_timeout"
+  | "gemini_file_start_http_400" | "gemini_file_start_http_401"
+  | "gemini_file_start_http_403" | "gemini_file_start_http_404"
+  | "gemini_file_start_http_409" | "gemini_file_start_http_413"
+  | "gemini_file_start_http_429" | "gemini_file_start_http_500"
+  | "gemini_file_start_http_502" | "gemini_file_start_http_503"
+  | "gemini_file_start_http_504"
   | "gemini_upload_session_missing" | "gemini_upload_session_expired"
   | "gemini_upload_session_invalid" | "gemini_upload_offset_unknown"
   | "gemini_chunk_granularity_mismatch"
@@ -98,8 +105,19 @@ async function startingSession(env:StagingEnv,job:Job,secret:string,src:StagedSo
         "x-goog-upload-header-content-type":geminiAudioMime(src.mimeType)},
       body:JSON.stringify({file:{display_name:"TWE recap "+job.id}}),
     });
-  }catch{throw new RecapStagingFailure("gemini_file_start_failed");}
-  if(!response.ok||response.redirected)throw new RecapStagingFailure("gemini_file_start_failed");
+  }catch(error){
+    // A failed upload-session start precedes both file-byte transfer and model
+    // generation. Do not expose Google's body, request URL or API credential.
+    if(error instanceof Error&&(error.name==="TimeoutError"||error.name==="AbortError"))
+      throw new RecapStagingFailure("gemini_file_start_timeout");
+    throw new RecapStagingFailure("gemini_file_start_network_error");
+  }
+  if(!response.ok||response.redirected){
+    const httpCodes=[400,401,403,404,409,413,429,500,502,503,504] as const;
+    if(!response.redirected&&httpCodes.some(code=>code===response.status))
+      throw new RecapStagingFailure(("gemini_file_start_http_"+response.status) as StagingErrorCode);
+    throw new RecapStagingFailure("gemini_file_start_failed");
+  }
   const raw=response.headers.get("x-goog-upload-url");
   if(!raw)throw new RecapStagingFailure("gemini_upload_session_missing");
   const url=uploadSessionUrl(raw);

@@ -164,3 +164,35 @@ test("real AAC M4A source remains decodable after native no-reencode remux",asyn
     assert.ok(Math.abs(Number(info.stdout.trim())-2)<0.2);
   }finally{rmSync(folder,{recursive:true,force:true});}
 });
+
+test("real multi-second AAC M4A is playable after cutting at an interior sample boundary",async(t)=>{
+  const ffmpeg=spawnSync("ffmpeg",["-version"],{encoding:"utf8"});
+  const ffprobe=spawnSync("ffprobe",["-version"],{encoding:"utf8"});
+  if(ffmpeg.error||ffprobe.error){t.skip("FFmpeg/FFprobe not installed");return;}
+  const folder=mkdtempSync(join(tmpdir(),"twe-aac-interior-"));
+  try{
+    const original=join(folder,"original.m4a"),partial=join(folder,"partial.m4a");
+    const encoded=spawnSync("ffmpeg",["-hide_banner","-loglevel","error","-f","lavfi",
+      "-i","sine=frequency=410:sample_rate=48000:duration=6","-c:a","aac",
+      "-b:a","64k","-movflags","+faststart","-y",original],{encoding:"utf8"});
+    assert.equal(encoded.status,0,encoded.stderr);
+    const bytes=readFileSync(original);
+    const source={byteSize:bytes.length,mimeType:"audio/mp4",durationMs:null};
+    const reader=async(start,len)=>bytes.subarray(start,start+len);
+    const parsed=await inspectM4a(source,reader);
+    const midpoint=Math.floor(parsed.sampleSizes.length/2);
+    const offset=parsed.dataStart+parsed.offsets[midpoint];
+    const prefix=await prepareM4aSection(source,reader,parsed.dataStart,offset);
+    writeFileSync(partial,Buffer.concat([
+      Buffer.from(prefix,"base64"),bytes.subarray(parsed.dataStart,offset),
+    ]));
+    const decoded=spawnSync("ffmpeg",["-hide_banner","-loglevel","error",
+      "-i",partial,"-f","null","-"],{encoding:"utf8"});
+    assert.equal(decoded.status,0,decoded.stderr);
+    const info=spawnSync("ffprobe",["-v","error","-show_entries",
+      "format=duration","-of","default=noprint_wrappers=1:nokey=1",partial],
+      {encoding:"utf8"});
+    assert.equal(info.status,0,info.stderr);
+    assert.ok(Number(info.stdout.trim())>2.5&&Number(info.stdout.trim())<3.5);
+  }finally{rmSync(folder,{recursive:true,force:true});}
+});

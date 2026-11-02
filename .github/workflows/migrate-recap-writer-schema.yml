@@ -1,0 +1,44 @@
+name: Prepare Recap Writer Database
+on:
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0053_recap_writer_preferences.sql"
+      - "drizzle/0054_recap_groq_connections.sql"
+      - "drizzle/0055_recap_saved_audio_notes.sql"
+      - "drizzle/0056_recap_groq_writer_checkpoints.sql"
+      - "scripts/migrate-recap-writer.mjs"
+      - ".github/workflows/migrate-recap-writer-schema.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Shares the existing deployment queue, but never deploys application code.
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply additive recap writer schema only
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Check out the exact triggering revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Apply and verify schema before releasing application
+        run: node scripts/migrate-recap-writer.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Confirm migration-only release
+        run: echo "Schema prepared. No application deployment was requested."

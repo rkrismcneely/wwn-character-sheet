@@ -60,7 +60,7 @@ export function boundedGroqResponse(raw:unknown):string {
   if(!raw||typeof raw!=="object")throw new Error("Provider returned an invalid response.");
   const result=raw as {choices?:{message?:{content?:unknown}}[]};
   const value=result.choices?.[0]?.message?.content;
-  if(typeof value!=="string"||!value.trim()||value.length>11000)
+  if(typeof value!=="string"||!value.trim()||value.length>30000)
     throw new Error("Provider returned an empty or oversized answer.");
   return value.trim();
 }

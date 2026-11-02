@@ -96,11 +96,28 @@ export async function submitGroqRecap(env:Env,job:Job,notes:string,context:strin
   "\nREFERENCE CONTEXT (not events from this session):\n"+context.slice(0,2800)+
   "\nSCENE NOTES FROM THE RECORDING:\n"+aggregate;
   const markdown=clean(await requestGroqWriter(secret,choice.model,instruction,3200));
-  const saved=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET "+
-   "status='ready',generated_markdown=?,claimed_at=NULL,updated_at=? "+
-   "WHERE id=? AND status='submitting' AND model=?")
-   .bind(markdown,stamp(),job.id,job.model).run();
-  if(saved.meta.changes!==1)return;
+  // Groq can return HTTP 200 while the subsequent D1 checkpoint fails.
+  // Retry ONLY the idempotent database write, never the chargeable Groq POST.
+  // A successful previous attempt is also recognized on the next read.
+  let persisted=false;
+  for(let attempt=0;attempt<3&&!persisted;attempt++){
+   try{
+    const saved=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET "+
+     "status='ready',generated_markdown=?,claimed_at=NULL,updated_at=? "+
+     "WHERE id=? AND status='submitting' AND model=?")
+     .bind(markdown,stamp(),job.id,job.model).run();
+    if(saved.meta.changes===1){persisted=true;break;}
+    const current=await env.DB.prepare("SELECT status,generated_markdown AS markdown "+
+     "FROM campaign_recap_audio_summary_jobs WHERE id=?").bind(job.id)
+     .first<{status:string;markdown:string|null}>();
+    if(current?.status==="ready"&&current.markdown===markdown){persisted=true;break;}
+    // Another worker or administrator changed the job: do not overwrite it.
+    return;
+   }catch(error){
+    if(attempt===2)throw error;
+   }
+  }
+  if(!persisted)throw new GroqWriterFailure("writer_checkpoint_uncertain");
   const title=parseGeneratedRecapTitle(markdown);
   await env.DB.prepare("UPDATE campaign_session_recaps SET content=?,"+
    "title=CASE WHEN ? IS NOT NULL AND lower(trim(title)) IN "+

@@ -21,3 +21,13 @@ test("both recap paths target dense complete coverage instead of longer recaps",
   assert.match(summary, /ALWAYS include these five exact headings/);
   assert.match(summary, /None noted/);
 });
+
+test("both recap generation paths put previous-session context first and next-session intro last",()=>{
+  assert.match(summary,/## Previously on\.\.\./);
+  assert.match(summary,/## Next Session — Read-Aloud Intro/);
+  assert.match(summary,/FINAL section/);
+  assert.match(summary,/110–150 spoken words/);
+  assert.doesNotMatch(summary,/## Last Time — Read-Aloud/);
+  assert.match(summary,/PREVIOUS session/);
+  assert.match(summary,/do not treat previous-session events as events played/i);
+});

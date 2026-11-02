@@ -21,7 +21,7 @@ async function setup({marker=GEMINI_AUDIO_FIRST_RETRY,code="internal",modelAcces
   const updates=[],requests=[];
   const db={
     prepare(sql){
-      return {bind(...args){return {
+      return {bind(...args){return {sql,args,
         async first(){
           if(sql.includes("FROM campaign_recap_audio_summary_jobs"))
             return {id:jobId,audioAssetId:"asset1",status:"needs_attention",
@@ -82,8 +82,8 @@ test("repeated INTERNAL failure permits one GM-approved, metadata-verified model
   assert.equal(state.updates.length,2);
   const step=state.updates[0];
   // The second bound parameter persists the model choice on the exact section.
-  assert.equal(step.sql?.includes("error_code=?")??true,true);
-  assert.equal(step.args?.[1]??GEMINI_AUDIO_ALTERNATE_RETRY,GEMINI_AUDIO_ALTERNATE_RETRY);
+  assert.ok(step.sql.includes("error_code=?"));
+  assert.equal(step.args[1],GEMINI_AUDIO_ALTERNATE_RETRY);
 });
 
 test("alternate retry is blocked for quota failures, missing model access or prior fallback",async()=>{

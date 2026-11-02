@@ -78,3 +78,14 @@ test("nested Gemini errors and sanitized fingerprints",()=>{
     failure:{details:[{reason:"RESOURCE_EXHAUSTED"}]},
   }).kind,"minute_rate_limit");
 });
+
+test("diagnosis distinguishes final recap writing from combined audio processing",async()=>{
+  const route=await read("app/api/campaigns/[id]/session-recaps/auto-recap/diagnose/route.ts");
+  const ui=await read("app/campaigns/session-recap-auto-status.tsx");
+  assert.match(route,/processing_mode AS processingMode/u);
+  assert.match(route,/job\.processingMode==="segmented"\?"final_recap_writing"/u);
+  assert.match(route,/job\.processingMode==="single"\?"combined_audio_and_recap"/u);
+  assert.match(route,/processingMode:job\.processingMode,resubmitted:false/u);
+  assert.match(ui,/Processing mode:/u);
+  assert.match(ui,/processingMode:data\.processingMode/u);
+});

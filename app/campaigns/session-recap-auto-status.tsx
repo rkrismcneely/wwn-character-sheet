@@ -11,7 +11,7 @@ import {DEFAULT_RECAP_WRITER,RECAP_WRITER_CHOICES} from "@/lib/campaigns/recap-g
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
   generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
-  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;
+  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;canTryAlternateModel?:boolean;
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
@@ -224,6 +224,26 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
     }finally{setRetrying(false);}
   }
+  async function retryAlternateAudioModel(job:Job){
+    if(retrying||starting||!job.canTryAlternateModel||job.status!=="needs_attention")return;
+    if(!window.confirm("Gemini 3.8 Flash failed this same audio section twice. Try Gemini 3.6 Flash instead? TWE will first verify the original interaction failed internally and that your key can access the alternate model. Only this section will be analyzed again; completed sections and the Drive recording remain unchanged. This creates ONE new Gemini model request and may use quota or incur charges under your own project. Continue?"))return;
+    setRetrying(true);setError("");setNotice("");
+    try{
+      const response=await fetch(endpoint,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,retryApproved:true,
+          retryFailedSection:true,retryAlternateModel:true}),
+      });
+      const data=await response.json() as {resumed?:boolean;error?:string};
+      if(!response.ok||!data.resumed)
+        throw Error(data.error||"Could not safely switch the failed audio section to Gemini 3.6 Flash.");
+      setDiagnosis(null);diagnosedJob.current="";
+      setNotice("Only the failed section is queued with Gemini 3.6 Flash. No other audio sections were reset.");
+      await refresh();
+    }catch(e){
+      setError(e instanceof Error?e.message:"Could not safely retry with Gemini 3.6 Flash.");
+    }finally{setRetrying(false);}
+  }
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
   const activeStatuses=new Set(["pending_upload","transferring","uploaded","submitting","submitted"]);
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
@@ -321,6 +341,13 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}
         </button>}
+        {newest.canTryAlternateModel&&currentDiagnosis&&
+          ["internal","internal_error","api_error"].includes(currentDiagnosis.value.providerCode??"")&&
+          <button type="button" className="campaign-primary"
+            disabled={retrying||starting||diagnosing}
+            onClick={()=>void retryAlternateAudioModel(newest)}>
+            {retrying?"Verifying…":"Try Gemini 3.6 Flash for failed section"}
+          </button>}
         {!currentDiagnosis&&["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&
           <button type="button" className="campaign-secondary" disabled={diagnosing}
             onClick={()=>void diagnoseFailure(newest)}>

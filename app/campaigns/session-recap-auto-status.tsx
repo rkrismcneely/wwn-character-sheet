@@ -384,7 +384,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         <h3 id="recap-confirm-title">Auto Summarize this recording?</h3>
         <p id="recap-confirm-description">
           Send <strong>{confirmAsset.label}</strong>, relevant Journal entries and
-          earlier recaps to Gemini for audio analysis and to your selected writing provider\n          for the finished recap. The result stays private until you publish it.
+          earlier recaps to Gemini for audio analysis and to your selected writing provider
+          for the finished recap. The result stays private until you publish it.
         </p>
         <p>Google may use free-tier content to improve its products. TWE cannot check your remaining quota.</p>
         <label style={{display:"block",marginBlock:12}}>Recap detail
@@ -407,7 +408,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         {published&&<p className="campaign-empty-copy">Your published recap will not change. This creates a private version.</p>}
         <p role="note" className="campaign-empty-copy">
           {longRecording&&segmentSupported
-            ? <>Estimated {segmentCount} audio sections + 1 recap request.</>
+            ? <>Estimated {segmentCount} Gemini audio sections; {selectedWriter.startsWith("groq:")?"Groq may use multiple writing requests":"Gemini uses one final writing request"}.</>
             : longRecording
               ? <>This audio format may exceed Gemini&apos;s limits.</>
               : quotaEstimate.size!=="ordinary"

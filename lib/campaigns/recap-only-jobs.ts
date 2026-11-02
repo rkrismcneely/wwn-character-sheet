@@ -45,12 +45,32 @@ export async function enqueueConfirmedRecapAudio(
   let writerModel:string;
   try{writerModel=selectRecapWriter(input.writerModel??DEFAULT_RECAP_WRITER).id;}
   catch{throw new CampaignServiceError("Choose a supported recap writing model.",422);}
+  if(writerModel.startsWith("groq:")){
+    const groq=await db.prepare("SELECT 1 AS ok FROM user_recap_groq_connections "+
+      "WHERE user_id=? AND status='connected' AND key_ciphertext IS NOT NULL LIMIT 1")
+      .bind(input.userId).first();
+    if(!groq)throw new CampaignServiceError(
+      "Connect your own Groq key in Account before choosing Groq as recap writer.",409);
+  }
   const now=new Date().toISOString();
   const result=await db.prepare("INSERT OR IGNORE INTO campaign_recap_audio_summary_jobs "+
     "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at,request_id) "+
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
       "pending_upload",detail,writerModel,null,now,now,now,input.requestId).run();
+  if(result.meta.changes===1&&writerModel.startsWith("groq:")){
+    // Reuse saved audio understanding from a previous explicitly approved run.
+    // Only immutable asset, GM and campaign matches are eligible.
+    await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET audio_notes=("+
+      "SELECT audio_notes FROM campaign_recap_audio_summary_jobs previous "+
+      "WHERE previous.audio_asset_id=? AND previous.requested_by=? "+
+      "AND previous.recap_id=? AND previous.id!=campaign_recap_audio_summary_jobs.id "+
+      "AND previous.audio_notes IS NOT NULL AND previous.confirmed_at IS NOT NULL "+
+      "ORDER BY previous.created_at DESC LIMIT 1) "+
+      "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? AND request_id=? AND audio_notes IS NULL")
+      .bind(input.audioAssetId,input.userId,input.recapId,
+        input.audioAssetId,input.recapId,input.userId,input.requestId).run();
+  }
   if(result.meta.changes!==1){
     const old=await db.prepare("SELECT confirmed_at AS confirmedAt FROM campaign_recap_audio_summary_jobs "+
       "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? "+

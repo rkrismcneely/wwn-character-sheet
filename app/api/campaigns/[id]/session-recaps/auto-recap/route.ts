@@ -6,6 +6,8 @@ import {campaignErrorResponse} from "@/lib/campaigns/http";
 import {enqueueConfirmedRecapAudio,retrySafeRecapPreparation} from "@/lib/campaigns/recap-only-jobs";
 import {safeRecapRetryTarget} from "@/lib/campaigns/recap-only-recovery";
 import {retryFailedRecapSection} from "@/lib/campaigns/recap-section-recovery";
+import {manualGroqWriterErrors} from "@/lib/campaigns/recap-groq-request";
+import {resumeGroqWriter} from "@/lib/campaigns/recap-groq-recovery";
 import {env} from "cloudflare:workers";
 import type {RecapAIEncryptionSettings} from "@/lib/account/recap-gemini-key";
 import {validateBrowserM4aPlan} from "@/lib/campaigns/recap-m4a-browser-preflight";
@@ -73,7 +75,9 @@ export async function GET(request:Request,ctx:Context){
         canRetryFailedSection:job.status==="needs_attention"&&
           job.errorCode==="segment_interaction_failed"&&sections?.retryable===1,
         canRepackFailedM4a:job.status==="needs_attention"&&
-          job.errorCode==="segment_interaction_failed"&&sections?.repackEligible===1};
+          job.errorCode==="segment_interaction_failed"&&sections?.repackEligible===1,
+        canResumeGroqWriter:job.status==="needs_attention"&&
+          job.model.startsWith("groq:")&&manualGroqWriterErrors.has(job.errorCode??"")};
     });
     return Response.json({jobs:safeJobs,recap:{content:info.recap.content,isPublished:info.recap.isPublished,updatedAt:info.recap.updatedAt}},
       {headers:noStore});
@@ -185,15 +189,22 @@ export async function PATCH(request:Request,ctx:Context){
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
     const body=await readBoundedJson(request,1024) as {
       recapId?:unknown;jobId?:unknown;retryApproved?:unknown;retryFailedSection?:unknown;retryRepackM4a?:unknown;
+       retryGroqWriter?:unknown;acknowledgedPossibleCharge?:unknown;
     };
     if(body.retryApproved!==true)throw new CampaignServiceError(
-      "Confirm that restarting AI processing may consume your Gemini quota.",422);
+      "Confirm that restarting AI processing may consume your provider quota.",422);
     const info=await gm(request,ctx,body.recapId);
 
     if(body.retryRepackM4a===true&&body.retryFailedSection!==true)
       throw new CampaignServiceError("Select the failed M4A section before rebuilding it.",422);
+    if(body.retryGroqWriter===true&&(body.retryFailedSection===true||body.retryRepackM4a===true))
+      throw new CampaignServiceError("Select only one recovery action.",422);
     const jobId=typeof body.jobId==="string"?body.jobId:"";
-    const outcome=body.retryFailedSection===true?
+    const outcome=body.retryGroqWriter===true?
+      await resumeGroqWriter(info.db,{
+        jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
+        acknowledgedPossibleCharge:body.acknowledgedPossibleCharge===true,
+      }):body.retryFailedSection===true?
       await retryFailedRecapSection({...env as unknown as RecapAIEncryptionSettings,
         DB:info.db},{
         jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
@@ -204,6 +215,6 @@ export async function PATCH(request:Request,ctx:Context){
     return Response.json(outcome,{headers:noStore});
   }catch(e){
     if(e instanceof RequestBodyError)return Response.json({error:e.message},{status:e.status,headers:noStore});
-    return campaignErrorResponse(e,"Could not safely resume Gemini processing.");
+    return campaignErrorResponse(e,"Could not safely resume recap processing.");
   }
 }

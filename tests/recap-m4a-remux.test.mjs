@@ -174,7 +174,6 @@ test("134-minute M4A remux creates three bounded standard MP4/AAC sections",asyn
   assert.equal(parts[0].startMs,0);
   assert.equal(parts.at(-1).endMs,Math.round(377000*1024/48000*1000));
   assert.ok(parts.every(p=>p.endMs-p.startMs<=60*60_000+200));
-  const decoder=new TextDecoder();
   let summed=0;
   for(const section of parts){
     assert.equal(section.prefixBase64,"");

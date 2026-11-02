@@ -31,12 +31,14 @@ test("both summarization paths require reference sections and creative tone-matc
   assert.match(source,/Presto Change-O/);
 });
 
-test("all detail levels receive short GM-ready opening with scene and goal",()=>{
-  assert.match(source,/Last Time — Read-Aloud/);
-  assert.match(source,/60–75 spoken words/);
+test("all detail levels separate previous-session opening from next-session read-aloud ending",()=>{
+  assert.match(source,/## Previously on\.\.\./);
+  assert.match(source,/## Next Session — Read-Aloud Intro/);
+  assert.match(source,/110–150 spoken words/);
+  assert.doesNotMatch(source,/## Last Time — Read-Aloud/);
   assert.match(source,/current goal/);
-  assert.match(source,/present goal/);
-  assert.match(source,/ALL\s*detail settings/);
+  assert.match(source,/PREVIOUS session/);
+  assert.match(source,/FINAL section/);
   const segment=readFileSync(new URL("../lib/campaigns/recap-long-audio-runner.ts",import.meta.url),"utf8");
   assert.match(segment,/part\.segmentIndex===0/);
   assert.match(segment,/introductory recap STYLE/);

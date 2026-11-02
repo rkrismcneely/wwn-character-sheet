@@ -36,3 +36,16 @@ test("Auto Summarize persists the GM-selected model per job",()=>{
   assert.match(jobs,/selectRecapWriter\(input.writerModel/);
   assert.match(jobs,/"pending_upload",detail,writerModel/);
 });
+
+test("Groq key storage is independent from Gemini and cannot trigger AI generation",()=>{
+ const migration=read("drizzle/0054_recap_groq_connections.sql");
+ const key=read("lib/account/recap-groq-key.ts");
+ const route=read("app/api/account/recap-ai/groq/route.ts");
+ const account=read("app/account/recap-auto-settings.tsx");
+ assert.match(migration,/CREATE TABLE IF NOT EXISTS user_recap_groq_connections/);
+ assert.match(key,/twe:recap-ai:v1:groq:/);
+ assert.match(route,/user_recap_groq_connections/);
+ assert.match(route,/https:\/\/api.groq.com\/openai\/v1\/models/);
+ assert.doesNotMatch(route,/chat\/completions|audio\/transcriptions/);
+ assert.match(account,/RecapGroqConnection/);
+});

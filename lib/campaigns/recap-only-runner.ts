@@ -410,6 +410,13 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
   if(!job)return;
   try{
     if(job.status==="pending_upload"){
+      // A second writing pass may reuse the first Gemini audio notes entirely.
+      if(job.model.startsWith("groq:")&&job.audioNotes){
+        await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
+          "SET status='uploaded',updated_at=? WHERE id=? AND status='pending_upload'")
+          .bind(now(),job.id).run();
+        return;
+      }
       const claimTime=now();
       const claimed=await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
         "SET status='transferring',claimed_at=?,updated_at=? WHERE id=? AND status='pending_upload'")

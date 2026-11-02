@@ -178,8 +178,9 @@ async function submit(env:RecapOnlyEnvironment,job:Job){
     return;
   }
   const secret=await keyFor(env,job);
-  if(job.processingMode==="segmented"){
-    const notes=await combinedSegmentNotes(env.DB,job.id);
+  if(job.processingMode==="segmented"||job.audioNotes){
+    const notes=job.processingMode==="segmented"?
+      await combinedSegmentNotes(env.DB,job.id):job.audioNotes!;
     const claimed=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs "+
       "SET status='submitting',claimed_at=?,updated_at=? WHERE id=? AND status='uploaded' "+
       "AND processing_mode='segmented'")
@@ -415,7 +416,7 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
   try{
     if(job.status==="pending_upload"){
       // A second writing pass may reuse the first Gemini audio notes entirely.
-      if(job.model.startsWith("groq:")&&job.audioNotes){
+      if(job.audioNotes){
         await db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
           "SET status='uploaded',updated_at=? WHERE id=? AND status='pending_upload'")
           .bind(now(),job.id).run();

@@ -46,6 +46,121 @@ export const recapAttentionText:Record<string,{
     description:"Groq may have processed the current writing section. TWE stopped instead of repeating a potentially chargeable request.",
     action:"Check Groq usage and retain the job ID. Completed writing sections and Gemini scene notes remain saved.",
   },
+  writer_http_400:{
+    title:"Groq rejected the writing request (400)",
+    description:"The request was invalid. TWE preserved all scene notes; retrying without changing the request may fail again.",
+    action:"Check GroqCloud Logs for the request error. No Gemini audio reprocessing is needed.",
+  },
+  writer_http_401:{
+    title:"Groq API key was rejected (401)",
+    description:"Groq returned an authentication rejection. Gemini scene notes are saved.",
+    action:"Verify and reconnect Groq under Account before resuming writing.",
+  },
+  writer_http_403:{
+    title:"Groq writer access denied (403)",
+    description:"The Groq project or key cannot use the selected writer model.",
+    action:"Review GroqCloud model permissions and Account connection.",
+  },
+  writer_http_404:{
+    title:"Groq writer model was not found (404)",
+    description:"Groq rejected the configured model or API endpoint.",
+    action:"Check the model choice and availability before another attempt.",
+  },
+  writer_http_408:{
+    title:"Groq returned request timeout (408)",
+    description:"Groq explicitly rejected the request as timed out.",
+    action:"Review GroqCloud Logs and try writing only when ready.",
+  },
+  writer_http_409:{
+    title:"Groq reported a conflict (409)",
+    description:"Groq returned a request-state conflict, not a completed draft.",
+    action:"Review GroqCloud Logs before trying again.",
+  },
+  writer_http_413:{
+    title:"Groq prompt was too large (413)",
+    description:"Groq rejected the prompt because its request body exceeded a limit.",
+    action:"Use smaller writing sections; Gemini scene notes are safe.",
+  },
+  writer_http_422:{
+    title:"Groq could not process the request (422)",
+    description:"Groq rejected the request with a semantic/validation error.",
+    action:"Check GroqCloud Logs and adjust the request before trying again.",
+  },
+  writer_http_424:{
+    title:"Groq dependency failure (424)",
+    description:"Groq reported a dependency failure.",
+    action:"Review GroqCloud Logs; the existing Gemini notes are preserved.",
+  },
+  writer_http_429:{
+    title:"Groq rate limit reached (429)",
+    description:"Groq rejected a writing request because the project reached a rate limit; this isn't an unknown response.",
+    action:"Check GroqCloud usage and limits. Resume Groq writing from saved Gemini notes after capacity resets.",
+  },
+  writer_http_498:{
+    title:"Groq capacity unavailable (498)",
+    description:"Groq reported Flex capacity exceeded. The request was not processed.",
+    action:"Wait for provider capacity and review your Groq plan before resuming.",
+  },
+  writer_http_500:{
+    title:"Groq internal service error (500)",
+    description:"Groq returned a server-side error. Your saved notes and completed writing sections are retained.",
+    action:"Review GroqCloud Logs, then resume writing if appropriate.",
+  },
+  writer_http_502:{
+    title:"Groq gateway failure (502)",
+    description:"Groq returned a server gateway error, not a successful draft.",
+    action:"Check GroqCloud service and resume when available.",
+  },
+  writer_http_503:{
+    title:"Groq temporarily unavailable (503)",
+    description:"Groq returned a service-unavailable response; the original recording isn't affected.",
+    action:"Check GroqCloud service and resume after capacity returns.",
+  },
+  writer_http_504:{
+    title:"Groq gateway timed out (504)",
+    description:"Groq returned a gateway timeout; no usable draft was returned.",
+    action:"Check GroqCloud Logs and resume after capacity returns.",
+  },
+  writer_http_rejected:{
+    title:"Groq rejected the request",
+    description:"Groq explicitly responded with an unexpected non-success status.",
+    action:"Check GroqCloud Logs before a new attempt.",
+  },
+  writer_timeout_uncertain:{
+    title:"Groq did not respond before timeout",
+    description:"The writing request waited for a response but timed out. Groq may have processed or charged it.",
+    action:"Check GroqCloud Logs before choosing another writing request.",
+  },
+  writer_network_uncertain:{
+    title:"Groq network result unknown",
+    description:"TWE couldn't receive a reliable Groq response. The request may have been processed.",
+    action:"Check GroqCloud Logs before choosing another writing request.",
+  },
+  writer_response_unavailable:{
+    title:"Groq answer could not be received",
+    description:"Groq acknowledged the request, but TWE lost the response body.",
+    action:"A repeat may use quota. Check GroqCloud Logs before resuming.",
+  },
+  writer_response_invalid:{
+    title:"Groq answer was invalid",
+    description:"Groq responded successfully but returned an unusable or oversized body.",
+    action:"Saved Gemini notes remain available for a manually approved new writing attempt.",
+  },
+  writer_output_invalid:{
+    title:"Groq produced unusable text",
+    description:"Groq returned an empty or invalid summary after processing. The request may have used quota.",
+    action:"Check GroqCloud Logs. Existing notes and completed sections are preserved.",
+  },
+  writer_output_truncated:{
+    title:"Groq answer exceeded its token budget",
+    description:"Groq stopped generation at its completion-token limit instead of returning a complete answer.",
+    action:"Reduce response length or adjust model limits before requesting another recap draft.",
+  },
+  writer_checkpoint_uncertain:{
+    title:"Groq writer checkpoint could not be saved",
+    description:"Groq may have generated a response, but TWE could not finish saving the writing stage.",
+    action:"Review saved progress before retrying. The original Gemini scene notes remain.",
+  },
   audio_notes_invalid:{
     title:"Gemini audio notes failed validation",
     description:"Gemini finished audio processing but did not return enough reliable scene notes for the recap writer.",

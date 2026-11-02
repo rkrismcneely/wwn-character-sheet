@@ -44,7 +44,7 @@ test("different detail levels are independent explicitly approved jobs, with req
   assert.match(route,/detail:body\.detail,writerModel:body\.writerModel,requestId:body\.requestId/u);
   assert.match(route,/ORDER BY created_at DESC LIMIT 16/u);
   assert.match(ui,/setRequestId\(crypto\.randomUUID\(\)\)/u);
-  assert.match(ui,/detail:selectedDetail,requestId/u);
+  assert.match(ui,/detail:selectedDetail,writerModel:selectedWriter,requestId/u);
   assert.match(ui,/Summarize again/u);
   assert.match(ui,/Saved AI recap versions/u);
   assert.match(ui,/published&&<p/u);

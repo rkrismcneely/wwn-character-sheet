@@ -16,7 +16,14 @@ export function RecapGroqConnection(){
   if(!response.ok)throw Error(data.error||"Groq connection unavailable.");
   setStatus(data);
  }
- useEffect(()=>{void refresh().catch(e=>setError(e instanceof Error?e.message:"Connection unavailable."));},[]);
+ useEffect(()=>{const controller=new AbortController();
+  void fetch(endpoint,{cache:"no-store",signal:controller.signal})
+   .then(async response=>{const data=await response.json() as Status&{error?:string};
+    if(!response.ok)throw Error(data.error||"Groq connection unavailable.");
+    if(!controller.signal.aborted)setStatus(data);})
+   .catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Connection unavailable.");});
+  return ()=>controller.abort();
+ },[]);
  async function action(method:"PUT"|"POST"|"DELETE",body?:object){
   setBusy(true);setError("");setNotice("");
   try{

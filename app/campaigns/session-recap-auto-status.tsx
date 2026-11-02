@@ -401,7 +401,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
         </details>}
         <div className="session-recap-form-actions">
-          <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
+          <a className="campaign-secondary" href="/account#recap-setup">
+            {newest.model.startsWith("groq:")&&newest.errorCode?.startsWith("writer_")?
+              "Manage Groq connection":"Test Gemini connection"}
+          </a>
           <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
             rel="noopener noreferrer">Google AI Studio</a>
         </div>

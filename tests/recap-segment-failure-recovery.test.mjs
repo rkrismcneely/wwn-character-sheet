@@ -14,7 +14,7 @@ const fileName="files/validSection";
 const fileUri="https://generativelanguage.googleapis.com/v1beta/files/validSection";
 const ownerId="da0bb000-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 function fakeDb(credential,{jobStatus="needs_attention",partStatus="submitted",
-  partError=null,parentError="segment_interaction_failed",canRead=true}={}){
+  partError=null,partMimeType="audio/mp4",parentError="segment_interaction_failed",canRead=true}={}){
   const statements=[],writes=[];
   const db={
     prepare(sql){
@@ -31,7 +31,7 @@ function fakeDb(credential,{jobStatus="needs_attention",partStatus="submitted",
           async all(){
             if(sql.includes("FROM campaign_recap_audio_summary_segments"))
               return {results:[{id:partId,status:partStatus,interactionId,
-                fileUri,fileName,errorCode:partError}]};
+                fileUri,fileName,errorCode:partError,mimeType:partMimeType}]};
             throw Error("Unexpected all(): "+sql);
           },
         };
@@ -154,4 +154,67 @@ test("failed section diagnosis is GM-scoped and limited to read-only original Ge
   assert.match(ui,/diagnosedJob\.current===newest\.id/u);
   assert.match(progress,/analysisFailure/u);
   assert.match(progress,/!analysisFailure/u);
+});
+
+test("a second INTERNAL failure permits ONE GM-approved rebuild of only the original M4A section",async()=>{
+  const {db,statements,writes}=await setup({partError:"manual_retry_after_confirmed_failure"});
+  const seen=[];
+  const old=globalThis.fetch;
+  globalThis.fetch=async(url,init)=>{
+    seen.push({url:String(url),method:init.method});
+    if(String(url).includes("/interactions/"))
+      return Response.json({status:"failed",errors:[{code:"internal"}]});
+    throw Error("Repack must not reuse the old Gemini file or submit another model request.");
+  };
+  try{
+    const result=await retryFailedRecapSection({DB:db,
+      RECAP_STORAGE_ENCRYPTION_KEY:envKey},{...input,forceRepackM4a:true});
+    assert.deepEqual(result,{resumed:true,status:"pending_upload"});
+    assert.deepEqual(seen.map(x=>x.method),["GET"]);
+    assert.equal(writes.length,2,"Only the failed section and its parent job change.");
+    const section=statements.find(v=>v.sql.includes("SET status=?,interaction_id=NULL"));
+    assert.ok(section);
+    assert.match(section.sql,/error_code='manual_retry_after_m4a_repack'/u);
+    assert.match(section.sql,/prefix_base64=CASE WHEN \? THEN '' ELSE prefix_base64 END/u);
+    assert.match(section.sql,/AND error_code='manual_retry_after_confirmed_failure'/u);
+    assert.deepEqual(section.args.slice(0,8),["pending_upload",1,1,1,1,1,1,1]);
+    const parent=statements.find(v=>v.sql.includes("SET status='transferring'"));
+    assert.ok(parent);
+    assert.match(parent.sql,/status='needs_attention' AND error_code='segment_interaction_failed'/u);
+    assert.equal(seen.some(x=>x.method==="POST"),false);
+  }finally{globalThis.fetch=old;}
+});
+test("rebuilt M4A retry is refused for quota issues, other formats, or a third attempt",async()=>{
+  for(const opts of [
+    {partError:"manual_retry_after_confirmed_failure",code:"resource_exhausted"},
+    {partError:"manual_retry_after_confirmed_failure",code:"quota_exceeded"},
+    {partError:"manual_retry_after_confirmed_failure",code:"internal",partMimeType:"audio/mpeg"},
+    {partError:"manual_retry_after_m4a_repack",code:"internal"},
+  ]){
+    const {db,writes}=await setup(opts);
+    const original=globalThis.fetch;
+    let calls=0;
+    globalThis.fetch=async()=>{calls++;return Response.json({status:"failed",errors:[{code:opts.code}]});};
+    try{
+      await assert.rejects(()=>retryFailedRecapSection({DB:db,
+        RECAP_STORAGE_ENCRYPTION_KEY:envKey},{...input,forceRepackM4a:true}));
+      assert.equal(writes.length,0);
+      assert.ok(calls<=1,"No repeated provider submission or upload preflight.");
+    }finally{globalThis.fetch=original;}
+  }
+});
+test("GM sees repack choice only for previously retried M4A INTERNAL section",async()=>{
+  const [route,ui,runner]=await Promise.all([
+    read("app/api/campaigns/[id]/session-recaps/auto-recap/route.ts"),
+    read("app/campaigns/session-recap-auto-status.tsx"),
+    read("lib/campaigns/recap-long-audio-runner.ts"),
+  ]);
+  assert.match(route,/canRepackFailedM4a:/u);
+  assert.match(route,/mime_type='audio\/mp4'/u);
+  assert.match(route,/forceRepackM4a:body.retryRepackM4a===true/u);
+  assert.match(ui,/Rebuild and retry failed M4A section/u);
+  assert.match(ui,/retryRepackM4a:true/u);
+  assert.match(ui,/can use quota or incur charges/u);
+  assert.match(runner,/prefix_base64=''/u);
+  assert.match(runner,/prepareM4aSection/u);
 });

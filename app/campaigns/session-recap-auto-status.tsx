@@ -11,7 +11,7 @@ import {DEFAULT_RECAP_WRITER,RECAP_WRITER_CHOICES} from "@/lib/campaigns/recap-g
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
   generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
-  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;
+  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;canRepackFailedM4a?:boolean;
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
@@ -224,6 +224,26 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
     }finally{setRetrying(false);}
   }
+  async function retryRepackedSection(job:Job){
+    if(retrying||starting||!job.canRepackFailedM4a||job.status!=="needs_attention")return;
+    if(!window.confirm("The same M4A audio section failed twice with Gemini INTERNAL. Rebuild ONLY that section using standard MP4/AAC headers, then retry analyzing it once with the same Gemini model? TWE verifies the old interaction is terminal and failed internally, preserves completed sections and the original Drive recording, and never creates a new recap. The new Gemini analysis request can use quota or incur charges. Continue?"))return;
+    setRetrying(true);setError("");setNotice("");
+    try{
+      const response=await fetch(endpoint,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,retryApproved:true,
+          retryFailedSection:true,retryRepackM4a:true}),
+      });
+      const data=await response.json() as {resumed?:boolean;error?:string};
+      if(!response.ok||!data.resumed)
+        throw Error(data.error||"Could not verify and rebuild the failed M4A section.");
+      setDiagnosis(null);diagnosedJob.current="";
+      setNotice("Rebuilding only the failed M4A section from Drive; previous notes are preserved.");
+      await refresh();
+    }catch(e){
+      setError(e instanceof Error?e.message:"Could not safely retry the rebuilt audio section.");
+    }finally{setRetrying(false);}
+  }
   const playable=assets.filter(a=>a.status==="ready"&&a.provider==="google-drive");
   const activeStatuses=new Set(["pending_upload","transferring","uploaded","submitting","submitted"]);
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
@@ -321,6 +341,13 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}
         </button>}
+        {newest.canRepackFailedM4a&&currentDiagnosis&&
+          ["internal","internal_error","api_error"].includes(currentDiagnosis.value.providerCode??"")&&
+          <button type="button" className="campaign-primary"
+            disabled={retrying||starting||diagnosing}
+            onClick={()=>void retryRepackedSection(newest)}>
+            {retrying?"Verifying…":"Rebuild and retry failed M4A section"}
+          </button>}
         {!currentDiagnosis&&["interaction_failed","segment_interaction_failed"].includes(newest.errorCode??"")&&
           <button type="button" className="campaign-secondary" disabled={diagnosing}
             onClick={()=>void diagnoseFailure(newest)}>

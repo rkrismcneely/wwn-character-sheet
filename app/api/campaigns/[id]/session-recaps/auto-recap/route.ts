@@ -50,14 +50,17 @@ export async function GET(request:Request,ctx:Context){
       "SUM(CASE WHEN status='ready' THEN 1 ELSE 0 END) AS completed,"+
       "SUM(CASE WHEN status='submitted' AND interaction_id IS NOT NULL "+
       "AND error_code IS NULL THEN 1 ELSE 0 END) AS retryable,"+
+      "SUM(CASE WHEN status='submitted' AND interaction_id IS NOT NULL "+
+      "AND error_code='manual_retry_after_confirmed_failure' AND mime_type='audio/mp4' "+
+      "THEN 1 ELSE 0 END) AS repackEligible,"+
       "SUM(stage_offset) AS transferred,"+
       "SUM(source_end-source_start) AS bytes "+
       "FROM campaign_recap_audio_summary_segments WHERE job_id IN "+
       "(SELECT id FROM campaign_recap_audio_summary_jobs WHERE campaign_id=? "+
       "AND recap_id=? AND requested_by=? AND confirmed_at IS NOT NULL) GROUP BY job_id")
       .bind(info.campaign.id,info.recap.id,info.actor.userId)
-      .all<{jobId:string;total:number;completed:number;retryable:number;transferred:number;bytes:number}>()
-      :{results:[] as {jobId:string;total:number;completed:number;retryable:number;transferred:number;bytes:number}[]};
+      .all<{jobId:string;total:number;completed:number;retryable:number;repackEligible:number;transferred:number;bytes:number}>()
+      :{results:[] as {jobId:string;total:number;completed:number;retryable:number;repackEligible:number;transferred:number;bytes:number}[]};
     const byJob=new Map(totals.results.map(row=>[row.jobId,row]));
     // Only return a boolean; the Gemini file URI and interaction ID must not
     // be exposed by status polling or used for user-supplied retry targets.
@@ -68,7 +71,9 @@ export async function GET(request:Request,ctx:Context){
         totalBytes:sections?.total?sections.bytes:job.totalBytes,
         canRetry:Boolean(safeRecapRetryTarget({...job,fileUri,fileName,interactionId})),
         canRetryFailedSection:job.status==="needs_attention"&&
-          job.errorCode==="segment_interaction_failed"&&sections?.retryable===1};
+          job.errorCode==="segment_interaction_failed"&&sections?.retryable===1,
+        canRepackFailedM4a:job.status==="needs_attention"&&
+          job.errorCode==="segment_interaction_failed"&&sections?.repackEligible===1};
     });
     return Response.json({jobs:safeJobs,recap:{content:info.recap.content,isPublished:info.recap.isPublished,updatedAt:info.recap.updatedAt}},
       {headers:noStore});
@@ -179,17 +184,20 @@ export async function PATCH(request:Request,ctx:Context){
     if(request.headers.get("origin")!==CANONICAL_ORIGIN)
       return Response.json({error:"Open this action from your TWE campaign."},{status:403,headers:noStore});
     const body=await readBoundedJson(request,1024) as {
-      recapId?:unknown;jobId?:unknown;retryApproved?:unknown;retryFailedSection?:unknown;
+      recapId?:unknown;jobId?:unknown;retryApproved?:unknown;retryFailedSection?:unknown;retryRepackM4a?:unknown;
     };
     if(body.retryApproved!==true)throw new CampaignServiceError(
       "Confirm that restarting AI processing may consume your Gemini quota.",422);
     const info=await gm(request,ctx,body.recapId);
 
+    if(body.retryRepackM4a===true&&body.retryFailedSection!==true)
+      throw new CampaignServiceError("Select the failed M4A section before rebuilding it.",422);
     const jobId=typeof body.jobId==="string"?body.jobId:"";
     const outcome=body.retryFailedSection===true?
       await retryFailedRecapSection({...env as unknown as RecapAIEncryptionSettings,
         DB:info.db},{
         jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
+        forceRepackM4a:body.retryRepackM4a===true,
       }):await retrySafeRecapPreparation(info.db,{
         jobId,campaignId:info.campaign.id,recapId:info.recap.id,userId:info.actor.userId,
       });

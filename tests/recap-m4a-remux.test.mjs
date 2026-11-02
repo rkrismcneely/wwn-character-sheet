@@ -164,3 +164,92 @@ test("real AAC M4A source remains decodable after native no-reencode remux",asyn
     assert.ok(Math.abs(Number(info.stdout.trim())-2)<0.2);
   }finally{rmSync(folder,{recursive:true,force:true});}
 });
+
+test("134-minute M4A remux creates three bounded standard MP4/AAC sections",async()=>{
+  // This exercises the original failing session's approximate duration without
+  // allocating or transferring 2+ hours of PCM or making any provider request.
+  const input=fixture({samples:377000,lowStart:-1,lowEnd:-1});
+  const parts=await planM4a(input.source,input.read,{includeHeaders:false});
+  assert.equal(parts.length,3);
+  assert.equal(parts[0].startMs,0);
+  assert.equal(parts.at(-1).endMs,Math.round(377000*1024/48000*1000));
+  assert.ok(parts.every(p=>p.endMs-p.startMs<=60*60_000+200));
+  let summed=0;
+  for(const section of parts){
+    assert.equal(section.prefixBase64,"");
+    const header=Buffer.from(await prepareM4aSection(input.source,input.read,
+      section.sourceStart,section.sourceEnd),"base64");
+    assert.ok(header.byteLength<1250*1024);
+    assert.equal(header.subarray(4,8).toString(),"ftyp");
+    const stszIndex=header.indexOf(Buffer.from("stsz"));
+    const stcoIndex=header.indexOf(Buffer.from("stco"));
+    assert.ok(stszIndex>0,"Use the conventional 32-bit stsz table.");
+    assert.equal(header.indexOf(Buffer.from("stz2")),-1,"Avoid compact stz2.");
+    assert.ok(stcoIndex>stszIndex,"Present chunk offsets after sample sizes.");
+    const sampleCount=header.readUInt32BE(stszIndex+12);
+    const chunkCount=header.readUInt32BE(stcoIndex+8);
+    summed+=sampleCount;
+    assert.ok(sampleCount>0&&sampleCount<=180000);
+    assert.ok(chunkCount>2,"Do not use a single hour-long AAC chunk.");
+    const firstChunk=header.readUInt32BE(stcoIndex+12);
+    const lastChunk=header.readUInt32BE(stcoIndex+12+(chunkCount-1)*4);
+    assert.equal(firstChunk,header.length);
+    assert.ok(lastChunk>firstChunk&&lastChunk<header.length+(section.sourceEnd-section.sourceStart));
+    const originalLength=section.sourceEnd-section.sourceStart;
+    const virtualSize=header.length+originalLength;
+    const virtual=async(start,len)=>{
+      const bytes=new Uint8Array(len);
+      if(start<header.length)bytes.set(header.subarray(start,Math.min(header.length,start+len)));
+      return bytes;
+    };
+    const parsed=await inspectM4a({byteSize:virtualSize,durationMs:null,mimeType:"audio/mp4"},virtual);
+    assert.equal(parsed.sampleSizes.length,sampleCount);
+    assert.ok(Math.abs(parsed.durationMs-(section.endMs-section.startMs))<1500);
+    assert.equal(parsed.dataEnd-parsed.dataStart,originalLength);
+  }
+  assert.equal(summed,377000,"Every original AAC packet belongs to exactly one section.");
+});
+test("real 75-second AAC M4A interior cut decodes independently on both sides",async(t)=>{
+  const ffmpeg=spawnSync("ffmpeg",["-version"],{encoding:"utf8"});
+  const ffprobe=spawnSync("ffprobe",["-version"],{encoding:"utf8"});
+  if(ffmpeg.error||ffprobe.error){t.skip("FFmpeg/FFprobe not installed");return;}
+  const folder=mkdtempSync(join(tmpdir(),"twe-standard-aac-split-"));
+  try{
+    const original=join(folder,"original.m4a");
+    const encoded=spawnSync("ffmpeg",["-hide_banner","-loglevel","error","-f","lavfi",
+      "-i","sine=frequency=440:sample_rate=48000:duration=75","-c:a","aac",
+      "-b:a","64k","-movflags","+faststart","-y",original],
+      {encoding:"utf8",timeout:120000});
+    assert.equal(encoded.status,0,encoded.stderr);
+    const audio=readFileSync(original);
+    const source={byteSize:audio.length,mimeType:"audio/mp4",durationMs:null};
+    const read=async(start,len)=>audio.subarray(start,start+len);
+    const parsed=await inspectM4a(source,read);
+    const splitSample=Math.floor(parsed.sampleSizes.length/2);
+    const splitByte=parsed.dataStart+parsed.offsets[splitSample];
+    const sections=[
+      {start:parsed.dataStart,end:splitByte,first:0,last:splitSample},
+      {start:splitByte,end:parsed.dataEnd,first:splitSample,last:parsed.sampleSizes.length},
+    ];
+    for(let i=0;i<sections.length;i++){
+      const section=sections[i],out=join(folder,"section-"+i+".m4a");
+      const prefix=Buffer.from(await prepareM4aSection(source,read,section.start,section.end),"base64");
+      writeFileSync(out,Buffer.concat([prefix,audio.subarray(section.start,section.end)]));
+      const stszIndex=prefix.indexOf(Buffer.from("stsz"));
+      const stcoIndex=prefix.indexOf(Buffer.from("stco"));
+      assert.ok(stszIndex>0&&stcoIndex>0);
+      assert.ok(prefix.readUInt32BE(stcoIndex+8)>1);
+      assert.equal(prefix.readUInt32BE(stszIndex+12),section.last-section.first);
+      const decoded=spawnSync("ffmpeg",["-hide_banner","-loglevel","error",
+        "-err_detect","explode","-i",out,"-f","null","-"],
+        {encoding:"utf8",timeout:120000});
+      assert.equal(decoded.status,0,decoded.stderr);
+      const info=spawnSync("ffprobe",["-v","error","-show_entries",
+        "format=duration","-of","default=noprint_wrappers=1:nokey=1",out],
+        {encoding:"utf8",timeout:30000});
+      assert.equal(info.status,0,info.stderr);
+      const expected=(section.last-section.first)*1024/48000;
+      assert.ok(Math.abs(Number(info.stdout.trim())-expected)<0.3);
+    }
+  }finally{rmSync(folder,{recursive:true,force:true});}
+});

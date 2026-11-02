@@ -15,8 +15,8 @@ type Job={
   segmentCount?:number;segmentsReady?:number;
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
-type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null};
-type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null};
+type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null;providerCode?:string|null;diagnosticFingerprint?:string};
+type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null;stage?:string};
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTitle,published=false}:{
   campaignId:string;recapId:string;published?:boolean;
   onDraft:(content:string,updatedAt:string,overwrite:boolean,suggestedTitle:string|null)=>boolean;
@@ -173,12 +173,12 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         body:JSON.stringify({recapId,jobId:job.id}),
       });
       const data=await response.json() as {
-        diagnosis?:FailureDiagnosis;section?:number|null;sectionCount?:number|null;error?:string
+        diagnosis?:FailureDiagnosis;section?:number|null;sectionCount?:number|null;stage?:string;error?:string
       };
       if(!response.ok||!data.diagnosis)
         throw Error(data.error||"Gemini did not provide a failure diagnosis.");
       setDiagnosis({jobId:job.id,value:data.diagnosis,
-        section:data.section??null,sectionCount:data.sectionCount??null});
+        section:data.section??null,sectionCount:data.sectionCount??null,stage:data.stage});
     }catch(e){setError(e instanceof Error?e.message:"Could not check Gemini failure details.");}
     finally{setDiagnosing(false);}
   },[endpoint,recapId]);
@@ -354,6 +354,9 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             (currentDiagnosis?"\\nGemini diagnosis: "+currentDiagnosis.value.title+
               "\\nDiagnosis category: "+currentDiagnosis.value.kind+
               "\\nExplanation: "+currentDiagnosis.value.explanation+
+              "\\nProcessing stage: "+(currentDiagnosis.stage??"unknown")+
+              "\\nProvider code: "+(currentDiagnosis.value.providerCode??"not supplied")+
+              "\\nDiagnostic fingerprint: "+(currentDiagnosis.value.diagnosticFingerprint??"not available")+
               (currentDiagnosis.value.inputTokens!==null?
                 "\\nInput tokens: "+currentDiagnosis.value.inputTokens:"")+
               (currentDiagnosis.section!==null?

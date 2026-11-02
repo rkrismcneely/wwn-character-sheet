@@ -69,7 +69,7 @@ async function startLocalWorker({ auth = false } = {}) {
     sourceConfig,
     "--persist-to",
     persistence,
-  ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"] });
+  ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 32 * 1024 * 1024 });
   const fixtureIds = {
     public: `chr_${"P".repeat(22)}`,
     unlisted: `chr_${"U".repeat(22)}`,
@@ -151,7 +151,7 @@ async function startLocalWorker({ auth = false } = {}) {
     persistence,
     "--command",
     fixtureSql,
-  ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"] });
+  ], { cwd: projectRoot, env: environment, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 32 * 1024 * 1024 });
 
   const workerArguments = [
     "dev",

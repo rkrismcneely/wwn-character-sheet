@@ -279,3 +279,74 @@ test("a virtual audio segment prepends a WAV header and reads only its original 
   }finally{globalThis.fetch=original;}
 });
 
+
+test("Gemini file-start failures retain safe HTTP categories before any audio transfer",async()=>{
+  const original=globalThis.fetch;
+  try{
+    for(const [status,code] of [
+      [400,"gemini_file_start_http_400"],[401,"gemini_file_start_http_401"],
+      [403,"gemini_file_start_http_403"],[404,"gemini_file_start_http_404"],
+      [409,"gemini_file_start_http_409"],[413,"gemini_file_start_http_413"],
+      [429,"gemini_file_start_http_429"],[500,"gemini_file_start_http_500"],
+      [502,"gemini_file_start_http_502"],[503,"gemini_file_start_http_503"],
+      [504,"gemini_file_start_http_504"],
+    ]){
+      const state=simulate();let otherRequests=0;
+      globalThis.fetch=async(url,opts)=>{
+        if(url==="https://generativelanguage.googleapis.com/upload/v1beta/files"){
+          assert.equal(opts.headers["x-goog-api-key"],"private-test-key");
+          return Response.json({error:{message:"PRIVATE_PROVIDER_RESPONSE_WITH_CREDENTIAL"}},
+            {status});
+        }
+        otherRequests++;
+        throw Error("Unexpected request "+url);
+      };
+      await assert.rejects(
+        ()=>stageRecapAudioChunked(state.env,job,"private-test-key",source,"fake-drive-bearer"),
+        error=>{
+          assert.ok(error instanceof RecapStagingFailure);
+          assert.equal(error.code,code);
+          assert.doesNotMatch(error.message,/PRIVATE_PROVIDER_RESPONSE_WITH_CREDENTIAL|private-test-key/u);
+          return true;
+        });
+      assert.equal(otherRequests,0);
+      assert.equal(state.row.stageUrlCiphertext,null);
+      assert.equal(state.row.stageOffset,0);
+    }
+  }finally{globalThis.fetch=original;}
+});
+
+test("Gemini file-start network errors and timeouts are distinct and do not begin AI analysis",async()=>{
+  const original=globalThis.fetch;
+  try{
+    for(const [failure,code] of [
+      [new Error("Sensitive network exception"),"gemini_file_start_network_error"],
+      [Object.assign(new Error("Sensitive timeout"),{name:"TimeoutError"}),"gemini_file_start_timeout"],
+    ]){
+      const state=simulate();
+      globalThis.fetch=async()=>{throw failure;};
+      await assert.rejects(
+        ()=>stageRecapAudioChunked(state.env,job,"private-test-key",source,"fake-drive-bearer"),
+        error=>{
+          assert.ok(error instanceof RecapStagingFailure);
+          assert.equal(error.code,code);
+          assert.doesNotMatch(error.message,/Sensitive/u);
+          return true;
+        });
+      assert.equal(state.row.stageUrlCiphertext,null);
+      assert.equal(state.row.stageOffset,0);
+    }
+  }finally{globalThis.fetch=original;}
+});
+
+test("Upload-session rejection remains a safely retryable preparation error with specific help",async()=>{
+  const [recovery,ui]=await Promise.all([
+    read("lib/campaigns/recap-only-recovery.ts"),
+    read("app/campaigns/session-recap-auto-status.tsx"),
+  ]);
+  assert.match(recovery,/gemini_file_start_http_403:/u);
+  assert.match(recovery,/gemini_file_start_http_429:/u);
+  assert.match(recovery,/gemini_file_start_timeout:/u);
+  assert.match(ui,/Gemini analysis: not started \(upload preparation failed\)/u);
+  assert.doesNotMatch(ui,/use Recheck Gemini error first/u);
+});

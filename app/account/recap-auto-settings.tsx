@@ -1,8 +1,10 @@
 "use client";
 import {useEffect,useState} from "react";
-type Preferences={autoEnabled:boolean;billingApproved:boolean;detail:"brief"|"standard"|"detailed";consentAt:string|null};
+import {DEFAULT_RECAP_WRITER,RECAP_WRITER_CHOICES} from "@/lib/campaigns/recap-groq-writer";
+type Preferences={autoEnabled:boolean;billingApproved:boolean;detail:"brief"|"standard"|"detailed";consentAt:string|null;writerModel:string};
 export function RecapAutoSettings(){
   const [detail,setDetail]=useState<Preferences["detail"]>("detailed");
+  const [writerModel,setWriterModel]=useState(DEFAULT_RECAP_WRITER);
   const [ready,setReady]=useState({storageConnected:false,aiConnected:false});
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
@@ -22,6 +24,7 @@ export function RecapAutoSettings(){
       ]);
       if(!ctrl.signal.aborted){
         setDetail(prefs.detail);
+        setWriterModel(prefs.writerModel??DEFAULT_RECAP_WRITER);
         setReady({storageConnected:connection.storageConnected,aiConnected:connection.aiConnected});
       }
     };
@@ -42,11 +45,11 @@ export function RecapAutoSettings(){
     try{
       const response=await fetch("/api/account/recap-preferences",{
         method:"PUT",headers:{"content-type":"application/json"},
-        body:JSON.stringify({autoEnabled:false,billingApproved:false,privacyApproved:false,detail}),
+        body:JSON.stringify({autoEnabled:false,billingApproved:false,privacyApproved:false,detail,writerModel}),
       });
       const result=await response.json() as Preferences&{error?:string};
       if(!response.ok||!result.detail)throw Error(result.error||"Could not save recap preferences.");
-      setNotice("Default recap length saved. Audio is never sent to Gemini until you click Auto Summarize and confirm.");
+      setNotice("Default recap length and writer saved. No AI processing starts until you confirm a recap.");
     }catch(e){setError(e instanceof Error?e.message:"Could not save recap preferences.");}
     finally{setSaving(false);}
   }
@@ -72,6 +75,17 @@ export function RecapAutoSettings(){
         <option value="standard">Standard — major scenes and decisions</option>
         <option value="detailed">Detailed — scenes, NPCs, quests and timestamps (recommended)</option>
       </select>
+      <label htmlFor="recap-writer-model">Default recap writing model</label>
+      <select id="recap-writer-model" value={writerModel} disabled={saving}
+        onChange={e=>setWriterModel(e.target.value)}>
+        {RECAP_WRITER_CHOICES.map(choice=><option key={choice.id} value={choice.id}>
+          {choice.label}{choice.id===DEFAULT_RECAP_WRITER?" (recommended)":""}
+        </option>)}
+      </select>
+      <p className="account-explanation">
+        Gemini analyzes the recording. Groq is preferred for writing the final recap;
+        choose Gemini here if you want it to write too. Each service uses your own API key and limits.
+      </p>
       <p className="account-explanation">
         Gemini can incur charges in your own Google project. Free-tier submitted content
         may be used to improve Google products. You&apos;ll see these warnings again

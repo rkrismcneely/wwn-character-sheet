@@ -15,6 +15,9 @@ const LIMIT_MOOV=6*1024*1024;
 const LIMIT_PREFIX=1250*1024; // D1 string parameter + per-job memory bound.
 const MAX_PART_MS=60*60_000;
 const MIN_PART_MS=15*60_000;
+// Standard stsz stores four bytes per sample. Bound each reconstructed header
+// conservatively below the existing 1.25 MiB D1/runtime prefix allowance.
+const MAX_PART_SAMPLES=240_000;
 const DEFAULT_FTYP=new Uint8Array([0,0,0,20,102,116,121,112,77,52,65,32,0,0,0,0,105,115,111,109]);
 
 function invalid():never{throw new LongAudioFormatError("format_unsupported");}
@@ -268,7 +271,8 @@ export async function inspectM4a(source:{byteSize:number;durationMs:number|null;
 }
 function chooseCuts(parsed:Parsed):number[]{
   const n=parsed.sampleSizes.length;
-  const count=Math.ceil(parsed.durationMs/MAX_PART_MS);
+  const count=Math.max(Math.ceil(parsed.durationMs/MAX_PART_MS),
+    Math.ceil(n/MAX_PART_SAMPLES));
   if(count>MAX_RECAP_SEGMENTS)invalid();
   const target=parsed.durationMs/count;
   const cuts=[0];
@@ -304,10 +308,16 @@ function chooseCuts(parsed:Parsed):number[]{
     }
     // The heuristic is unsuitable for constant-bitrate AAC. In that case a
     // balanced split is safer than a fabricated claim of detected silence.
-    const earliest=nearestSample(parsed.timing,Math.ceil(lower/1000*parsed.timeScale));
-    const latest=nearestSample(parsed.timing,Math.floor(upper/1000*parsed.timeScale));
-    const pick=Math.max(cuts[cuts.length-1]+1,Math.min(n-remaining,best,latest));
-    cuts.push(Math.max(earliest,pick));
+    const previous=cuts[cuts.length-1];
+    // A rare high-sample-rate AAC file can exceed our bounded stsz table even
+    // with a <=60-minute section. Keep every section under the header budget,
+    // including the future sections (which each need room for their samples).
+    const earliest=Math.max(previous+1,n-remaining*MAX_PART_SAMPLES,
+      nearestSample(parsed.timing,Math.ceil(lower/1000*parsed.timeScale)));
+    const latest=Math.min(n-remaining,previous+MAX_PART_SAMPLES,
+      nearestSample(parsed.timing,Math.floor(upper/1000*parsed.timeScale)));
+    if(earliest>latest)invalid();
+    cuts.push(Math.max(earliest,Math.min(latest,best)));
   }
   cuts.push(n);
   if(cuts.some((v,i)=>i>0&&v<=cuts[i-1]))invalid();
@@ -322,14 +332,41 @@ function makeHeader(parsed:Parsed,first:number,last:number):Uint8Array{
   const sttsRuns=trimTiming(parsed.timing,first,last);
   const times=full("stts",concatenate([encode32(sttsRuns.length),
     ...sttsRuns.flatMap(v=>[encode32(v.count),encode32(v.delta)])]));
-  // stz2 with 16-bit entries saves ~50% compared to 32-bit stsz for AAC.
-  const sizes=new Uint8Array(count*2),sizeView=dv(sizes);
-  for(let i=0;i<count;i++)sizeView.setUint16(i*2,parsed.sampleSizes[first+i],false);
-  const stz2=full("stz2",concatenate([fixed(0,0,0,16),encode32(count),sizes]));
-  const stsc=full("stsc",concatenate([encode32(1),encode32(1),encode32(count),encode32(1)]));
-  const offsetBox=(offset:number)=>full("stco",concatenate([encode32(1),encode32(offset)]));
+  // Prefer the widely implemented stsz table to the more compact stz2.
+  // Many media services use narrower MP4/AAC demuxers than FFmpeg.
+  // All original AAC packet sizes and bytes are preserved exactly.
+  if(count>MAX_PART_SAMPLES)invalid();
+  const sizes=new Uint8Array(count*4),sizeView=dv(sizes);
+  for(let i=0;i<count;i++)sizeView.setUint32(i*4,parsed.sampleSizes[first+i],false);
+  const stsz=full("stsz",concatenate([encode32(0),encode32(count),sizes]));
+  // Avoid one giant 45–60-minute MP4 chunk. Use small contiguous chunks with
+  // <~1 second of samples each, and a final partial chunk where necessary.
+  // Chunk offsets describe the original compressed byte stream as-is.
+  const longestDelta=Math.max(...parsed.timing.map(run=>run.delta));
+  const samplesPerChunk=Math.max(1,Math.min(32,Math.floor(parsed.timeScale/longestDelta)));
+  const chunkCount=Math.ceil(count/samplesPerChunk);
+  const fullChunks=Math.floor(count/samplesPerChunk);
+  const tail=count%samplesPerChunk;
+  const stscEntries=[encode32(1),encode32(Math.min(count,samplesPerChunk)),encode32(1)];
+  if(tail&&fullChunks>0)
+    stscEntries.push(encode32(fullChunks+1),encode32(tail),encode32(1));
+  const stsc=full("stsc",concatenate([
+    encode32(tail&&fullChunks>0?2:1),...stscEntries,
+  ]));
+  const offsetBox=(offset:number)=>{
+    const positions=new Uint8Array(chunkCount*4);
+    const view=dv(positions);
+    for(let chunk=0;chunk<chunkCount;chunk++){
+      const firstSample=first+chunk*samplesPerChunk;
+      const relative=parsed.offsets[firstSample]-parsed.offsets[first];
+      const absolute=offset+relative;
+      if(!Number.isSafeInteger(absolute)||absolute>0xffffffff)invalid();
+      view.setUint32(chunk*4,absolute,false);
+    }
+    return full("stco",concatenate([encode32(chunkCount),positions]));
+  };
   const buildMoov=(offset:number)=>{
-    const stbl=atom("stbl",parsed.stsd,times,stsc,stz2,offsetBox(offset));
+    const stbl=atom("stbl",parsed.stsd,times,stsc,stsz,offsetBox(offset));
     const smhd=full("smhd",fixed(0,0,0,0));
     const url=atom("url ",fixed(0,0,0,1));
     const dref=full("dref",concatenate([encode32(1),url]));

@@ -84,7 +84,8 @@ test("explicit retry confirms original failure, reuses current file and never po
     const child=statements.find(s=>s.sql.includes("SET status=?,interaction_id=NULL"));
     assert.ok(child);
     assert.equal(child.args[0],"uploaded");
-    assert.match(child.sql,/error_code='manual_retry_after_confirmed_failure'/u);
+    assert.match(child.sql,/error_code=\?/u);
+    assert.equal(child.args[1],"manual_retry_after_confirmed_failure");
     assert.match(child.sql,/interaction_id=\? AND error_code IS NULL/u);
     const parent=statements.find(s=>s.sql.includes("SET status='transferring'"));
     assert.ok(parent);
@@ -103,7 +104,7 @@ test("expired temporary audio restages only failed section from original recordi
       {resumed:true,status:"pending_upload"});
     assert.equal(writes.length,2);
     const child=statements.find(s=>s.sql.includes("SET status=?,interaction_id=NULL"));
-    assert.deepEqual(child.args.slice(0,7),["pending_upload",1,1,1,1,1,1]);
+    assert.deepEqual(child.args.slice(0,8),["pending_upload","manual_retry_after_confirmed_failure",1,1,1,1,1,1]);
     assert.match(child.sql,/stage_offset=CASE WHEN \? THEN 0/u);
   }finally{globalThis.fetch=original;}
 });

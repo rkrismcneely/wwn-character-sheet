@@ -5,9 +5,7 @@
 export type RecapAIEncryptionSettings={RECAP_STORAGE_ENCRYPTION_KEY?:string};
 export type EncryptedProviderKey={ciphertext:string;nonce:string;version:1};
 const KEY_PATTERN=/^[A-Za-z0-9_-]{43}$/u;
-// Groq keys must use the expected prefix and safe non-whitespace
-// characters and unreasonably large values, but do not invent an API key
-// alphabet/length rule; Google's own read-only models endpoint verifies access.
+// Accept Groq-issued API key tokens only; verification uses a read-only models GET.
 const API_KEY_PATTERN=/^gsk_[A-Za-z0-9_-]{16,512}$/u;
 const encoder=new TextEncoder();
 

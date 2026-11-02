@@ -1,17 +1,18 @@
+import {DEFAULT_RECAP_WRITER, selectRecapWriter} from "@/lib/campaigns/recap-groq-writer";
 import { getSessionActor } from "@/lib/auth-session";
 import { CANONICAL_ORIGIN } from "@/lib/auth-constants";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import { readBoundedJson,RequestBodyError } from "@/lib/http-json";
 const noStore={"cache-control":"private, no-store"};
 type Detail="brief"|"standard"|"detailed";
-type Row={autoEnabled:number;billingApproved:number;detail:Detail;consentAt:string|null};
-const fallback={autoEnabled:false,billingApproved:false,detail:"detailed" as Detail,consentAt:null};
+type Row={autoEnabled:number;billingApproved:number;detail:Detail;consentAt:string|null;writerModel:string};
+const fallback={autoEnabled:false,billingApproved:false,detail:"detailed" as Detail,consentAt:null,writerModel:DEFAULT_RECAP_WRITER};
 async function read(db:D1Database,userId:string){
   const row=await db.prepare("SELECT auto_enabled AS autoEnabled,billing_approved AS billingApproved,"+
-    "detail,consent_at AS consentAt FROM user_recap_auto_preferences WHERE user_id=?")
+    "detail,consent_at AS consentAt,writer_model AS writerModel FROM user_recap_auto_preferences WHERE user_id=?")
     .bind(userId).first<Row>();
   return row?{autoEnabled:row.autoEnabled===1,billingApproved:row.billingApproved===1,
-    detail:row.detail,consentAt:row.consentAt}:fallback;
+    detail:row.detail,consentAt:row.consentAt,writerModel:row.writerModel}:fallback;
 }
 export async function GET(request:Request){
   try{
@@ -27,7 +28,7 @@ export async function PUT(request:Request){
   if(!actor)return Response.json({error:"Sign in required."},{status:401,headers:noStore});
   try{
     const body=await readBoundedJson(request,1024) as {
-      autoEnabled?:unknown;billingApproved?:unknown;detail?:unknown;privacyApproved?:unknown;
+      autoEnabled?:unknown;billingApproved?:unknown;detail?:unknown;privacyApproved?:unknown;writerModel?:unknown;
     };
     if(typeof body.autoEnabled!=="boolean"||typeof body.billingApproved!=="boolean"||
       !["brief","standard","detailed"].includes(String(body.detail))||
@@ -35,6 +36,9 @@ export async function PUT(request:Request){
       return Response.json({error:"Choose recap detail and explicitly approve sharing audio, campaign context and possible Gemini charges."},
         {status:422,headers:noStore});
     }
+    let writerModel:string;
+    try{writerModel=selectRecapWriter(body.writerModel??DEFAULT_RECAP_WRITER).id;}
+    catch{return Response.json({error:"Choose a supported recap writer."},{status:422,headers:noStore});}
     const db=await getCampaignD1();
     if(body.autoEnabled){
       const [drive,ai]=await Promise.all([
@@ -49,11 +53,11 @@ export async function PUT(request:Request){
     const now=new Date().toISOString();
     const consent=body.autoEnabled?now:null;
     await db.prepare("INSERT INTO user_recap_auto_preferences "+
-      "(user_id,auto_enabled,billing_approved,detail,consent_at,updated_at) VALUES (?,?,?,?,?,?) "+
+      "(user_id,auto_enabled,billing_approved,detail,consent_at,updated_at,writer_model) VALUES (?,?,?,?,?,?,?) "+
       "ON CONFLICT(user_id) DO UPDATE SET auto_enabled=excluded.auto_enabled,"+
       "billing_approved=excluded.billing_approved,detail=excluded.detail,"+
-      "consent_at=excluded.consent_at,updated_at=excluded.updated_at")
-      .bind(actor.userId,body.autoEnabled?1:0,body.autoEnabled?1:0,body.detail,consent,now).run();
+      "consent_at=excluded.consent_at,updated_at=excluded.updated_at,writer_model=excluded.writer_model")
+      .bind(actor.userId,body.autoEnabled?1:0,body.autoEnabled?1:0,body.detail,consent,now,writerModel).run();
     return Response.json(await read(db,actor.userId),{headers:noStore});
   }catch(e){
     if(e instanceof RequestBodyError)return Response.json({error:e.message},{status:e.status,headers:noStore});

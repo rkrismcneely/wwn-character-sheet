@@ -75,7 +75,8 @@ test("response timeout, lost reply, truncation and malformed output are distinct
     {fetch:async()=>{throw Error("sensitive");},code:"writer_network_uncertain"},
     {fetch:async()=>Response.json({choices:[{finish_reason:"length",message:{content:"Partial"}}]}),code:"writer_output_truncated"},
     {fetch:async()=>new Response("not-json",{status:200}),code:"writer_response_invalid"},
-    {fetch:async()=>Response.json({choices:[{finish_reason:"stop",message:{content:""}}]}),code:"writer_output_invalid"},
+    {fetch:async()=>Response.json({choices:[{finish_reason:"stop",message:{content:""}}]}),code:"writer_output_empty"},
+    {fetch:async()=>Response.json({choices:[{finish_reason:"stop",message:{content:[]}}]}),code:"writer_output_invalid"},
   ];
   try{
     for(const scenario of cases){

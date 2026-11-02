@@ -6,6 +6,7 @@ import {planLongAudio,estimateAudioDurationMs,LongAudioFormatError,offsetRecapSc
   from "./recap-long-audio-plan.ts";
 import {classifyRecapInteraction} from "./recap-interaction-status.ts";
 import {geminiAudioMime} from "./recap-gemini-audio-mime.ts";
+import {geminiModelForAudioSection} from "./recap-gemini-audio-model.ts";
 import {planM4a,estimateM4aDuration,prepareM4aSection} from "./recap-m4a-remux.ts";
 
 const API="https://generativelanguage.googleapis.com/v1beta";
@@ -19,7 +20,7 @@ type Segment={
   id:string;jobId:string;segmentIndex:number;startMs:number;endMs:number;
   sourceStart:number;sourceEnd:number;prefixBase64:string;mimeType:string;
   status:string;fileUri:string|null;fileName:string|null;interactionId:string|null;
-  notes:string|null;stageOffset:number;
+  notes:string|null;stageOffset:number;errorCode:string|null;
 };
 const now=()=>new Date().toISOString();
 const fail=async(db:D1Database,jobId:string,code:string)=>{
@@ -211,7 +212,7 @@ async function submitPart(env:Env,job:Job,part:Segment,key:string,context:string
     const result=await responseJson(await fetch(API+"/interactions",{
       method:"POST",redirect:"manual",signal:AbortSignal.timeout(35000),
       headers:{"x-goog-api-key":key,"content-type":"application/json","Api-Revision":"2026-05-20"},
-      body:JSON.stringify({model:"gemini-3.8-flash",background:true,store:true,input:[
+      body:JSON.stringify({model:geminiModelForAudioSection(part.errorCode),background:true,store:true,input:[
         {type:"text",text:"Listen to this section of a tabletop RPG session, and write factual chronological scene notes, not a transcript. "+
           (part.segmentIndex===0?"At the beginning, briefly note the GM's introductory recap STYLE and tone, if discernible, separately from events actually played this session. Do not mistake the GM's recap of a prior session for new events. ":"")+
           "Use timestamps RELATIVE to the start of this section, in ## HH:MM:SS — Scene format. "+
@@ -244,7 +245,7 @@ export async function advanceSegmentedRecap(env:Env,job:Job,source:Original,key:
     "SELECT id,job_id AS jobId,segment_index AS segmentIndex,start_ms AS startMs,end_ms AS endMs,"+
     "source_start AS sourceStart,source_end AS sourceEnd,prefix_base64 AS prefixBase64,"+
     "mime_type AS mimeType,status,file_uri AS fileUri,file_name AS fileName,"+
-    "interaction_id AS interactionId,notes,stage_offset AS stageOffset "+
+    "interaction_id AS interactionId,notes,stage_offset AS stageOffset,error_code AS errorCode "+
     "FROM campaign_recap_audio_summary_segments WHERE job_id=? AND status!='ready' "+
     "ORDER BY segment_index ASC LIMIT 1"
   ).bind(job.id).first<Segment>();

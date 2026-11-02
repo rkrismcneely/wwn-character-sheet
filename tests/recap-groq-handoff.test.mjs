@@ -18,7 +18,7 @@ test("Gemini audio notes are checkpointed before any Groq writing",async()=>{
  const migration=await read("drizzle/0055_recap_saved_audio_notes.sql");
  assert.match(runner,/audio_notes=\?,interaction_id=NULL/);
  assert.match(runner,/submitGroqRecap\(env,job,notes/);
- assert.match(runner,/job.model.startsWith\("groq:"\)&&job.audioNotes/);
+ assert.match(runner,/if\(job.audioNotes\)/);
  assert.match(migration,/ADD COLUMN audio_notes TEXT/);
 });
 test("Groq sections are persistent and uncertain submissions never retry automatically",async()=>{

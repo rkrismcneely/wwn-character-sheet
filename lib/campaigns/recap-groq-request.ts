@@ -47,9 +47,22 @@ export async function requestGroqWriter(
   try{parsed=JSON.parse(raw);}
   catch{throw new GroqWriterFailure("writer_response_invalid");}
   if(parsed&&typeof parsed==="object"){
-    const choices=(parsed as {choices?:{finish_reason?:string}[]}).choices;
-    if(choices?.[0]?.finish_reason==="length")
+    const data=parsed as {
+      choices?:{finish_reason?:string;message?:{content?:unknown}}[];
+      usage?:{completion_tokens?:number;completion_tokens_details?:{reasoning_tokens?:number}};
+    };
+    if(data.choices?.[0]?.finish_reason==="length")
       throw new GroqWriterFailure("writer_output_truncated");
+    const content=data.choices?.[0]?.message?.content;
+    if(data.choices?.[0]?.message&&
+      (content==null||(typeof content==="string"&&!content.trim()))){
+      const used=data.usage?.completion_tokens;
+      const reasoning=data.usage?.completion_tokens_details?.reasoning_tokens;
+      // Usage metadata is safe to inspect; never store reasoning or raw provider text.
+      if(typeof used==="number"&&used>0&&typeof reasoning==="number"&&reasoning>=used)
+        throw new GroqWriterFailure("writer_reasoning_only");
+      throw new GroqWriterFailure("writer_output_empty");
+    }
   }
   try{return boundedGroqResponse(parsed);}
   catch{throw new GroqWriterFailure("writer_output_invalid");}
@@ -60,6 +73,8 @@ export const manualGroqWriterErrors=new Set([
   "writer_submission_uncertain", // Historical generic error cannot be reconstructed.
   "writer_timeout_uncertain","writer_network_uncertain",
   "writer_response_unavailable","writer_response_invalid","writer_output_invalid",
+  "writer_output_empty","writer_reasoning_only",
+  "writer_section_too_short","writer_section_too_long",
   "writer_output_truncated","writer_checkpoint_uncertain",
   "writer_http_429","writer_http_500","writer_http_502","writer_http_503","writer_http_504",
 ]);

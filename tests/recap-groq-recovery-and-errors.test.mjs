@@ -75,7 +75,8 @@ test("response timeout, lost reply, truncation and malformed output are distinct
     {fetch:async()=>{throw Error("sensitive");},code:"writer_network_uncertain"},
     {fetch:async()=>Response.json({choices:[{finish_reason:"length",message:{content:"Partial"}}]}),code:"writer_output_truncated"},
     {fetch:async()=>new Response("not-json",{status:200}),code:"writer_response_invalid"},
-    {fetch:async()=>Response.json({choices:[{finish_reason:"stop",message:{content:""}}]}),code:"writer_output_invalid"},
+    {fetch:async()=>Response.json({choices:[{finish_reason:"stop",message:{content:""}}]}),code:"writer_output_empty"},
+    {fetch:async()=>Response.json({choices:[{finish_reason:"stop",message:{content:[]}}]}),code:"writer_output_invalid"},
   ];
   try{
     for(const scenario of cases){
@@ -87,6 +88,32 @@ test("response timeout, lost reply, truncation and malformed output are distinct
     assert.equal(await requestGroqWriter("secret","openai/gpt-oss-120b","prompt",3200),
       "### A complete recap draft.");
   }finally{globalThis.fetch=original;}
+});
+test("successful Groq replies distinguish empty and reasoning-only output without another POST",async()=>{
+  const original=globalThis.fetch;
+  try{
+    const cases=[
+      {reply:{choices:[{finish_reason:"stop",message:{content:""}}]},
+        code:"writer_output_empty"},
+      {reply:{choices:[{finish_reason:"stop",message:{content:null}}],
+        usage:{completion_tokens:981,completion_tokens_details:{reasoning_tokens:981}}},
+        code:"writer_reasoning_only"},
+    ];
+    for(const {reply,code} of cases){
+      let requests=0;
+      globalThis.fetch=async()=>{requests++;return Response.json(reply);};
+      await assert.rejects(()=>requestGroqWriter("secret","openai/gpt-oss-120b","prompt",3000),
+        e=>e instanceof GroqWriterFailure&&e.code===code);
+      assert.equal(requests,1,"Do not automatically retry a 200 with no usable text.");
+      assert.ok(manualGroqWriterErrors.has(code));
+    }
+  }finally{globalThis.fetch=original;}
+});
+test("Groq section length failures are eligible for manual recovery from saved notes",async()=>{
+  assert.ok(manualGroqWriterErrors.has("writer_section_too_short"));
+  assert.ok(manualGroqWriterErrors.has("writer_section_too_long"));
+  const {db}=mockDb({code:"writer_section_too_long"});
+  assert.deepEqual(await resumeGroqWriter(db,params),{resumed:true,status:"uploaded"});
 });
 test("explicit Groq-only recovery keeps existing audio and saved writer checkpoints",async()=>{
   const {db,calls}=mockDb();

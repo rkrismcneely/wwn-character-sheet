@@ -151,6 +151,26 @@ export const recapAttentionText:Record<string,{
     description:"Groq returned an empty or invalid summary after processing. The request may have used quota.",
     action:"Check GroqCloud Logs. Existing notes and completed sections are preserved.",
   },
+  writer_reasoning_only:{
+    title:"Groq spent its output on reasoning",
+    description:"Groq processed the request but produced no visible recap text. The GPT-OSS token budget includes internal reasoning.",
+    action:"TWE now allocates more completion tokens. Retry Groq writing from the saved notes when ready.",
+  },
+  writer_output_empty:{
+    title:"Groq returned no recap text",
+    description:"Groq responded successfully, but its answer had no visible text.",
+    action:"Retry only Groq writing from your saved notes. No Gemini audio analysis is needed.",
+  },
+  writer_section_too_short:{
+    title:"Groq's scene summary was too short",
+    description:"Groq wrote too little to safely retain the events in this section.",
+    action:"Your Gemini scene notes are safe. Retry only this Groq writing step.",
+  },
+  writer_section_too_long:{
+    title:"Groq's scene summary was too long",
+    description:"Groq returned more scene text than the final recap request can safely fit.",
+    action:"TWE now allows longer compacted scene notes within the final prompt budget.",
+  },
   writer_output_truncated:{
     title:"Groq answer exceeded its token budget",
     description:"Groq stopped generation at its completion-token limit instead of returning a complete answer.",

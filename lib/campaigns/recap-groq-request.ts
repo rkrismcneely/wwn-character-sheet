@@ -2,8 +2,9 @@ import {boundedGroqResponse} from "./recap-groq-writer.ts";
 
 /** Fixed, privacy-safe error codes. Never include provider bodies or API keys. */
 export class GroqWriterFailure extends Error {
-  constructor(readonly code:string){
-    super(code);this.name="GroqWriterFailure";
+  readonly code:string;
+  constructor(code:string){
+    super(code);this.code=code;this.name="GroqWriterFailure";
   }
 }
 const knownHttp=new Set([400,401,403,404,408,409,413,422,424,429,498,500,502,503,504]);

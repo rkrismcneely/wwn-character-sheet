@@ -1,12 +1,13 @@
 import type {RecapAIEncryptionSettings} from "../account/recap-gemini-key.ts";
 import {decryptGeminiUserKey} from "../account/recap-gemini-key.ts";
 import {CampaignServiceError} from "./service.ts";
+import {summarizeRecapGeminiFailure} from "./recap-gemini-failure-diagnosis.ts";
 
 type Env=RecapAIEncryptionSettings&{DB:D1Database};
-type Input={jobId:string;campaignId:string;recapId:string;userId:string};
+type Input={jobId:string;campaignId:string;recapId:string;userId:string;forceRepackM4a?:boolean};
 type Job={id:string;audioAssetId:string;status:string;errorCode:string|null;processingMode:string};
 type Section={id:string;status:string;interactionId:string|null;fileUri:string|null;
-  fileName:string|null;errorCode:string|null};
+  fileName:string|null;errorCode:string|null;mimeType:string};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PROVIDER_ID=/^[A-Za-z0-9_-]{6,240}$/u;
 const FILE_ID=/^files\/[A-Za-z0-9_-]{2,240}$/u;
@@ -37,6 +38,7 @@ export async function retryFailedRecapSection(
 ):Promise<{resumed:true;status:"uploaded"|"pending_upload"}>{
   if(!UUID.test(input.jobId))
     throw new CampaignServiceError("Choose a valid AI recap job.",422);
+  const repack=input.forceRepackM4a===true;
   const db=env.DB;
   const job=await db.prepare("SELECT id,audio_asset_id AS audioAssetId,status,"+
     "error_code AS errorCode,processing_mode AS processingMode "+
@@ -52,14 +54,20 @@ export async function retryFailedRecapSection(
     .bind(job.audioAssetId,input.campaignId,input.recapId,input.userId).first();
   if(!source)throw new CampaignServiceError("The original Drive recording is unavailable.",409);
   const parts=await db.prepare("SELECT id,status,interaction_id AS interactionId,"+
-    "file_uri AS fileUri,file_name AS fileName,error_code AS errorCode "+
+    "file_uri AS fileUri,file_name AS fileName,error_code AS errorCode,mime_type AS mimeType "+
     "FROM campaign_recap_audio_summary_segments "+
     "WHERE job_id=? AND status='submitted' AND interaction_id IS NOT NULL "+
     "ORDER BY segment_index ASC LIMIT 2").bind(job.id).all<Section>();
   if(parts.results.length!==1)
     throw new CampaignServiceError("Could not identify a single failed audio section.",409);
   const part=parts.results[0];
-  if(part.errorCode||!part.interactionId||!PROVIDER_ID.test(part.interactionId)||
+  // The normal retry is allowed once. A SECOND, explicit retry may instead
+  // rebuild a legacy M4A section with the now-standard stsz/stco layout.
+  // The second retry is only permitted after the first actually submitted
+  // interaction failed, and only for this one verified M4A section.
+  const previousError=repack?"manual_retry_after_confirmed_failure":null;
+  if(part.errorCode!==previousError||(repack&&part.mimeType!=="audio/mp4")||
+    !part.interactionId||!PROVIDER_ID.test(part.interactionId)||
     !part.fileUri||!part.fileName||!FILE_ID.test(part.fileName))
     throw new CampaignServiceError("This audio section is not safely retryable.",409);
   const connection=await db.prepare(
@@ -88,40 +96,55 @@ export async function retryFailedRecapSection(
   if(original.status!=="failed")
     throw new CampaignServiceError(
       "Gemini no longer reports a terminal failed interaction. No duplicate AI request was made.",409);
+  if(repack){
+    const diagnosis=summarizeRecapGeminiFailure(original);
+    if(diagnosis.kind!=="server_error"||
+      !["internal","internal_error","api_error"].includes(diagnosis.providerCode??""))
+      throw new CampaignServiceError(
+        "Only a confirmed repeat Gemini INTERNAL failure qualifies for the rebuilt M4A retry. No new request was made.",409);
+  }
   // Verify whether the uploaded audio section is still present. If not,
   // TWE re-stages only that portion of the GM's original Drive asset.
-  let file:Response;
-  try{
-    file=await fetch(API+part.fileName,{
-      method:"GET",redirect:"manual",signal:AbortSignal.timeout(12000),
-      headers:{"x-goog-api-key":secret},
-    });
-  }catch{
-    throw new CampaignServiceError("Gemini temporary audio could not be checked. No retry was started.",503);
-  }
-  let needsUpload=false;
-  if(file.status===404||file.status===410)needsUpload=true;
-  else {
-    const result=await safeRead(file,100_000);
-    if(result.state==="FAILED")needsUpload=true;
-    else if(result.state!=="ACTIVE"&&result.state!=="PROCESSING")
-      throw new CampaignServiceError("Gemini could not verify this section's temporary audio file.",409);
+  let needsUpload=repack;
+  // A repack MUST ignore the previously uploaded, possibly problematic M4A,
+  // clear its cached header, and rebuild from the original Drive byte ranges.
+  // Existing safe first retries retain the old file if it is still ACTIVE.
+  if(!repack){
+    let file:Response;
+    try{
+      file=await fetch(API+part.fileName,{
+        method:"GET",redirect:"manual",signal:AbortSignal.timeout(12000),
+        headers:{"x-goog-api-key":secret},
+      });
+    }catch{
+      throw new CampaignServiceError("Gemini temporary audio could not be checked. No retry was started.",503);
+    }
+    if(file.status===404||file.status===410)needsUpload=true;
+    else {
+      const result=await safeRead(file,100_000);
+      if(result.state==="FAILED")needsUpload=true;
+      else if(result.state!=="ACTIVE"&&result.state!=="PROCESSING")
+        throw new CampaignServiceError("Gemini could not verify this section's temporary audio file.",409);
+    }
   }
   const target=needsUpload?"pending_upload":"uploaded";
   const at=new Date().toISOString();
   const results=await db.batch([
     db.prepare("UPDATE campaign_recap_audio_summary_segments "+
-      "SET status=?,interaction_id=NULL,error_code='manual_retry_after_confirmed_failure',"+
+      "SET status=?,interaction_id=NULL,error_code='"+(repack?
+        "manual_retry_after_m4a_repack":"manual_retry_after_confirmed_failure")+"',"+
       "file_uri=CASE WHEN ? THEN NULL ELSE file_uri END,"+
       "file_name=CASE WHEN ? THEN NULL ELSE file_name END,"+
       "stage_url_ciphertext=CASE WHEN ? THEN NULL ELSE stage_url_ciphertext END,"+
       "stage_url_nonce=CASE WHEN ? THEN NULL ELSE stage_url_nonce END,"+
       "stage_url_version=CASE WHEN ? THEN NULL ELSE stage_url_version END,"+
       "stage_offset=CASE WHEN ? THEN 0 ELSE stage_offset END,"+
+      "prefix_base64=CASE WHEN ? THEN '' ELSE prefix_base64 END,"+
       "updated_at=? WHERE id=? AND job_id=? AND status='submitted' "+
-      "AND interaction_id=? AND error_code IS NULL")
+      "AND interaction_id=? AND "+(repack?
+        "error_code='manual_retry_after_confirmed_failure'":"error_code IS NULL"))
       .bind(target,needsUpload?1:0,needsUpload?1:0,needsUpload?1:0,
-        needsUpload?1:0,needsUpload?1:0,needsUpload?1:0,
+        needsUpload?1:0,needsUpload?1:0,needsUpload?1:0,repack?1:0,
         at,part.id,job.id,part.interactionId),
     db.prepare("UPDATE campaign_recap_audio_summary_jobs "+
       "SET status='transferring',error_code=NULL,claimed_at=NULL,updated_at=? "+

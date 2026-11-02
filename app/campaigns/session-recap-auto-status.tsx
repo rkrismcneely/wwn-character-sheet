@@ -11,7 +11,7 @@ import {DEFAULT_RECAP_WRITER,RECAP_WRITER_CHOICES} from "@/lib/campaigns/recap-g
 type Job={
   id:string;audioAssetId:string;status:string;detail:string;model:string;
   generatedMarkdown:string|null;errorCode:string|null;stageErrorCode:string|null;
-  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;canRepackFailedM4a?:boolean;
+  stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;canRepackFailedM4a?:boolean;canResumeGroqWriter?:boolean;
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
 };
@@ -224,6 +224,25 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       setError(e instanceof Error?e.message:"Could not safely retry the failed section.");
     }finally{setRetrying(false);}
   }
+  async function resumeGroqOnly(job:Job){
+    if(retrying||starting||!job.canResumeGroqWriter||job.status!=="needs_attention")return;
+    if(!window.confirm("Check your GroqCloud Dashboard → Logs for this job's last update before proceeding. The previous Groq writing request may have succeeded or used quota even though TWE received no usable answer. Retry ONLY the Groq writing stage from saved Gemini scene notes and existing Groq checkpoints? This can submit another Groq request and may use quota or incur charges. Your original Drive audio, Gemini analysis and published recap will not be rerun or overwritten. Continue?"))return;
+    setRetrying(true);setError("");setNotice("");
+    try{
+      const response=await fetch(endpoint,{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,jobId:job.id,retryApproved:true,
+          retryGroqWriter:true,acknowledgedPossibleCharge:true}),
+      });
+      const data=await response.json() as {resumed?:boolean;error?:string};
+      if(!response.ok||!data.resumed)
+        throw Error(data.error||"Could not resume writing from saved scene notes.");
+      setDiagnosis(null);diagnosedJob.current="";
+      setNotice("Groq writer resumed from existing scene notes. Gemini audio will not be processed again.");
+      await refresh();
+    }catch(e){setError(e instanceof Error?e.message:"Could not resume Groq writer.");}
+    finally{setRetrying(false);}
+  }
   async function retryRepackedSection(job:Job){
     if(retrying||starting||!job.canRepackFailedM4a||job.status!=="needs_attention")return;
     if(!window.confirm("The same M4A audio section failed twice with Gemini INTERNAL. Rebuild ONLY that section using standard MP4/AAC headers, then retry analyzing it once with the same Gemini model? TWE verifies the old interaction is terminal and failed internally, preserves completed sections and the original Drive recording, and never creates a new recap. The new Gemini analysis request can use quota or incur charges. Continue?"))return;
@@ -329,7 +348,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         {recapStageDescriptions[newest.stageErrorCode]??
           "The preparation step stopped. Your recording is unchanged."}
       </p>}
-      {!newest.canRetry&&!newest.canRetryFailedSection&&<p className="campaign-empty-copy">
+      {!newest.canRetry&&!newest.canRetryFailedSection&&!newest.canResumeGroqWriter&&<p className="campaign-empty-copy">
         {recapAttentionText[newest.errorCode??""]?.action??recapAttentionText.unexpected.action}
       </p>}
       <div className="session-recap-form-actions">
@@ -341,6 +360,18 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           disabled={retrying||starting} onClick={()=>void retryJob(newest)}>
           {retrying?"Retrying…":"Retry AI processing"}
         </button>}
+        {newest.canResumeGroqWriter&&<>
+          <button type="button" className="campaign-primary"
+            disabled={retrying||starting} onClick={()=>void resumeGroqOnly(newest)}>
+            {retrying?"Resuming…":"Retry Groq writing using saved notes"}
+          </button>
+          <p className="campaign-empty-copy">
+            Review GroqCloud Dashboard → Logs before retrying. A lost response might have consumed quota.
+            This does not retranscribe the audio.
+          </p>
+          <a href="https://console.groq.com/" target="_blank"
+            rel="noopener noreferrer">Open GroqCloud</a>
+        </>}
         {newest.canRepackFailedM4a&&currentDiagnosis&&
           ["internal","internal_error","api_error"].includes(currentDiagnosis.value.providerCode??"")&&
           <button type="button" className="campaign-primary"
@@ -370,7 +401,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
           <pre style={{whiteSpace:"pre-wrap",maxHeight:300,overflow:"auto"}}>{newest.generatedMarkdown}</pre>
         </details>}
         <div className="session-recap-form-actions">
-          <a className="campaign-secondary" href="/account#recap-setup">Test Gemini connection</a>
+          <a className="campaign-secondary" href="/account#recap-setup">
+            {newest.model.startsWith("groq:")&&newest.errorCode?.startsWith("writer_")?
+              "Manage Groq connection":"Test Gemini connection"}
+          </a>
           <a className="campaign-secondary" href="https://aistudio.google.com/" target="_blank"
             rel="noopener noreferrer">Google AI Studio</a>
         </div>

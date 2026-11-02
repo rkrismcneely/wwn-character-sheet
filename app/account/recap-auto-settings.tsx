@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {RecapGroqConnection} from "./recap-groq-connection";
 import {DEFAULT_RECAP_WRITER,RECAP_WRITER_CHOICES} from "@/lib/campaigns/recap-groq-writer";
 type Preferences={autoEnabled:boolean;billingApproved:boolean;detail:"brief"|"standard"|"detailed";consentAt:string|null;writerModel:string};
 export function RecapAutoSettings(){
@@ -53,7 +54,7 @@ export function RecapAutoSettings(){
     }catch(e){setError(e instanceof Error?e.message:"Could not save recap preferences.");}
     finally{setSaving(false);}
   }
-  return <section className="account-panel" aria-labelledby="recap-automation-heading">
+  return <><section className="account-panel" aria-labelledby="recap-automation-heading">
     <div className="account-section-heading"><div>
       <p className="account-kicker">OPTIONAL PREFERENCE</p>
       <h2 id="recap-automation-heading">AI Recap Preferences</h2>
@@ -96,5 +97,5 @@ export function RecapAutoSettings(){
     </>}
     {notice&&<p className="account-notice" role="status">{notice}</p>}
     {error&&<p className="account-error" role="alert">{error}</p>}
-  </section>;
+  </section><RecapGroqConnection/></>;
 }

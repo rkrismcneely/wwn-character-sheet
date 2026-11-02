@@ -384,6 +384,8 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
   // finishes. Old jobs keep running and new long jobs remain queued safely.
   const migrated=Boolean(await db.prepare("SELECT name FROM sqlite_master "+
     "WHERE type='table' AND name='campaign_recap_audio_summary_segments'").first());
+  const writerSchema=Boolean(await db.prepare("SELECT name FROM sqlite_master "+
+    "WHERE type='table' AND name='campaign_recap_groq_writer_parts'").first());
   const stale=stamped(Date.now()-60*60*1000);
   // A stale Drive-to-Gemini transfer is safely retryable: no model interaction
   // has yet been submitted. A stale 'submitting' state is NOT safe to retry,
@@ -397,16 +399,18 @@ export async function runRecapOnlyScheduledTick(env:RecapOnlyEnvironment):Promis
     "WHERE confirmed_at IS NOT NULL AND status='submitting' AND claimed_at<?")
     .bind(now(),stale).run();
   const job=await db.prepare("SELECT id,campaign_id AS campaignId,recap_id AS recapId,"+
-    "audio_asset_id AS audioAssetId,requested_by AS requestedBy,status,detail,model,audio_notes AS audioNotes,"+
+    "audio_asset_id AS audioAssetId,requested_by AS requestedBy,status,detail,model,"+
+    (writerSchema?"audio_notes AS audioNotes,":"NULL AS audioNotes,")+
     "file_uri AS fileUri,file_name AS fileName,interaction_id AS interactionId,updated_at AS updatedAt,"+
     "claimed_at AS claimedAt,"+(migrated?"processing_mode AS processingMode ":"'single' AS processingMode ")+
     "FROM campaign_recap_audio_summary_jobs "+
-    "WHERE confirmed_at IS NOT NULL AND (status IN ('submitted','uploaded','pending_upload') "+
+    "WHERE confirmed_at IS NOT NULL AND (model NOT LIKE 'groq:%' OR ?=1) "+
+    "AND (status IN ('submitted','uploaded','pending_upload') "+
     "OR (status='transferring' AND (claimed_at IS NULL OR claimed_at<?))) "+
     // Oldest job first: otherwise repeated result polling can starve all new
     // uploads indefinitely. Each tick runs one bounded provider operation.
     "ORDER BY updated_at ASC,id ASC LIMIT 1")
-    .bind(stamped(Date.now()-90_000)).first<Job>();
+    .bind(writerSchema?1:0,stamped(Date.now()-90_000)).first<Job>();
   if(!job)return;
   try{
     if(job.status==="pending_upload"){

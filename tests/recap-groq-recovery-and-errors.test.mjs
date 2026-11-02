@@ -141,3 +141,12 @@ test("Groq resume route requires GM permission, individual consent and reuses sa
   assert.match(recovery,/writer_http_429/u);
   assert.match(recovery,/writer_output_truncated/u);
 });
+
+test("successful Groq response is checkpointed with DB-only retry, never a second Groq POST",async()=>{
+  const runner=await readFile(new URL("../lib/campaigns/recap-groq-final-runner.ts",import.meta.url),"utf8");
+  assert.match(runner,/for\(let attempt=0;attempt<3&&!persisted;attempt\+\+\)/u);
+  assert.match(runner,/if\(current\?\.status==="ready"&&current\.markdown===markdown\)/u);
+  assert.match(runner,/if\(!persisted\)throw new GroqWriterFailure\("writer_checkpoint_uncertain"\)/u);
+  const checkpointSection=runner.split("let persisted=false;")[1].split("if(!persisted)")[0];
+  assert.doesNotMatch(checkpointSection,/requestGroqWriter\(/u);
+});

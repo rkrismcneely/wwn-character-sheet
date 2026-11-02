@@ -8,6 +8,9 @@ import type {
   CampaignItemVisibility,
 } from "@/lib/campaigns/items";
 import type { CampaignItemProperties, InventoryItemKind } from "@/lib/inventory/items";
+import {journalItemIcon,journalItemMarker,newItemJournalContent,updatedItemJournalContent} from "@/lib/campaigns/journal-item-link";
+
+type ItemJournalPage={id:string;kind:string;title:string;content:string;parentId:string|null;icon:string;updatedAt:string};
 
 type ItemDraft = {
   name: string;
@@ -83,6 +86,72 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [journalNotice, setJournalNotice] = useState("");
+  const [linkedItemIds,setLinkedItemIds] = useState<string[]>([]);
+  const journalEndpoint = `/api/campaigns/${encodeURIComponent(campaignId)}/journal`;
+
+  async function journalPages():Promise<ItemJournalPage[]>{
+    const response=await fetch(journalEndpoint,{cache:"no-store"});
+    const body=await response.json() as {entries?:ItemJournalPage[];error?:string};
+    if(!response.ok||!Array.isArray(body.entries))throw new Error(body.error||"Could not load Journal pages.");
+    return body.entries;
+  }
+
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch(journalEndpoint,{cache:"no-store",signal:controller.signal})
+      .then(async response=>{
+        if(!response.ok) return null;
+        return await response.json() as {entries?:ItemJournalPage[]};
+      }).then(body=>{
+        if(controller.signal.aborted||!Array.isArray(body?.entries))return;
+        setLinkedItemIds(body.entries.filter(page=>page.kind==="page")
+          .flatMap(page=>[...page.content.matchAll(/<!-- twe-item:(citem_[a-f0-9]{32}) -->/gu)].map(match=>match[1])));
+      }).catch(()=>{});
+    return()=>controller.abort();
+  },[journalEndpoint]);
+
+  async function syncItemJournal(item:CampaignItem):Promise<boolean>{
+    const pages=await journalPages();
+    const page=pages.find(entry=>entry.kind==="page"&&entry.content.includes(journalItemMarker(item.id)));
+    if(!page)return false;
+    const content=updatedItemJournalContent(page.content,item);
+    if(content===page.content)return false;
+    const response=await fetch(journalEndpoint,{method:"PATCH",headers:{"content-type":"application/json"},
+      body:JSON.stringify({id:page.id,content,expectedContent:page.content,expectedUpdatedAt:page.updatedAt})});
+    const result=await response.json() as {error?:string};
+    if(!response.ok)throw new Error(result.error||"Journal article changed. Refresh before synchronizing.");
+    window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+    return true;
+  }
+
+  async function addItemToJournal(item:CampaignItem){
+    if(busy)return;
+    setBusy(true);setError("");setJournalNotice("");
+    try{
+      const pages=await journalPages();
+      const existing=pages.find(entry=>entry.kind==="page"&&entry.content.includes(journalItemMarker(item.id)));
+      if(existing){
+        setLinkedItemIds(ids=>ids.includes(item.id)?ids:[...ids,item.id]);
+        setJournalNotice(`"${item.name}" is already in the Journal as "${existing.title}".`);
+        return;
+      }
+      const sameName=pages.find(entry=>entry.kind==="page"&&entry.title.trim().toLocaleLowerCase()===item.name.trim().toLocaleLowerCase());
+      if(sameName&&!window.confirm(`A Journal page named "${sameName.title}" already exists. Create a separate item article?`))return;
+      const folder=pages.find(entry=>entry.kind==="folder"&&entry.icon==="twe-role:items")??
+        pages.find(entry=>entry.kind==="folder"&&!entry.parentId&&entry.title.trim().toLocaleLowerCase()==="items");
+      const response=await fetch(journalEndpoint,{method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({kind:"page",title:item.name,content:newItemJournalContent(item),
+          icon:journalItemIcon(item),visibility:"gm",...(folder?{parentId:folder.id}:{})})});
+      const created=await response.json() as {entry?:{id:string};error?:string};
+      if(!response.ok||!created.entry)throw new Error(created.error||"Could not create item Journal page.");
+      setLinkedItemIds(ids=>ids.includes(item.id)?ids:[...ids,item.id]);
+      setJournalNotice(`Added "${item.name}" to the Journal (GM only).`);
+      window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not add item to the Journal.");}
+    finally{setBusy(false);}
+  }
+
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +179,7 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
     setDeleteId(null);
     setFormOpen(true);
     setError("");
+    setJournalNotice("");
   }
 
   function openEdit(item: CampaignItem) {
@@ -118,6 +188,7 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
     setDeleteId(null);
     setFormOpen(true);
     setError("");
+    setJournalNotice("");
   }
 
   function toggleCharacter(characterId: string) {
@@ -169,6 +240,13 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
       setEditing(null);
       setDraft(blankItem());
       setFormOpen(false);
+      if(editing){
+        try{
+          if(await syncItemJournal(body.item))setJournalNotice(`Updated the linked Journal article for "${body.item.name}".`);
+        }catch(syncError){
+          setJournalNotice(`Item saved, but its Journal article could not be updated: ${syncError instanceof Error?syncError.message:"Try again."}`);
+        }
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Campaign item could not be saved.");
     } finally {
@@ -203,7 +281,8 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
       </div>
       <button type="button" className="campaign-primary" onClick={openCreate}>Create Item</button>
     </div>
-    {error && <p className="campaign-error" role="status">{error}</p>}
+    {error && <p className="campaign-error" role="alert">{error}</p>}
+    {journalNotice && <p className="campaign-notice" role="status">{journalNotice}</p>}
     {formOpen && <form className="gm-npc-form campaign-item-form" onSubmit={save}>
       <div className="gm-npc-form-heading">
         <h3>{editing ? `Edit ${editing.name}` : "New Campaign Item"}</h3>
@@ -239,6 +318,7 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
         <small>Visible to: {visibilitySummary(item, characters)}</small>
       </div>
       <div className="gm-npc-actions">
+        <button type="button" className="campaign-secondary" disabled={busy || linkedItemIds.includes(item.id)} onClick={()=>void addItemToJournal(item)}>{linkedItemIds.includes(item.id)?"Added to Journal":"Add to Journal"}</button>
         <button type="button" className="campaign-quiet" onClick={() => openEdit(item)}>Edit</button>
         {deleteId === item.id
           ? <span className="gm-npc-delete-confirm"><button type="button" className="campaign-danger" disabled={busy} onClick={() => void remove(item.id)}>Confirm Delete</button><button type="button" className="campaign-quiet" onClick={() => setDeleteId(null)}>Cancel</button></span>

@@ -24,7 +24,9 @@ async function callGroq(secret:string,model:string,prompt:string,maxTokens:numbe
  if(Number(response.headers.get("content-length")||0)>125000)throw Error("Groq response too large.");
  const text=await response.text();
  if(text.length>125000)throw Error("Groq response too large.");
- return boundedGroqResponse(JSON.parse(text) as unknown);
+ const parsed=JSON.parse(text) as {choices?:{finish_reason?:string}[]};
+ if(parsed.choices?.[0]?.finish_reason==="length")throw Error("Groq stopped before finishing.");
+ return boundedGroqResponse(parsed);
 }
 
 /** Claim BEFORE the POST; uncertain requests are never automatically resubmitted. */
@@ -64,7 +66,7 @@ export async function submitGroqRecap(env:Env,job:Job,notes:string,context:strin
  const completed=new Map(stored.results.map(row=>[row.partIndex,row.notes]));
  const next=staged?parts.findIndex((_,i)=>!completed.has(i)):-1;
  const aggregate=next<0?(staged?parts.map((_,i)=>completed.get(i)||"").join("\n\n"):notes):"";
- if(next<0&&(!aggregate.trim()||aggregate.length>15000)){
+ if(next<0&&(!aggregate.trim()||aggregate.length>12000)){
   await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET status='needs_attention',"+
     "error_code='writer_input_too_large',updated_at=? WHERE id=? AND status='uploaded'")
    .bind(stamp(),job.id).run();
@@ -107,7 +109,7 @@ export async function submitGroqRecap(env:Env,job:Job,notes:string,context:strin
   "All source notes must be covered without omitting the end. "+
   "\nREFERENCE CONTEXT (not events from this session):\n"+context.slice(0,2800)+
   "\nSCENE NOTES FROM THE RECORDING:\n"+aggregate;
-  const markdown=clean(await callGroq(secret,choice.model,instruction,3800));
+  const markdown=clean(await callGroq(secret,choice.model,instruction,3200));
   const saved=await env.DB.prepare("UPDATE campaign_recap_audio_summary_jobs SET "+
    "status='ready',generated_markdown=?,claimed_at=NULL,updated_at=? "+
    "WHERE id=? AND status='submitting' AND model=?")

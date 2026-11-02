@@ -27,7 +27,7 @@ test("Groq sections are persistent and uncertain submissions never retry automat
  assert.match(writer,/INSERT OR IGNORE INTO campaign_recap_groq_writer_parts/);
  assert.match(writer,/status='submitting'/);
  assert.match(writer,/writer_checkpoint_uncertain/);
-  const requests=read("lib/campaigns/recap-groq-request.ts");
+  const requests=await read("lib/campaigns/recap-groq-request.ts");
   assert.match(requests,/writer_submission_uncertain/);
  assert.match(writer,/context.slice\(0,2800\)/);
  assert.match(migration,/PRIMARY KEY\(job_id,part_index\)/);

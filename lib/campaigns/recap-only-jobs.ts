@@ -58,7 +58,7 @@ export async function enqueueConfirmedRecapAudio(
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
       "pending_upload",detail,writerModel,null,now,now,now,input.requestId).run();
-  if(result.meta.changes===1&&writerModel.startsWith("groq:")){
+  if(result.meta.changes===1){
     // Reuse saved audio understanding from a previous explicitly approved run.
     // Only immutable asset, GM and campaign matches are eligible.
     await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET audio_notes=("+

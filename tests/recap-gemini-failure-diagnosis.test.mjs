@@ -64,3 +64,17 @@ test("the diagnose route only reads existing GM-owned failed interaction",async(
   assert.match(ui,/Recheck Gemini error \(no AI request\)/u);
   assert.match(ui,/endpoint\+"\/diagnose"/u);
 });
+
+test("nested Gemini errors and sanitized fingerprints",()=>{
+  const secret="private-audio-token-123";
+  const result=summarizeRecapGeminiFailure({
+    status:"failed",response:{error:{status:"SERVICE_UNAVAILABLE",message:secret}},
+  });
+  assert.equal(result.kind,"server_error");
+  assert.equal(result.providerCode,"service_unavailable");
+  assert.equal(JSON.stringify(result).includes(secret),false);
+  assert.match(result.diagnosticFingerprint,/gemini-v2:/);
+  assert.equal(summarizeRecapGeminiFailure({
+    failure:{details:[{reason:"RESOURCE_EXHAUSTED"}]},
+  }).kind,"minute_rate_limit");
+});

@@ -25,3 +25,14 @@ test("GM writer preference is stored, validated, and presented in Account",()=>{
   assert.match(ui,/detail,writerModel/);
   assert.match(migration,/ALTER TABLE user_recap_auto_preferences ADD COLUMN writer_model/);
 });
+
+test("Auto Summarize persists the GM-selected model per job",()=>{
+  const ui=read("app/campaigns/session-recap-auto-status.tsx");
+  const route=read("app/api/campaigns/[id]/session-recaps/auto-recap/route.ts");
+  const jobs=read("lib/campaigns/recap-only-jobs.ts");
+  assert.match(ui,/writerModel:selectedWriter/);
+  assert.match(ui,/setSelectedWriter\(defaultWriter\)/);
+  assert.match(route,/writerModel:body.writerModel/);
+  assert.match(jobs,/selectRecapWriter\(input.writerModel/);
+  assert.match(jobs,/"pending_upload",detail,writerModel/);
+});

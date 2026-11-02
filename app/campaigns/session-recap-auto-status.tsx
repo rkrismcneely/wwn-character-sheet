@@ -251,7 +251,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       onDuration={(assetId,durationMs)=>setDurations(previous=>
         previous[assetId]===durationMs?previous:{...previous,[assetId]:durationMs})}/>}
     <h4>AI recap</h4>
-    <p className="campaign-empty-copy">Summarize with your Gemini account. Review before publishing.</p>
+    <p className="campaign-empty-copy">Gemini analyzes the recording; your selected model writes the recap. Review before publishing.</p>
     {available.map(asset=><div className="session-recap-form-actions" key={asset.id}>
       <span>{asset.label}</span>
       <button type="button" className="campaign-primary" disabled={starting}
@@ -368,7 +368,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
                 "\\nInput tokens: "+currentDiagnosis.value.inputTokens:"")+
               (currentDiagnosis.section!==null?
                 "\\nFailed section: "+currentDiagnosis.section+" of "+(currentDiagnosis.sectionCount??"unknown"):""):
-              "\\nGemini diagnosis: not available (use Recheck Gemini error first)"))
+               newest.stageErrorCode?"\\nGemini analysis: not started (upload preparation failed)":
+               "\\nGemini diagnosis: not available for this error"))
             .then(()=>setNotice("Diagnostics copied.")).catch(()=>setError("Could not copy diagnostics."))
         }>Copy diagnostics</button>
       </details>

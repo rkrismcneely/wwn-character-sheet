@@ -354,6 +354,9 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             (currentDiagnosis?"\\nGemini diagnosis: "+currentDiagnosis.value.title+
               "\\nDiagnosis category: "+currentDiagnosis.value.kind+
               "\\nExplanation: "+currentDiagnosis.value.explanation+
+              "\\nProcessing stage: "+(currentDiagnosis.stage??"unknown")+
+              "\\nProvider code: "+(currentDiagnosis.value.providerCode??"not supplied")+
+              "\\nDiagnostic fingerprint: "+(currentDiagnosis.value.diagnosticFingerprint??"not available")+
               (currentDiagnosis.value.inputTokens!==null?
                 "\\nInput tokens: "+currentDiagnosis.value.inputTokens:"")+
               (currentDiagnosis.section!==null?

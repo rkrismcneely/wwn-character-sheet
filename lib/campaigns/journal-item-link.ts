@@ -19,6 +19,7 @@ export function journalItemIcon(item:Pick<CampaignItem,"kind">):string {
 
 export function itemJournalManagedSection(item:CampaignItem):string {
  const lines:string[]=[journalItemManagedStart,
+   "**Item:** "+item.name,"",
    "**Category:** "+(item.kind==="armor"?"Armour":item.kind==="weapon"?"Weapon":
      item.kind==="magical"?"Magical Item":"Mundane Item"),""];
  if(item.description.trim())lines.push(item.description.trim(),"");

@@ -177,3 +177,19 @@ export async function updateCampaignSessionRecap(
     isPublished,
     createdAt: (await getCampaignSessionRecap(db, actor, campaignId, id)).createdAt, updatedAt: now };
 }
+
+export async function deleteCampaignSessionRecap(
+  db:D1Database,actor:CampaignActor|null,campaignId:string,recapId:unknown,
+):Promise<void>{
+  const internalId=await writable(db,actor,campaignId);
+  const id=validId(recapId);
+  const existing=await db.prepare("SELECT id FROM campaign_session_recaps WHERE campaign_id=? AND id=?")
+    .bind(internalId,id).first<{id:string}>();
+  if(!existing)throw new CampaignServiceError("Session recap not found.",404);
+  const marker="<!-- twe-session-recap:"+id+" -->";
+  await db.prepare("DELETE FROM campaign_journal_entries WHERE campaign_id=? AND kind='page' AND instr(content,?)>0")
+    .bind(internalId,marker).run();
+  // Recap audio references are detached by ON DELETE SET NULL; Drive files are retained.
+  await db.prepare("DELETE FROM campaign_session_recaps WHERE campaign_id=? AND id=?")
+    .bind(internalId,id).run();
+}

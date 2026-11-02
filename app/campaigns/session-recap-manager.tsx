@@ -37,6 +37,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [createMethod, setCreateMethod] = useState<"manual" | "recording">("recording");
   const [loading, setLoading] = useState(() => !cachedPage(campaignId));
   const [saving, setSaving] = useState(false);
+  const [deleting,setDeleting]=useState(false);
   const [importing, setImporting] = useState(false);
   const [addingToJournal,setAddingToJournal]=useState(false);
   const [transcriptRefresh,setTranscriptRefresh]=useState(0);
@@ -192,6 +193,23 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     finally { setSaving(false); }
   }
 
+  async function deleteRecap(){
+    if(!editing||editing==="new"||saving||deleting||uploadBusy)return;
+    if(!window.confirm("Permanently delete this recap and its linked Journal copy? The original Google Drive audio will remain. This cannot be undone."))return;
+    setDeleting(true);setError("");
+    try{
+      const response=await fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps?recapId="+encodeURIComponent(editing.id),{method:"DELETE"});
+      const result=await response.json() as {deleted?:boolean;error?:string};
+      if(!response.ok||!result.deleted)throw new Error(result.error||"Could not delete the recap.");
+      setEditing(null);setPreview(false);setImportNotice("");
+      recapPageCache.delete(campaignId);
+      window.dispatchEvent(new CustomEvent(sessionRecapChangedEvent,{detail:{campaignId}}));
+      window.dispatchEvent(new CustomEvent("twe:campaign-data-changed",{detail:{campaignId,area:"journal"}}));
+      await loadPage(1);
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not delete the recap.");}
+    finally{setDeleting(false);}
+  }
+
   return <section className="gm-console-section session-recap-manager" aria-labelledby="gm-session-recaps-title">
     <input ref={importFileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain"
       aria-label="Choose an Obsidian Markdown note" hidden
@@ -199,7 +217,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
     {editing ? <>
       <div className="campaign-section-heading">
         <div><p className="campaign-kicker">SESSION JOURNAL</p><h2 id="gm-session-recaps-title">{editing === "new" ? "New Session Recap" : editing.isPublished ? "Edit Session Recap" : "Private Recording Draft"}</h2></div>
-        <div className="session-recap-heading-actions">{editing!=="new"&&editing.isPublished&&<button type="button" className="campaign-secondary" disabled={saving||addingToJournal} onClick={()=>void addToJournal()}>{addingToJournal?"Adding…":"Add to Journal"}</button>}<button type="button" className="campaign-secondary" disabled={saving||uploadBusy} title={uploadBusy?"Stop the recording upload before leaving.":undefined} onClick={cancelEdit}>Back to Recaps</button></div>
+        <div className="session-recap-heading-actions">{editing!=="new"&&editing.isPublished&&<button type="button" className="campaign-secondary" disabled={saving||addingToJournal} onClick={()=>void addToJournal()}>{addingToJournal?"Adding…":"Add to Journal"}</button>}{editing!=="new"&&<button type="button" className="campaign-secondary" disabled={saving||deleting||uploadBusy} onClick={()=>void deleteRecap()}>{deleting?"Deleting…":"Delete Recap"}</button>}<button type="button" className="campaign-secondary" disabled={saving||uploadBusy} title={uploadBusy?"Stop the recording upload before leaving.":undefined} onClick={cancelEdit}>Back to Recaps</button></div>
       </div>
       {importNotice && <p className="session-recap-import-notice" role="status">{importNotice}</p>}
       {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}

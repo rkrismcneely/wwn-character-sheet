@@ -2,7 +2,7 @@ import { getSessionActor } from "@/lib/auth-session";
 import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignD1 } from "@/lib/campaigns/service";
 import {
-  createCampaignSessionRecap, getCampaignSessionRecap, listCampaignSessionRecaps,
+  createCampaignSessionRecap, deleteCampaignSessionRecap, getCampaignSessionRecap, listCampaignSessionRecaps,
   sessionRecapArchive, updateCampaignSessionRecap,
 } from "@/lib/campaigns/session-recaps";
 import { readBoundedJson, RequestBodyError } from "@/lib/http-json";
@@ -49,4 +49,14 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
     return campaignErrorResponse(error, "The session recap could not be updated.");
   }
+}
+
+export async function DELETE(request:Request,context:Context):Promise<Response>{
+  try{
+    const actor=await getSessionActor(request);
+    if(!actor)return Response.json({error:"Sign in is required."},{status:401});
+    const {id}=await context.params;
+    await deleteCampaignSessionRecap(await getCampaignD1(),actor,id,new URL(request.url).searchParams.get("recapId"));
+    return Response.json({deleted:true});
+  }catch(error){return campaignErrorResponse(error,"The session recap could not be deleted.");}
 }

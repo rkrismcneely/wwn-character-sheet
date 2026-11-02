@@ -37,10 +37,10 @@ test("recap API authenticates every operation and reserves writes for GM service
     read("../app/api/campaigns/[id]/session-recaps/route.ts"),
     read("../lib/campaigns/session-recaps.ts"),
   ]);
-  for (const method of ["GET", "POST", "PATCH"]) {
+  for (const method of ["GET", "POST", "PATCH", "DELETE"]) {
     assert.match(route, new RegExp(`export async function ${method}\\(`));
   }
-  assert.equal((route.match(/getSessionActor\(request\)/gu) ?? []).length, 3);
+  assert.equal((route.match(/getSessionActor\(request\)/gu) ?? []).length, 4);
   assert.match(route, /if \(query\.get\("view"\) === "player"\)/u);
   assert.match(route, /if \(query\.has\("recapId"\)\)/u);
   assert.match(route, /readBoundedJson\(request, 40 \* 1024\)/u);
@@ -98,4 +98,22 @@ test("recap Markdown is rendered as React elements and forbids unsafe URL scheme
   assert.match(markdown, /<ul key=\{key\}>/u);
   assert.match(markdown, /<blockquote key=\{key\}>/u);
   assert.match(markdown, /<pre key=\{key\}>/u);
+});
+
+test("recap deletion is GM-only, confirmed and preserves Drive audio",async()=>{
+  const [service,route,editor,storage]=await Promise.all([
+    read("../lib/campaigns/session-recaps.ts"),
+    read("../app/api/campaigns/[id]/session-recaps/route.ts"),
+    read("../app/campaigns/session-recap-manager.tsx"),
+    read("../drizzle/0035_recap_user_audio_storage.sql"),
+  ]);
+  assert.match(service,/export async function deleteCampaignSessionRecap/);
+  assert.match(service,/await writable\(db,actor,campaignId\)/);
+  assert.match(service,/DELETE FROM campaign_session_recaps WHERE campaign_id=\? AND id=\?/);
+  assert.match(service,/twe-session-recap:/);
+  assert.match(storage,/recap_id TEXT REFERENCES campaign_session_recaps\(id\) ON DELETE SET NULL/);
+  assert.match(route,/export async function DELETE/);
+  assert.match(editor,/window\.confirm\("Permanently delete this recap/);
+  assert.match(editor,/Delete Recap/);
+  assert.match(editor,/method:"DELETE"/);
 });

@@ -31,6 +31,26 @@ export function safeRecapRetryTarget(job:RecapRetryRecord):RecapRetryTarget|null
 export const recapAttentionText:Record<string,{
   title:string;description:string;action:string;
 }> = {
+  writer_connection_missing:{
+    title:"Groq writer is not connected",
+    description:"TWE saved the completed audio analysis, but could not access your Groq API key.",
+    action:"Connect or test Groq in Account. The Gemini scene notes are retained; no new audio analysis is needed.",
+  },
+  writer_input_too_large:{
+    title:"Groq free-tier input needs smaller sections",
+    description:"The saved scene notes exceeded the safe Groq request budget. No oversized writing request was sent.",
+    action:"Keep this job for a smaller writer batch or a higher-tier model. Your Gemini scene notes remain saved.",
+  },
+  writer_submission_uncertain:{
+    title:"Groq writer request could not be confirmed",
+    description:"Groq may have processed the current writing section. TWE stopped instead of repeating a potentially chargeable request.",
+    action:"Check Groq usage and retain the job ID. Completed writing sections and Gemini scene notes remain saved.",
+  },
+  audio_notes_invalid:{
+    title:"Gemini audio notes failed validation",
+    description:"Gemini finished audio processing but did not return enough reliable scene notes for the recap writer.",
+    action:"The original recording remains saved. TWE did not send any writing request to Groq.",
+  },
   provider_or_storage_error:{
     title:"Recording preparation failed",
     description:"TWE couldn't complete a Drive or Gemini preparation step before submitting the recap request. Your original recording remains saved in Drive.",

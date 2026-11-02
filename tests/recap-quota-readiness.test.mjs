@@ -56,7 +56,7 @@ test("GM receives estimate in approval dialog and recorded duration from player"
   ]);
   assert.match(dialog,/recapQuotaNotice\(/u);
   assert.match(dialog,/recapQuotaNotice\(duration\)/u);
-  assert.match(dialog,/Estimated \{segmentCount\} audio sections \+ 1 recap request/u);
+  assert.match(dialog,/Estimated \{segmentCount\} Gemini audio sections/u);
   assert.match(dialog,/quotaEstimate\.size!=="ordinary"/u);
   assert.match(dialog,/aistudio\.google\.com\/rate-limit/u);
   assert.match(player,/onLoadedMetadata=/u);

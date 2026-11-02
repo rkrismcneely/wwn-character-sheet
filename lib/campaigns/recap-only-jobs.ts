@@ -1,8 +1,9 @@
-import { RECAP_ONLY_MAX_AUDIO_BYTES, RECAP_ONLY_MODEL } from "./recap-only-runner.ts";
+import {DEFAULT_RECAP_WRITER,selectRecapWriter} from "./recap-groq-writer.ts";
+import { RECAP_ONLY_MAX_AUDIO_BYTES } from "./recap-only-runner.ts";
 import { CampaignServiceError } from "./service.ts";
 import {safeRecapRetryTarget,type RecapRetryRecord} from "./recap-only-recovery.ts";
 
-type Preferences={detail:"brief"|"standard"|"detailed"};
+type Preferences={detail:"brief"|"standard"|"detailed";writerModel:string};
 /**
  * Only an explicit, individually confirmed GM action may create a provider job.
  * Recording uploads, verification retries, and account setup never enqueue work.
@@ -12,14 +13,14 @@ export async function enqueueConfirmedRecapAudio(
   db:D1Database,input:{
     campaignId:string;recapId:string;audioAssetId:string;userId:string;byteSize:number;
     confirmed:boolean;privacyApproved:boolean;billingApproved:boolean;
-    detail?:unknown;requestId?:unknown;
+    detail?:unknown;requestId?:unknown;writerModel?:unknown;
   },
 ):Promise<{created:boolean;alreadyQueued:boolean}>{
   if(input.confirmed!==true||input.privacyApproved!==true||input.billingApproved!==true)
     throw new CampaignServiceError(
       "Confirm that Gemini may receive your recording and campaign context and that your Gemini project may incur charges.",422);
   const [preferences,provider,recap]=await Promise.all([
-    db.prepare("SELECT detail FROM user_recap_auto_preferences WHERE user_id=?")
+    db.prepare("SELECT detail,writer_model AS writerModel FROM user_recap_auto_preferences WHERE user_id=?")
       .bind(input.userId).first<Preferences>(),
     db.prepare("SELECT 1 AS ok FROM user_recap_ai_connections WHERE user_id=? "+
       "AND provider='gemini' AND status='connected' AND key_ciphertext IS NOT NULL")
@@ -41,12 +42,35 @@ export async function enqueueConfirmedRecapAudio(
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.requestId))
     throw new CampaignServiceError("Invalid recap request identifier.",422);
   const detail=(input.detail??preferences?.detail??"detailed") as Preferences["detail"];
+  let writerModel:string;
+  try{writerModel=selectRecapWriter(input.writerModel??preferences?.writerModel??DEFAULT_RECAP_WRITER).id;}
+  catch{throw new CampaignServiceError("Choose a supported recap writing model.",422);}
+  if(writerModel.startsWith("groq:")){
+    const groq=await db.prepare("SELECT 1 AS ok FROM user_recap_groq_connections "+
+      "WHERE user_id=? AND status='connected' AND key_ciphertext IS NOT NULL LIMIT 1")
+      .bind(input.userId).first();
+    if(!groq)throw new CampaignServiceError(
+      "Connect your own Groq key in Account before choosing Groq as recap writer.",409);
+  }
   const now=new Date().toISOString();
   const result=await db.prepare("INSERT OR IGNORE INTO campaign_recap_audio_summary_jobs "+
     "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,detail,model,error_code,confirmed_at,created_at,updated_at,request_id) "+
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
-      "pending_upload",detail,RECAP_ONLY_MODEL,null,now,now,now,input.requestId).run();
+      "pending_upload",detail,writerModel,null,now,now,now,input.requestId).run();
+  if(result.meta.changes===1){
+    // Reuse saved audio understanding from a previous explicitly approved run.
+    // Only immutable asset, GM and campaign matches are eligible.
+    await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET audio_notes=("+
+      "SELECT audio_notes FROM campaign_recap_audio_summary_jobs previous "+
+      "WHERE previous.audio_asset_id=? AND previous.requested_by=? "+
+      "AND previous.recap_id=? AND previous.id!=campaign_recap_audio_summary_jobs.id "+
+      "AND previous.audio_notes IS NOT NULL AND previous.confirmed_at IS NOT NULL "+
+      "ORDER BY previous.created_at DESC LIMIT 1) "+
+      "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? AND request_id=? AND audio_notes IS NULL")
+      .bind(input.audioAssetId,input.userId,input.recapId,
+        input.audioAssetId,input.recapId,input.userId,input.requestId).run();
+  }
   if(result.meta.changes!==1){
     const old=await db.prepare("SELECT confirmed_at AS confirmedAt FROM campaign_recap_audio_summary_jobs "+
       "WHERE audio_asset_id=? AND recap_id=? AND requested_by=? "+

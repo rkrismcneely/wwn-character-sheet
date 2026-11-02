@@ -15,6 +15,11 @@ on:
       - "drizzle/0050_recap_gemini_resumable_staging.sql"
       - "drizzle/0051_recap_repeatable_summary_jobs.sql"
       - "drizzle/0052_recap_long_audio_segments.sql"
+      - "drizzle/0053_recap_writer_preferences.sql"
+      - "drizzle/0054_recap_groq_connections.sql"
+      - "drizzle/0055_recap_saved_audio_notes.sql"
+      - "drizzle/0056_recap_groq_writer_checkpoints.sql"
+      - "scripts/migrate-recap-writer.mjs"
       - "drizzle/0040_recap_ai_connections.sql"
       - "drizzle/0041_recap_gemini_background_jobs.sql"
       - "drizzle/0042_recap_gemini_drive_staging.sql"
@@ -116,6 +121,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Apply and verify long-audio recap section migration
         run: node scripts/migrate-recap-long-segments.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Apply and verify Groq writer schemas before publishing Worker
+        run: node scripts/migrate-recap-writer.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

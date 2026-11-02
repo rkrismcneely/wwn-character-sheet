@@ -64,3 +64,14 @@ test("the diagnose route only reads existing GM-owned failed interaction",async(
   assert.match(ui,/Recheck Gemini error \(no AI request\)/u);
   assert.match(ui,/endpoint\+"\/diagnose"/u);
 });
+
+test("diagnostics retain bounded symbolic codes but never arbitrary provider text",()=>{
+  const secret="sensitive-user-recording-title";
+  const result=summarizeRecapGeminiFailure({status:"failed",errors:[
+    {code:"https://google.dev/errors/unrecognized_backend_failure",message:secret},
+    {code:"INVALID CODE "+secret,message:secret},
+  ]});
+  assert.equal(result.kind,"unknown");
+  assert.deepEqual(result.providerCodes,["unrecognized_backend_failure"]);
+  assert.equal(JSON.stringify(result).includes(secret),false);
+});

@@ -164,3 +164,28 @@ test("real AAC M4A source remains decodable after native no-reencode remux",asyn
     assert.ok(Math.abs(Number(info.stdout.trim())-2)<0.2);
   }finally{rmSync(folder,{recursive:true,force:true});}
 });
+
+test("three-section M4A retains a complete, independently parseable final section",async()=>{
+  const input=fixture({samples:500000,lowStart:210000,lowEnd:215000});
+  const parts=await planM4a(input.source,input.read,{includeHeaders:false});
+  assert.equal(parts.length,3);
+  assert.equal(parts[0].startMs,0);
+  assert.equal(parts.at(-1).endMs,Math.round(input.samples*1024/48000*1000));
+  assert.equal(parts.at(-1).sourceEnd-parts[0].sourceStart,input.total);
+  for(let i=0;i<parts.length;i++){
+    const section=parts[i];
+    if(i)assert.equal(section.sourceStart,parts[i-1].sourceEnd);
+    assert.ok(section.endMs-section.startMs<=60*60_000+1000);
+    const header=Buffer.from(await prepareM4aSection(
+      input.source,input.read,section.sourceStart,section.sourceEnd),"base64");
+    const totalBytes=header.length+section.sourceEnd-section.sourceStart;
+    const parsed=await inspectM4a({byteSize:totalBytes,durationMs:null,mimeType:"audio/mp4"},
+      async(start,length)=>{
+        const data=new Uint8Array(length);
+        if(start<header.length)data.set(header.subarray(start,Math.min(header.length,start+length)));
+        return data;
+      });
+    assert.equal(parsed.dataEnd-parsed.dataStart,section.sourceEnd-section.sourceStart);
+    assert.ok(Math.abs(parsed.durationMs-(section.endMs-section.startMs))<1000);
+  }
+});

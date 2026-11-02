@@ -8,6 +8,7 @@ export type RecapFailureDiagnosis={
   title:string;
   explanation:string;
   inputTokens:number|null;
+  providerCodes:string[];
 };
 
 type GeminiDiagnostic={
@@ -21,7 +22,8 @@ function errorCodes(raw:GeminiDiagnostic):string[]{
   return errors.slice(0,8).map(value=>{
     const code=typeof value?.code==="string"?value.code:"";
     // Google's interaction errors may use URIs instead of symbolic names.
-    return code.toLowerCase().split(/[/?#]/u).filter(Boolean).at(-1)??"";
+    const normalized=code.toLowerCase().split(/[/?#]/u).filter(Boolean).at(-1)??"";
+    return /^[a-z][a-z0-9_]{1,63}$/u.test(normalized)?normalized:"";
   }).filter(Boolean);
 }
 function mentioned(raw:GeminiDiagnostic,pattern:RegExp):boolean{
@@ -41,7 +43,7 @@ export function summarizeRecapGeminiFailure(raw:unknown):RecapFailureDiagnosis{
   const has=(...values:string[])=>codes.some(code=>values.includes(code));
   const inputTokens=usageTokens(result);
   const describe=(kind:RecapFailureDiagnosis["kind"],title:string,explanation:string):RecapFailureDiagnosis=>
-    ({kind,title,explanation,inputTokens});
+    ({kind,title,explanation,inputTokens,providerCodes:codes});
   if(has("rate_limit_exceeded","too_many_requests")||
     mentioned(result,/tokens? per minute|per-minute (?:token|input)|tpm\b/iu))
     return describe("minute_rate_limit","Gemini per-minute limit",

@@ -1,9 +1,15 @@
 import type {RecapAIEncryptionSettings} from "../account/recap-gemini-key.ts";
 import {decryptGeminiUserKey} from "../account/recap-gemini-key.ts";
 import {CampaignServiceError} from "./service.ts";
+import {summarizeRecapGeminiFailure} from "./recap-gemini-failure-diagnosis.ts";
+import {
+  GEMINI_AUDIO_ALTERNATE_MODEL,GEMINI_AUDIO_ALTERNATE_RETRY,
+  GEMINI_AUDIO_FIRST_RETRY,isGeminiInternalAudioFailure,
+} from "./recap-gemini-audio-model.ts";
 
 type Env=RecapAIEncryptionSettings&{DB:D1Database};
-type Input={jobId:string;campaignId:string;recapId:string;userId:string};
+type Input={jobId:string;campaignId:string;recapId:string;userId:string;
+  useAlternateModel?:boolean};
 type Job={id:string;audioAssetId:string;status:string;errorCode:string|null;processingMode:string};
 type Section={id:string;status:string;interactionId:string|null;fileUri:string|null;
   fileName:string|null;errorCode:string|null};
@@ -59,7 +65,12 @@ export async function retryFailedRecapSection(
   if(parts.results.length!==1)
     throw new CampaignServiceError("Could not identify a single failed audio section.",409);
   const part=parts.results[0];
-  if(part.errorCode||!part.interactionId||!PROVIDER_ID.test(part.interactionId)||
+  const alternate=input.useAlternateModel===true;
+  // An ordinary retry is allowed once. Only a confirmed, previously retried
+  // INTERNAL failure may use the alternate model, also at most once.
+  const previousMarker=alternate?GEMINI_AUDIO_FIRST_RETRY:null;
+  if(part.errorCode!==previousMarker||
+    !part.interactionId||!PROVIDER_ID.test(part.interactionId)||
     !part.fileUri||!part.fileName||!FILE_ID.test(part.fileName))
     throw new CampaignServiceError("This audio section is not safely retryable.",409);
   const connection=await db.prepare(
@@ -88,6 +99,27 @@ export async function retryFailedRecapSection(
   if(original.status!=="failed")
     throw new CampaignServiceError(
       "Gemini no longer reports a terminal failed interaction. No duplicate AI request was made.",409);
+  if(alternate){
+    const diagnosis=summarizeRecapGeminiFailure(original);
+    if(!isGeminiInternalAudioFailure(diagnosis.providerCode))
+      throw new CampaignServiceError(
+        "The alternate audio model is only offered after a confirmed Gemini internal service failure. No request was made.",409);
+    // A read-only metadata check ensures this GM's API key can see the alternate
+    // model before changing job state or making another potentially billed POST.
+    let access:Response;
+    try{
+      access=await fetch(API+"models/"+GEMINI_AUDIO_ALTERNATE_MODEL,{
+        method:"GET",redirect:"manual",signal:AbortSignal.timeout(12000),
+        headers:{"x-goog-api-key":secret},
+      });
+    }catch{
+      throw new CampaignServiceError(
+        "Could not verify Gemini 3.6 Flash availability. No retry was started.",503);
+    }
+    if(!access.ok||access.redirected)
+      throw new CampaignServiceError(
+        "This Gemini project could not verify access to Gemini 3.6 Flash. Check AI Studio limits and access; no retry was started.",409);
+  }
   // Verify whether the uploaded audio section is still present. If not,
   // TWE re-stages only that portion of the GM's original Drive asset.
   let file:Response;
@@ -111,7 +143,7 @@ export async function retryFailedRecapSection(
   const at=new Date().toISOString();
   const results=await db.batch([
     db.prepare("UPDATE campaign_recap_audio_summary_segments "+
-      "SET status=?,interaction_id=NULL,error_code='manual_retry_after_confirmed_failure',"+
+      "SET status=?,interaction_id=NULL,error_code=?, "+
       "file_uri=CASE WHEN ? THEN NULL ELSE file_uri END,"+
       "file_name=CASE WHEN ? THEN NULL ELSE file_name END,"+
       "stage_url_ciphertext=CASE WHEN ? THEN NULL ELSE stage_url_ciphertext END,"+
@@ -119,8 +151,10 @@ export async function retryFailedRecapSection(
       "stage_url_version=CASE WHEN ? THEN NULL ELSE stage_url_version END,"+
       "stage_offset=CASE WHEN ? THEN 0 ELSE stage_offset END,"+
       "updated_at=? WHERE id=? AND job_id=? AND status='submitted' "+
-      "AND interaction_id=? AND error_code IS NULL")
-      .bind(target,needsUpload?1:0,needsUpload?1:0,needsUpload?1:0,
+      "AND interaction_id=? AND "+(alternate?
+        "error_code='manual_retry_after_confirmed_failure'":"error_code IS NULL"))
+      .bind(target,alternate?GEMINI_AUDIO_ALTERNATE_RETRY:GEMINI_AUDIO_FIRST_RETRY,
+        needsUpload?1:0,needsUpload?1:0,needsUpload?1:0,
         needsUpload?1:0,needsUpload?1:0,needsUpload?1:0,
         at,part.id,job.id,part.interactionId),
     db.prepare("UPDATE campaign_recap_audio_summary_jobs "+

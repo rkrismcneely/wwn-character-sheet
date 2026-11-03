@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useState,type ChangeEvent} from "react";
+import {useCallback,useEffect,useRef,useState,type ChangeEvent} from "react";
 import {SessionRecapAudioUploader} from "./session-recap-audio-uploader";
 import {SessionRecapStagedTranscriber} from "./session-recap-staged-transcriber";
 import {SessionRecapFullTranscriptManager} from "./session-recap-full-transcript-manager";
@@ -54,7 +54,9 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [sourceChoice,setSourceChoice]=useState("");
   const [browserFile,setBrowserFile]=useState<File|null>(null);
   const [provider,setProvider]=useState<RecapTranscriber>("groq");
-  const [providerTouched,setProviderTouched]=useState(false);
+  const providerTouchedRef=useRef(false);
+  const savedWorkflowRef=useRef<RecapWorkflow|null>(null);
+  const linkedConnectionsRef=useRef<{gemini:boolean;groq:boolean}>({gemini:false,groq:false});
   const [method,setMethod]=useState<"original"|"ffmpeg"|"import">("ffmpeg");
   const [prepared,setPrepared]=useState<PreparedPart[]>([]);
   const [preparedProvider,setPreparedProvider]=useState<RecapTranscriber|null>(null);
@@ -62,7 +64,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [transcriptReviewed,setTranscriptReviewed]=useState(false);
   const [checkedEnding,setCheckedEnding]=useState(false);
   const [writerProvider,setWriterProvider]=useState<RecapWriter>("gemini");
-  const [writerTouched,setWriterTouched]=useState(false);
+  const writerTouchedRef=useRef(false);
   const [writerModel,setWriterModel]=useState("gemini-3.8-flash");
   const [detail,setDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [approvedDraft,setApprovedDraft]=useState("");
@@ -92,8 +94,24 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         if(!mounted)return;
         setData(value);
         const w=value.workflow;
+        savedWorkflowRef.current=w;
         if(w.writer){setWriterProvider(w.writer.provider);setWriterModel(w.writer.model);setDetail(w.writer.detail);}
+        else if(!writerTouchedRef.current){
+          const linked=linkedConnectionsRef.current;
+          const recommended:RecapWriter=linked.gemini?"gemini":linked.groq?"groq":"local";
+          setWriterProvider(recommended);
+          setWriterModel(writerOptions.find(option=>option.id===recommended)!.models[0].id);
+        }
         if(w.preparation){setProvider(w.preparation.provider);setMethod(w.preparation.method);}
+        else if(!providerTouchedRef.current){
+          const linked=linkedConnectionsRef.current;
+          const recommended:RecapTranscriber=linked.groq?"groq":linked.gemini?"gemini":"local-whisper";
+          setProvider(recommended);
+          if(w.source)setMethod(recommendedRecapPreparation(recommended,{
+            name:w.source.name,bytes:w.source.bytes,
+            durationMs:value.assets.find(a=>a.id===w.source?.id)?.durationMs??null,
+          }));
+        }
         if(w.source?.kind==="drive")setSourceChoice(w.source.id);
         else {
           const ready=value.assets.filter(asset=>asset.status==="ready"&&typeof asset.byteSize==="number");
@@ -112,7 +130,25 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         const data=await response.json() as {connection?:{status?:string}};
         return [name,data.connection?.status==="connected"] as const;
       }catch{return [name,false] as const;}
-    })).then(values=>{if(mounted)setConnections(Object.fromEntries(values) as {gemini:boolean;groq:boolean});});
+    })).then(values=>{
+      if(!mounted)return;
+      const linked=Object.fromEntries(values) as {gemini:boolean;groq:boolean};
+      linkedConnectionsRef.current=linked;
+      setConnections(linked);
+      const saved=savedWorkflowRef.current;
+      if(!saved?.preparation&&!providerTouchedRef.current){
+        const recommended:RecapTranscriber=linked.groq?"groq":linked.gemini?"gemini":"local-whisper";
+        setProvider(recommended);
+        if(saved?.source)setMethod(recommendedRecapPreparation(recommended,{
+          name:saved.source.name,bytes:saved.source.bytes,durationMs:null,
+        }));
+      }
+      if(!saved?.writer&&!writerTouchedRef.current){
+        const recommended:RecapWriter=linked.gemini?"gemini":linked.groq?"groq":"local";
+        setWriterProvider(recommended);
+        setWriterModel(writerOptions.find(option=>option.id===recommended)!.models[0].id);
+      }
+    });
     const handler=(event:Event)=>{void (async()=>{
       const detail=(event as CustomEvent<{recapId?:string;assetId?:string}>).detail;
       if(detail?.recapId&&detail.recapId!==recapId)return;
@@ -131,24 +167,13 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const recommendedTranscriber:RecapTranscriber=currentSource?.kind==="browser"&&
     !connections.gemini&&!connections.groq?"local-whisper":
     connections.groq?"groq":connections.gemini?"gemini":"local-whisper";
-  useEffect(()=>{
-    if(!data||currentPreparation||providerTouched||provider===recommendedTranscriber)return;
-    setProvider(recommendedTranscriber);
-    if(currentSource)setMethod(recommendedRecapPreparation(recommendedTranscriber,{
-      name:currentSource.name,bytes:currentSource.bytes,
-      durationMs:assets.find(a=>a.id===currentSource.id)?.durationMs??null,
-    }));
-  },[data,currentPreparation,providerTouched,provider,recommendedTranscriber,currentSource,assets]);
   const recommendedMethod=currentSource?recommendedRecapPreparation(provider,{
     name:currentSource.name,bytes:currentSource.bytes,
     durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs??null,
   }):"ffmpeg";
-  useEffect(()=>{
-    if(!data||workflow?.writer||writerTouched||writerProvider===recommendedWriter)return;
-    setWriterProvider(recommendedWriter);
-    setWriterModel(writerOptions.find(option=>option.id===recommendedWriter)!.models[0].id);
-  },[data,workflow?.writer,writerTouched,writerProvider,recommendedWriter]);
   const chosenWriter=writerOptions.find(x=>x.id===writerProvider)!;
+  const savedWriter=workflow?.writer;
+  const savedDrafts=workflow?.drafts??[];
   const transcriptCurrent=Boolean(data?.transcript.count&&workflow?.transcriptApprovedRevision&&
     workflow.transcriptApprovedRevision===data?.transcript.updatedAt);
   const stageValid=[Boolean(currentSource&&workflow?.sourceApprovedAt)||currentPreparation?.provider==="import",
@@ -373,7 +398,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         Clearing website data may erase them; keep your own backup. Players cannot stream local-only recordings.</p>
       {currentSource&&<p className="session-recap-import-notice">Approved source:
         {" "}{currentSource.name} ({currentSource.kind==="drive"?"Google Drive":"this browser"})</p>}
-      <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>{setProviderTouched(true);setProvider("import");setMethod("import");setStep(1);}}>
+      <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>{providerTouchedRef.current=true;setProvider("import");setMethod("import");setStep(1);}}>
         I already have a transcript — skip recording
       </button>
       <button type="button" className="campaign-primary" disabled={busy||(!browserFile&&!selectedAsset)}
@@ -389,7 +414,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           {transcriptionOptions.map(option=><label key={option.id} style={{display:"block"}}>
             <input type="radio" name="recap-stage-transcriber" value={option.id}
               checked={provider===option.id} disabled={busy}
-              onChange={()=>{setProviderTouched(true);setProvider(option.id);
+              onChange={()=>{providerTouchedRef.current=true;setProvider(option.id);
                 setMethod(recommendedRecapPreparation(option.id,{
                   name:currentSource?.name??"",bytes:currentSource?.bytes??0,
                   durationMs:assets.find(x=>x.id===currentSource?.id)?.durationMs??null,
@@ -503,7 +528,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           {writerOptions.map(option=><label key={option.id} style={{display:"block"}}>
             <input type="radio" checked={writerProvider===option.id} disabled={busy}
               name="recap-stage-writer" onChange={()=>{
-                setWriterTouched(true);setWriterProvider(option.id);setWriterModel(option.models[0].id);
+                writerTouchedRef.current=true;setWriterProvider(option.id);setWriterModel(option.models[0].id);
               }}/>
             {" "}<strong>{option.name}</strong>
             {option.id===recommendedWriter?" — recommended":""}
@@ -524,22 +549,22 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         </label>
         <button type="button" className="campaign-secondary" disabled={busy}
           onClick={()=>void selectWriter()}>Save writer choice (no AI request)</button>
-        {workflow.writer&&<div className="session-recap-reading">
-          <p>Selected: <strong>{workflow.writer.provider} — {workflow.writer.model}</strong>
-            {" · "}{workflow.writer.detail}.</p>
-          <SessionRecapStagedWriter key={workflow.writer.provider+workflow.writer.model+
-            workflow.writer.detail+workflow.transcriptApprovedRevision}
-            campaignId={campaignId} recapId={recapId} provider={workflow.writer.provider}
-            model={workflow.writer.model} detail={workflow.writer.detail}
+        {savedWriter&&<div className="session-recap-reading">
+          <p>Selected: <strong>{savedWriter.provider} — {savedWriter.model}</strong>
+            {" · "}{savedWriter.detail}.</p>
+          <SessionRecapStagedWriter key={savedWriter.provider+savedWriter.model+
+            savedWriter.detail+workflow?.transcriptApprovedRevision}
+            campaignId={campaignId} recapId={recapId} provider={savedWriter.provider}
+            model={savedWriter.model} detail={savedWriter.detail}
             onSaved={content=>void saveDraft(content)}/>
         </div>}
-        {workflow.drafts.length>0&&<div className="session-recap-reading">
+        {savedDrafts.length>0&&<div className="session-recap-reading">
           <h5>Saved draft versions</h5>
           <p className="campaign-empty-copy">Previous versions stay available even when
             changing writer or detail level. Nothing overwrites your existing editor text.</p>
-          {workflow.drafts.map(d=><div className="session-recap-speaker-entry" key={d.id}>
+          {savedDrafts.map(d=><div className="session-recap-speaker-entry" key={d.id}>
             <span>{d.provider} · {d.model} · {d.detail} · {new Date(d.savedAt).toLocaleString()}
-              {d.id===workflow.approvedDraftId?" ✓ Approved":""}</span>
+              {d.id===workflow?.approvedDraftId?" ✓ Approved":""}</span>
             <button className="campaign-secondary" type="button" disabled={busy}
               onClick={()=>void approveDraft(d.id)}>
               Review and use this draft

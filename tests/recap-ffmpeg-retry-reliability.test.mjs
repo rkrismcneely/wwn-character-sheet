@@ -99,11 +99,11 @@ test("production checks verify the actual converter worker and not just homepage
     read("scripts/verify-live-release.mjs"),
     read(".github/workflows/verify-production-health.yml"),
   ]);
-  assert.match(release,/api\\/recap-ffmpeg\\/worker\\.js\\?release=/u);
-  assert.match(release,/ffmpegWorker\\.ok/u);
-  assert.match(release,/workerCode\\.includes\\("self\\.onmessage"\\)/u);
-  assert.match(release,/workerCode\\.includes\\('case "LOAD"'\\)/u);
-  assert.match(health,/api\\/recap-ffmpeg\\/worker\\.js\\?release=\\$EXPECTED_SHA/u);
-  assert.match(health,/grep -q 'self\\.onmessage'/u);
+  assert.match(release,/api\/recap-ffmpeg\/worker\.js\?release=/u);
+  assert.match(release,/ffmpegWorker\.ok/u);
+  assert.match(release,/workerCode\.includes\("self\.onmessage"\)/u);
+  assert.match(release,/workerCode\.includes\('case "LOAD"'\)/u);
+  assert.match(health,/api\/recap-ffmpeg\/worker\.js\?release=\$EXPECTED_SHA/u);
+  assert.match(health,/grep -q 'self\.onmessage'/u);
   assert.match(health,/grep -q 'case "LOAD"'/u);
 });

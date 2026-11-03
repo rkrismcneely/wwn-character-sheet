@@ -4,7 +4,7 @@ import {useCallback,useEffect,useRef,useState} from "react";
 import type {RecapWriter} from "@/lib/campaigns/recap-stage-workflow";
 
 type Plan={provider:RecapWriter;model:string;detail:string;parts:number;completed:number[];
-  final:string|null;error?:string};
+  final:string|null;oversized?:number[];error?:string};
 type ChatEngine={
   chat:{completions:{create:(args:{messages:{role:string;content:string}[];
     temperature?:number;max_tokens?:number})=>Promise<{
@@ -149,6 +149,25 @@ export function SessionRecapStagedWriter({campaignId,recapId,provider,model,deta
         await refresh();
       }
       if(stop.current){setProgress("Paused after the latest saved checkpoint.");return;}
+      const afterParts=await refresh();
+      for(const index of afterParts.oversized??[]){
+        if(stop.current)break;
+        setProgress("Condensing oversized scene notes "+(index+1)+" of "+afterParts.parts);
+        if(modelEngine){
+          const response=await fetch(url+"?recapId="+encodeURIComponent(recapId)+"&rawIndex="+index);
+          const data=await response.json() as {text?:string;error?:string};
+          if(!response.ok||!data.text)throw Error(data.error||"Could not reload saved notes.");
+          const compact=await infer(modelEngine,
+            "Reduce this saved scene note to a maximum of 1400 characters, preserving "+
+            "chronological timestamps, decisions, NPC names, opening and ending events. "+
+            "Do not invent anything:\n\n"+data.text.slice(0,8500),450);
+          await send({phase:"local-compact",index,content:compact.slice(0,3500)});
+        }else await send({phase:"compact",index});
+      }
+      if(stop.current){setProgress("Paused after the latest saved checkpoint.");return;}
+      const afterCompact=await refresh();
+      if(afterCompact.oversized?.length)
+        throw Error("Some saved event notes are still too long. Keep the original output and try a different writing model.");
       setProgress("Writing final recap from saved event notes…");
       const final=modelEngine?await localFinal(modelEngine):await send({phase:"final"});
       setGenerated(final);setProgress("Recap saved. Review the draft before approving.");

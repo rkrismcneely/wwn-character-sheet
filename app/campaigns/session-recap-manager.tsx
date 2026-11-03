@@ -53,19 +53,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   const [error, setError] = useState("");
   const [uploadBusy,setUploadBusy] = useState(false);
   const [showAdvanced,setShowAdvanced] = useState(false);
-  const [recapSetup,setRecapSetup] = useState<"checking"|"ready"|"needs-setup">("checking");
   const trackUploadBusy = useCallback((active:boolean)=>setUploadBusy(active),[]);
-
-  useEffect(()=>{
-    const controller=new AbortController();
-    void fetch("/api/account/recap-setup",{cache:"no-store",signal:controller.signal})
-      .then(async response=>{
-        if(!response.ok)throw new Error("Recap setup is unavailable.");
-        const data=await response.json() as {ready?:boolean};
-        if(!controller.signal.aborted)setRecapSetup(data.ready===true?"ready":"needs-setup");
-      }).catch(()=>{if(!controller.signal.aborted)setRecapSetup("needs-setup");});
-    return ()=>controller.abort();
-  },[campaignId]);
 
   const loadPage = useCallback(async (p: number) => {
     setLoading(true); setError("");
@@ -87,7 +75,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
   }, [campaignId, loadPage]);
 
   function startNew() {
-    setEditing("new"); setCreateMethod(recapSetup==="ready"?"recording":"manual"); setDraft({ date: localToday(), title: "", content: "" });
+    setEditing("new"); setCreateMethod("recording"); setDraft({ date: localToday(), title: "", content: "" });
     setShowAdvanced(false);
     setError(""); setPreview(false); setImportNotice(""); setJournalNotice("");
   }

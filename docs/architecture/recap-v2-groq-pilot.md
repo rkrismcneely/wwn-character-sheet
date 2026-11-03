@@ -14,9 +14,10 @@ Do not enable the flag for other GMs before the owner verifies source security,
 real Groq URL ingestion, and private transcript storage.
 
 * Readiness GET: authenticated GM only, verifies the GM owns an existing M4A
-  in Google Drive and has their own Groq key connected. Plans a short,
-  independently decodable first excerpt with at most 16 MiB of audio bytes.
-  This request makes **no AI or inference call**.
+  in Google Drive and has their own Groq key connected. The GM browser then plans a short,
+  independently decodable first excerpt with at most 16 MiB of audio bytes,
+  using the existing authorized Range route. CPU-heavy AAC inspection stays in
+  the browser, not the Cloudflare Free Worker. No AI inference occurs.
 * Start POST: explicit separate consent to share exactly that short audio
   excerpt with Groq and consume the GM's own provider quota. One attempt is
   durably inserted before any provider POST. A repeat is rejected, even on a

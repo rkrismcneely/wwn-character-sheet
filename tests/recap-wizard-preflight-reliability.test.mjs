@@ -79,10 +79,10 @@ test("recording helper remains on published recap, old AI jobs stay hidden by de
 
 test("wizard picks connected providers and warns before unsafe FFmpeg conversion",async()=>{
   const code=await read("app/campaigns/session-recap-staged-wizard.tsx");
-  assert.match(code,/setProvider\(recommendedTranscriber\)/u);
-  assert.match(code,/setWriterProvider\(recommendedWriter\)/u);
-  assert.match(code,/setProviderTouched\(true\)/u);
-  assert.match(code,/setWriterTouched\(true\)/u);
+  assert.match(code,/setProvider\(recommended\)/u);
+  assert.match(code,/setWriterProvider\(recommended\)/u);
+  assert.match(code,/providerTouchedRef\.current=true/u);
+  assert.match(code,/writerTouchedRef\.current=true/u);
   assert.match(code,/currentSource\.bytes>300\*1024\*1024/u);
   assert.match(code,/oversizedForBrowser&&method==="ffmpeg"/u);
 });

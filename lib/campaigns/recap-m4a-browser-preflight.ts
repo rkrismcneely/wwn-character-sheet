@@ -1,4 +1,4 @@
-import type {AudioSegmentPlan} from "./recap-long-audio-plan.ts";
+import {LONG_AUDIO_THRESHOLD_MS,type AudioSegmentPlan} from "./recap-long-audio-plan.ts";
 
 export class RecapM4aPlanError extends Error{
   constructor(){super("This M4A recording could not be safely divided. No Gemini request was submitted.");}
@@ -14,7 +14,7 @@ export function validateBrowserM4aPlan(
   if(!Array.isArray(raw)||raw.length<2||raw.length>16||
     !Number.isSafeInteger(byteSize)||byteSize<=0||
     typeof durationMs!=="number"||!Number.isSafeInteger(durationMs)||
-    durationMs<=60*60_000||durationMs>8*60*60_000)
+    durationMs<=LONG_AUDIO_THRESHOLD_MS||durationMs>8*60*60_000)
     throw new RecapM4aPlanError();
   const result:AudioSegmentPlan[]=[];
   let previousEndMs=0,previousEndByte=0;

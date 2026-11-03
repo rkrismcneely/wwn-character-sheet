@@ -438,3 +438,44 @@ export async function estimateM4aDuration(source:{byteSize:number;durationMs:num
   try{return (await inspectM4a({...source,durationMs:null},read)).durationMs;}
   catch{return null;}
 }
+
+/** First self-contained speech excerpt for the Groq V2 pilot. This is ONLY a
+ * source-preparation primitive; it never sends audio or spends AI quota.
+ *
+ * Cap the reconstructed clip at 16 MiB, below the stated 25 MB Groq free
+ * upload limit. A 90-minute M4A is inspected without downloading it all.
+ * We use AAC packet boundaries and never transcode the original recording.
+ */
+export const M4A_PILOT_TARGET_MS=2*60_000;
+export const M4A_PILOT_MAX_BYTES=16*1024*1024;
+export async function planM4aPilotExcerpt(
+  source:{byteSize:number;durationMs:number|null;mimeType:string},
+  read:Read,
+):Promise<AudioSegmentPlan>{
+  const parsed=await inspectM4a(source,read);
+  const n=parsed.sampleSizes.length;
+  if(n<2||parsed.durationMs<20_000)invalid();
+  const timeScaleUnits=Math.round(Math.min(M4A_PILOT_TARGET_MS,parsed.durationMs)/
+    1000*parsed.timeScale);
+  const timeCut=Math.max(1,Math.min(n,nearestSample(parsed.timing,timeScaleUnits)));
+  const maxPayload=M4A_PILOT_MAX_BYTES-2*1024*1024;
+  let lo=1,hi=timeCut;
+  while(lo<hi){
+    const mid=Math.ceil((lo+hi)/2);
+    if(parsed.offsets[mid]-parsed.offsets[0]<=maxPayload)lo=mid;
+    else hi=mid-1;
+  }
+  const last=lo;
+  if(last>MAX_PART_SAMPLES)invalid();
+  const endMs=last===n?parsed.durationMs:
+    Math.round(sampleUnits(parsed.timing,last)/parsed.timeScale*1000);
+  if(endMs<20_000||endMs> M4A_PILOT_TARGET_MS+1000)invalid();
+  const prefix=makeHeader(parsed,0,last);
+  const dataStart=parsed.dataStart+parsed.offsets[0];
+  const dataEnd=parsed.dataStart+parsed.offsets[last];
+  if(prefix.byteLength+dataEnd-dataStart>M4A_PILOT_MAX_BYTES)invalid();
+  return {
+    index:0,startMs:0,endMs,sourceStart:dataStart,sourceEnd:dataEnd,
+    prefixBase64:toBase64(prefix),mimeType:"audio/mp4",
+  };
+}

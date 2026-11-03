@@ -4,7 +4,8 @@ import {spawnSync} from "node:child_process";
 import {mkdtempSync,readFileSync,writeFileSync,rmSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-import {inspectM4a,planM4a,estimateM4aDuration,prepareM4aSection} from "../lib/campaigns/recap-m4a-remux.ts";
+import {inspectM4a,planM4a,estimateM4aDuration,prepareM4aSection,
+  planM4aPilotExcerpt,M4A_PILOT_MAX_BYTES,M4A_PILOT_TARGET_MS} from "../lib/campaigns/recap-m4a-remux.ts";
 
 const as=(s)=>Uint8Array.from([...s].map(c=>c.charCodeAt(0)));
 const u32=v=>Uint8Array.of(v>>>24,(v>>>16)&255,(v>>>8)&255,v&255);
@@ -252,4 +253,32 @@ test("real 75-second AAC M4A interior cut decodes independently on both sides",a
       assert.ok(Math.abs(Number(info.stdout.trim())-expected)<0.3);
     }
   }finally{rmSync(folder,{recursive:true,force:true});}
+});
+
+test("V2 pilot reconstructs a valid <=2-minute M4A excerpt from a 110-minute original",async()=>{
+  const f=fixture();
+  const clip=await planM4aPilotExcerpt(f.source,f.read);
+  assert.equal(clip.index,0);
+  assert.equal(clip.startMs,0);
+  assert.ok(clip.endMs>=110_000&&clip.endMs<=M4A_PILOT_TARGET_MS+1000);
+  const prefix=Buffer.from(clip.prefixBase64,"base64");
+  const bytes=prefix.length+clip.sourceEnd-clip.sourceStart;
+  assert.ok(bytes<M4A_PILOT_MAX_BYTES);
+  assert.equal(prefix.subarray(4,8).toString("ascii"),"ftyp");
+  assert.equal(prefix.subarray(-4).toString("ascii"),"mdat");
+  // Parse the virtual clip's moov/stsz; payload bytes stay in the GM's Drive.
+  const read=async(start,len)=>{
+    const out=new Uint8Array(len);
+    if(start<prefix.length)out.set(prefix.subarray(start,Math.min(start+len,prefix.length)));
+    return out;
+  };
+  const parsed=await inspectM4a({byteSize:bytes,mimeType:"audio/mp4",durationMs:null},read);
+  assert.ok(Math.abs(parsed.durationMs-clip.endMs)<1000);
+  assert.equal(parsed.dataEnd-parsed.dataStart,clip.sourceEnd-clip.sourceStart);
+});
+test("V2 pilot refuses unsupported or undecodable originals without provider calls",async()=>{
+  const invalid={byteSize:1024,durationMs:null,mimeType:"audio/mp4"};
+  await assert.rejects(()=>planM4aPilotExcerpt(invalid,async(_start,len)=>new Uint8Array(len)));
+  await assert.rejects(()=>planM4aPilotExcerpt({...invalid,mimeType:"audio/wav"},
+    async(_start,len)=>new Uint8Array(len)));
 });

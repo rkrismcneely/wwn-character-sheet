@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {SessionRecapAudioPlayer} from "./session-recap-audio-player";
+import {SessionRecapV2Pilot} from "./session-recap-v2-pilot";
 import {SessionRecapProgress} from "./session-recap-progress";
 import {recapAttentionText,recapStageDescriptions} from "@/lib/campaigns/recap-only-recovery";
 import {recapQuotaNotice} from "@/lib/campaigns/recap-quota-estimate";
@@ -514,6 +515,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </div>
       </div>
     </div>}
+    {process.env.NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED==="true"&&
+      <SessionRecapV2Pilot campaignId={campaignId} recapId={recapId} assets={playable}/>}
     {notice&&<p className="session-recap-import-notice" role="status">{notice}</p>}
     {error&&<p className="campaign-error" role="alert">{error}</p>}
   </section>;

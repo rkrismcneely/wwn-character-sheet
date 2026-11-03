@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useRef,useState,type ChangeEvent} from "react";
 import {SessionRecapAudioUploader} from "./session-recap-audio-uploader";
+import {readRecapAudioWithProgress} from "@/lib/campaigns/recap-audio-download-progress";
 import {SessionRecapStagedTranscriber} from "./session-recap-staged-transcriber";
 import {SessionRecapFullTranscriptManager} from "./session-recap-full-transcript-manager";
 import {SessionRecapStagedTranscriptReview} from "./session-recap-staged-transcript-review";
@@ -61,6 +62,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [prepared,setPrepared]=useState<PreparedPart[]>([]);
   const [preparedProvider,setPreparedProvider]=useState<RecapTranscriber|null>(null);
   const [progress,setProgress]=useState("");
+  const [meter,setMeter]=useState<{done:number;total:number;unit:"bytes"|"sections"}|null>(null);
   const [transcriptReviewed,setTranscriptReviewed]=useState(false);
   const [checkedEnding,setCheckedEnding]=useState(false);
   const [writerProvider,setWriterProvider]=useState<RecapWriter>("gemini");
@@ -212,8 +214,9 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         const key=await browserRecapKey(campaignId,recapId,"source",browserFile.name,
           String(browserFile.size),String(browserFile.lastModified));
         setProgress("Saving original recording in this browser…");
-        await saveBrowserRecapFile(key,browserFile,(done,total)=>setProgress(
-          "Saving original recording "+Math.round(done/total*100)+"%"));
+        setMeter({done:0,total:browserFile.size,unit:"bytes"});
+        await saveBrowserRecapFile(key,browserFile,(done,total)=>
+          setMeter({done,total,unit:"bytes"}));
         source={kind:"browser",id:key,name:browserFile.name,bytes:browserFile.size,
           mimeType:browserFile.type||"application/octet-stream"};
         localVerified=(await browserRecapFile(key)).size===browserFile.size;
@@ -222,14 +225,15 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           bytes:selectedAsset.byteSize!,mimeType:selectedAsset.mimeType||"audio/mp4"};
       }else throw Error("Upload a recording to Google Drive or choose a local audio file.");
       await apply({action:"approve-source",source},{localVerified});
-      setPrepared([]);setPreparedProvider(null);setProgress("");
+      setPrepared([]);setPreparedProvider(null);setProgress("");setMeter(null);
       setMethod(recommendedRecapPreparation(provider,{
         name:source.name,bytes:source.bytes,
         durationMs:assets.find(x=>x.id===source.id)?.durationMs??null,
       }));
       setNotice("Recording approved and saved. Choose a transcription method in Step 2.");
       setStep(1);
-    }catch(e){setError((e instanceof Error?e.message:"Unable to approve recording.")+" "+unavailableMessage);}
+    }catch(e){setProgress("");setMeter(null);
+      setError((e instanceof Error?e.message:"Unable to approve recording.")+" "+unavailableMessage);}
     finally{setBusy(false);}
   }
   async function sourceFile(){
@@ -241,18 +245,25 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     }
     const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio/"+
       encodeURIComponent(currentSource.id)+"/stream";
-    setProgress("Reading original recording privately from Google Drive…");
+    setProgress("Downloading original recording privately from Google Drive…");
+    setMeter(null);
     const response=await fetch(endpoint,{cache:"no-store"});
     if(!response.ok)throw Error("Could not read the original Drive recording. Reconnect Drive if required.");
-    const blob=await response.blob();
-    if(blob.size!==currentSource.bytes)throw Error("Drive returned an incomplete recording.");
+    let lastPercent=-1;
+    const blob=await readRecapAudioWithProgress(response,currentSource.bytes,(done,total)=>{
+      const percent=Math.floor(done/total*100);
+      if(percent!==lastPercent||done===total){
+        lastPercent=percent;
+        setMeter({done,total,unit:"bytes"});
+      }
+    });
     return new File([blob],currentSource.name,{type:currentSource.mimeType});
   }
   async function prepare(){
     if((!currentSource&&provider!=="import")||busy)return;
     if(currentPreparation&&
       !window.confirm("Create another audio preparation? The approved transcript may need to be reviewed again. Existing recap drafts are preserved."))return;
-    setBusy(true);setError("");setNotice("");setProgress("Preparing…");
+    setBusy(true);setError("");setNotice("");setProgress("Preparing…");setMeter(null);
     try{
       let parts:PreparedPart[];
       if(provider==="import"){
@@ -264,11 +275,21 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         if(!currentSource)throw Error("Approve a recording before audio preparation.");
         const source=await sourceFile();
         parts=method==="original"?
-          await saveUnchangedAudio(source,{provider,campaignId,recapId,sourceId:currentSource.id}):
+          await saveUnchangedAudio(source,{provider,campaignId,recapId,sourceId:currentSource.id,
+            onBytes:(done,total)=>{
+              setProgress("Saving prepared audio privately in this browser…");
+              setMeter({done,total,unit:"bytes"});
+            }}):
           await prepareRecapWithFFmpeg(source,{provider,campaignId,recapId,
             sourceId:currentSource.id,
-            onProgress:(completed,total)=>setProgress(
-              "Prepared and saved "+completed+" of "+total+" parts")});
+            onStage:(stage,completed,total)=>{
+              setProgress(stage);
+              setMeter({done:completed,total,unit:"sections"});
+            },
+            onProgress:(completed,total)=>{
+              setProgress("Prepared and verified "+completed+" of "+total+" audio sections");
+              setMeter({done:completed,total,unit:"sections"});
+            }});
       }
       for(const part of parts){
         if(part.localKey&&(await browserRecapFile(part.localKey)).size!==part.bytes)
@@ -277,8 +298,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       setPrepared(parts);setPreparedProvider(provider);
       setNotice("Preparation complete. "+parts.length+
         " section(s) saved. Review and approve them before starting transcription.");
-      setProgress("");
-    }catch(e){setError((e instanceof Error?e.message:"Preparation failed.")+
+      setProgress("");setMeter(null);
+    }catch(e){setProgress("");setMeter(null);setError((e instanceof Error?e.message:"Preparation failed.")+
       " Already prepared sections remain available for a retry.");}
     finally{setBusy(false);}
   }
@@ -335,6 +356,18 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     }catch(e){setError(e instanceof Error?e.message:"Could not approve the draft.");}
     finally{setBusy(false);}
   }
+  const progressView=progress&&<div className="session-recap-reading" aria-label="Audio preparation status">
+    <p role="status">{progress}</p>
+    <progress style={{width:"100%"}} max={meter?.total??1} value={meter?Math.min(meter.done,meter.total):undefined}
+      aria-label={meter?.unit==="bytes"?"Recording transfer progress":
+        meter?.unit==="sections"?"Prepared audio sections completed":"Audio processing in progress"}/>
+    {meter&&<p className="campaign-empty-copy">
+      {meter.unit==="bytes"?sizeText(meter.done)+" of "+sizeText(meter.total):
+        meter.done+" of "+meter.total+" sections completed"}
+      {" · "}{Math.round(meter.done/meter.total*100)}%
+    </p>}
+    {!meter&&<p className="campaign-empty-copy">Working… this stage does not report a measurable percentage.</p>}
+  </div>;
   if(loading)return <section className="session-recap-reading"><p role="status">Loading saved recap workflow…</p></section>;
   return <section className="session-recap-reading" aria-label="Session Recap five-step wizard">
     <div className="session-recap-editor-heading">
@@ -403,6 +436,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       </button>
       <button type="button" className="campaign-primary" disabled={busy||(!browserFile&&!selectedAsset)}
         onClick={()=>void approveSource()}>{busy?"Saving…":"Approve recording and continue"}</button>
+      {progressView}
     </>}
     {step===1&&<>
       <h4>2. Choose transcription provider and prepare audio</h4>
@@ -457,7 +491,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           {busy&&method==="ffmpeg"&&<button type="button" className="campaign-secondary"
             onClick={()=>stopRecapFFmpeg()}>Stop conversion</button>}
         </div>
-        {progress&&<p role="status">{progress}</p>}
+        {progressView}
         {prepared.length>0&&<div className="session-recap-reading">
           <h5>Prepared and saved sections ({prepared.length})</h5>
           <p className="campaign-empty-copy">{prepared.map(part=>

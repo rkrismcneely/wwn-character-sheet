@@ -80,6 +80,7 @@ export function prepareRecapPartDuration(provider:RecapTranscriber){
 }
 export async function saveUnchangedAudio(file:File,options:{
   provider:RecapTranscriber;campaignId:string;recapId:string;sourceId:string;
+  onBytes?:(done:number,total:number)=>void;
 }):Promise<PreparedPart[]>{
   const durationMs=await audioFileDuration(file);
   const max=options.provider==="groq"?16*1024*1024:
@@ -91,7 +92,7 @@ export async function saveUnchangedAudio(file:File,options:{
     throw Error("This recording exceeds the chosen provider's clip limits. Use FFmpeg preparation.");
   const key=await browserRecapKey(options.campaignId,options.recapId,options.sourceId,
     options.provider,"original",String(file.size));
-  await saveBrowserRecapFile(key,file);
+  await saveBrowserRecapFile(key,file,options.onBytes);
   return [{name:file.name,bytes:file.size,mimeType:file.type||"application/octet-stream",
     startMs:0,durationMs,localKey:key}];
 }
@@ -125,6 +126,7 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
 export async function prepareRecapWithFFmpeg(file:File,options:{
   provider:RecapTranscriber;campaignId:string;recapId:string;sourceId:string;
   onProgress?:(completed:number,total:number)=>void;
+  onStage?:(description:string,completed:number,total:number)=>void;
 }):Promise<PreparedPart[]>{
   if(options.provider==="import")throw Error("Import a transcript instead of converting audio.");
   const durationMs=await audioFileDuration(file);
@@ -137,6 +139,7 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
     options.provider,"ffmpeg",String(file.size),String(durationMs));
   const ready:PreparedPart[]=[];
   const missing:number[]=[];
+  options.onStage?.("Checking previously prepared sections…",0,count);
   const plans=Array.from({length:count},(_,i)=>{
     const startMs=i*segmentMs;
     return {index:i,startMs,durationMs:Math.min(segmentMs,durationMs-startMs),
@@ -161,13 +164,16 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
   // FFmpeg.wasm buffers the entire input in its virtual filesystem and memory.
   // Refuse files likely to exhaust browser memory rather than crashing the tab.
   if(file.size>300*1024*1024)throw Error("This recording is too large for safe in-browser FFmpeg conversion. Use a smaller source or prepare the audio outside TWE.");
+  options.onStage?.("Loading the browser audio converter…",ready.filter(Boolean).length,count);
   const ffmpeg=await loadBrowserFFmpeg();
   const input="input."+(/\.wav$/iu.test(file.name)?"wav":/\.mp3$/iu.test(file.name)?"mp3":
     /\.flac$/iu.test(file.name)?"flac":"m4a");
   try{
+    options.onStage?.("Loading the original recording into the converter…",ready.filter(Boolean).length,count);
     await ffmpeg.writeFile(input,new Uint8Array(await file.arrayBuffer()));
     for(const index of missing){
       const part=plans[index],output="output-"+index+"."+ext;
+      options.onStage?.("Converting audio section "+(index+1)+" of "+count+"…",ready.filter(Boolean).length,count);
       const args=["-hide_banner","-loglevel","error","-ss",String(part.startMs/1000),
         "-t",String(part.durationMs/1000),"-i",input,"-map","0:a:0",
         "-vn","-ac","1","-ar","16000","-c:a",
@@ -186,6 +192,7 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
       const actualDuration=await audioFileDuration(prepared);
       if(Math.abs(actualDuration-part.durationMs)>3500)
         throw Error("Prepared section "+(index+1)+" has an unexpected duration. It was not approved.");
+      options.onStage?.("Saving audio section "+(index+1)+" of "+count+"…",ready.filter(Boolean).length,count);
       await saveBrowserRecapFile(part.key,prepared);
       ready[index]={name:part.name,bytes:prepared.size,mimeType:mime,
         startMs:part.startMs,durationMs:part.durationMs,localKey:part.key};

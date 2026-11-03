@@ -234,15 +234,26 @@ export async function POST(request:Request,ctx:Context):Promise<Response>{
     for(let attempt=0;attempt<3&&!saved;attempt++){
       try{await config().BUCKET.put(key,JSON.stringify(transcript));saved=true;}catch{/* try R2 only */}
     }
-    if(!saved)return fail("Groq succeeded but saving the pilot transcript was interrupted. No repeat transcription was submitted.",503);
+    if(!saved){
+      try{await info.db.prepare("UPDATE campaign_recap_v2_pilots SET "+
+        "status='uncertain',error_code='transcript_save_uncertain',updated_at=? "+
+        "WHERE id=? AND status='submitting'").bind(new Date().toISOString(),id).run();}
+      catch{/* Keep original submitting checkpoint; never resubmit provider. */}
+      return fail("Groq succeeded but saving the transcript was interrupted. No repeat transcription was submitted.",503);
+    }
+    let checkpointed=false;
     for(let attempt=0;attempt<3;attempt++){
       try{
         const savedRow=await info.db.prepare("UPDATE campaign_recap_v2_pilots "+
           "SET status='complete',transcript_key=?,error_code=NULL,updated_at=? "+
           "WHERE id=? AND status='submitting'").bind(key,new Date().toISOString(),id).run();
-        if(savedRow.meta.changes===1)break;
+        if(savedRow.meta.changes===1){checkpointed=true;break;}
+        const current=await stored(info.db,info.access.campaign.id,info.recap.id,
+          info.source.id,info.actor.userId);
+        if(current?.status==="complete"&&current.transcriptKey===key){checkpointed=true;break;}
       }catch{/* DB-only retry */}
     }
+    if(!checkpointed)return fail("Groq transcript was saved, but the status checkpoint is uncertain. No repeat transcription was submitted.",503);
     return Response.json({success:true,status:"complete",model:MODEL,
       excerptEndMs:clip.endMs,segmentCount:cues.length,
       notice:"Private timestamped pilot transcript saved. Existing recaps were not changed."},

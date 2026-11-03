@@ -50,6 +50,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
+  const [refreshing,setRefreshing]=useState(false);
   const [sourceChoice,setSourceChoice]=useState("");
   const [browserFile,setBrowserFile]=useState<File|null>(null);
   const [provider,setProvider]=useState<RecapTranscriber>("groq");
@@ -286,8 +287,22 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   return <section className="session-recap-reading" aria-label="Session Recap five-step wizard">
     <div className="session-recap-editor-heading">
       <h3>Session Recap — Guided Workflow</h3>
-      <button type="button" className="campaign-quiet" onClick={()=>void refresh().then(value=>{const ready=value.assets.filter(a=>a.status==="ready"&&typeof a.byteSize==="number");if(!sourceChoice&&ready.length===1)setSourceChoice(ready[0].id);}).catch(e=>setError(e instanceof Error?e.message:"Could not refresh."))}>
-        Refresh saved progress
+      <button type="button" className="campaign-secondary" disabled={refreshing||busy}
+        onClick={()=>void (async()=>{
+          setRefreshing(true);setError("");setNotice("");
+          try{
+            const value=await refresh();
+            const ready=value.assets.filter(a=>a.status==="ready"&&typeof a.byteSize==="number");
+            const pending=value.assets.filter(a=>a.status!=="ready");
+            if(!sourceChoice&&ready.length===1)setSourceChoice(ready[0].id);
+            if(ready.length===1)setNotice("Refreshed: "+ready[0].label+" is ready. Click Approve recording and continue in Step 1.");
+            else if(ready.length>1)setNotice("Refreshed: "+ready.length+" recordings are ready. Select the correct one in Step 1.");
+            else if(pending.length)setNotice("Refreshed: "+pending.length+" recording(s) found, but none is verified yet. Check the upload status below or use Find Saved Recording.");
+            else setNotice("Refreshed: no recordings are attached to this recap. If your file is in Google Drive, use Find Saved Recording below instead of uploading again.");
+          }catch(e){setError(e instanceof Error?e.message:"Could not refresh saved progress.");}
+          finally{setRefreshing(false);}
+        })()}>
+        {refreshing?"Checking saved progress…":"Refresh saved progress"}
       </button>
     </div>
     <p className="campaign-empty-copy">

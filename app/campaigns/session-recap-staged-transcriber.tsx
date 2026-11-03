@@ -268,10 +268,10 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
         Stop after current section
       </button>}
     </div>
-    <progress max={Math.max(1,preparation.parts.length)} value={completed} aria-label="Transcription sections complete"/>
+    <progress style={{width:"100%"}} max={Math.max(1,preparation.parts.length)} value={completed} aria-label="Transcription sections complete"/>
     {busy&&<div role="status">
       <span>Transcribing section {Math.min(completed+1,preparation.parts.length)} of {preparation.parts.length}…</span>
-      <progress aria-label="Current transcription request in progress"/>
+      <progress style={{width:"100%"}} aria-label="Current transcription request in progress"/>
       <p className="campaign-empty-copy">The current transcription request does not provide a reliable percentage. Saved sections are counted above.</p>
     </div>}
     <p className="campaign-empty-copy">{completed} of {preparation.parts.length} sections verified in this browser. Saved cloud sections are checked before transfer or another AI request.</p>

@@ -27,6 +27,7 @@ export async function PATCH(request:Request,context:Context){
     const body=await readBoundedJson(request,7000) as {
       recapId?:unknown;updatedAt?:unknown;cueIndex?:unknown;
       text?:unknown;startMs?:unknown;endMs?:unknown;
+      replaceFrom?:unknown;replaceTo?:unknown;
     };
     const recap=await getCampaignSessionRecap(db,actor,id,body.recapId);
     const key=recapTranscriptObjectKey(access.campaign.id,recap.id);
@@ -39,18 +40,35 @@ export async function PATCH(request:Request,context:Context){
       throw new CampaignServiceError("The transcript changed. Reload before editing.",409);
     if(transcript.published)throw new CampaignServiceError(
       "Unpublish the transcript before correcting its public text.",409);
-    if(!Number.isSafeInteger(body.cueIndex)||Number(body.cueIndex)<0||
-      Number(body.cueIndex)>=transcript.cues.length)throw new CampaignServiceError("Choose a valid transcript cue.",422);
-    const cue=transcript.cues[Number(body.cueIndex)];
-    const text=typeof body.text==="string"?body.text.trim():"";
-    if(!text||text.length>1500||/[\u0000-\u001f\u007f]/u.test(text))
-      throw new CampaignServiceError("Enter a nonempty speech caption under 1500 characters.",422);
-    const startMs=Number(body.startMs),endMs=Number(body.endMs);
-    if(!Number.isSafeInteger(startMs)||!Number.isSafeInteger(endMs)||
-      startMs<0||endMs<=startMs||endMs>8*60*60*1000)
-      throw new CampaignServiceError("Invalid corrected timestamp.",422);
-    const cues:StoredCaptionCue[]=transcript.cues.map((entry,index)=>
-      index===body.cueIndex?{...cue,startMs,endMs,text}:entry);
+    let cues:StoredCaptionCue[];
+    let replacements=0;
+    if(typeof body.replaceFrom==="string"&&typeof body.replaceTo==="string"){
+      const from=body.replaceFrom.trim(),to=body.replaceTo.trim();
+      if(from.length<2||from.length>80||to.length<1||to.length>80||
+        /[\\u0000-\\u001f\\u007f]/u.test(from+to))
+        throw new CampaignServiceError("Enter a valid name or phrase (2–80 characters).",422);
+      const escaped=from.replace(/[.*+?^${}()|[\\]\\]/gu,"\\$&");
+      const pattern=new RegExp("(?<![\\\\p{L}\\\\p{N}])"+escaped+"(?![\\\\p{L}\\\\p{N}])","giu");
+      cues=transcript.cues.map(cue=>{
+        const text=cue.text.replace(pattern,()=>{replacements++;return to;});
+        return {...cue,text};
+      });
+      if(!replacements)throw new CampaignServiceError("No matching names were found.",422);
+    }else{
+      if(!Number.isSafeInteger(body.cueIndex)||Number(body.cueIndex)<0||
+        Number(body.cueIndex)>=transcript.cues.length)
+        throw new CampaignServiceError("Choose a valid transcript cue.",422);
+      const cue=transcript.cues[Number(body.cueIndex)];
+      const text=typeof body.text==="string"?body.text.trim():"";
+      if(!text||text.length>1500||/[\\u0000-\\u001f\\u007f]/u.test(text))
+        throw new CampaignServiceError("Enter a nonempty speech caption under 1500 characters.",422);
+      const startMs=Number(body.startMs),endMs=Number(body.endMs);
+      if(!Number.isSafeInteger(startMs)||!Number.isSafeInteger(endMs)||
+        startMs<0||endMs<=startMs||endMs>8*60*60*1000)
+        throw new CampaignServiceError("Invalid corrected timestamp.",422);
+      cues=transcript.cues.map((entry,index)=>
+        index===body.cueIndex?{...cue,startMs,endMs,text}:entry);
+    }
     validateRecapCaptionCues(cues);
     const updated:RecordedRecapTranscript={...transcript,cues,
       updatedAt:new Date().toISOString(),published:false};
@@ -61,7 +79,7 @@ export async function PATCH(request:Request,context:Context){
       httpMetadata:{contentType:"application/json"},
     });
     if(!result)throw new CampaignServiceError("Transcript changed in another tab. Reload.",409);
-    return Response.json({saved:true,updatedAt:updated.updatedAt},{headers});
+    return Response.json({saved:true,updatedAt:updated.updatedAt,replacements},{headers});
   }catch(e){
     if(e instanceof RequestBodyError)return invalid(e.message,e.status);
     if(e instanceof CampaignServiceError)return campaignErrorResponse(e,"Could not correct transcript.");

@@ -42,7 +42,7 @@ test("existing GM recap editor uses secure same-origin Drive upload relay",async
   assert.match(ui,/setAwaitingVerification\(uploaded\)/u);
   assert.match(ui,/Retry verification/u);
   assert.match(ui,/controller\.current\?\.abort\(\)/u);
-  assert.match(ui,/<progress max=\{100\}/u);
+  assert.match(ui,/<progress[^>]*max=\{100\}[^>]*aria-label="Recording upload progress"/u);
   assert.match(ui,/Keep this page open until the upload completes/u);
   assert.match(ui,/busy&&!awaitingVerification/u);
   assert.match(ui,/Manage storage accounts/u);

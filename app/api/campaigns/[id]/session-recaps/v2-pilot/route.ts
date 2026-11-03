@@ -7,13 +7,11 @@ import {campaignErrorResponse} from "@/lib/campaigns/http";
 import {getCampaignSessionRecap} from "@/lib/campaigns/session-recaps";
 import {CampaignServiceError,getCampaignD1,loadCampaignAccess,
   requireActiveCampaign} from "@/lib/campaigns/service";
-import {getGmDriveAccessToken} from "@/lib/campaigns/recap-drive-token";
-import {planM4aPilotExcerpt,M4A_PILOT_MAX_BYTES} from "@/lib/campaigns/recap-m4a-remux";
+import {validatePilotM4aPlan} from "@/lib/campaigns/recap-v2-pilot-plan";
 import {mintPilotCapability} from "@/lib/campaigns/recap-v2-pilot-capability";
 import {decryptGroqUserKey,type RecapAIEncryptionSettings}
   from "@/lib/account/recap-groq-key";
 import {normalizeGroqAudioSegments} from "@/lib/campaigns/recap-groq-audio";
-import type {DriveSettings} from "@/lib/account/recap-google-drive-oauth";
 
 type Context={params:Promise<{id:string}>};
 type Asset={
@@ -23,7 +21,7 @@ type Asset={
 type GroqConnection={id:string;ciphertext:string;nonce:string;version:number};
 type PilotRow={status:string;model:string;excerptEndMs:number;
   excerptBytes:number;errorCode:string|null;transcriptKey:string|null;updatedAt:string};
-type Settings=DriveSettings&RecapAIEncryptionSettings&{
+type Settings=RecapAIEncryptionSettings&{
   BUCKET:R2Bucket;TWE_RECAP_V2_PILOT_ENABLED?:string;
 };
 const noStore={"cache-control":"private, no-store"};
@@ -63,32 +61,6 @@ async function authorize(request:Request,ctx:Context,recapId:unknown,assetId:unk
     throw new CampaignServiceError("Pilot currently supports existing M4A Drive audio only.",422);
   return {db,actor,access,recap,source};
 }
-async function plan(db:D1Database,owner:string,source:Asset){
-  const token=await getGmDriveAccessToken(db,config(),owner,source.connectionId);
-  const read=async(start:number,length:number):Promise<Uint8Array>=>{
-    if(!Number.isSafeInteger(start)||!Number.isSafeInteger(length)||
-      start<0||length<=0||length>6*1024*1024||
-      start+length>source.byteSize)throw Error("Invalid bounded M4A metadata read.");
-    const response=await fetch("https://www.googleapis.com/drive/v3/files/"+
-      encodeURIComponent(source.remoteFileId)+"?alt=media",{
-      method:"GET",redirect:"manual",signal:AbortSignal.timeout(25_000),
-      headers:{"authorization":"Bearer "+token,"accept-encoding":"identity",
-        "range":"bytes="+start+"-"+(start+length-1)},
-    });
-    if(response.status!==206||response.redirected||
-      response.headers.get("content-range")!==
-      "bytes "+start+"-"+(start+length-1)+"/"+source.byteSize)
-      throw Error("Drive file metadata did not match its saved audio asset.");
-    const result=new Uint8Array(await response.arrayBuffer());
-    if(result.length!==length)throw Error("Drive metadata is incomplete.");
-    return result;
-  };
-  const clip=await planM4aPilotExcerpt(source,read);
-  const bytes=Math.ceil(clip.prefixBase64.length*3/4)+clip.sourceEnd-clip.sourceStart;
-  if(bytes>M4A_PILOT_MAX_BYTES||clip.endMs<20_000)
-    throw Error("Pilot clip does not fit safely in free-tier upload limits.");
-  return {clip,bytes};
-}
 async function groqConnection(db:D1Database,owner:string):Promise<GroqConnection|null>{
   return db.prepare("SELECT id,key_ciphertext AS ciphertext,key_nonce AS nonce,"+
     "key_version AS version FROM user_recap_groq_connections "+
@@ -127,11 +99,10 @@ export async function GET(request:Request,ctx:Context):Promise<Response>{
       return Response.json({pilot:publicState(current),transcript},{headers:noStore});
     }
     const connected=Boolean(await groqConnection(info.db,info.actor.userId));
-    const sample=await plan(info.db,info.actor.userId,info.source);
     return Response.json({ready:connected,requiresApproval:true,
-      model:MODEL,excerptEndMs:sample.clip.endMs,excerptBytes:sample.bytes,
-      originalByteSize:info.source.byteSize,
-      notice:connected?"Ready for an explicitly approved single 2-minute Groq test.":
+      model:MODEL,originalByteSize:info.source.byteSize,
+      durationMs:info.source.durationMs,
+      notice:connected?"Ready to prepare a short excerpt privately in this browser. No Groq request has started.":
         "Connect your own Groq account before a pilot test. No inference has started."},
       {headers:noStore});
   }catch(e){return campaignErrorResponse(e,"Could not prepare private V2 transcription pilot.");}
@@ -143,8 +114,9 @@ export async function POST(request:Request,ctx:Context):Promise<Response>{
     request.headers.get("sec-fetch-site")==="cross-site")
     return fail("Start the private pilot from TWE.",403);
   try{
-    const body=await readBoundedJson(request,2048) as {
+    const body=await readBoundedJson(request,400_000) as {
       recapId?:unknown;assetId?:unknown;approvedShare?:unknown;approvedQuota?:unknown;
+      m4aPlan?:unknown;
     };
     if(body.approvedShare!==true||body.approvedQuota!==true)
       return fail("Approve Groq audio sharing and possible personal provider quota use.",422);
@@ -158,7 +130,8 @@ export async function POST(request:Request,ctx:Context):Promise<Response>{
     try{groqKey=await decryptGroqUserKey(config(),info.actor.userId,row.id,{
       ciphertext:row.ciphertext,nonce:row.nonce,version:1});}
     catch{return fail("Groq connection needs to be reconnected.",409);}
-    const {clip,bytes}=await plan(info.db,info.actor.userId,info.source);
+    const {clip,bytes}=validatePilotM4aPlan(body.m4aPlan,
+      info.source.byteSize,info.source.durationMs);
     const capability=await mintPilotCapability(config(),{
       campaignId:info.access.campaign.id,recapId:info.recap.id,
       assetId:info.source.id,ownerId:info.actor.userId,
@@ -173,10 +146,12 @@ export async function POST(request:Request,ctx:Context):Promise<Response>{
     const id=crypto.randomUUID(),stamp=new Date().toISOString();
     const inserted=await info.db.prepare("INSERT OR IGNORE INTO campaign_recap_v2_pilots "+
       "(id,campaign_id,recap_id,audio_asset_id,requested_by,status,model,"+
-      "excerpt_end_ms,excerpt_bytes,submitted_at,updated_at) "+
-      "VALUES (?,?,?,?,?,'submitting',?,?,?, ?,?)")
+      "excerpt_end_ms,excerpt_bytes,source_byte_size,source_start,source_end,"+
+      "prefix_base64,submitted_at,updated_at) "+
+      "VALUES (?,?,?,?,?,'submitting',?,?,?,?,?,?,?, ?,?)")
       .bind(id,info.access.campaign.id,info.recap.id,info.source.id,
-        info.actor.userId,MODEL,clip.endMs,bytes,stamp,stamp).run();
+        info.actor.userId,MODEL,clip.endMs,bytes,info.source.byteSize,
+        clip.sourceStart,clip.sourceEnd,clip.prefixBase64,stamp,stamp).run();
     if(inserted.meta.changes!==1)
       return fail("This recording already has a Groq pilot attempt. It will not be resubmitted.",409);
 

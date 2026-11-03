@@ -45,10 +45,10 @@ export async function PATCH(request:Request,context:Context){
     if(typeof body.replaceFrom==="string"&&typeof body.replaceTo==="string"){
       const from=body.replaceFrom.trim(),to=body.replaceTo.trim();
       if(from.length<2||from.length>80||to.length<1||to.length>80||
-        /[\\u0000-\\u001f\\u007f]/u.test(from+to))
+        /[\u0000-\u001f\u007f]/u.test(from+to))
         throw new CampaignServiceError("Enter a valid name or phrase (2–80 characters).",422);
-      const escaped=from.replace(/[.*+?^${}()|[\\]\\]/gu,"\\$&");
-      const pattern=new RegExp("(?<![\\\\p{L}\\\\p{N}])"+escaped+"(?![\\\\p{L}\\\\p{N}])","giu");
+      const escaped=from.replace(/[.*+?^${}()|[\]\\]/gu,"\\$&");
+      const pattern=new RegExp("(?<![\\p{L}\\p{N}])"+escaped+"(?![\\p{L}\\p{N}])","giu");
       cues=transcript.cues.map(cue=>{
         const text=cue.text.replace(pattern,()=>{replacements++;return to;});
         return {...cue,text};
@@ -60,7 +60,7 @@ export async function PATCH(request:Request,context:Context){
         throw new CampaignServiceError("Choose a valid transcript cue.",422);
       const cue=transcript.cues[Number(body.cueIndex)];
       const text=typeof body.text==="string"?body.text.trim():"";
-      if(!text||text.length>1500||/[\\u0000-\\u001f\\u007f]/u.test(text))
+      if(!text||text.length>1500||/[\u0000-\u001f\u007f]/u.test(text))
         throw new CampaignServiceError("Enter a nonempty speech caption under 1500 characters.",422);
       const startMs=Number(body.startMs),endMs=Number(body.endMs);
       if(!Number.isSafeInteger(startMs)||!Number.isSafeInteger(endMs)||

@@ -125,22 +125,46 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   const load=(async()=>{
     let ffmpeg:FFmpegRunner|null=null;
     try{
-      const wrapper:string="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js";
-      const mod=await import(/* @vite-ignore */ wrapper) as FFmpegModule;
+      // Pinned dual-CDN fallback. Neither request transfers or uploads any GM audio.
+      // Hosting the 32 MiB WASM file as a Cloudflare static asset is not possible
+      // with the 25 MiB per-asset limit; keep it browser-direct and cacheable.
+      const cdns=["https://cdn.jsdelivr.net/npm","https://unpkg.com"];
+      let mod:FFmpegModule|null=null;
+      for(const cdn of cdns){
+        if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+        try{
+          const wrapper=cdn+"/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js";
+          const imported=await import(/* @vite-ignore */ wrapper) as FFmpegModule;
+          if(typeof imported.FFmpeg!=="function")throw Error("Invalid FFmpeg wrapper module.");
+          mod=imported;
+          break;
+        }catch{/* Try a second pinned source if the primary CDN is blocked. */}
+      }
+      if(!mod)throw Error("Both audio converter JavaScript sources are unavailable.");
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
       ffmpeg=new mod.FFmpeg();
       loadingConverter=ffmpeg;
-      // A module worker cannot use importScripts(). It must import the ESM core,
-      // not the UMD build, which has no default export and can hang ffmpeg.load().
-      const base="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+      // The class worker is an ES module: the core must also be the ESM build.
       const blobURL=async(path:string,type:string)=>{
-        const response=await fetch(base+"/"+path,{signal:abort.signal,cache:"force-cache"});
-        if(!response.ok)throw Error("Audio converter engine download failed ("+response.status+").");
-        const bytes=await response.arrayBuffer();
-        if(!bytes.byteLength)throw Error("Audio converter engine download was empty.");
-        const url=URL.createObjectURL(new Blob([bytes],{type}));
-        urls.push(url);
-        return url;
+        let lastError="unavailable";
+        for(const cdn of cdns){
+          if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+          try{
+            const requestSignal=AbortSignal.any([abort.signal,AbortSignal.timeout(40_000)]);
+            const source=cdn+"/@ffmpeg/core@0.12.10/dist/esm/"+path;
+            const response=await fetch(source,{signal:requestSignal,cache:"force-cache"});
+            if(!response.ok)throw Error("HTTP "+response.status);
+            const bytes=await response.arrayBuffer();
+            if(!bytes.byteLength)throw Error("Empty audio converter engine file.");
+            const url=URL.createObjectURL(new Blob([bytes],{type}));
+            urls.push(url);
+            return url;
+          }catch(error){
+            if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+            lastError=error instanceof Error?error.message:String(error);
+          }
+        }
+        throw Error("Both pinned sources failed to load "+path+" ("+lastError+").");
       };
       const [js,wasm]=await Promise.all([
         blobURL("ffmpeg-core.js","text/javascript"),

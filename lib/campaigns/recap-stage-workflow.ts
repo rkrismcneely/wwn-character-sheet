@@ -112,11 +112,13 @@ export function transitionRecapWorkflow(old:RecapWorkflow,action:RecapWorkflowAc
       break;
     }
     case "save-preparation":{
-      check(Boolean(next.sourceApprovedAt&&next.source),"Approve the recording first.");
+      check(action.provider==="import"&&action.method==="import" || Boolean(next.sourceApprovedAt&&next.source),
+        "Approve a recording first, or choose transcript-only import.");
       check(["groq","gemini","local-whisper","import"].includes(action.provider),
         "Unsupported transcription provider.");
       check(["original","ffmpeg","import"].includes(action.method),"Unsupported preparation method.");
       const parts=validatePreparationParts(action.provider,action.parts);
+      if(action.provider==="import")check(action.method==="import","Transcript import does not need audio conversion.");
       next.preparation={provider:action.provider,method:action.method,parts,savedAt:now,
         transcriptBefore:evidence.transcriptRevision};
       next.transcriptApprovedAt=null;next.transcriptApprovedRevision=null;

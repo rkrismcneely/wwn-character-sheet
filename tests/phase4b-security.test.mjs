@@ -217,10 +217,10 @@ test("auth build configuration references runtime binding names without secret v
   for (const name of ["GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET", "RECAP_STORAGE_ENCRYPTION_KEY"]) {
     assert.match(example, new RegExp("^" + name + "=$", "mu"));
   }
-  assert.match(
-    wrangler,
-    /"vars":\s*\{\s*"BETTER_AUTH_URL":\s*"https:\/\/taleswithoutend\.com"\s*\}/u,
-  );
+  const vars = JSON.parse(wrangler).vars;
+  assert.equal(vars.BETTER_AUTH_URL, "https://taleswithoutend.com");
+  assert.equal(vars.TWE_RECAP_V2_PILOT_ENABLED, "true");
+  assert.equal(Object.keys(vars).length, 2, "Only public runtime variables belong in committed Wrangler vars.");
   assert.doesNotMatch(wrangler, /BETTER_AUTH_SECRET|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|DISCORD_CLIENT_SECRET/u);
   assert.match(auth, /additionalFields:[\s\S]*role:[\s\S]*input: false/u);
   assert.match(auth, /defaultValue: "user"/u);

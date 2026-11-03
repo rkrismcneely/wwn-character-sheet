@@ -26,6 +26,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const [speakerId,setSpeakerId]=useState("guest");
   const [model,setModel]=useState("whisper-large-v3");
   const [apiKey,setApiKey]=useState("");
+  const [connectedGroq,setConnectedGroq]=useState(false);
   const [share,setShare]=useState(false);
   const [billing,setBilling]=useState(false);
   const [busy,setBusy]=useState(false);
@@ -36,6 +37,14 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/transcript";
   const provider=preparation.provider;
   const cloud=provider==="groq"||provider==="gemini";
+  useEffect(()=>{
+    if(provider!=="groq")return;
+    const controller=new AbortController();
+    void fetch("/api/account/recap-ai/groq",{signal:controller.signal}).then(r=>r.json())
+      .then((v:{connection?:{status?:string}})=>{if(!controller.signal.aborted)setConnectedGroq(v.connection?.status==="connected");})
+      .catch(()=>{});
+    return ()=>controller.abort();
+  },[provider]);
   useEffect(()=>{
     const controller=new AbortController();
     void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/recap-imports",
@@ -49,7 +58,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   async function submitCloud(){
     if(!cloud)throw Error("Unsupported cloud transcription stage.");
     if(!share||!billing)throw Error("Approve provider sharing and quota before submitting.");
-    if(provider==="groq"&&!apiKey.trim())throw Error("Enter your personal Groq key.");
+    if(provider==="groq"&&!apiKey.trim()&&!connectedGroq)throw Error("Connect your Groq key in Account or enter it here.");
     for(let i=completed;i<preparation.parts.length;i++){
       if(stop.current)break;
       const part=preparation.parts[i];
@@ -157,7 +166,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       </label>
     </>}
     {cloud&&<>
-      <label>Personal {provider==="groq"?"Groq":"Gemini"} API key {provider==="gemini"?"(optional when connected in Account)":"(required)"}
+      <label>Personal {provider==="groq"?"Groq":"Gemini"} API key (optional when connected in Account)
         <input type="password" autoComplete="off" disabled={busy} value={apiKey}
           onChange={e=>setApiKey(e.target.value)}/>
       </label>
@@ -173,7 +182,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
     {!cloud&&<p className="campaign-empty-copy">Free on this device; no AI account. This may be slow, especially for multi-hour sessions. Keep the browser awake.</p>}
     <div className="session-recap-form-actions">
       <button className="campaign-primary" type="button" disabled={busy||!speakerId||
-        (cloud&&(!share||!billing))||(provider==="groq"&&!apiKey)}
+        (cloud&&(!share||!billing))||(provider==="groq"&&!apiKey&&!connectedGroq)}
         onClick={()=>void run()}>{busy?"Transcribing…":completed?"Resume transcription":"Start transcription"}</button>
       {busy&&<button className="campaign-secondary" type="button" onClick={()=>{stop.current=true;}}>
         Stop after current section

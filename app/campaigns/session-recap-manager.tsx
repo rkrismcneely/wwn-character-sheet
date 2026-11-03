@@ -233,7 +233,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
             setImportNotice("Saved recap version added to your editor. Review it and publish separately.");
             return true;
           }}/>
-        <details className="session-recap-reading">
+        {SHOW_LEGACY_RECAP_TOOLS&&<details className="session-recap-reading">
           <summary>Earlier Auto Summarize jobs and experimental Groq pilot</summary>
           <p className="campaign-empty-copy">
             Legacy jobs are retained for recovery. They are separate from the new checkpointed workflow.
@@ -249,7 +249,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
               return true;
             }}
             onSuggestedTitle={title=>setDraft(current=>({...current,title}))}/>
-        </details>
+        </details>}
       </>}
       {editing === "new" && createMethod === "recording"
         ? <form className="session-recap-form" onSubmit={event=>void createRecordingDraft(event)}>
@@ -295,7 +295,7 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         </div>
       </form>}
       {editing !== "new" && <>
-        {editing.isPublished&&<>
+        {SHOW_LEGACY_RECAP_TOOLS&&editing.isPublished&&<>
           <SessionRecapAudioUploader key={editing.id}
             campaignId={campaignId} recapId={editing.id} onBusyChange={trackUploadBusy}/>
           <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id} published

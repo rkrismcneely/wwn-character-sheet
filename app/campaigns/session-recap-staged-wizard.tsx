@@ -246,7 +246,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     }
     // Cache the verified original under this private recap + Drive asset ID.
     // Retrying preparation must not download an hours-long recording again.
-    const cacheable=currentSource.bytes<=300*1024*1024;
+    const cacheable=method==="ffmpeg"&&currentSource.bytes<=300*1024*1024;
     const originalKey=cacheable?await browserRecapKey(campaignId,recapId,
       currentSource.id,"drive-original",String(currentSource.bytes)):null;
     if(originalKey){
@@ -280,6 +280,12 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     const original=new File([blob],currentSource.name,{type:currentSource.mimeType});
     if(originalKey&&!signal?.aborted){
       try{
+        // Preserve enough browser quota for the converted audio sections.
+        const storage=await navigator.storage?.estimate?.();
+        if(storage&&typeof storage.quota==="number"&&typeof storage.usage==="number"&&
+          storage.quota-storage.usage<original.size*3){
+          return original; // Download succeeded; caching is optional.
+        }
         setProgress("Caching original recording in this browser for faster retries…");
         setMeter({done:0,total:original.size,unit:"bytes"});
         await saveBrowserRecapFile(originalKey,original,(done,total)=>{

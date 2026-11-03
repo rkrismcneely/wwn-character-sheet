@@ -55,7 +55,7 @@ export async function PATCH(request:Request,context:Context){
     const updated:RecordedRecapTranscript={...transcript,cues,
       updatedAt:new Date().toISOString(),published:false};
     const json=JSON.stringify(updated);
-    if(json.length>2_000_000)throw new CampaignServiceError("Transcript storage capacity reached.",413);
+    if(json.length>2_000_000)throw new CampaignServiceError("Transcript storage capacity reached.",422);
     const result=await env.BUCKET.put(key,json,{
       onlyIf:{etagMatches:object.etag},
       httpMetadata:{contentType:"application/json"},

@@ -488,7 +488,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={billing} disabled={starting}
             onChange={e=>setBilling(e.target.checked)}/>
-          {" "}I understand this request could use my quota or incur provider charges.
+          {" "}I understand this request and up to one delayed retry of a confirmed Gemini service failure could use my quota or incur provider charges.
         </label>
         <div className="session-recap-form-actions">
           <button ref={cancelRef} type="button" className="campaign-secondary" disabled={starting}

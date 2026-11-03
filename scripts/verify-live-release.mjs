@@ -34,4 +34,30 @@ try{
  process.exit(1);
 }
 if(!health.ok){console.error("Production root HTTP "+health.status);process.exit(1);}
-console.log(expected?"Verified exact production release and homepage.":"Verified release marker and homepage.");
+// The recap FFmpeg worker must be served as working JavaScript on production.
+// Earlier releases passed homepage health while this endpoint returned HTTP 503.
+let ffmpegWorker;
+try{
+ ffmpegWorker=await fetch(
+  "https://taleswithoutend.com/api/recap-ffmpeg/worker.js?release="+encodeURIComponent(data.commit),
+  {headers:{"cache-control":"no-cache"},signal:AbortSignal.timeout(12000)},
+ );
+}catch(error){
+ console.error("FFmpeg worker endpoint is unreachable:",error.message);
+ process.exit(1);
+}
+if(!ffmpegWorker.ok){
+ console.error("FFmpeg worker endpoint HTTP "+ffmpegWorker.status);
+ process.exit(1);
+}
+if(!ffmpegWorker.headers.get("content-type")?.includes("javascript")){
+ console.error("FFmpeg worker endpoint did not return JavaScript.");
+ process.exit(1);
+}
+const workerCode=await ffmpegWorker.text();
+if(!workerCode.includes("self.onmessage")||!workerCode.includes('case "LOAD"')){
+ console.error("FFmpeg worker endpoint is missing its message protocol.");
+ process.exit(1);
+}
+console.log("Verified public FFmpeg worker endpoint and message protocol.");
+console.log(expected?"Verified exact production release, homepage and FFmpeg worker.":"Verified release marker, homepage and FFmpeg worker.");

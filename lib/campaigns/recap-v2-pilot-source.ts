@@ -35,7 +35,7 @@ export async function handlePilotExcerpt(request:Request,context:Context):Promis
   const assetId=params.assetId.endsWith(".m4a")?
     params.assetId.slice(0,-4):params.assetId;
   const u=new URL(request.url);
-  if(!UUID.test(assetId)||u.searchParams.size!==6)return notFound();
+  if(!UUID.test(assetId)||u.searchParams.size!==5)return notFound();
   const campaignId=u.searchParams.get("campaignId")??"";
   const recapId=u.searchParams.get("recapId")??"";
   const rawExpires=u.searchParams.get("exp")??"";

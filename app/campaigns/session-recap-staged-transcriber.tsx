@@ -41,7 +41,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   useEffect(()=>{
     const controller=new AbortController();
     void fetch(base+"?recapId="+encodeURIComponent(recapId),{signal:controller.signal})
-      .then(r=>r.json()).then((v:{cues?:unknown[]})=>{
+      .then(async r=>await r.json() as {cues?:unknown[]}).then(v=>{
         if(!controller.signal.aborted)setExistingCues(v.cues?.length??0);
       }).catch(()=>{});
     return ()=>controller.abort();
@@ -49,7 +49,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   useEffect(()=>{
     if(provider!=="groq")return;
     const controller=new AbortController();
-    void fetch("/api/account/recap-ai/groq",{signal:controller.signal}).then(r=>r.json())
+    void fetch("/api/account/recap-ai/groq",{signal:controller.signal}).then(async r=>await r.json() as {connection?:{status?:string}})
       .then((v:{connection?:{status?:string}})=>{if(!controller.signal.aborted)setConnectedGroq(v.connection?.status==="connected");})
       .catch(()=>{});
     return ()=>controller.abort();

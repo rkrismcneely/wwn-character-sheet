@@ -197,6 +197,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           durationMs:1_000,
           localKey:null}];
       }else{
+        if(!currentSource)throw Error("Approve a recording before audio preparation.");
         const source=await sourceFile();
         parts=method==="original"?
           await saveUnchangedAudio(source,{provider,campaignId,recapId,sourceId:currentSource.id}):

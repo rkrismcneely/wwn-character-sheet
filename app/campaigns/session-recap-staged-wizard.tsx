@@ -50,6 +50,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
+  const [refreshing,setRefreshing]=useState(false);
   const [sourceChoice,setSourceChoice]=useState("");
   const [browserFile,setBrowserFile]=useState<File|null>(null);
   const [provider,setProvider]=useState<RecapTranscriber>("groq");
@@ -103,7 +104,18 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         return [name,data.connection?.status==="connected"] as const;
       }catch{return [name,false] as const;}
     })).then(values=>{if(mounted)setConnections(Object.fromEntries(values) as {gemini:boolean;groq:boolean});});
-    const handler=()=>{void refresh().catch(e=>setError(e instanceof Error?e.message:"Could not refresh."));};
+    const handler=(event:Event)=>{void (async()=>{
+      const detail=(event as CustomEvent<{recapId?:string;assetId?:string}>).detail;
+      if(detail?.recapId&&detail.recapId!==recapId)return;
+      const latest=await refresh();
+      const ready=latest.assets.filter(a=>a.status==="ready"&&typeof a.byteSize==="number");
+      const asset=ready.find(a=>a.id===detail?.assetId)??(ready.length===1?ready[0]:null);
+      setStep(0);
+      if(asset){
+        setSourceChoice(asset.id);setBrowserFile(null);
+        setNotice("Recording uploaded and ready. Approve it below to continue.");
+      }else setNotice("Upload finished, but Drive verification is pending. Refresh saved progress to check again.");
+    })().catch(e=>setError(e instanceof Error?e.message:"Could not refresh the uploaded recording."));};
     window.addEventListener("twe:recap-audio-attached",handler);
     return()=>{mounted=false;window.removeEventListener("twe:recap-audio-attached",handler);};
   },[recapId,base,refresh]);
@@ -275,8 +287,22 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   return <section className="session-recap-reading" aria-label="Session Recap five-step wizard">
     <div className="session-recap-editor-heading">
       <h3>Session Recap — Guided Workflow</h3>
-      <button type="button" className="campaign-quiet" onClick={()=>void refresh()}>
-        Refresh saved progress
+      <button type="button" className="campaign-secondary" disabled={refreshing||busy}
+        onClick={()=>void (async()=>{
+          setRefreshing(true);setError("");setNotice("");
+          try{
+            const value=await refresh();
+            const ready=value.assets.filter(a=>a.status==="ready"&&typeof a.byteSize==="number");
+            const pending=value.assets.filter(a=>a.status!=="ready");
+            if(!sourceChoice&&ready.length===1)setSourceChoice(ready[0].id);
+            if(ready.length===1)setNotice("Refreshed: "+ready[0].label+" is ready. Click Approve recording and continue in Step 1.");
+            else if(ready.length>1)setNotice("Refreshed: "+ready.length+" recordings are ready. Select the correct one in Step 1.");
+            else if(pending.length)setNotice("Refreshed: "+pending.length+" recording(s) found, but none is verified yet. Check the upload status below or use Find Saved Recording.");
+            else setNotice("Refreshed: no recordings are attached to this recap. If the upload completed, check that you are editing the same recap; the upload may need recovery. Do not upload again until we check.");
+          }catch(e){setError(e instanceof Error?e.message:"Could not refresh saved progress.");}
+          finally{setRefreshing(false);}
+        })()}>
+        {refreshing?"Checking saved progress…":"Refresh saved progress"}
       </button>
     </div>
     <p className="campaign-empty-copy">
@@ -296,6 +322,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         Use your connected Google Drive, or save it locally in this browser without another account.</p>
       <SessionRecapAudioUploader campaignId={campaignId} recapId={recapId}
         onBusyChange={onUploadBusy}/>
+      {eligible.length===0&&<p className="campaign-error">No verified Drive recording is available yet. After uploading, wait for confirmation or click Refresh saved progress above. You can also choose a local file below.</p>}
       <div className="session-recap-form-fields">
         <label>Saved Google Drive recording
           <select value={sourceChoice} disabled={busy} onChange={e=>{setSourceChoice(e.target.value);setBrowserFile(null);}}>

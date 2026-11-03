@@ -7,7 +7,8 @@
     "nodejs_compat"
   ],
   "vars": {
-    "BETTER_AUTH_URL": "https://taleswithoutend.com"
+    "BETTER_AUTH_URL": "https://taleswithoutend.com",
+    "TWE_RECAP_V2_PILOT_ENABLED": "true"
   },
   "observability": {
     "enabled": true,

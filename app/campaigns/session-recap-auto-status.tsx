@@ -15,6 +15,7 @@ type Job={
   stageBytes:number;totalBytes:number|null;canRetry:boolean;canRetryFailedSection?:boolean;canRepackFailedM4a?:boolean;canResumeGroqWriter?:boolean;
   createdAt:string;updatedAt:string;
   segmentCount?:number;segmentsReady?:number;
+  audioAnalysisModel?:string;singleAudioRetryCount?:number;audioRetryNotBefore?:string|null;
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null;providerCode?:string|null;diagnosticFingerprint?:string};
@@ -299,6 +300,19 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         {jobs.some(j=>j.audioAssetId===asset.id)?"Summarize again":"Auto Summarize"}
       </button>
     </div>)}
+    {newest?.singleAudioRetryCount===1&&
+      !["needs_attention","failed","ready"].includes(newest.status)&&
+      <p role="status" className="campaign-empty-copy">
+        Gemini's original audio analysis failed. TWE is recovering this recording
+        with Gemini 3.6 Flash, using the existing uploaded audio where possible.
+        {newest.audioRetryNotBefore&&Date.parse(newest.audioRetryNotBefore)>Date.now()?
+          " Next attempt scheduled for "+new Date(newest.audioRetryNotBefore).toLocaleTimeString()+".":""}
+      </p>}
+    {newest?.singleAudioRetryCount===1&&newest.status==="needs_attention"&&
+      newest.errorCode==="interaction_failed"&&<p className="campaign-empty-copy">
+        The alternate Gemini model also failed. No more automatic audio requests
+        will be made for this job.
+      </p>}
     {newest&&!(newest.status==="needs_attention"||newest.status==="failed")&&(
       newest.status==="ready"
         ? <p role="status"><strong>AI recap ready to review</strong> · {newest.detail}</p>
@@ -488,7 +502,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         <label style={{display:"block",marginBlock:12}}>
           <input type="checkbox" checked={billing} disabled={starting}
             onChange={e=>setBilling(e.target.checked)}/>
-          {" "}I understand this request and up to one delayed retry of a confirmed Gemini service failure could use my quota or incur provider charges.
+          {" "}I understand this request and up to one delayed retry of a confirmed Gemini service failure (possibly with another Gemini Flash model) could use my quota or incur provider charges.
         </label>
         <div className="session-recap-form-actions">
           <button ref={cancelRef} type="button" className="campaign-secondary" disabled={starting}

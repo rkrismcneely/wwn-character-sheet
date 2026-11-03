@@ -78,7 +78,12 @@ test("V2 pilot UI is opt-in, makes readiness GET before inference POST, and requ
     read("app/api/campaigns/[id]/session-recaps/v2-pilot/route.ts"),
     read("lib/campaigns/recap-v2-pilot-source.ts"),
   ]);
-  assert.match(screen,/NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED==="true"/u);
+  const wrangler=await read("wrangler.jsonc");
+  assert.match(wrangler,/"TWE_RECAP_V2_PILOT_ENABLED": "true"/u);
+  assert.doesNotMatch(screen,/NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED/u);
+  assert.match(pilot,/canManageCampaignContent/u);
+  assert.ok(pilot.includes("a.storage_owner_user_id=?"));
+  assert.ok(pilot.includes("body.approvedShare!==true||body.approvedQuota!==true"));
   assert.match(screen,/SessionRecapV2Pilot/u);
   assert.match(ui,/Check pilot readiness \(no AI request\)/u);
   assert.match(ui,/approvedShare:true,approvedQuota:true/u);
@@ -91,5 +96,5 @@ test("V2 pilot UI is opt-in, makes readiness GET before inference POST, and requ
   assert.doesNotMatch(source,/planM4aPilotExcerpt/u);
 
   assert.match(ui,/if\(!response\.ok\|\|!data\.success\)/u);
-  assert.doesNotMatch(ui,/generativelanguage\\.googleapis/u);
+  assert.ok(!ui.includes("generativelanguage.googleapis"));
 });

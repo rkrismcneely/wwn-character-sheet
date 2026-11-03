@@ -515,8 +515,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
         </div>
       </div>
     </div>}
-    {process.env.NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED==="true"&&
-      <SessionRecapV2Pilot campaignId={campaignId} recapId={recapId} assets={playable}/>}
+    <SessionRecapV2Pilot campaignId={campaignId} recapId={recapId} assets={playable}/>
     {notice&&<p className="session-recap-import-notice" role="status">{notice}</p>}
     {error&&<p className="campaign-error" role="alert">{error}</p>}
   </section>;

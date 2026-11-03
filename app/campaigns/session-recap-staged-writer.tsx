@@ -62,10 +62,25 @@ export function SessionRecapStagedWriter({campaignId,recapId,provider,model,deta
     return data;
   },[url,recapId]);
   useEffect(()=>{
-    let active=true;
-    void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:"Writing unavailable.");});
-    return()=>{active=false;stop.current=true;};
-  },[refresh]);
+    const controller=new AbortController();
+    void fetch(url+"?recapId="+encodeURIComponent(recapId),
+      {cache:"no-store",signal:controller.signal})
+      .then(async response=>{
+        const data=await response.json() as Plan;
+        if(!response.ok)throw Error(data.error||"Writing unavailable.");
+        return data;
+      })
+      .then(data=>{
+        if(!controller.signal.aborted){
+          setPlan(data);
+          if(data.final)setGenerated(data.final);
+        }
+      })
+      .catch(e=>{
+        if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Writing unavailable.");
+      });
+    return()=>{controller.abort();stop.current=true;};
+  },[url,recapId]);
   async function send(body:Record<string,unknown>){
     const response=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},
       body:JSON.stringify({recapId,...body,apiKey:key,approvedShare:true,approvedQuota:true})});

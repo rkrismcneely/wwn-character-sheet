@@ -181,8 +181,13 @@ export function SessionRecapStagedWriter({campaignId,recapId,provider,model,deta
       provider==="gemini"?"Gemini text-only recap":"Groq text-only recap"}</h4>
     <p className="campaign-empty-copy">Uses the approved timestamped transcript, not the audio.
       Scene notes are saved individually so transcription is never repeated when writing fails.</p>
-    {plan&&<p className="campaign-empty-copy">{plan.completed.length} of {plan.parts}
-      scene sections saved · Model: {model} · Detail: {detail}</p>}
+    {plan&&<div className="session-recap-reading">
+      <p className="campaign-empty-copy">{plan.completed.length} of {plan.parts}
+        scene sections saved · Model: {model} · Detail: {detail}</p>
+      <progress max={Math.max(1,plan.parts)} value={plan.completed.length}
+        aria-label="Saved recap scene sections"/>
+      {plan.final&&<p className="session-recap-import-notice">Final recap saved and ready for review.</p>}
+    </div>}
     {provider==="manual" ? <label>Write or paste your recap Markdown
       <textarea rows={12} value={manual} onChange={e=>setManual(e.target.value)}/>
     </label> : <>
@@ -214,6 +219,7 @@ export function SessionRecapStagedWriter({campaignId,recapId,provider,model,deta
         onClick={()=>{stop.current=true;}}>Stop after current section</button>}
     </div>
     {progress&&<p role="status">{progress}</p>}
+    {busy&&<progress aria-label="Current recap writing request in progress"/>}
     {generated&&<div className="session-recap-reading">
       <h5>Saved generated recap</h5>
       <textarea rows={13} readOnly value={generated} aria-label="Generated recap Markdown"/>

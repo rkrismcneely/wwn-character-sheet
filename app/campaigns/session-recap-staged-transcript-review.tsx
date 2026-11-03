@@ -25,6 +25,8 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps";
   const [document,setDocument]=useState<Document|null>(null);
   const [search,setSearch]=useState("");
+  const [replaceFrom,setReplaceFrom]=useState("");
+  const [replaceTo,setReplaceTo]=useState("");
   const [page,setPage]=useState(0);
   const [editing,setEditing]=useState<number|null>(null);
   const [text,setText]=useState("");
@@ -59,6 +61,25 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
     setEditing(index);setText(cue.text);setStart(time(cue.startMs));setEnd(time(cue.endMs));
     setError("");setNotice("");
   }
+  async function replaceNames(){
+    if(busy||!document?.updatedAt||!replaceFrom.trim()||!replaceTo.trim())return;
+    if(!window.confirm("Replace all matching names in this private transcript? Review the results before approval."))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const response=await fetch(base+"/workflow/transcript-edit",{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,updatedAt:document.updatedAt,replaceFrom,replaceTo}),
+      });
+      const result=await response.json() as {saved?:boolean;updatedAt?:string;replacements?:number;error?:string};
+      if(!response.ok||!result.saved)throw Error(result.error||"Could not replace names.");
+      const fresh=await fetch(base+"/transcript?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
+      const updated=await fresh.json() as Document;
+      if(!fresh.ok)throw Error(updated.error||"Correction saved; reload to view it.");
+      setDocument(updated);setNotice("Corrected "+(result.replacements??0)+" matching names.");
+      onChanged();
+    }catch(e){setError(e instanceof Error?e.message:"Could not replace names.");}
+    finally{setBusy(false);}
+  }
   async function save(){
     if(busy||editing===null||!document?.updatedAt)return;
     const startMs=parseTime(start),endMs=parseTime(end);
@@ -90,6 +111,11 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
         <input type="search" value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}}
           placeholder="Find a name or phrase"/>
       </label>
+      <div className="session-recap-form-actions">
+        <label>Misspelled name <input value={replaceFrom} onChange={e=>setReplaceFrom(e.target.value)} placeholder="As transcribed"/></label>
+        <label>Correct spelling <input value={replaceTo} onChange={e=>setReplaceTo(e.target.value)} placeholder="Journal spelling"/></label>
+        <button type="button" className="campaign-secondary" disabled={busy||!replaceFrom.trim()||!replaceTo.trim()} onClick={()=>void replaceNames()}>Correct all matching names</button>
+      </div>
       <div className="session-recap-form-actions">
         <button type="button" className="campaign-secondary" disabled={page===0}
           onClick={()=>setPage(x=>Math.max(0,x-1))}>Previous cues</button>

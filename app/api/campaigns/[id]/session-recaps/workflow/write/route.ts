@@ -32,12 +32,12 @@ async function scope(request:Request,context:Context,recapId:unknown){
     throw new CampaignServiceError("Only GMs can generate recap drafts.",403);
   requireActiveCampaign(access.campaign);
   const recap=await getCampaignSessionRecap(db,actor,id,recapId);
-  const saved=await env.BUCKET.get(recapWorkflowObjectKey(access.campaign.id,recap.id));
+  const saved=await env.BUCKET.get(recapWorkflowObjectKey(access.campaign.publicId,recap.id));
   if(!saved)throw new CampaignServiceError("Choose a recap writer in the wizard first.",409);
   const workflow=await saved.json<RecapWorkflow>();
   if(workflow.version!==1||!workflow.writer||!workflow.transcriptApprovedRevision)
     throw new CampaignServiceError("Approve the transcript and select a writer first.",409);
-  const transcript=await env.BUCKET.get(recapTranscriptObjectKey(access.campaign.id,recap.id));
+  const transcript=await env.BUCKET.get(recapTranscriptObjectKey(access.campaign.publicId,recap.id));
   if(!transcript)throw new CampaignServiceError("Transcript was not found.",409);
   const record=await transcript.json<SavedRecapTranscript>();
   if(record.version!==1||record.updatedAt!==workflow.transcriptApprovedRevision)
@@ -47,7 +47,8 @@ async function scope(request:Request,context:Context,recapId:unknown){
     throw new CampaignServiceError("Choose a supported writing model.",422);
   const parts=planTranscriptRecap(record.cues,
     writer.provider==="local"?4500:undefined,writer.provider==="local"?160:undefined);
-  return {db,userId:actor.userId,campaignId:access.campaign.id,recapId:recap.id,
+  return {db,userId:actor.userId,campaignId:access.campaign.id,
+    publicCampaignId:access.campaign.publicId,recapId:recap.id,
     writer,workflow,parts};
 }
 async function hash(text:string){
@@ -57,7 +58,7 @@ async function hash(text:string){
 async function baseKey(info:Awaited<ReturnType<typeof scope>>){
   const fingerprint=await hash([info.recapId,info.workflow.transcriptApprovedRevision,
     info.writer.provider,info.writer.model,info.writer.detail].join(":"));
-  return recapWorkflowObjectKey(info.campaignId,info.recapId).replace(/\.json$/u,"/writer/"+fingerprint);
+  return recapWorkflowObjectKey(info.publicCampaignId,info.recapId).replace(/\.json$/u,"/writer/"+fingerprint);
 }
 async function readText(key:string):Promise<StoredText|null>{
   const object=await env.BUCKET.get(key);

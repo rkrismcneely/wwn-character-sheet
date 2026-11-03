@@ -298,7 +298,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             if(ready.length===1)setNotice("Refreshed: "+ready[0].label+" is ready. Click Approve recording and continue in Step 1.");
             else if(ready.length>1)setNotice("Refreshed: "+ready.length+" recordings are ready. Select the correct one in Step 1.");
             else if(pending.length)setNotice("Refreshed: "+pending.length+" recording(s) found, but none is verified yet. Check the upload status below or use Find Saved Recording.");
-            else setNotice("Refreshed: no recordings are attached to this recap. If your file is in Google Drive, use Find Saved Recording below instead of uploading again.");
+            else setNotice("Refreshed: no recordings are attached to this recap. If the upload completed, check that you are editing the same recap; the upload may need recovery. Do not upload again until we check.");
           }catch(e){setError(e instanceof Error?e.message:"Could not refresh saved progress.");}
           finally{setRefreshing(false);}
         })()}>

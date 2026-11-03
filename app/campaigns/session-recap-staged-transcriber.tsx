@@ -2,6 +2,8 @@
 
 import {useEffect,useRef,useState} from "react";
 import {browserRecapFile} from "@/lib/campaigns/recap-browser-preparation";
+import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
+import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
 import {inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload} from "@/lib/campaigns/recap-wav-chunks";
 import type {RecapPreparation} from "@/lib/campaigns/recap-stage-workflow";
 import {loadLocalWhisper,localCaptionCues} from "./session-recap-local-whisper";
@@ -28,6 +30,8 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const [apiKey,setApiKey]=useState("");
   const [connectedGroq,setConnectedGroq]=useState(false);
   const [existingCues,setExistingCues]=useState(0);
+  const [savedReceipts,setSavedReceipts]=useState<string[]>([]);
+  const [historyLoaded,setHistoryLoaded]=useState(false);
   const [share,setShare]=useState(false);
   const [billing,setBilling]=useState(false);
   const [busy,setBusy]=useState(false);
@@ -40,10 +44,17 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const cloud=provider==="groq"||provider==="gemini";
   useEffect(()=>{
     const controller=new AbortController();
-    void fetch(base+"?recapId="+encodeURIComponent(recapId),{signal:controller.signal})
-      .then(async r=>await r.json() as {cues?:unknown[]}).then(v=>{
-        if(!controller.signal.aborted)setExistingCues(v.cues?.length??0);
-      }).catch(()=>{});
+    void fetch(base+"?recapId="+encodeURIComponent(recapId),{signal:controller.signal,cache:"no-store"})
+      .then(async r=>{
+        const value=await r.json() as {cues?:unknown[];processedClips?:string[];error?:string};
+        if(!r.ok)throw Error(value.error||"Could not check saved transcription progress.");
+        return value;
+      }).then(value=>{
+        if(controller.signal.aborted)return;
+        setExistingCues(value.cues?.length??0);
+        setSavedReceipts(value.processedClips??[]);
+        setHistoryLoaded(true);
+      }).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Could not check saved transcription progress.");});
     return ()=>controller.abort();
   },[base,recapId]);
   useEffect(()=>{
@@ -66,6 +77,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   },[campaignId]);
   async function submitCloud(){
     if(!cloud)throw Error("Unsupported cloud transcription stage.");
+    if(!historyLoaded)throw Error("Check saved transcription progress before retrying provider requests.");
     if(!share||!billing)throw Error("Approve provider sharing and quota before submitting.");
     if(provider==="groq"&&!apiKey.trim()&&!connectedGroq)throw Error("Connect your Groq key in Account or enter it here.");
     for(let i=completed;i<preparation.parts.length;i++){
@@ -74,6 +86,14 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       if(!part.localKey)throw Error("Prepared part is not available locally. Return to Prepare Audio.");
       const file=await browserRecapFile(part.localKey);
       if(file.size!==part.bytes)throw Error("Prepared part has changed. Return to Prepare Audio.");
+      const receipt=await recapCloudClipReceipt(await file.arrayBuffer(),provider,{
+        startMs:part.startMs,durationMs:part.durationMs,speakerId,
+        model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
+      });
+      if(savedReceipts.includes(receipt)){
+        setCompleted(i+1);
+        continue;
+      }
       const form=new FormData();
       form.set("recapId",recapId);
       form.set("file",new File([file],part.name,{type:part.mimeType}));
@@ -88,7 +108,9 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       const response=await fetch(endpoint,{method:"POST",body:form});
       const result=await response.json() as Result;
       if(!response.ok||!result.saved)throw Error(result.error||"Transcription stopped on section "+(i+1)+".");
-      setCompleted(i+1);setExistingCues(x=>x+1);onTranscriptSaved();
+      setCompleted(i+1);
+      setSavedReceipts(previous=>previous.includes(receipt)?previous:[...previous,receipt]);
+      if(!result.duplicate){setExistingCues(x=>x+1);onTranscriptSaved();}
     }
   }
   async function submitLocal(){
@@ -132,6 +154,54 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       }
     }finally{await audioContext.close();}
   }
+  // The Groq model choice was not recorded in old workflow checkpoints.
+  // Recover it from an existing clip receipt before offering another submission.
+  useEffect(()=>{
+    if(provider!=="groq"||!historyLoaded||!savedReceipts.length||busy)return;
+    let active=true;
+    void (async()=>{
+      for(const part of preparation.parts){
+        if(!part.localKey)continue;
+        let file:File;
+        try{file=await browserRecapFile(part.localKey);}catch{continue;}
+        if(file.size!==part.bytes)continue;
+        const bytes=await file.arrayBuffer();
+        for(const candidate of ["whisper-large-v3","whisper-large-v3-turbo"]){
+          const receipt=await recapCloudClipReceipt(bytes,"groq",{
+            startMs:part.startMs,durationMs:part.durationMs,speakerId,model:candidate,
+          });
+          if(savedReceipts.includes(receipt)){
+            if(active)setModel(candidate);
+            return;
+          }
+        }
+      }
+    })().catch(()=>{});
+    return ()=>{active=false;};
+  },[provider,historyLoaded,savedReceipts,busy,preparation.parts,speakerId]);
+  useEffect(()=>{
+    if(!cloud||!historyLoaded||busy)return;
+    let active=true;
+    void (async()=>{
+      const receipts=new Set(savedReceipts);
+      let verified=0;
+      for(const part of preparation.parts){
+        if(!part.localKey)break;
+        try{
+          const file=await browserRecapFile(part.localKey);
+          if(file.size!==part.bytes)break;
+          const receipt=await recapCloudClipReceipt(await file.arrayBuffer(),provider,{
+            startMs:part.startMs,durationMs:part.durationMs,speakerId,
+            model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
+          });
+          if(!receipts.has(receipt))break;
+          verified++;
+        }catch{break;}
+      }
+      if(active)setCompleted(verified);
+    })();
+    return ()=>{active=false;};
+  },[cloud,historyLoaded,busy,savedReceipts,preparation.parts,provider,speakerId,model]);
   async function run(){
     if(busy||!preparation.parts.length||!speakerId)return;
     if(cloud&&!share||cloud&&!billing)return;
@@ -191,7 +261,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
     </>}
     {!cloud&&<p className="campaign-empty-copy">Free on this device; no AI account. This may be slow, especially for multi-hour sessions. Keep the browser awake.</p>}
     <div className="session-recap-form-actions">
-      <button className="campaign-primary" type="button" disabled={busy||!speakerId||
+      <button className="campaign-primary" type="button" disabled={busy||!speakerId||!historyLoaded||
         (cloud&&(!share||!billing))||(provider==="groq"&&!apiKey&&!connectedGroq)}
         onClick={()=>void run()}>{busy?"Transcribing…":completed?"Resume transcription":"Start transcription"}</button>
       {busy&&<button className="campaign-secondary" type="button" onClick={()=>{stop.current=true;}}>
@@ -199,7 +269,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       </button>}
     </div>
     <progress max={Math.max(1,preparation.parts.length)} value={completed} aria-label="Transcription sections complete"/>
-    <p className="campaign-empty-copy">{completed} of {preparation.parts.length} sections checked in this run. Saved cloud clip receipts are verified before provider submission, including after reload.</p>
+    <p className="campaign-empty-copy">{completed} of {preparation.parts.length} sections verified in this browser. Saved cloud sections are checked before transfer or another AI request.</p>
     {notice&&<p role="status" className="session-recap-import-notice">{notice}</p>}
     {error&&<p role="alert" className="campaign-error">{error}</p>}
   </section>;

@@ -6,6 +6,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignSessionRecap } from "@/lib/campaigns/session-recaps";
 import { CampaignServiceError, getCampaignD1, loadCampaignAccess, requireActiveCampaign } from "@/lib/campaigns/service";
 import { recapTranscriptObjectKey } from "@/lib/campaigns/recap-full-transcript";
+import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import type { RecordedRecapTranscript,TranscriptionAttribution } from "@/lib/campaigns/recap-groq-audio";
 import {
   MAX_GROQ_AUDIO_BYTES,validateAudioClipOptions,normalizeGroqAudioSegments,mergeGroqAudioTranscript,
@@ -22,9 +23,6 @@ function requiredString(form:FormData,key:string):string {
 function asSafeInteger(raw:string):number {
   if(!/^\d{1,9}$/u.test(raw))return NaN;
   return Number(raw);
-}
-function hex(buffer:ArrayBuffer):string {
-  return Array.from(new Uint8Array(buffer),value=>value.toString(16).padStart(2,"0")).join("");
 }
 async function previousTranscript(key:string) {
   const object=await env.BUCKET.get(key);
@@ -99,9 +97,9 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     }
     // The media digest plus timestamp and association determines exact retry identity.
     const fileBytes=await file.arrayBuffer();
-    const audioHash=hex(await crypto.subtle.digest("SHA-256",fileBytes));
-    const receipt=hex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(
-      [audioHash,input.startMs,input.durationMs,input.model,speakerId].join(":"))));
+    const receipt=await recapCloudClipReceipt(fileBytes,"groq",{
+      startMs:input.startMs,durationMs:input.durationMs,model:input.model,speakerId,
+    });
     const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
     const before=await previousTranscript(key);
     if(before.transcript?.processedClips?.includes(receipt))

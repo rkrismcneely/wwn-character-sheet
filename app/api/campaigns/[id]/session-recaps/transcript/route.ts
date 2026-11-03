@@ -19,10 +19,10 @@ async function scope(request: Request, context: Context, recapId: unknown) {
   const gm=canManageCampaignContent(actor,access.campaign,access.membership);
   return {db,campaign:access.campaign,gm,recap,key:recapTranscriptObjectKey(access.campaign.publicId,recap.id)};
 }
-async function stored(key:string):Promise<SavedRecapTranscript|null> {
+async function stored(key:string):Promise<(SavedRecapTranscript & {processedClips?:string[]})|null> {
   const object=await env.BUCKET.get(key);
   if(!object)return null;
-  const data=await object.json<SavedRecapTranscript>();
+  const data=await object.json<SavedRecapTranscript & {processedClips?:string[]}>();
   if(data.version!==1 || !Array.isArray(data.cues))throw new Error("Unsupported transcript version.");
   return data;
 }
@@ -37,8 +37,12 @@ export async function GET(request:Request,context:Context) {
     const {gm,key}=await scope(request,context,recapId);
     const item=await stored(key);
     if(!item || (!item.published&&!gm))return Response.json({exists:false,cues:[]},{headers:privateHeaders});
-    return Response.json({exists:true,published:item.published,updatedAt:item.updatedAt,cues:item.cues},
-      {headers:privateHeaders});
+    // Only the GM may inspect opaque completed-clip receipts. They allow the browser
+    // to resume without re-transferring or re-spending personal provider quota.
+    const receipts=gm&&Array.isArray(item.processedClips)
+      ?item.processedClips.filter(x=>typeof x==="string"&&/^[a-f0-9]{64}$/u.test(x)).slice(0,512):[];
+    return Response.json({exists:true,published:item.published,updatedAt:item.updatedAt,cues:item.cues,
+      ...(gm?{processedClips:receipts}:{})},{headers:privateHeaders});
   }catch(error){return respond(error);}
 }
 export async function PUT(request:Request,context:Context) {

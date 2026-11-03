@@ -99,6 +99,11 @@ export async function POST(request:Request,context:Context){
        current.preparation.method!==action.method))
       throw new CampaignServiceError(
         "The existing transcript belongs to the previous preparation. Start a separate recap to switch transcription providers or preparation methods.",409);
+    if(["select-writer","save-draft","approve-draft"].includes(action.action)&&
+      (!current.transcriptApprovedRevision||
+       current.transcriptApprovedRevision!==transcript.updatedAt))
+      throw new CampaignServiceError(
+        "The transcript changed after approval. Review and approve the current transcript before writing.",409);
     let sourceReady=false;
     if(action.action==="approve-source"){
       const source=action.source as RecapSource;

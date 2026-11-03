@@ -192,6 +192,9 @@ export async function GET(request:Request,ctx:Context){
     }
     const notes=await Promise.all(info.parts.parts.map((_,i)=>readText(prefix+"/part-"+i+".json")));
     const final=await readText(prefix+"/final.json");
+    if(params.get("notes")==="1"&&info.writer.provider==="local")
+      return Response.json({notes:notes.map(n=>n?.content??null),
+        context:await context(info),detail:info.writer.detail},{headers});
     return Response.json({provider:info.writer.provider,model:info.writer.model,
       detail:info.writer.detail,parts:notes.length,completed:notes.map((n,i)=>n?i:-1).filter(n=>n>=0),
       final:final?.content??null,context:info.writer.provider==="local"?await context(info):null},{headers});
@@ -203,7 +206,7 @@ export async function POST(request:Request,ctx:Context){
     if(!origin||origin!==new URL(request.url).origin||
       request.headers.get("sec-fetch-site")==="cross-site")
       return issue("Start the writer from TWE.",403);
-    const body=await readBoundedJson(request,15_000) as {
+    const body=await readBoundedJson(request,36_000) as {
       recapId?:unknown;phase?:unknown;index?:unknown;content?:unknown;
       apiKey?:unknown;approvedShare?:unknown;approvedQuota?:unknown;
     };

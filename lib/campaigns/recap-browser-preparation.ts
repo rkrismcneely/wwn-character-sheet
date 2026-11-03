@@ -102,7 +102,7 @@ type FFmpegRunner={
   load:(options:{coreURL:string;wasmURL:string;classWorkerURL?:string},
     controls?:{signal?:AbortSignal})=>Promise<unknown>;
   writeFile:(name:string,data:Uint8Array)=>Promise<unknown>;
-  exec:(args:string[])=>Promise<number>;
+  exec:(args:string[],timeoutMs?:number)=>Promise<number>;
   readFile:(name:string)=>Promise<Uint8Array|string>;
   deleteFile:(name:string)=>Promise<unknown>;
   terminate:()=>void;
@@ -112,6 +112,8 @@ let converter:FFmpegRunner|null=null;
 let loadingConverter:FFmpegRunner|null=null;
 let loadingAbort:AbortController|null=null;
 const FFMPEG_START_TIMEOUT_MS=90_000;
+// Do not leave the tab busy indefinitely if a particular transcode stalls.
+const FFMPEG_PART_TIMEOUT_MS=20*60_000;
 async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   if(converter)return converter;
   if(loadingAbort)throw Error("The audio converter is already starting. Stop the current attempt before retrying.");
@@ -242,8 +244,9 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
         ext==="wav"?"pcm_s16le":"aac"];
       if(ext==="m4a")args.push("-b:a","32k");
       args.push(output);
-      const status=await ffmpeg.exec(args);
-      if(status!==0)throw Error("FFmpeg could not prepare audio part "+(index+1)+".");
+      const status=await ffmpeg.exec(args,FFMPEG_PART_TIMEOUT_MS);
+      if(status!==0)throw Error("FFmpeg stopped preparing section "+(index+1)+
+        " (codec error or time limit). Saved sections are available for retry.");
       const result=await ffmpeg.readFile(output);
       if(typeof result==="string"||result.byteLength<128)
         throw Error("FFmpeg generated an empty or unreadable audio section.");
@@ -261,7 +264,12 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
       await ffmpeg.deleteFile(output);
       options.onProgress?.(ready.filter(Boolean).length,count);
     }
-  }finally{await ffmpeg.deleteFile(input).catch(()=>{});}
+  }finally{
+    await ffmpeg.deleteFile(input).catch(()=>{});
+    // FFmpeg keeps the complete multi-hour input in its own virtual filesystem.
+    // Releasing the worker after every run avoids retaining that large allocation.
+    stopRecapFFmpeg();
+  }
   return ready;
 }
 export function stopRecapFFmpeg(){

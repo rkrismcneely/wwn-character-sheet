@@ -70,3 +70,18 @@ test("no existing recap or Gemini job is modified by V2 pilot",async()=>{
   const schema=await read("drizzle/0059_recap_v2_pilot.sql");
   assert.match(schema,/UNIQUE\(campaign_id,recap_id,audio_asset_id,requested_by\)/u);
 });
+
+test("V2 pilot UI is opt-in, makes readiness GET before inference POST, and requires consent",async()=>{
+  const [screen,ui]=await Promise.all([
+    read("app/campaigns/session-recap-auto-status.tsx"),
+    read("app/campaigns/session-recap-v2-pilot.tsx"),
+  ]);
+  assert.match(screen,/NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED==="true"/u);
+  assert.match(screen,/SessionRecapV2Pilot/u);
+  assert.match(ui,/Check pilot readiness \(no AI request\)/u);
+  assert.match(ui,/approvedShare:true,approvedQuota:true/u);
+  assert.match(ui,/!share\|\|!quota/u);
+  assert.match(ui,/window\.confirm\(/u);
+  assert.match(ui,/if\(!response\.ok\|\|!data\.success\)/u);
+  assert.doesNotMatch(ui,/Gemini .*request/u);
+});

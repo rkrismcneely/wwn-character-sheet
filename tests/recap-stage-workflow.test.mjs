@@ -80,3 +80,20 @@ test("new recording invalidates only downstream approval and preserves older dra
   assert.equal(changed.transcriptApprovedAt,null);
   assert.equal(changed.approvedDraftId,null);
 });
+
+test("existing caption files can be imported without uploading audio",()=>{
+  const initial=emptyRecapWorkflow(timestamp);
+  const prepared=transitionRecapWorkflow(initial,{
+    action:"save-preparation",provider:"import",method:"import",
+    parts:[{name:"transcript-import.wav",bytes:128,mimeType:"audio/wav",
+      startMs:0,durationMs:1000,localKey:null}],
+  },{sourceReady:false,transcriptRevision:null},timestamp);
+  assert.equal(prepared.source,null);
+  assert.equal(prepared.preparation?.provider,"import");
+  assert.throws(()=>transitionRecapWorkflow(initial,{
+    action:"save-preparation",provider:"groq",method:"ffmpeg",parts,
+  },{sourceReady:false,transcriptRevision:null},timestamp),/Approve a recording/);
+  const approved=transitionRecapWorkflow(prepared,{action:"approve-transcript"},
+    {sourceReady:false,transcriptRevision:"imported-captions"},timestamp);
+  assert.equal(approved.transcriptApprovedRevision,"imported-captions");
+});

@@ -53,9 +53,10 @@ test("recap setup endpoint is user scoped and exposes only redacted readiness",a
   assert.match(api,/recapAIEncryptionReady\(config\)/u);
   assert.match(api,/ready:storageConnected/u);
   assert.doesNotMatch(api,/credential_ciphertext|key_ciphertext|refresh_token|apiKey/u);
-  assert.match(ui,/Configure Automatic Recap/u);
-  assert.match(ui,/\/account#recap-setup/u);
-  assert.match(ui,/recapSetup==="ready"/u);
+  // Recording drafts now support a no-account local workflow; Gemini setup is optional.
+  assert.match(ui,/SessionRecapStagedWizard/u);
+  assert.match(ui,/Recap from recording/u);
+  assert.doesNotMatch(ui,/recapSetup==="ready"/u);
   assert.match(account,/id="recap-setup"/u);
   assert.match(drive,/Connect Google Drive/u);
   assert.match(drive,/ENDPOINT \+ "\/start"/u);

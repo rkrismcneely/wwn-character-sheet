@@ -25,7 +25,11 @@ export const MAX_RECAP_AI_PARTS = 40;
 export type RecapAIPlan = { parts:string[]; totalCharacters:number; requests:number };
 
 /** Partitions an existing, reviewed transcript without silently dropping speech. */
-export function planTranscriptRecap(cues: StoredCaptionCue[]): RecapAIPlan {
+export function planTranscriptRecap(cues: StoredCaptionCue[],maxPartCharacters=MAX_RECAP_REQUEST_CHARS,
+  maxParts=MAX_RECAP_AI_PARTS): RecapAIPlan {
+  if(!Number.isSafeInteger(maxPartCharacters)||maxPartCharacters<1500||
+    maxPartCharacters>MAX_RECAP_REQUEST_CHARS||!Number.isSafeInteger(maxParts)||
+    maxParts<1||maxParts>160)throw new Error("Invalid transcript segmentation limits.");
   if(!Array.isArray(cues)||!cues.length)throw new Error("Import a transcript first.");
   const parts:string[]=[];
   let current="";
@@ -36,15 +40,15 @@ export function planTranscriptRecap(cues: StoredCaptionCue[]): RecapAIPlan {
       .map(n=>String(n).padStart(2,"0")).join(":");
     const line="["+timestamp+"] "+cue.speakerName+
       (cue.characterName?" ("+cue.characterName+")":"")+": "+cue.text.replace(/\s+/gu," ").trim()+"\n";
-    if(line.length>MAX_RECAP_REQUEST_CHARS)throw new Error("Transcript cue is too large.");
+    if(line.length>maxPartCharacters)throw new Error("Transcript cue is too large.");
     chars+=line.length;
-    if(current && current.length+line.length>MAX_RECAP_REQUEST_CHARS){
+    if(current && current.length+line.length>maxPartCharacters){
       parts.push(current);current="";
     }
     current+=line;
   }
   if(current)parts.push(current);
-  if(parts.length>MAX_RECAP_AI_PARTS)throw new Error("Transcript needs more than 40 provider requests. Use shorter source captions or another recap workflow.");
+  if(parts.length>maxParts)throw new Error("Transcript exceeds the supported scene section limit. Choose a larger model or shorten the source.");
   return {parts,totalCharacters:chars,requests:parts.length+1};
 }
 export function validateRecapNotes(raw:unknown,expectedCount:number):string[] {

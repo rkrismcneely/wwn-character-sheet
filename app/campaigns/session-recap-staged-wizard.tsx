@@ -93,7 +93,12 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         if(w.writer){setWriterProvider(w.writer.provider);setWriterModel(w.writer.model);setDetail(w.writer.detail);}
         else if(w.preparation){setProvider(w.preparation.provider);setMethod(w.preparation.method);}
         if(w.source?.kind==="drive")setSourceChoice(w.source.id);
-        const stage=w.approvedDraftId?4:w.transcriptApprovedAt?4:w.preparation?2:w.sourceApprovedAt?1:0;
+        else {
+          const ready=value.assets.filter(asset=>asset.status==="ready"&&typeof asset.byteSize==="number");
+          if(ready.length===1)setSourceChoice(ready[0].id);
+        }
+        const stage=w.approvedDraftId?4:w.transcriptApprovedAt?4:
+          w.preparation?(value.transcript.count>0?3:2):w.sourceApprovedAt?1:0;
         setStep(stage);
       }).catch(e=>{if(mounted)setError(e instanceof Error?e.message:"Recap steps unavailable.");})
       .finally(()=>{if(mounted)setLoading(false);});
@@ -128,8 +133,10 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   }):"ffmpeg";
   const chosenWriter=writerOptions.find(x=>x.id===writerProvider)!;
   const stageValid=[Boolean(currentSource&&workflow?.sourceApprovedAt)||currentPreparation?.provider==="import",
-    Boolean(currentPreparation),Boolean(workflow?.transcriptApprovedAt),
+    Boolean(currentPreparation),Boolean(currentPreparation&&data?.transcript.count),
     Boolean(workflow?.transcriptApprovedRevision),Boolean(workflow?.approvedDraftId)];
+  const canVisit=(target:number)=>target===0||target===1&&(stageValid[0]||provider==="import")||
+    target>=2&&Boolean(stageValid[target-1]);
 
   async function apply(action:RecapWorkflowAction,extra:Record<string,unknown>={}){
     if(!data)throw Error("Workflow is still loading.");
@@ -294,7 +301,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             const value=await refresh();
             const ready=value.assets.filter(a=>a.status==="ready"&&typeof a.byteSize==="number");
             const pending=value.assets.filter(a=>a.status!=="ready");
-            if(!sourceChoice&&ready.length===1)setSourceChoice(ready[0].id);
+            setSourceChoice(previous=>ready.some(asset=>asset.id===previous)?previous:
+              ready.length===1?ready[0].id:"");
             if(ready.length===1)setNotice("Refreshed: "+ready[0].label+" is ready. Click Approve recording and continue in Step 1.");
             else if(ready.length>1)setNotice("Refreshed: "+ready.length+" recordings are ready. Select the correct one in Step 1.");
             else if(pending.length)setNotice("Refreshed: "+pending.length+" recording(s) found, but none is verified yet. Check the upload status below or use Find Saved Recording.");
@@ -310,7 +318,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       You can return later without repeating completed work. The free local options never require another AI account.
     </p>
     <div className="session-recap-form-actions" role="navigation" aria-label="Recap steps">
-      {names.map((name,i)=><button key={name} type="button" disabled={busy}
+      {names.map((name,i)=><button key={name} type="button" disabled={busy||!canVisit(i)}
         className={step===i?"campaign-primary":"campaign-secondary"}
         aria-current={step===i?"step":undefined}
         onClick={()=>{setStep(i);setError("");setNotice("");}}>
@@ -514,7 +522,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     <div className="session-recap-form-actions">
       <button type="button" className="campaign-secondary" disabled={busy||step===0}
         onClick={()=>setStep(x=>Math.max(0,x-1))}>Previous step</button>
-      <button type="button" className="campaign-secondary" disabled={busy||step===4}
+      <button type="button" className="campaign-secondary" disabled={busy||step===4||!canVisit(step+1)}
         onClick={()=>setStep(x=>Math.min(4,x+1))}>Next step</button>
     </div>
   </section>;

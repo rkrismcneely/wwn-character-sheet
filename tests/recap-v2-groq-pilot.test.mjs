@@ -72,9 +72,11 @@ test("no existing recap or Gemini job is modified by V2 pilot",async()=>{
 });
 
 test("V2 pilot UI is opt-in, makes readiness GET before inference POST, and requires consent",async()=>{
-  const [screen,ui]=await Promise.all([
+  const [screen,ui,pilot,source]=await Promise.all([
     read("app/campaigns/session-recap-auto-status.tsx"),
     read("app/campaigns/session-recap-v2-pilot.tsx"),
+    read("app/api/campaigns/[id]/session-recaps/v2-pilot/route.ts"),
+    read("lib/campaigns/recap-v2-pilot-source.ts"),
   ]);
   assert.match(screen,/NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED==="true"/u);
   assert.match(screen,/SessionRecapV2Pilot/u);

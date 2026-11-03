@@ -295,9 +295,12 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
         </div>
       </form>}
       {editing !== "new" && <>
-        {SHOW_LEGACY_RECAP_TOOLS&&editing.isPublished&&<>
+        {editing.isPublished&&<details className="session-recap-reading">
+          <summary>Attach or recover session audio</summary>
           <SessionRecapAudioUploader key={editing.id}
             campaignId={campaignId} recapId={editing.id} onBusyChange={trackUploadBusy}/>
+        </details>}
+        {SHOW_LEGACY_RECAP_TOOLS&&editing.isPublished&&<>
           <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id} published
             onDraft={(content,updatedAt,overwrite)=>{
               if(!overwrite)return false;

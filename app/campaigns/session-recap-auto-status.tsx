@@ -150,7 +150,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
               return bytes;
             });
           durationMs=m4aPlan.at(-1)?.endMs??durationMs;
-          if(m4aPlan.length<2)m4aPlan=undefined;
+          if(durationMs<=LONG_AUDIO_THRESHOLD_MS||m4aPlan.length<2)m4aPlan=undefined;
         }catch{
           throw Error("This M4A could not be safely divided without converting it. No Gemini request was started.");
         }

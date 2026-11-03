@@ -8,6 +8,7 @@ on:
       - "drizzle/0055_recap_saved_audio_notes.sql"
       - "drizzle/0056_recap_groq_writer_checkpoints.sql"
       - "drizzle/0057_recap_auto_retry_consent.sql"
+      - "drizzle/0058_recap_single_audio_recovery.sql"
       - "scripts/migrate-recap-writer.mjs"
       - ".github/workflows/migrate-recap-writer-schema.yml"
   workflow_dispatch:

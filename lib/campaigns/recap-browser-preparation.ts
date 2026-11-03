@@ -18,16 +18,18 @@ export async function browserRecapFile(key:string):Promise<File>{
   const handle=await (await directory()).getFileHandle(key);
   return handle.getFile();
 }
-export async function saveBrowserRecapFile(key:string,file:File,onBytes?:(done:number,total:number)=>void){
+export async function saveBrowserRecapFile(key:string,file:File,onBytes?:(done:number,total:number)=>void,signal?:AbortSignal){
   assertKey(key);
   const handle=await (await directory()).getFileHandle(key,{create:true});
   const writable=await handle.createWritable();
   try {
     for(let at=0;at<file.size;at+=4*1024*1024){
+      if(signal?.aborted)throw Error("Audio preparation stopped.");
       const slice=file.slice(at,Math.min(at+4*1024*1024,file.size));
       await writable.write(new Uint8Array(await slice.arrayBuffer()));
       onBytes?.(Math.min(at+slice.size,file.size),file.size);
     }
+    if(signal?.aborted)throw Error("Audio preparation stopped.");
     await writable.close();
     const saved=await handle.getFile();
     if(saved.size!==file.size)throw Error("Prepared recording could not be verified after saving.");

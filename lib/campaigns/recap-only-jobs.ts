@@ -59,6 +59,17 @@ export async function enqueueConfirmedRecapAudio(
     .bind(crypto.randomUUID(),input.campaignId,input.recapId,input.audioAssetId,input.userId,
       "pending_upload",detail,writerModel,null,now,now,now,input.requestId).run();
   if(result.meta.changes===1){
+    // The existing privacy/billing approval now explicitly covers one
+    // provider-verified delayed service-error retry. Historical jobs default
+    // to OFF via migration 0057. During a deployment/migration race, leave the
+    // new job manual-only instead of failing its recording submission.
+    const columns=await db.prepare("PRAGMA table_info(campaign_recap_audio_summary_jobs)")
+      .all<{name:string}>();
+    if(columns.results.some(column=>column.name==="auto_retry_opt_in"))
+      await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET auto_retry_opt_in=1 "+
+        "WHERE request_id=? AND requested_by=? AND recap_id=? "+
+        "AND audio_asset_id=? AND status='pending_upload' AND confirmed_at IS NOT NULL")
+        .bind(input.requestId,input.userId,input.recapId,input.audioAssetId).run();
     // Reuse saved audio understanding from a previous explicitly approved run.
     // Only immutable asset, GM and campaign matches are eligible.
     await db.prepare("UPDATE campaign_recap_audio_summary_jobs SET audio_notes=("+

@@ -72,8 +72,8 @@ test("route requires a campaign GM, own key, full timestamp validation and condi
   ])assert.ok(route.includes(required),"Missing safety invariant: "+required);
   // Hashing moved to the shared helper so client and server agree on saved receipts.
   const helper=await readFile(new URL("../lib/campaigns/recap-cloud-clip-receipt.ts",import.meta.url),"utf8");
-  assert.match(helper,/crypto\\.subtle\\.digest\\("SHA-256",data\\)/u);
-  assert.match(route,/recapCloudClipReceipt\\(fileBytes,"groq"/u);
+  assert.match(helper,/crypto\.subtle\.digest\("SHA-256",data\)/u);
+  assert.match(route,/recapCloudClipReceipt\(fileBytes,"groq"/u);
   assert.doesNotMatch(route,/RECAP_FREE_AI_QUOTA_VERIFIED|CLOUDFLARE_AI_KEY|process\.env\.GROQ_API_KEY/u);
   assert.doesNotMatch(route,/console\.log\(|BUCKET\.put\(.*apiKey/u);
 });

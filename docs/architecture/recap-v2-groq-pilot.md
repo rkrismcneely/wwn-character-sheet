@@ -7,11 +7,14 @@ Tracked by [issue #648](https://github.com/rkrismcneely/wwn-character-sheet/issu
 This is NOT the default recap pipeline. No active TWE recording, Gemini recap,
 published Journal entry, or existing full transcript is modified by the pilot.
 
-The pilot is **off unless both** the Worker secret/variable
-`TWE_RECAP_V2_PILOT_ENABLED=true` and the Next.js build-time flag
-`NEXT_PUBLIC_TWE_RECAP_V2_PILOT_ENABLED=true` are deliberately enabled.
-Do not enable the flag for other GMs before the owner verifies source security,
-real Groq URL ingestion, and private transcript storage.
+The two-minute pilot is now **visible to eligible GMs**. The runtime feature flag
+`TWE_RECAP_V2_PILOT_ENABLED=true` is set in `wrangler.jsonc`, so the pilot API
+and protected excerpt source are enabled. Every request is GM-authorized and bound
+to audio the requester owns; the experiment never uses the site owner's AI key.
+Each GM must consent to sharing their own excerpt and to personal provider quota
+before **one** transcription is submitted. This is *not* the default recap pipeline.
+For immediate rollback, set the runtime flag to `false` and redeploy;
+the source and API routes will then return 404.
 
 * Readiness GET: authenticated GM only, verifies the GM owns an existing M4A
   in Google Drive and has their own Groq key connected. The GM browser then plans a short,

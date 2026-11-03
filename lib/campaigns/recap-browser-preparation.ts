@@ -114,6 +114,17 @@ let loadingAbort:AbortController|null=null;
 const FFMPEG_START_TIMEOUT_MS=90_000;
 // Do not leave the tab busy indefinitely if a particular transcode stalls.
 const FFMPEG_PART_TIMEOUT_MS=20*60_000;
+const FFMPEG_WORKER_PATH="/api/recap-ffmpeg/worker.js?version=selfhosted-1";
+/** Small, private-data-free preflight before downloading any Drive recording. */
+export async function verifyRecapFFmpegWorker(signal?:AbortSignal):Promise<void>{
+  const worker=window.location.origin+FFMPEG_WORKER_PATH;
+  const workerCheck=await fetch(worker,{signal,cache:"no-store"});
+  if(!workerCheck.ok||!workerCheck.headers.get("content-type")?.includes("javascript"))
+    throw Error("Audio converter worker is unavailable (HTTP "+workerCheck.status+").");
+  const text=await workerCheck.text();
+  if(!text.includes("self.onmessage")||!text.includes('case "LOAD"'))
+    throw Error("Audio converter worker returned incomplete JavaScript. Retry after deployment.");
+}
 async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   if(converter)return converter;
   if(loadingAbort)throw Error("The audio converter is already starting. Stop the current attempt before retrying.");
@@ -125,6 +136,7 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   const load=(async()=>{
     let ffmpeg:FFmpegRunner|null=null;
     try{
+      await verifyRecapFFmpegWorker(abort.signal);
       // Pinned dual-CDN fallback. Neither request transfers or uploads any GM audio.
       // Hosting the 32 MiB WASM file as a Cloudflare static asset is not possible
       // with the 25 MiB per-asset limit; keep it browser-direct and cacheable.
@@ -171,12 +183,9 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
         blobURL("ffmpeg-core.wasm","application/wasm"),
       ]);
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
-      const worker=window.location.origin+"/api/recap-ffmpeg/worker.js?version=selfhosted-1";
-      // Do not assume the same-origin worker proxy is healthy; a 404/502 or
-      // returned HTML causes an uncaught worker error with no LOAD response.
-      const workerCheck=await fetch(worker,{signal:abort.signal,cache:"no-store"});
-      if(!workerCheck.ok||!workerCheck.headers.get("content-type")?.includes("javascript"))
-        throw Error("Audio converter worker is unavailable (HTTP "+workerCheck.status+").");
+      const worker=window.location.origin+FFMPEG_WORKER_PATH;
+      // Preflight above already verified this self-hosted worker before any
+      // remote core/WebAssembly download or FFmpeg initialization.
       await ffmpeg.load({coreURL:js,wasmURL:wasm,classWorkerURL:worker},
         {signal:abort.signal});
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");

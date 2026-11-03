@@ -9,6 +9,7 @@ type Transcript={cues?:{startMs:number;endMs:number;text:string}[]};
 type PilotStatus={
   ready?:boolean;requiresApproval?:boolean;excerptEndMs?:number;
   excerptBytes?:number;model?:string;notice?:string;
+  originalByteSize?:number;durationMs?:number|null;
   pilot?:Pilot|null;transcript?:Transcript|null;error?:string;
 };
 const seconds=(ms:number)=>Math.floor(ms/60000)+":"+

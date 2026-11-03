@@ -9,7 +9,7 @@ import {SessionRecapStagedTranscriptReview} from "./session-recap-staged-transcr
 import {SessionRecapStagedWriter} from "./session-recap-staged-writer";
 import {audioFileDuration,browserRecapFile,browserRecapKey,
   saveBrowserRecapFile,prepareRecapWithFFmpeg,saveUnchangedAudio,
-  recommendedRecapPreparation,stopRecapFFmpeg} from "@/lib/campaigns/recap-browser-preparation";
+  recommendedRecapPreparation,stopRecapFFmpeg,verifyRecapFFmpegWorker} from "@/lib/campaigns/recap-browser-preparation";
 import type {RecapSource,RecapTranscriber,RecapWriter,RecapWorkflow,PreparedPart,
   RecapWorkflowAction} from "@/lib/campaigns/recap-stage-workflow";
 
@@ -316,6 +316,13 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           localKey:null}];
       }else{
         if(!currentSource)throw Error("Approve a recording before audio preparation.");
+        if(method==="ffmpeg"){
+          // Fail fast if the converter worker is broken rather than first
+          // transferring a multi-hour Drive recording to discover HTTP 503.
+          setProgress("Checking audio converter availability before downloading the recording…");
+          setMeter(null);
+          await verifyRecapFFmpegWorker(abort.signal);
+        }
         const source=await sourceFile(abort.signal);
         if(abort.signal.aborted)throw Error("Audio preparation stopped.");
         parts=method==="original"?

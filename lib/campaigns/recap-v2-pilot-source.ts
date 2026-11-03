@@ -39,7 +39,10 @@ export async function handlePilotExcerpt(request:Request,context:Context):Promis
     TWE_RECAP_V2_PILOT_ENABLED?:string;
   };
   if(config.TWE_RECAP_V2_PILOT_ENABLED!=="true")return notFound();
-  const {assetId}=await context.params;
+  const params=await context.params;
+  // A real .m4a suffix helps third-party media fetchers recognize the format.
+  const assetId=params.assetId.endsWith(".m4a")?
+    params.assetId.slice(0,-4):params.assetId;
   const u=new URL(request.url);
   if(!UUID.test(assetId)||u.searchParams.size!==6)return notFound();
   const campaignId=u.searchParams.get("campaignId")??"";

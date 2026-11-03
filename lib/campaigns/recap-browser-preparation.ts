@@ -143,7 +143,7 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
         blobURL("ffmpeg-core.wasm","application/wasm"),
       ]);
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
-      const worker=window.location.origin+"/api/recap-ffmpeg/worker.js";
+      const worker=window.location.origin+"/api/recap-ffmpeg/worker.js?version=selfhosted-1";
       // Do not assume the same-origin worker proxy is healthy; a 404/502 or
       // returned HTML causes an uncaught worker error with no LOAD response.
       const workerCheck=await fetch(worker,{signal:abort.signal,cache:"no-store"});

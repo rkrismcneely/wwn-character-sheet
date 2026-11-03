@@ -358,7 +358,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   }
   const progressView=progress&&<div className="session-recap-reading" aria-label="Audio preparation status">
     <p role="status">{progress}</p>
-    <progress max={meter?.total??1} value={meter?Math.min(meter.done,meter.total):undefined}
+    <progress style={{width:"100%"}} max={meter?.total??1} value={meter?Math.min(meter.done,meter.total):undefined}
       aria-label={meter?.unit==="bytes"?"Recording transfer progress":
         meter?.unit==="sections"?"Prepared audio sections completed":"Audio processing in progress"}/>
     {meter&&<p className="campaign-empty-copy">

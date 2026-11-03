@@ -7,6 +7,7 @@ import { formatRecapDate } from "./session-recap-date";
 import { SessionRecapRecordingSetup } from "./session-recap-recording-setup";
 import { SessionRecapAudioUploader } from "./session-recap-audio-uploader";
 import { SessionRecapAutoStatus } from "./session-recap-auto-status";
+import { SessionRecapStagedWizard } from "./session-recap-staged-wizard";
 import { SessionRecapFullTranscriptManager } from "./session-recap-full-transcript-manager";
 import { SessionRecapTranscriptionOptions } from "./session-recap-transcription-options";
 import { SessionRecapAIWriter } from "./session-recap-ai-writer";
@@ -14,6 +15,11 @@ import { MAX_OBSIDIAN_IMPORT_BYTES, parseObsidianSessionRecap } from "@/lib/camp
 import {isPlaceholderRecapTitle,RECORDING_WORKING_TITLE} from "@/lib/campaigns/recap-ai-title";
 
 type Draft = { date: string; title: string; content: string };
+function parseSuggestedTitle(markdown:string):string|null{
+  const first=markdown.split("\n",8).find(line=>/^#\s+\S/u.test(line));
+  const title=first?.replace(/^#\s+/u,"").trim()||null;
+  return title&&title.length<=120?title:null;
+}
 // Legacy Craig/transcription components stay in source but are hidden until intentionally re-enabled.
 const SHOW_LEGACY_RECAP_TOOLS=process.env.NEXT_PUBLIC_TWE_RECAP_ADVANCED_TOOLS==="true";
 const recapCacheDurationMs = 60_000;
@@ -223,27 +229,39 @@ export function SessionRecapManager({ campaignId }: { campaignId: string }) {
       {journalNotice&&<p className="session-recap-import-notice" role="status">{journalNotice}</p>}
       {editing === "new" && <div className="session-recap-creation-method" role="group" aria-label="Create recap from">
         <button type="button" className={createMethod === "manual" ? "campaign-primary" : "campaign-secondary"} onClick={() => setCreateMethod("manual")}>Write recap</button>
-        {recapSetup==="ready"
-          ? <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"}
-              onClick={() => setCreateMethod("recording")}>Recap from recording</button>
-          : recapSetup==="checking"
-            ? <button type="button" className="campaign-secondary" disabled>Checking recap setup…</button>
-            : <a className="campaign-secondary" href="/account#recap-setup">Configure Automatic Recap</a>}
+        <button type="button" className={createMethod === "recording" ? "campaign-primary" : "campaign-secondary"}
+          onClick={() => setCreateMethod("recording")}>Recap from recording</button>
       </div>}
       {editing !== "new"&&!editing.isPublished&&<>
-        <SessionRecapAudioUploader key={editing.id} campaignId={campaignId}
-          recapId={editing.id} onBusyChange={trackUploadBusy}/>
-        <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id}
-          onDraft={(content,updatedAt,overwrite,suggestedTitle)=>{
-            if(draft.content.trim()&&!overwrite)return false;
+        <SessionRecapStagedWizard key={editing.id} campaignId={campaignId}
+          recapId={editing.id} onUploadBusy={trackUploadBusy}
+          onDraft={content=>{
+            if(draft.content.trim() && !window.confirm(
+              "Replace the current unsaved Markdown editor text with this saved recap version?"))return false;
+            const suggested=parseSuggestedTitle(content);
             setDraft(current=>({...current,content,
-              title:suggestedTitle&&isPlaceholderRecapTitle(current.title)?suggestedTitle:current.title}));
-            setEditing(current=>current&&current!=="new"&&current.id===editing.id
-              ? {...current,content,updatedAt:updatedAt||current.updatedAt,
-                title:suggestedTitle&&isPlaceholderRecapTitle(current.title)?suggestedTitle:current.title}:current);
+              title:suggested&&isPlaceholderRecapTitle(current.title)?suggested:current.title}));
+            setPreview(false);
+            setImportNotice("Saved recap version added to your editor. Review it and publish separately.");
             return true;
-          }}
-          onSuggestedTitle={title=>setDraft(current=>({...current,title}))}/>
+          }}/>
+        <details className="session-recap-reading">
+          <summary>Earlier Auto Summarize jobs and experimental Groq pilot</summary>
+          <p className="campaign-empty-copy">
+            Legacy jobs are retained for recovery. They are separate from the new checkpointed workflow.
+          </p>
+          <SessionRecapAutoStatus campaignId={campaignId} recapId={editing.id}
+            onDraft={(content,updatedAt,overwrite,suggestedTitle)=>{
+              if(draft.content.trim()&&!overwrite)return false;
+              setDraft(current=>({...current,content,
+                title:suggestedTitle&&isPlaceholderRecapTitle(current.title)?suggestedTitle:current.title}));
+              setEditing(current=>current&&current!=="new"&&current.id===editing.id
+                ? {...current,content,updatedAt:updatedAt||current.updatedAt,
+                  title:suggestedTitle&&isPlaceholderRecapTitle(current.title)?suggestedTitle:current.title}:current);
+              return true;
+            }}
+            onSuggestedTitle={title=>setDraft(current=>({...current,title}))}/>
+        </details>
       </>}
       {editing === "new" && createMethod === "recording"
         ? <form className="session-recap-form" onSubmit={event=>void createRecordingDraft(event)}>

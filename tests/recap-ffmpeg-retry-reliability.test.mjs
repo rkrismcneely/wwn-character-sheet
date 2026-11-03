@@ -107,3 +107,19 @@ test("production checks verify the actual converter worker and not just homepage
   assert.match(health,/grep -q 'self\.onmessage'/u);
   assert.match(health,/grep -q 'case "LOAD"'/u);
 });
+
+test("converter preflight rejects a missing worker before reading original Drive bytes",async()=>{
+  const [wizard,engine]=await Promise.all([
+    read("app/campaigns/session-recap-staged-wizard.tsx"),
+    read("lib/campaigns/recap-browser-preparation.ts"),
+  ]);
+  const check=wizard.indexOf("await verifyRecapFFmpegWorker(abort.signal)");
+  const source=wizard.indexOf("const source=await sourceFile(abort.signal)");
+  assert.ok(check>0&&source>check,"Worker must be preflighted before Drive transfer.");
+  assert.match(wizard,/if\(method==="ffmpeg"\)\{/u);
+  assert.match(engine,/export async function verifyRecapFFmpegWorker\(signal\?:AbortSignal\)/u);
+  assert.match(engine,/workerCheck\.ok/u);
+  assert.match(engine,/text\.includes\("self\.onmessage"\)/u);
+  assert.match(engine,/text\.includes\('case "LOAD"'\)/u);
+  assert.match(engine,/await verifyRecapFFmpegWorker\(abort\.signal\)/u);
+});

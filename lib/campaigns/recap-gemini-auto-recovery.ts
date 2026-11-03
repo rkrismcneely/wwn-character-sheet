@@ -32,13 +32,19 @@ async function readObject(response:Response,limit:number):Promise<Record<string,
  */
 export async function runVerifiedGeminiRecapRecoveryTick(env:Env):Promise<void>{
   const db=env.DB;
+  // Workers Builds can publish before the additive D1 migration finishes.
+  // Never accidentally recover historical jobs while the opt-in column is absent.
+  const schema=await db.prepare("PRAGMA table_info(campaign_recap_audio_summary_jobs)")
+    .all<{name:string}>();
+  if(!schema.results.some(column=>column.name==="auto_retry_opt_in"))return;
   const matches=await db.prepare("SELECT j.id AS jobId,j.requested_by AS userId,"+
     "j.campaign_id AS campaignId,j.recap_id AS recapId,j.audio_asset_id AS audioAssetId,"+
     "s.id AS partId,s.interaction_id AS interactionId,s.error_code AS errorCode,"+
     "s.file_name AS fileName,s.file_uri AS fileUri "+
     "FROM campaign_recap_audio_summary_jobs j "+
     "JOIN campaign_recap_audio_summary_segments s ON s.job_id=j.id "+
-    "WHERE j.status='needs_attention' AND j.error_code='segment_interaction_failed' "+
+    "WHERE j.auto_retry_opt_in=1 AND j.status='needs_attention' "+
+    "AND j.error_code='segment_interaction_failed' "+
     "AND j.processing_mode='segmented' AND j.confirmed_at IS NOT NULL "+
     "AND s.status='submitted' AND s.interaction_id IS NOT NULL "+
     "AND (s.error_code IS NULL OR s.error_code=?) "+

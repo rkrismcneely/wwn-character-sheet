@@ -17,7 +17,7 @@ async function scope(request: Request, context: Context, recapId: unknown) {
   const access=await loadCampaignAccess(db,actor,id);
   const recap=await getCampaignSessionRecap(db,actor,id,recapId);
   const gm=canManageCampaignContent(actor,access.campaign,access.membership);
-  return {db,campaign:access.campaign,gm,recap,key:recapTranscriptObjectKey(access.campaign.id,recap.id)};
+  return {db,campaign:access.campaign,gm,recap,key:recapTranscriptObjectKey(access.campaign.publicId,recap.id)};
 }
 async function stored(key:string):Promise<SavedRecapTranscript|null> {
   const object=await env.BUCKET.get(key);

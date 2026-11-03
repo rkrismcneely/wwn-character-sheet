@@ -88,6 +88,17 @@ export async function POST(request:Request,context:Context){
       listRecapAudioForPlayer(db,actor,campaignId,recapId),
       transcriptSummary(campaignId,recapId),
     ]);
+    // The transcript is a single saved document, not a versioned per-source collection.
+    // Never silently combine captions from different recordings or transcription providers.
+    if(transcript.count>0&&action.action==="approve-source"&&current.source&&
+      JSON.stringify(current.source)!==JSON.stringify(action.source))
+      throw new CampaignServiceError(
+        "A transcript already exists for this recording. Start a separate recap to use a different audio source.",409);
+    if(transcript.count>0&&action.action==="save-preparation"&&current.preparation&&
+      (current.preparation.provider!==action.provider||
+       current.preparation.method!==action.method))
+      throw new CampaignServiceError(
+        "The existing transcript belongs to the previous preparation. Start a separate recap to switch transcription providers or preparation methods.",409);
     let sourceReady=false;
     if(action.action==="approve-source"){
       const source=action.source as RecapSource;

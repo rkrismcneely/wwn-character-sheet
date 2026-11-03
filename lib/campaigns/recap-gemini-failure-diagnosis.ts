@@ -86,7 +86,7 @@ export function summarizeRecapGeminiFailure(raw:unknown):RecapFailureDiagnosis{
       "Gemini indicates that the request exceeds an input limit. Splitting the recording into smaller analyzed sections may be required.");
   if(has("api_error","unavailable","service_unavailable","internal","internal_error","server_error","deadline_exceeded"))
     return describe("server_error","Gemini service failure",
-      "Gemini reported a service-side error. This interaction will not be resubmitted automatically.");
+      "Gemini reported a service-side error. Eligible jobs may receive one delayed, verified recovery attempt; otherwise processing remains stopped.");
   if(has("permission_denied","unauthenticated","authentication","payment_required","failed_precondition"))
     return describe("permission","Gemini account or billing restriction",
       "Gemini reported an authorization, account, or billing restriction. Review the connected project in Google AI Studio.");

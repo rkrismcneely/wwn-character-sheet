@@ -45,7 +45,7 @@ test("privacy, cost, optional AI use, version safety and publishing controls rem
   ]);
   assert.match(status,/Google may use free-tier content to improve its products/u);
   assert.match(status,/I approve sending the recording to Gemini and relevant notes and campaign context to my selected writing provider/u);
-  assert.match(status,/I understand this request could use my quota or incur provider charges/u);
+  assert.match(status,/I understand this request and up to one delayed retry of a confirmed Gemini service failure could use my quota or incur provider charges/u);
   assert.match(status,/disabled=\{starting\|\|!privacy\|\|!billing\}/u);
   assert.match(status,/Your published recap will not change/u);
   assert.match(status,/Saved AI recap versions/u);

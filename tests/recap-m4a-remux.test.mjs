@@ -68,15 +68,16 @@ test("long untouched M4A is split into independently valid virtual MP4 headers",
   const plan=await planM4a(input.source,input.read);
   const cpuUsed=process.cpuUsage(cpuStarted);
   t.diagnostic("Long M4A metadata-only planning CPU/wall benchmark: "+(performance.now()-planStarted).toFixed(1)+"ms wall, "+((cpuUsed.user+cpuUsed.system)/1000).toFixed(1)+"ms CPU");
-  assert.equal(plan.length,2);
-  assert.equal(plan[0].sourceStart+ (plan[0].sourceEnd-plan[0].sourceStart),plan[1].sourceStart);
-  assert.equal(plan[1].sourceEnd-plan[0].sourceStart,input.total);
+  assert.equal(plan.length,4);
+  for(let i=1;i<plan.length;i++)assert.equal(plan[i-1].sourceEnd,plan[i].sourceStart);
+  assert.equal(plan.at(-1).sourceEnd-plan[0].sourceStart,input.total);
   assert.equal(plan[0].startMs,0);
-  assert.equal(plan[1].endMs,Math.round(input.samples*1024/48000*1000));
+  assert.equal(plan.at(-1).endMs,Math.round(input.samples*1024/48000*1000));
   // Sustained low packet activity occurs near the middle; prefer it to a cut
   // on the exact midpoint. The original session timeline must still match.
-  assert.ok(plan[0].endMs>48*60_000&&plan[0].endMs<58*60_000);
-  assert.notEqual(plan[0].endMs,Math.round(plan[1].endMs/2));
+  assert.ok(plan[1].endMs>47*60_000&&plan[1].endMs<58*60_000);
+  assert.notEqual(plan[1].endMs,Math.round(plan.at(-1).endMs/2));
+  assert.ok(plan.every(p=>p.endMs-p.startMs<=35*60_000+200));
   for(const section of plan){
     assert.equal(section.mimeType,"audio/mp4");
     const prefix=Uint8Array.from(atob(section.prefixBase64),c=>c.charCodeAt(0));
@@ -102,7 +103,7 @@ test("long M4A checkpoints cheap split planning and prepares each playable heade
   const planned=await planM4a(input.source,input.read,{includeHeaders:false});
   const firstDuration=performance.now()-start;
   const firstCpu=process.cpuUsage(cpuStart);
-  assert.equal(planned.length,2);
+  assert.equal(planned.length,4);
   assert.ok(planned.every(section=>section.prefixBase64===""));
   const durations=[],cpuDurations=[];
   for(const part of planned){
@@ -116,7 +117,7 @@ test("long M4A checkpoints cheap split planning and prepares each playable heade
   }
   t.diagnostic("M4A separated phases (wall/CPU): plan="+firstDuration.toFixed(1)+"/"+
     ((firstCpu.user+firstCpu.system)/1000).toFixed(1)+"ms, section1="+durations[0].toFixed(1)+"/"+cpuDurations[0].toFixed(1)+
-    "ms, section2="+durations[1].toFixed(1)+"/"+cpuDurations[1].toFixed(1)+"ms");
+    "ms, remaining="+durations.slice(1).map((v,i)=>v.toFixed(1)+"/"+cpuDurations[i+1].toFixed(1)).join(", ")+"ms");
 });
 test("M4A can retain its metadata at the end of the Drive file",async()=>{
   const f=fixture({mdatFirst:true,samples:350000});
@@ -133,8 +134,8 @@ test("malformed or non-AAC M4A fails closed without any Gemini request",async()=
 test("M4A with no convincing activity drop falls back to evenly balanced cuts",async()=>{
   const f=fixture({lowStart:-1,lowEnd:-1});
   const parts=await planM4a(f.source,f.read);
-  assert.equal(parts.length,2);
-  assert.ok(Math.abs(parts[0].endMs-parts[1].endMs/2)<1000);
+  assert.equal(parts.length,4);
+  assert.ok(Math.abs(parts[0].endMs-parts.at(-1).endMs/4)<1000);
 });
 
 test("real AAC M4A source remains decodable after native no-reencode remux",async(t)=>{
@@ -165,15 +166,15 @@ test("real AAC M4A source remains decodable after native no-reencode remux",asyn
   }finally{rmSync(folder,{recursive:true,force:true});}
 });
 
-test("134-minute M4A remux creates three bounded standard MP4/AAC sections",async()=>{
+test("134-minute M4A remux creates four bounded standard MP4/AAC sections",async()=>{
   // This exercises the original failing session's approximate duration without
   // allocating or transferring 2+ hours of PCM or making any provider request.
   const input=fixture({samples:377000,lowStart:-1,lowEnd:-1});
   const parts=await planM4a(input.source,input.read,{includeHeaders:false});
-  assert.equal(parts.length,3);
+  assert.equal(parts.length,4);
   assert.equal(parts[0].startMs,0);
   assert.equal(parts.at(-1).endMs,Math.round(377000*1024/48000*1000));
-  assert.ok(parts.every(p=>p.endMs-p.startMs<=60*60_000+200));
+  assert.ok(parts.every(p=>p.endMs-p.startMs<=35*60_000+200));
   let summed=0;
   for(const section of parts){
     assert.equal(section.prefixBase64,"");

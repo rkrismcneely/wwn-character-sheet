@@ -1,5 +1,7 @@
 "use client";
 import {useState} from "react";
+import {planM4aPilotExcerpt} from "@/lib/campaigns/recap-m4a-remux";
+import {validatePilotM4aPlan} from "@/lib/campaigns/recap-v2-pilot-plan";
 
 type Asset={id:string;label:string;mimeType?:string|null;status:string};
 type Pilot={status:string;model:string;excerptEndMs:number;excerptBytes:number;errorCode:string|null};
@@ -22,6 +24,7 @@ export function SessionRecapV2Pilot({campaignId,recapId,assets}:{
   const [assetId,setAssetId]=useState("");
   const current=assetId||eligible[0]?.id||"";
   const [preview,setPreview]=useState<PilotStatus|null>(null);
+  const [clipPlan,setClipPlan]=useState<Awaited<ReturnType<typeof planM4aPilotExcerpt>>|null>(null);
   const [share,setShare]=useState(false);
   const [quota,setQuota]=useState(false);
   const [busy,setBusy]=useState(false);
@@ -37,19 +40,45 @@ export function SessionRecapV2Pilot({campaignId,recapId,assets}:{
       const response=await fetch(endpoint+"?"+query.toString(),{cache:"no-store"});
       const data=await response.json() as PilotStatus;
       if(!response.ok)throw Error(data.error||"Could not check Groq pilot.");
-      setPreview(data);
+      if(!data.pilot&&data.ready){
+        const size=data.originalByteSize;
+        if(!Number.isSafeInteger(size)||!size||size<=0)throw Error("Original recording size is unknown.");
+        const playback="/api/campaigns/"+encodeURIComponent(campaignId)+
+          "/session-recaps/audio/"+encodeURIComponent(current)+"/stream";
+        // AAC metadata work happens in the GM's browser, not Cloudflare's
+        // 10 ms Free Worker CPU budget. We read only bounded byte ranges.
+        const clip=await planM4aPilotExcerpt({
+          byteSize:size,durationMs:data.durationMs??null,mimeType:"audio/mp4",
+        },async(start,length)=>{
+          const result=await fetch(playback,{method:"GET",cache:"no-store",
+            headers:{Range:"bytes="+start+"-"+(start+length-1)}});
+          if(result.status!==206||
+            result.headers.get("content-range")!==
+              "bytes "+start+"-"+(start+length-1)+"/"+size)
+            throw Error("Drive could not provide a verified audio metadata range.");
+          const bytes=new Uint8Array(await result.arrayBuffer());
+          if(bytes.byteLength!==length)throw Error("Drive returned incomplete metadata.");
+          return bytes;
+        });
+        const checked=validatePilotM4aPlan(clip,size,data.durationMs??null);
+        setClipPlan(checked.clip);
+        setPreview({...data,excerptEndMs:checked.clip.endMs,excerptBytes:checked.bytes});
+      }else{
+        setClipPlan(null);
+        setPreview(data);
+      }
     }catch(e){setError(e instanceof Error?e.message:"Pilot unavailable.");}
     finally{setBusy(false);}
   }
   async function submit(){
-    if(!current||!share||!quota||busy||!preview?.ready||preview.pilot)return;
+    if(!current||!share||!quota||busy||!preview?.ready||preview.pilot||!clipPlan)return;
     if(!window.confirm("Submit one private two-minute excerpt to your Groq account? This consumes audio quota and cannot be automatically retried."))return;
     setBusy(true);setError("");setNotice("");
     try{
       const response=await fetch(endpoint,{
         method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({recapId,assetId:current,
-          approvedShare:true,approvedQuota:true}),
+          approvedShare:true,approvedQuota:true,m4aPlan:clipPlan}),
       });
       const data=await response.json() as PilotStatus&{success?:boolean};
       if(!response.ok||!data.success)throw Error(data.error||"Groq pilot did not complete.");
@@ -72,7 +101,7 @@ export function SessionRecapV2Pilot({campaignId,recapId,assets}:{
     </p>
     <label>Recording
       <select value={current} disabled={busy} onChange={event=>{
-        setAssetId(event.target.value);setPreview(null);setShare(false);setQuota(false);
+        setAssetId(event.target.value);setPreview(null);setClipPlan(null);setShare(false);setQuota(false);
         setError("");setNotice("");
       }}>
         {eligible.map(asset=><option key={asset.id} value={asset.id}>{asset.label}</option>)}
@@ -92,7 +121,7 @@ export function SessionRecapV2Pilot({campaignId,recapId,assets}:{
       {preview.excerptBytes!==undefined?
         " · "+(preview.excerptBytes/1024/1024).toFixed(1)+" MiB":""}
     </p>:null}
-    {preview?.ready&&!preview.pilot&&<>
+    {preview?.ready&&!preview.pilot&&clipPlan&&<>
       <label style={{display:"block",marginBlock:8}}>
         <input type="checkbox" checked={share} disabled={busy}
           onChange={e=>setShare(e.target.checked)}/>

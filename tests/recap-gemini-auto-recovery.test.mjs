@@ -26,6 +26,8 @@ function dbMock(candidate,connection){
         bind(...args){
           return {
             async all(){
+              if(sql.startsWith("PRAGMA table_info"))
+                return {results:[{name:"auto_retry_opt_in"}]};
               if(sql.includes("JOIN campaign_recap_audio_summary_segments"))
                 return {results:candidate?[candidate]:[]};
               throw Error("Unexpected all: "+sql);
@@ -108,6 +110,12 @@ test("worker cron invokes recovery, while single-recording planning avoids M4A r
   const worker=await readFile(new URL("../worker/index.ts",import.meta.url),"utf8");
   const ui=await readFile(new URL("../app/campaigns/session-recap-auto-status.tsx",import.meta.url),"utf8");
   assert.match(worker,/runVerifiedGeminiRecapRecoveryTick/u);
+  const migrate=await readFile(new URL("../drizzle/0057_recap_auto_retry_consent.sql",import.meta.url),"utf8");
+  const jobs=await readFile(new URL("../lib/campaigns/recap-only-jobs.ts",import.meta.url),"utf8");
+  const runner=await readFile(new URL("../lib/campaigns/recap-gemini-auto-recovery.ts",import.meta.url),"utf8");
+  assert.match(migrate,/DEFAULT 0/u,"Old jobs must remain manual-only.");
+  assert.match(jobs,/SET auto_retry_opt_in=1/u,"Only a newly consented job may opt in.");
+  assert.match(runner,/j.auto_retry_opt_in=1/u);
   assert.match(ui,/durationMs>LONG_AUDIO_THRESHOLD_MS/u);
   assert.match(ui,/durationMs<=LONG_AUDIO_THRESHOLD_MS\|\|m4aPlan.length<2/u);
   assert.match(ui,/one delayed retry of a confirmed Gemini service failure/u);

@@ -62,6 +62,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [transcriptReviewed,setTranscriptReviewed]=useState(false);
   const [checkedEnding,setCheckedEnding]=useState(false);
   const [writerProvider,setWriterProvider]=useState<RecapWriter>("gemini");
+  const [writerTouched,setWriterTouched]=useState(false);
   const [writerModel,setWriterModel]=useState("gemini-3.8-flash");
   const [detail,setDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [approvedDraft,setApprovedDraft]=useState("");
@@ -72,7 +73,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const currentPreparation=workflow?.preparation;
   const eligible=assets.filter(x=>x.status==="ready"&&typeof x.byteSize==="number");
   const selectedAsset=eligible.find(x=>x.id===sourceChoice)||null;
-  const recommendedWriter=connections.gemini?"gemini":connections.groq?"groq":"local";
+  const recommendedWriter:RecapWriter=connections.gemini?"gemini":connections.groq?"groq":"local";
 
   const refresh=useCallback(async()=>{
     const response=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
@@ -142,6 +143,11 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     name:currentSource.name,bytes:currentSource.bytes,
     durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs??null,
   }):"ffmpeg";
+  useEffect(()=>{
+    if(!data||workflow?.writer||writerTouched||writerProvider===recommendedWriter)return;
+    setWriterProvider(recommendedWriter);
+    setWriterModel(writerOptions.find(option=>option.id===recommendedWriter)!.models[0].id);
+  },[data,workflow?.writer,writerTouched,writerProvider,recommendedWriter]);
   const chosenWriter=writerOptions.find(x=>x.id===writerProvider)!;
   const transcriptCurrent=Boolean(data?.transcript.count&&workflow?.transcriptApprovedRevision&&
     workflow.transcriptApprovedRevision===data?.transcript.updatedAt);
@@ -497,7 +503,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           {writerOptions.map(option=><label key={option.id} style={{display:"block"}}>
             <input type="radio" checked={writerProvider===option.id} disabled={busy}
               name="recap-stage-writer" onChange={()=>{
-                setWriterProvider(option.id);setWriterModel(option.models[0].id);
+                setWriterTouched(true);setWriterProvider(option.id);setWriterModel(option.models[0].id);
               }}/>
             {" "}<strong>{option.name}</strong>
             {option.id===recommendedWriter?" — recommended":""}

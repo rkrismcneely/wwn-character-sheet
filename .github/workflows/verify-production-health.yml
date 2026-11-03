@@ -42,6 +42,16 @@ jobs:
               echo "Verified live release: $actual"
               curl --fail --silent --show-error --location --max-time 20 \
                 --output /dev/null https://taleswithoutend.com/
+              # A healthy homepage is not enough: this endpoint returned 503
+              # while previous releases were otherwise considered healthy.
+              curl --fail --silent --show-error --location --max-time 20 \
+                --dump-header /tmp/twe-ffmpeg-worker-headers \
+                --output /tmp/twe-ffmpeg-worker \
+                "https://taleswithoutend.com/api/recap-ffmpeg/worker.js?release=$EXPECTED_SHA"
+              grep -qi '^content-type: *text/javascript' /tmp/twe-ffmpeg-worker-headers
+              grep -q 'self.onmessage' /tmp/twe-ffmpeg-worker
+              grep -q 'case "LOAD"' /tmp/twe-ffmpeg-worker
+              echo "Verified FFmpeg worker endpoint and message protocol."
               exit 0
             fi
             echo "Waiting for Cloudflare to deploy $EXPECTED_SHA (observed ${actual:-none})."

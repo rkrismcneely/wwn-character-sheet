@@ -18,6 +18,8 @@ test("browser-found M4A split boundaries are bounded and contain no playable byt
   const result=validateBrowserM4aPlan(valid,105_000_000,180*60000);
   assert.deepEqual(result,valid);
   assert.ok(JSON.stringify(result).length<2048);
+  assert.throws(()=>validateBrowserM4aPlan(valid,105_000_000,94*60000),
+    e=>e instanceof RecapM4aPlanError);
 });
 test("all malformed or overly-long GM-submitted M4A split plans fail closed",()=>{
   const changes=[

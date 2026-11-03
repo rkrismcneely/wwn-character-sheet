@@ -13,7 +13,7 @@ type Read=(start:number,length:number)=>Promise<Uint8Array>;
 type Box={type:string;start:number;end:number;data:number};
 const LIMIT_MOOV=6*1024*1024;
 const LIMIT_PREFIX=1250*1024; // D1 string parameter + per-job memory bound.
-const MAX_PART_MS=60*60_000;
+const MAX_PART_MS=35*60_000;
 const MIN_PART_MS=15*60_000;
 // Standard stsz stores four bytes per sample. Bound each reconstructed header
 // conservatively below the existing 1.25 MiB D1/runtime prefix allowance.

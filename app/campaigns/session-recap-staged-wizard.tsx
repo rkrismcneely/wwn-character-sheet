@@ -69,7 +69,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const currentSource=workflow?.source;
   const currentPreparation=workflow?.preparation;
   const eligible=assets.filter(x=>x.status==="ready"&&typeof x.byteSize==="number");
-  const selectedAsset=eligible.find(x=>x.id===sourceChoice)||eligible[0]||null;
+  const selectedAsset=eligible.find(x=>x.id===sourceChoice)||null;
   const recommendedWriter=connections.gemini?"gemini":connections.groq?"groq":"local";
 
   const refresh=useCallback(async()=>{
@@ -115,7 +115,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs??null,
   }):"ffmpeg";
   const chosenWriter=writerOptions.find(x=>x.id===writerProvider)!;
-  const stageValid=[Boolean(currentSource&&workflow?.sourceApprovedAt),
+  const stageValid=[Boolean(currentSource&&workflow?.sourceApprovedAt)||currentPreparation?.provider==="import",
     Boolean(currentPreparation),Boolean(workflow?.transcriptApprovedAt),
     Boolean(workflow?.transcriptApprovedRevision),Boolean(workflow?.approvedDraftId)];
 
@@ -185,17 +185,16 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     return new File([blob],currentSource.name,{type:currentSource.mimeType});
   }
   async function prepare(){
-    if(!currentSource||busy)return;
+    if((!currentSource&&provider!=="import")||busy)return;
     if(currentPreparation&&
       !window.confirm("Create another audio preparation? The approved transcript may need to be reviewed again. Existing recap drafts are preserved."))return;
     setBusy(true);setError("");setNotice("");setProgress("Preparing…");
     try{
       let parts:PreparedPart[];
       if(provider==="import"){
-        parts=[{name:currentSource.name.endsWith(".wav")?currentSource.name:
-          "transcript-import.wav",bytes:currentSource.bytes,
-          mimeType:currentSource.mimeType,startMs:0,
-          durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs||1_000,
+        parts=[{name:"transcript-import.wav",bytes:128,
+          mimeType:"audio/wav",startMs:0,
+          durationMs:1_000,
           localKey:null}];
       }else{
         const source=await sourceFile();
@@ -313,6 +312,9 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         Clearing website data may erase them; keep your own backup. Players cannot stream local-only recordings.</p>
       {currentSource&&<p className="session-recap-import-notice">Approved source:
         {" "}{currentSource.name} ({currentSource.kind==="drive"?"Google Drive":"this browser"})</p>}
+      <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>{setProvider("import");setMethod("import");setStep(1);}}>
+        I already have a transcript — skip recording
+      </button>
       <button type="button" className="campaign-primary" disabled={busy||(!browserFile&&!selectedAsset)}
         onClick={()=>void approveSource()}>{busy?"Saving…":"Approve recording and continue"}</button>
     </>}
@@ -320,7 +322,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       <h4>2. Choose transcription provider and prepare audio</h4>
       <p className="campaign-empty-copy">No AI request occurs during preparation.
         Choose your provider now; Step 3 will submit to that same provider.</p>
-      {!currentSource?<p className="campaign-error">Approve a recording in Step 1 first.</p>:<>
+      {!currentSource&&provider!=="import"?<p className="campaign-error">Approve a recording in Step 1, or choose transcript import.</p>:<>
         <fieldset className="session-recap-speaker-list">
           <legend>Transcription options (all supported choices)</legend>
           {transcriptionOptions.map(option=><label key={option.id} style={{display:"block"}}>
@@ -328,8 +330,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
               checked={provider===option.id} disabled={busy}
               onChange={()=>{setProvider(option.id);
                 setMethod(recommendedRecapPreparation(option.id,{
-                  name:currentSource.name,bytes:currentSource.bytes,
-                  durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs??null,
+                  name:currentSource?.name??"",bytes:currentSource?.bytes??0,
+                  durationMs:assets.find(x=>x.id===currentSource?.id)?.durationMs??null,
                 }));
                 setPrepared([]);setPreparedProvider(null);}}/>
             {" "}<strong>{option.name}</strong>

@@ -83,5 +83,5 @@ test("V2 pilot UI is opt-in, makes readiness GET before inference POST, and requ
   assert.match(ui,/!share\|\|!quota/u);
   assert.match(ui,/window\.confirm\(/u);
   assert.match(ui,/if\(!response\.ok\|\|!data\.success\)/u);
-  assert.doesNotMatch(ui,/Gemini .*request/u);
+  assert.doesNotMatch(ui,/generativelanguage\\.googleapis/u);
 });

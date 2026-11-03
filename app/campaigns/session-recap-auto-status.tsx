@@ -303,10 +303,10 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
     {newest?.singleAudioRetryCount===1&&
       !["needs_attention","failed","ready"].includes(newest.status)&&
       <p role="status" className="campaign-empty-copy">
-        Gemini's original audio analysis failed. TWE is recovering this recording
+        Gemini&apos;s original audio analysis failed. TWE is recovering this recording
         with Gemini 3.6 Flash, using the existing uploaded audio where possible.
-        {newest.audioRetryNotBefore&&Date.parse(newest.audioRetryNotBefore)>Date.now()?
-          " Next attempt scheduled for "+new Date(newest.audioRetryNotBefore).toLocaleTimeString()+".":""}
+        {newest.audioRetryNotBefore?
+          " Scheduled recovery time: "+new Date(newest.audioRetryNotBefore).toLocaleTimeString()+".":""}
       </p>}
     {newest?.singleAudioRetryCount===1&&newest.status==="needs_attention"&&
       newest.errorCode==="interaction_failed"&&<p className="campaign-empty-copy">

@@ -63,6 +63,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [preparedProvider,setPreparedProvider]=useState<RecapTranscriber|null>(null);
   const [progress,setProgress]=useState("");
   const [meter,setMeter]=useState<{done:number;total:number;unit:"bytes"|"sections"}|null>(null);
+  const preparationAbort=useRef<AbortController|null>(null);
   const [transcriptReviewed,setTranscriptReviewed]=useState(false);
   const [checkedEnding,setCheckedEnding]=useState(false);
   const [writerProvider,setWriterProvider]=useState<RecapWriter>("gemini");
@@ -236,7 +237,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       setError((e instanceof Error?e.message:"Unable to approve recording.")+" "+unavailableMessage);}
     finally{setBusy(false);}
   }
-  async function sourceFile(){
+  async function sourceFile(signal?:AbortSignal){
     if(!currentSource)throw Error("Approve an original recording first.");
     if(currentSource.kind==="browser"){
       const file=await browserRecapFile(currentSource.id);
@@ -247,7 +248,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       encodeURIComponent(currentSource.id)+"/stream";
     setProgress("Downloading original recording privately from Google Drive…");
     setMeter(null);
-    const response=await fetch(endpoint,{cache:"no-store"});
+    const response=await fetch(endpoint,{cache:"no-store",signal});
     if(!response.ok)throw Error("Could not read the original Drive recording. Reconnect Drive if required.");
     let lastPercent=-1;
     const blob=await readRecapAudioWithProgress(response,currentSource.bytes,(done,total)=>{
@@ -264,6 +265,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     if(currentPreparation&&
       !window.confirm("Create another audio preparation? The approved transcript may need to be reviewed again. Existing recap drafts are preserved."))return;
     setBusy(true);setError("");setNotice("");setProgress("Preparing…");setMeter(null);
+    const abort=new AbortController();
+    preparationAbort.current=abort;
     try{
       let parts:PreparedPart[];
       if(provider==="import"){
@@ -273,7 +276,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           localKey:null}];
       }else{
         if(!currentSource)throw Error("Approve a recording before audio preparation.");
-        const source=await sourceFile();
+        const source=await sourceFile(abort.signal);
+        if(abort.signal.aborted)throw Error("Audio preparation stopped.");
         parts=method==="original"?
           await saveUnchangedAudio(source,{provider,campaignId,recapId,sourceId:currentSource.id,
             onBytes:(done,total)=>{
@@ -284,7 +288,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             sourceId:currentSource.id,
             onStage:(stage,completed,total)=>{
               setProgress(stage);
-              setMeter({done:completed,total,unit:"sections"});
+              setMeter(stage.startsWith("Loading ") ? null :
+                {done:completed,total,unit:"sections"});
             },
             onProgress:(completed,total)=>{
               setProgress("Prepared and verified "+completed+" of "+total+" audio sections");
@@ -301,7 +306,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       setProgress("");setMeter(null);
     }catch(e){setProgress("");setMeter(null);setError((e instanceof Error?e.message:"Preparation failed.")+
       " Already prepared sections remain available for a retry.");}
-    finally{setBusy(false);}
+    finally{if(preparationAbort.current===abort)preparationAbort.current=null;
+      setBusy(false);}
   }
   async function approvePreparation(){
     if(!prepared.length||preparedProvider!==provider||busy)return;
@@ -489,7 +495,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             (provider==="import"&&method!=="import")}
             onClick={()=>void prepare()}>{busy?"Preparing…":"Prepare and validate audio"}</button>
           {busy&&method==="ffmpeg"&&<button type="button" className="campaign-secondary"
-            onClick={()=>stopRecapFFmpeg()}>Stop conversion</button>}
+            onClick={()=>{preparationAbort.current?.abort();stopRecapFFmpeg();}}>Stop preparation</button>}
         </div>
         {progressView}
         {prepared.length>0&&<div className="session-recap-reading">

@@ -417,7 +417,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       <label style={{display:"block",marginBlock:"0.75rem"}}>
         <input type="checkbox" checked={checkedEnding} disabled={busy}
           onChange={e=>setCheckedEnding(e.target.checked)}/>
-        {" "}I verified that the transcript represents the session's beginning and ending, or I have noted any missing portions.
+        {" "}I verified that the transcript represents the session&apos;s beginning and ending, or I have noted any missing portions.
       </label>
       <button type="button" className="campaign-primary" disabled={busy||!transcriptReviewed||
         !checkedEnding||!data?.transcript.count||!currentPreparation}

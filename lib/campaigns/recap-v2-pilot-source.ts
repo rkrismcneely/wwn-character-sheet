@@ -7,7 +7,8 @@ import {Buffer} from "node:buffer";
 import type {DriveSettings} from "@/lib/account/recap-google-drive-oauth";
 import {getCampaignD1} from "@/lib/campaigns/service";
 import {getGmDriveAccessToken} from "@/lib/campaigns/recap-drive-token";
-import {planM4aPilotExcerpt,M4A_PILOT_MAX_BYTES} from "@/lib/campaigns/recap-m4a-remux";
+import {M4A_PILOT_MAX_BYTES} from "@/lib/campaigns/recap-m4a-remux";
+import {validatePilotM4aPlan} from "@/lib/campaigns/recap-v2-pilot-plan";
 import {verifyPilotCapability} from "@/lib/campaigns/recap-v2-pilot-capability";
 import type {RecapAIEncryptionSettings} from "@/lib/account/recap-groq-key";
 import {excerptRequestedRange} from "@/lib/campaigns/recap-v2-pilot-range";
@@ -15,6 +16,8 @@ type Context={params:Promise<{assetId:string}>};
 type Source={
   campaignId:string;recapId:string;ownerId:string;remoteFileId:string;
   connectionId:string;byteSize:number;durationMs:number|null;mimeType:string;
+  sourceByteSize:number;sourceStart:number;sourceEnd:number;
+  prefixBase64:string;
 };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const CAMP=/^cmp_[A-Za-z0-9_-]{22}$/u;
@@ -46,16 +49,22 @@ export async function handlePilotExcerpt(request:Request,context:Context):Promis
     const source=await db.prepare("SELECT a.campaign_id AS campaignId,"+
       "a.recap_id AS recapId,a.storage_owner_user_id AS ownerId,"+
       "a.remote_file_id AS remoteFileId,a.connection_id AS connectionId,"+
-      "a.byte_size AS byteSize,a.duration_ms AS durationMs,a.mime_type AS mimeType "+
+      "a.byte_size AS byteSize,a.duration_ms AS durationMs,a.mime_type AS mimeType,"+
+      "p.source_byte_size AS sourceByteSize,p.source_start AS sourceStart,"+
+      "p.source_end AS sourceEnd,p.prefix_base64 AS prefixBase64 "+
       "FROM campaign_recap_audio_assets a "+
       "JOIN user_recap_storage_connections s ON s.id=a.connection_id "+
       "AND s.user_id=a.storage_owner_user_id "+
+      "JOIN campaign_recap_v2_pilots p ON p.audio_asset_id=a.id "+
+      "AND p.campaign_id=a.campaign_id AND p.recap_id=a.recap_id "+
+      "AND p.requested_by=a.storage_owner_user_id AND p.status='submitting' "+
       "WHERE a.id=? AND a.campaign_id=? AND a.recap_id=? "+
       "AND a.processing_job_id IS NULL AND a.status='ready' "+
       "AND s.status='connected' AND s.provider='google-drive'")
       .bind(assetId,campaignId,recapId).first<Source>();
     if(!source||!DRIVE.test(source.remoteFileId)||source.mimeType!=="audio/mp4"||
-      !Number.isSafeInteger(source.byteSize)||source.byteSize<=0)return notFound();
+      !Number.isSafeInteger(source.byteSize)||source.byteSize<=0||
+      source.byteSize!==source.sourceByteSize)return notFound();
     const accepted=await verifyPilotCapability(config,{campaignId,recapId,assetId,
       ownerId:source.ownerId,expires,
       nonce:u.searchParams.get("nonce")??"",
@@ -63,26 +72,14 @@ export async function handlePilotExcerpt(request:Request,context:Context):Promis
     });
     if(!accepted)return notFound();
     const access=await getGmDriveAccessToken(db,config,source.ownerId,source.connectionId);
-    const sourceRange=async(start:number,length:number):Promise<Uint8Array>=>{
-      if(!Number.isSafeInteger(start)||!Number.isSafeInteger(length)||start<0||
-        length<=0||length>6*1024*1024||start+length>source.byteSize)
-        throw Error("Invalid Drive metadata range.");
-      const response=await fetch("https://www.googleapis.com/drive/v3/files/"+
-        encodeURIComponent(source.remoteFileId)+"?alt=media",{
-          method:"GET",redirect:"manual",signal:AbortSignal.timeout(25000),
-          headers:{"authorization":"Bearer "+access,
-            "range":"bytes="+start+"-"+(start+length-1),
-            "accept-encoding":"identity"},
-        });
-      if(response.status!==206||response.redirected||
-        response.headers.get("content-range")!==
-          "bytes "+start+"-"+(start+length-1)+"/"+source.byteSize)
-        throw Error("Drive metadata range mismatch.");
-      const bytes=new Uint8Array(await response.arrayBuffer());
-      if(bytes.length!==length)throw Error("Drive metadata byte count mismatch.");
-      return bytes;
-    };
-    const clip=await planM4aPilotExcerpt(source,sourceRange);
+    // The expensive sample-table scan was already performed in the GM's
+    // browser and checkpointed BEFORE Groq was contacted. Source GET/HEAD
+    // does not reparse the multi-hour M4A on Workers Free.
+    const clip=validatePilotM4aPlan({
+      index:0,startMs:0,endMs:120000,
+      sourceStart:source.sourceStart,sourceEnd:source.sourceEnd,
+      prefixBase64:source.prefixBase64,mimeType:"audio/mp4",
+    },source.byteSize,null).clip;
     const prefix=Buffer.from(clip.prefixBase64,"base64");
     const payloadSize=clip.sourceEnd-clip.sourceStart;
     const size=prefix.length+payloadSize;

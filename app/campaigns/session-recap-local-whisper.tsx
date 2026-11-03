@@ -16,7 +16,7 @@ type WhisperChunk={text?:string;timestamp?:[number,number]};
 type WhisperOutput={text?:string;chunks?:WhisperChunk[]};
 type Transcriber=(audio:Float32Array,options:Record<string,unknown>)=>Promise<WhisperOutput>;
 type TranscriptionModule={pipeline:(task:string,model:string,options:Record<string,unknown>)=>Promise<Transcriber>};
-async function loadLocalWhisper():Promise<Transcriber>{
+export async function loadLocalWhisper():Promise<Transcriber>{
   // Dynamic CDN import avoids adding an unverified package-lock dependency.
   // Fail with an actionable error when browser CSP or offline mode blocks assets.
   const libraryUrl:string=WHISPER_BROWSER_LIBRARY;
@@ -25,7 +25,7 @@ async function loadLocalWhisper():Promise<Transcriber>{
   return imported.pipeline("automatic-speech-recognition",WHISPER_MODEL,
     {device:hasGpu?"webgpu":"wasm",dtype:"q8"});
 }
-function localCaptionCues(result:WhisperOutput,startMs:number,durationMs:number):CaptionCue[]{
+export function localCaptionCues(result:WhisperOutput,startMs:number,durationMs:number):CaptionCue[]{
   if((!Array.isArray(result.chunks)||result.chunks.length===0)&&result.text==="")return [];
   if(!Array.isArray(result.chunks)||result.chunks.length===0)
     throw new Error("Local Whisper returned no reliable timestamps; this clip was not saved.");

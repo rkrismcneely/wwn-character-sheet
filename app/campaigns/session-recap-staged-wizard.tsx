@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useMemo,useRef,useState,type ChangeEvent} from "react";
+import {useCallback,useEffect,useState,type ChangeEvent} from "react";
 import {SessionRecapAudioUploader} from "./session-recap-audio-uploader";
 import {SessionRecapStagedTranscriber} from "./session-recap-staged-transcriber";
 import {SessionRecapFullTranscriptManager} from "./session-recap-full-transcript-manager";
@@ -16,6 +16,7 @@ type Asset={id:string;label:string;status:string;byteSize:number|null;mimeType:s
 type Data={workflow:RecapWorkflow;assets:Asset[];
   transcript:{count:number;updatedAt:string|null;published:boolean};error?:string};
 const names=["Upload","Prepare","Transcribe","Review","Write"];
+const NO_ASSETS:Asset[]=[];
 const transcriptionOptions:{id:RecapTranscriber;name:string;description:string}[]=[
   {id:"groq",name:"Groq Whisper",description:"Cloud · Personal Groq key · Accurate timestamps · Quotas apply"},
   {id:"gemini",name:"Google Gemini",description:"Cloud · Personal Gemini key · Audio processing may be less reliable"},
@@ -61,9 +62,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [detail,setDetail]=useState<"brief"|"standard"|"detailed">("detailed");
   const [approvedDraft,setApprovedDraft]=useState("");
   const [connections,setConnections]=useState<{gemini:boolean;groq:boolean}>({gemini:false,groq:false});
-  const onRefresh=useRef<()=>void>(()=>{});
   const workflow=data?.workflow;
-  const assets=data?.assets??[];
+  const assets=data?.assets??NO_ASSETS;
   const currentSource=workflow?.source;
   const currentPreparation=workflow?.preparation;
   const eligible=assets.filter(x=>x.status==="ready"&&typeof x.byteSize==="number");
@@ -76,18 +76,23 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     if(!response.ok||!value.workflow)throw Error(value.error||"Could not load saved recap steps.");
     setData(value);return value;
   },[base,recapId]);
-  onRefresh.current=()=>{void refresh().catch(e=>setError(e instanceof Error?e.message:"Could not refresh."));};
   useEffect(()=>{
     let mounted=true;
-    void refresh().then(value=>{
-      if(!mounted)return;
-      const w=value.workflow;
-      if(w.writer){setWriterProvider(w.writer.provider);setWriterModel(w.writer.model);setDetail(w.writer.detail);}
-      else if(w.preparation){setProvider(w.preparation.provider);}
-      if(w.source?.kind==="drive")setSourceChoice(w.source.id);
-      const stage=w.approvedDraftId?4:w.transcriptApprovedAt?4:w.preparation?2:w.sourceApprovedAt?1:0;
-      setStep(stage);
-    }).catch(e=>{if(mounted)setError(e instanceof Error?e.message:"Recap steps unavailable.");})
+    void fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"})
+      .then(async response=>{
+        const value=await response.json() as Data;
+        if(!response.ok||!value.workflow)throw Error(value.error||"Recap workflow unavailable.");
+        return value;
+      }).then(value=>{
+        if(!mounted)return;
+        setData(value);
+        const w=value.workflow;
+        if(w.writer){setWriterProvider(w.writer.provider);setWriterModel(w.writer.model);setDetail(w.writer.detail);}
+        else if(w.preparation){setProvider(w.preparation.provider);setMethod(w.preparation.method);}
+        if(w.source?.kind==="drive")setSourceChoice(w.source.id);
+        const stage=w.approvedDraftId?4:w.transcriptApprovedAt?4:w.preparation?2:w.sourceApprovedAt?1:0;
+        setStep(stage);
+      }).catch(e=>{if(mounted)setError(e instanceof Error?e.message:"Recap steps unavailable.");})
       .finally(()=>{if(mounted)setLoading(false);});
     void Promise.all(["gemini","groq"].map(async name=>{
       try{
@@ -96,22 +101,10 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         return [name,data.connection?.status==="connected"] as const;
       }catch{return [name,false] as const;}
     })).then(values=>{if(mounted)setConnections(Object.fromEntries(values) as {gemini:boolean;groq:boolean});});
-    const handler=()=>onRefresh.current();
+    const handler=()=>{void refresh().catch(e=>setError(e instanceof Error?e.message:"Could not refresh."));};
     window.addEventListener("twe:recap-audio-attached",handler);
     return()=>{mounted=false;window.removeEventListener("twe:recap-audio-attached",handler);};
-  },[recapId,refresh]);
-  useEffect(()=>{
-    if(!workflow?.preparation&&!prepared.length){
-      if(provider==="import")setMethod("import");
-      else if(!currentSource)setMethod("ffmpeg");
-      else{
-        const a=assets.find(x=>x.id===currentSource.id);
-        setMethod(recommendedRecapPreparation(provider,{
-          name:currentSource.name,bytes:currentSource.bytes,durationMs:a?.durationMs??null,
-        }));
-      }
-    }
-  },[provider,currentSource,assets,workflow?.preparation,prepared.length]);
+  },[recapId,base,refresh]);
   const recommendedTranscriber:RecapTranscriber=currentSource?.kind==="browser"&&
     !connections.gemini&&!connections.groq?"local-whisper":
     connections.groq?"groq":connections.gemini?"gemini":"local-whisper";
@@ -164,6 +157,10 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       }else throw Error("Upload a recording to Google Drive or choose a local audio file.");
       await apply({action:"approve-source",source},{localVerified});
       setPrepared([]);setPreparedProvider(null);setProgress("");
+      setMethod(recommendedRecapPreparation(provider,{
+        name:source.name,bytes:source.bytes,
+        durationMs:assets.find(x=>x.id===source.id)?.durationMs??null,
+      }));
       setNotice("Recording approved and saved. Choose a transcription method in Step 2.");
       setStep(1);
     }catch(e){setError((e instanceof Error?e.message:"Unable to approve recording.")+" "+unavailableMessage);}
@@ -310,7 +307,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         </label>
       </div>
       {browserFile&&<p>{browserFile.name} · {sizeText(browserFile.size)} · On this device</p>}
-      <p className="campaign-empty-copy">Browser-only recordings stay in this browser's private storage.
+      <p className="campaign-empty-copy">Browser-only recordings stay in this browser&apos;s private storage.
         Clearing website data may erase them; keep your own backup. Players cannot stream local-only recordings.</p>
       {currentSource&&<p className="session-recap-import-notice">Approved source:
         {" "}{currentSource.name} ({currentSource.kind==="drive"?"Google Drive":"this browser"})</p>}
@@ -327,7 +324,12 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           {transcriptionOptions.map(option=><label key={option.id} style={{display:"block"}}>
             <input type="radio" name="recap-stage-transcriber" value={option.id}
               checked={provider===option.id} disabled={busy}
-              onChange={()=>{setProvider(option.id);setPrepared([]);setPreparedProvider(null);}}/>
+              onChange={()=>{setProvider(option.id);
+                setMethod(recommendedRecapPreparation(option.id,{
+                  name:currentSource.name,bytes:currentSource.bytes,
+                  durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs??null,
+                }));
+                setPrepared([]);setPreparedProvider(null);}}/>
             {" "}<strong>{option.name}</strong>
             {option.id===recommendedTranscriber?" (recommended for your connected accounts)":""}
             <span className="campaign-empty-copy"> — {option.description}</span>

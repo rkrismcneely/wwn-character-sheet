@@ -8,6 +8,7 @@ import { CampaignServiceError } from "../lib/campaigns/service";
 import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler";
 import { runRecapOnlyScheduledTick } from "../lib/campaigns/recap-only-runner";
 import { runVerifiedGeminiRecapRecoveryTick } from "../lib/campaigns/recap-gemini-auto-recovery";
+import { runVerifiedSingleAudioRecoveryTick } from "../lib/campaigns/recap-gemini-single-recovery";
 import {
   CLIENT_ERROR_REPORT_PATH,
   OBSERVABILITY_EVENT_VERSION,
@@ -147,6 +148,8 @@ const worker = {
         console.error({event:"twe_recap_only_cron_failed",category:"private-recap-scheduler"});
       }).then(() => runVerifiedGeminiRecapRecoveryTick(
         env as unknown as Parameters<typeof runVerifiedGeminiRecapRecoveryTick>[0]
+      )).then(() => runVerifiedSingleAudioRecoveryTick(
+        env as unknown as Parameters<typeof runVerifiedSingleAudioRecoveryTick>[0]
       )).catch(() => {
         console.error({event:"twe_recap_recovery_failed",category:"private-recap-scheduler"});
       }));

@@ -1,3 +1,4 @@
+import {redactJournalSecrets} from "@/lib/campaigns/journal";
 import {env} from "cloudflare:workers";
 import {getSessionActor} from "@/lib/auth-session";
 import {canManageCampaignContent} from "@/lib/campaigns/authorization";
@@ -74,7 +75,7 @@ async function saveText(key:string,content:string){
 async function context(info:Awaited<ReturnType<typeof scope>>){
   const [recent,journal]=await Promise.all([
     info.db.prepare("SELECT title,session_date AS date,content FROM campaign_session_recaps "+
-      "WHERE campaign_id=? AND id<>? ORDER BY session_date DESC LIMIT 3")
+      "WHERE campaign_id=? AND id<>? AND is_published=1 ORDER BY session_date DESC LIMIT 3")
       .bind(info.campaignId,info.recapId).all<{title:string;date:string;content:string}>(),
     info.db.prepare("SELECT title,content FROM campaign_journal_entries "+
       "WHERE campaign_id=? AND kind='page' AND visibility='players' "+
@@ -82,7 +83,7 @@ async function context(info:Awaited<ReturnType<typeof scope>>){
       .all<{title:string;content:string}>(),
   ]);
   return "Canonically spelled people and places from player-visible Campaign Journal:\n"+
-    journal.results.map(row=>row.title+": "+row.content.slice(0,350)).join("\n").slice(0,14_000)+
+    journal.results.map(row=>row.title+": "+redactJournalSecrets(row.content).slice(0,350)).join("\n").slice(0,14_000)+
     "\nPrevious session recap context (not events from THIS recording):\n"+
     recent.results.map(row=>row.date+" "+row.title+": "+row.content.slice(0,1000)).join("\n").slice(0,3500);
 }

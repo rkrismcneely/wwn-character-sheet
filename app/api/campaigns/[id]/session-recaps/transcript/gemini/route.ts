@@ -130,7 +130,7 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     const hash=await digest(await audio.arrayBuffer());
     const receipt=await digest(new TextEncoder().encode(
       ["gemini",hash,startMs,durationMs,speakerId,GEMINI_TRANSCRIBE_MODEL].join(":")));
-    const key=recapTranscriptObjectKey(access.campaign.id,recap.id);
+    const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
     async function saved(){
       const object=await env.BUCKET.get(key);
       return object?{item:await object.json<RecordedRecapTranscript>(),etag:object.etag}:

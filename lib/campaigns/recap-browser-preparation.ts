@@ -148,6 +148,8 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
       if(saved.size>=128&&saved.size<=
         (options.provider==="local-whisper"?2_000_000_000:
           options.provider==="groq"?16*1024*1024:11*1024*1024)){
+        const actualDuration=await audioFileDuration(new File([saved],part.name,{type:mime}));
+        if(Math.abs(actualDuration-part.durationMs)>3500)throw Error("Cached section duration mismatch.");
         ready[part.index]={name:part.name,bytes:saved.size,mimeType:mime,
           startMs:part.startMs,durationMs:part.durationMs,localKey:part.key};
         options.onProgress?.(ready.filter(Boolean).length,count);continue;
@@ -156,6 +158,9 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
     missing.push(part.index);
   }
   if(!missing.length)return ready;
+  // FFmpeg.wasm buffers the entire input in its virtual filesystem and memory.
+  // Refuse files likely to exhaust browser memory rather than crashing the tab.
+  if(file.size>300*1024*1024)throw Error("This recording is too large for safe in-browser FFmpeg conversion. Use a smaller source or prepare the audio outside TWE.");
   const ffmpeg=await loadBrowserFFmpeg();
   const input="input."+(/\.wav$/iu.test(file.name)?"wav":/\.mp3$/iu.test(file.name)?"mp3":
     /\.flac$/iu.test(file.name)?"flac":"m4a");
@@ -178,6 +183,9 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
         options.provider==="gemini"?11*1024*1024:2_000_000_000;
       if(result.byteLength>max)throw Error("Prepared part exceeds the provider's size limit.");
       const prepared=new File([Uint8Array.from(result)],part.name,{type:mime});
+      const actualDuration=await audioFileDuration(prepared);
+      if(Math.abs(actualDuration-part.durationMs)>3500)
+        throw Error("Prepared section "+(index+1)+" has an unexpected duration. It was not approved.");
       await saveBrowserRecapFile(part.key,prepared);
       ready[index]={name:part.name,bytes:prepared.size,mimeType:mime,
         startMs:part.startMs,durationMs:part.durationMs,localKey:part.key};

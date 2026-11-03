@@ -49,7 +49,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
           const updated=await list.json() as {assets?:AudioAsset[]};
           if(Array.isArray(updated.assets))setAssets(updated.assets);
         }
-        window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId}}));
+        window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId,assetId}}));
         return true;
       }
       if(!quiet)setNotice("No completed recording found yet. Try again after the upload finishes.");
@@ -125,8 +125,8 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     setAwaitingVerification(null);
     setFile(null);
     if(fileInputRef.current)fileInputRef.current.value="";
-    setNotice("Saved to Google Drive. Select Auto Summarize when ready.");
-    window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId}}));
+    setNotice("Saved to Google Drive. Select and approve the recording in Step 1 to continue.");
+    window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId,assetId:pending.assetId}}));
     try {
       const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
       if(updated.ok){

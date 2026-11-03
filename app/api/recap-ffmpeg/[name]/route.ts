@@ -1,25 +1,18 @@
 /**
- * Serve the pinned ffmpeg.wasm class worker and its two ESM dependencies from
- * our own origin. Browsers refuse to construct cross-origin module workers.
- *
- * These are only open-source JavaScript code files, never a user recording.
- * Prepared audio stays in the GM's browser-origin OPFS.
+ * Serve a self-contained FFmpeg module worker from the TWE deployment.
+ * No Cloudflare-to-CDN fetch, no user recording bytes, and no per-request quota.
+ * The browser still downloads its pinned ESM core/wasm separately.
  */
-const allowed=new Set(["worker.js","const.js","errors.js"]);
-const base="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/";
+import {recapFFmpegWorkerSource} from "@/lib/campaigns/recap-ffmpeg-worker-source";
+
 type Context={params:Promise<{name:string}>};
 export async function GET(_request:Request,context:Context){
   const {name}=await context.params;
-  if(!allowed.has(name))return new Response("Not found",{status:404});
-  try{
-    const response=await fetch(base+name,{redirect:"error",signal:AbortSignal.timeout(15000)});
-    if(!response.ok)return new Response("FFmpeg worker unavailable.",{status:502});
-    const text=await response.text();
-    if(!text||text.length>30_000)return new Response("Invalid FFmpeg worker code.",{status:502});
-    return new Response(text,{headers:{
-      "content-type":"text/javascript; charset=utf-8",
-      "cache-control":"public, max-age=86400, immutable",
-      "x-content-type-options":"nosniff",
-    }});
-  }catch{return new Response("FFmpeg browser worker could not be loaded.",{status:503});}
+  if(name!=="worker.js")return new Response("Not found",{status:404});
+  return new Response(recapFFmpegWorkerSource,{headers:{
+    "content-type":"text/javascript; charset=utf-8",
+    // Do not let an older CDN-proxy worker survive a deployment in browser cache.
+    "cache-control":"no-store",
+    "x-content-type-options":"nosniff",
+  }});
 }

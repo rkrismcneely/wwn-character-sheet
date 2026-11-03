@@ -23,6 +23,11 @@ function dbMock(candidate,connection){
   const db={
     prepare(sql){
       return {
+        async all(){
+          if(sql.startsWith("PRAGMA table_info"))
+            return {results:[{name:"auto_retry_opt_in"}]};
+          throw Error("Unexpected unbound all: "+sql);
+        },
         bind(...args){
           return {
             async all(){

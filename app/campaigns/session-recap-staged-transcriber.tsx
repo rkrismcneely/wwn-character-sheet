@@ -27,6 +27,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const [model,setModel]=useState("whisper-large-v3");
   const [apiKey,setApiKey]=useState("");
   const [connectedGroq,setConnectedGroq]=useState(false);
+  const [existingCues,setExistingCues]=useState(0);
   const [share,setShare]=useState(false);
   const [billing,setBilling]=useState(false);
   const [busy,setBusy]=useState(false);
@@ -37,6 +38,14 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/transcript";
   const provider=preparation.provider;
   const cloud=provider==="groq"||provider==="gemini";
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch(base+"?recapId="+encodeURIComponent(recapId),{signal:controller.signal})
+      .then(r=>r.json()).then((v:{cues?:unknown[]})=>{
+        if(!controller.signal.aborted)setExistingCues(v.cues?.length??0);
+      }).catch(()=>{});
+    return ()=>controller.abort();
+  },[base,recapId]);
   useEffect(()=>{
     if(provider!=="groq")return;
     const controller=new AbortController();
@@ -79,7 +88,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       const response=await fetch(endpoint,{method:"POST",body:form});
       const result=await response.json() as Result;
       if(!response.ok||!result.saved)throw Error(result.error||"Transcription stopped on section "+(i+1)+".");
-      setCompleted(i+1);onTranscriptSaved();
+      setCompleted(i+1);setExistingCues(x=>x+1);onTranscriptSaved();
     }
   }
   async function submitLocal(){
@@ -159,11 +168,12 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
     </label>
     {provider==="groq"&&<>
       <label>Whisper model
-        <select disabled={busy} value={model} onChange={e=>{setModel(e.target.value);setCompleted(0);}}>
+        <select disabled={busy||existingCues>0} value={model} onChange={e=>{setModel(e.target.value);setCompleted(0);}}>
           <option value="whisper-large-v3">Whisper Large V3 — accuracy</option>
           <option value="whisper-large-v3-turbo">Whisper Large V3 Turbo — faster</option>
         </select>
       </label>
+      {existingCues>0&&<p className="campaign-empty-copy">A transcript already exists. Model switching is locked to avoid mixing different model outputs. Finish or export the existing transcript first.</p>}
     </>}
     {cloud&&<>
       <label>Personal {provider==="groq"?"Groq":"Gemini"} API key (optional when connected in Account)
@@ -189,7 +199,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       </button>}
     </div>
     <progress max={Math.max(1,preparation.parts.length)} value={completed} aria-label="Transcription sections complete"/>
-    <p className="campaign-empty-copy">{completed} of {preparation.parts.length} prepared sections complete in this run.</p>
+    <p className="campaign-empty-copy">{completed} of {preparation.parts.length} sections checked in this run. Saved cloud clip receipts are verified before provider submission, including after reload.</p>
     {notice&&<p role="status" className="session-recap-import-notice">{notice}</p>}
     {error&&<p role="alert" className="campaign-error">{error}</p>}
   </section>;

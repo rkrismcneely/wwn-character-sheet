@@ -97,7 +97,8 @@ export async function saveUnchangedAudio(file:File,options:{
     startMs:0,durationMs,localKey:key}];
 }
 type FFmpegRunner={
-  load:(options:{coreURL:string;wasmURL:string;classWorkerURL?:string})=>Promise<unknown>;
+  load:(options:{coreURL:string;wasmURL:string;classWorkerURL?:string},
+    controls?:{signal?:AbortSignal})=>Promise<unknown>;
   writeFile:(name:string,data:Uint8Array)=>Promise<unknown>;
   exec:(args:string[])=>Promise<number>;
   readFile:(name:string)=>Promise<Uint8Array|string>;
@@ -106,22 +107,81 @@ type FFmpegRunner={
 };
 type FFmpegModule={FFmpeg:new()=>FFmpegRunner};
 let converter:FFmpegRunner|null=null;
+let loadingConverter:FFmpegRunner|null=null;
+let loadingAbort:AbortController|null=null;
+const FFMPEG_START_TIMEOUT_MS=90_000;
 async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   if(converter)return converter;
-  const url:string="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js";
-  const mod=await import(/* @vite-ignore */ url) as FFmpegModule;
-  const ffmpeg=new mod.FFmpeg();
-  const base="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
-  const blobURL=async(path:string,type:string)=>{
-    const response=await fetch(base+"/"+path);
-    if(!response.ok)throw Error("Could not load FFmpeg's browser engine.");
-    return URL.createObjectURL(new Blob([await response.arrayBuffer()],{type}));
-  };
-  const js=await blobURL("ffmpeg-core.js","text/javascript");
-  const wasm=await blobURL("ffmpeg-core.wasm","application/wasm");
-  try{await ffmpeg.load({coreURL:js,wasmURL:wasm,
-      classWorkerURL:window.location.origin+"/api/recap-ffmpeg/worker.js"});converter=ffmpeg;return ffmpeg;}
-  finally{URL.revokeObjectURL(js);URL.revokeObjectURL(wasm);}
+  if(loadingAbort)throw Error("The audio converter is already starting. Stop the current attempt before retrying.");
+  const abort=new AbortController();
+  loadingAbort=abort;
+  let timedOut=false;
+  let timeout:ReturnType<typeof setTimeout>|null=null;
+  const urls:string[]=[];
+  const load=(async()=>{
+    let ffmpeg:FFmpegRunner|null=null;
+    try{
+      const wrapper:string="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js";
+      const mod=await import(/* @vite-ignore */ wrapper) as FFmpegModule;
+      if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+      ffmpeg=new mod.FFmpeg();
+      loadingConverter=ffmpeg;
+      // A module worker cannot use importScripts(). It must import the ESM core,
+      // not the UMD build, which has no default export and can hang ffmpeg.load().
+      const base="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+      const blobURL=async(path:string,type:string)=>{
+        const response=await fetch(base+"/"+path,{signal:abort.signal,cache:"force-cache"});
+        if(!response.ok)throw Error("Audio converter engine download failed ("+response.status+").");
+        const bytes=await response.arrayBuffer();
+        if(!bytes.byteLength)throw Error("Audio converter engine download was empty.");
+        const url=URL.createObjectURL(new Blob([bytes],{type}));
+        urls.push(url);
+        return url;
+      };
+      const [js,wasm]=await Promise.all([
+        blobURL("ffmpeg-core.js","text/javascript"),
+        blobURL("ffmpeg-core.wasm","application/wasm"),
+      ]);
+      if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+      const worker=window.location.origin+"/api/recap-ffmpeg/worker.js";
+      // Do not assume the same-origin worker proxy is healthy; a 404/502 or
+      // returned HTML causes an uncaught worker error with no LOAD response.
+      const workerCheck=await fetch(worker,{signal:abort.signal,cache:"no-store"});
+      if(!workerCheck.ok||!workerCheck.headers.get("content-type")?.includes("javascript"))
+        throw Error("Audio converter worker is unavailable (HTTP "+workerCheck.status+").");
+      await ffmpeg.load({coreURL:js,wasmURL:wasm,classWorkerURL:worker},
+        {signal:abort.signal});
+      if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+      converter=ffmpeg;
+      return ffmpeg;
+    }catch(error){
+      ffmpeg?.terminate();
+      if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+      throw error;
+    }finally{
+      if(loadingConverter===ffmpeg)loadingConverter=null;
+      for(const url of urls)URL.revokeObjectURL(url);
+    }
+  })();
+  const cancelled=new Promise<never>((_,reject)=>{
+    abort.signal.addEventListener("abort",()=>reject(Error(timedOut?
+      "The browser audio converter did not start within 90 seconds. The converter was stopped; your recording is safe in Drive. Check network or browser extension blocking and try again.":
+      "Audio conversion stopped. Your original recording is safe and completed sections are preserved.")),
+    {once:true});
+  });
+  timeout=setTimeout(()=>{
+    timedOut=true;abort.abort();loadingConverter?.terminate();
+  },FFMPEG_START_TIMEOUT_MS);
+  try{return await Promise.race([load,cancelled]);}
+  catch(error){
+    if(abort.signal.aborted)throw error;
+    const reason=error instanceof Error?error.message:"Unknown converter startup error.";
+    throw Error("The browser audio converter could not load: "+reason+
+      " Your original recording is still saved. Retry or use an existing transcript.");
+  }finally{
+    if(timeout)clearTimeout(timeout);
+    if(loadingAbort===abort)loadingAbort=null;
+  }
 }
 export async function prepareRecapWithFFmpeg(file:File,options:{
   provider:RecapTranscriber;campaignId:string;recapId:string;sourceId:string;
@@ -203,5 +263,9 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
   return ready;
 }
 export function stopRecapFFmpeg(){
-  converter?.terminate();converter=null;
+  loadingAbort?.abort();
+  loadingConverter?.terminate();
+  loadingConverter=null;
+  converter?.terminate();
+  converter=null;
 }

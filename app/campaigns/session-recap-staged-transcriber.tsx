@@ -154,6 +154,31 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       }
     }finally{await audioContext.close();}
   }
+  // The Groq model choice was not recorded in old workflow checkpoints.
+  // Recover it from an existing clip receipt before offering another submission.
+  useEffect(()=>{
+    if(provider!=="groq"||!historyLoaded||!savedReceipts.length||busy)return;
+    let active=true;
+    void (async()=>{
+      for(const part of preparation.parts){
+        if(!part.localKey)continue;
+        let file:File;
+        try{file=await browserRecapFile(part.localKey);}catch{continue;}
+        if(file.size!==part.bytes)continue;
+        const bytes=await file.arrayBuffer();
+        for(const candidate of ["whisper-large-v3","whisper-large-v3-turbo"]){
+          const receipt=await recapCloudClipReceipt(bytes,"groq",{
+            startMs:part.startMs,durationMs:part.durationMs,speakerId,model:candidate,
+          });
+          if(savedReceipts.includes(receipt)){
+            if(active)setModel(candidate);
+            return;
+          }
+        }
+      }
+    })().catch(()=>{});
+    return ()=>{active=false;};
+  },[provider,historyLoaded,savedReceipts,busy,preparation.parts,speakerId]);
   useEffect(()=>{
     if(!cloud||!historyLoaded||busy)return;
     let active=true;

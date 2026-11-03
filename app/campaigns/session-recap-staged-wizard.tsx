@@ -4,6 +4,7 @@ import {useCallback,useEffect,useState,type ChangeEvent} from "react";
 import {SessionRecapAudioUploader} from "./session-recap-audio-uploader";
 import {SessionRecapStagedTranscriber} from "./session-recap-staged-transcriber";
 import {SessionRecapFullTranscriptManager} from "./session-recap-full-transcript-manager";
+import {SessionRecapStagedTranscriptReview} from "./session-recap-staged-transcript-review";
 import {SessionRecapStagedWriter} from "./session-recap-staged-writer";
 import {audioFileDuration,browserRecapFile,browserRecapKey,
   saveBrowserRecapFile,prepareRecapWithFFmpeg,saveUnchangedAudio,
@@ -57,6 +58,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [preparedProvider,setPreparedProvider]=useState<RecapTranscriber|null>(null);
   const [progress,setProgress]=useState("");
   const [transcriptReviewed,setTranscriptReviewed]=useState(false);
+  const [checkedEnding,setCheckedEnding]=useState(false);
   const [writerProvider,setWriterProvider]=useState<RecapWriter>("gemini");
   const [writerModel,setWriterModel]=useState("gemini-3.8-flash");
   const [detail,setDetail]=useState<"brief"|"standard"|"detailed">("detailed");
@@ -397,8 +399,13 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       <p className="campaign-empty-copy">Confirm spelling, speakers, timestamps, and that the
         beginning and end are included. The complete transcript remains independently saved.</p>
       <p>Saved transcript: <strong>{data?.transcript.count??0} cues</strong>.</p>
-      <SessionRecapFullTranscriptManager key={data?.transcript.updatedAt||"none"}
-        campaignId={campaignId} recapId={recapId}/>
+      <SessionRecapStagedTranscriptReview key={data?.transcript.updatedAt||"none"}
+        campaignId={campaignId} recapId={recapId}
+        onChanged={()=>{setTranscriptReviewed(false);setCheckedEnding(false);void refresh();}}/>
+      <details className="session-recap-reading">
+        <summary>Import or replace a transcript from Craig captions</summary>
+        <SessionRecapFullTranscriptManager campaignId={campaignId} recapId={recapId}/>
+      </details>
       {workflow?.transcriptApprovedAt&&<p className="session-recap-import-notice">
         Transcript approved at {new Date(workflow.transcriptApprovedAt).toLocaleString()}.
       </p>}
@@ -407,8 +414,13 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           onChange={e=>setTranscriptReviewed(e.target.checked)}/>
         {" "}I have reviewed this transcript and approve it as the source for recap writing.
       </label>
+      <label style={{display:"block",marginBlock:"0.75rem"}}>
+        <input type="checkbox" checked={checkedEnding} disabled={busy}
+          onChange={e=>setCheckedEnding(e.target.checked)}/>
+        {" "}I verified that the transcript represents the session's beginning and ending, or I have noted any missing portions.
+      </label>
       <button type="button" className="campaign-primary" disabled={busy||!transcriptReviewed||
-        !data?.transcript.count||!currentPreparation}
+        !checkedEnding||!data?.transcript.count||!currentPreparation}
         onClick={()=>void approveTranscript()}>Approve transcript — Continue to recap writing</button>
     </>}
     {step===4&&<>

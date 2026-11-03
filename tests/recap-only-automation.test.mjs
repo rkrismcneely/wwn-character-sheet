@@ -8,7 +8,7 @@ const read=path=>readFile(new URL("../"+path,import.meta.url),"utf8");
 function eligible({connected=true,published=0,already=false,confirmedAt="2026-10-31T12:00:00Z"}={}){
   let writes=0,insertParams=[];
   const db={prepare(sql){
-    return {bind(...params){return {
+    return {all:async()=>({results:[{name:"auto_retry_opt_in"}]}),bind(...params){return {
       async first(){
         if(sql.includes("user_recap_auto_preferences"))return {detail:"detailed"};
         if(sql.includes("user_recap_ai_connections"))return connected?{ok:1}:null;

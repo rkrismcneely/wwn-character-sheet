@@ -4,7 +4,8 @@ import {join} from "node:path";
 import {DATABASE_ID,DATABASE_NAME} from "./d1-admin.mjs";
 
 const migrations=["0053_recap_writer_preferences.sql","0054_recap_groq_connections.sql",
- "0055_recap_saved_audio_notes.sql","0056_recap_groq_writer_checkpoints.sql"];
+ "0055_recap_saved_audio_notes.sql","0056_recap_groq_writer_checkpoints.sql",
+ "0057_recap_auto_retry_consent.sql"];
 const wrangler=join(process.cwd(),"node_modules/.bin/wrangler");
 const environment={...process.env,WRANGLER_LOG_PATH:".wrangler/wrangler.log",WRANGLER_WRITE_LOGS:"false"};
 const run=args=>execFileSync(wrangler,args,{cwd:process.cwd(),env:environment,
@@ -40,8 +41,8 @@ const verified=new Set(query("SELECT name FROM d1_migrations").map(row=>row.name
 for(const migration of migrations)if(!verified.has(migration))throw Error("Migration missing: "+migration);
 const prefs=new Set(query("PRAGMA table_info(user_recap_auto_preferences)").map(row=>row.name));
 const jobs=new Set(query("PRAGMA table_info(campaign_recap_audio_summary_jobs)").map(row=>row.name));
-if(!prefs.has("writer_model")||!jobs.has("audio_notes"))throw Error("Writer columns not found.");
+if(!prefs.has("writer_model")||!jobs.has("audio_notes")||!jobs.has("auto_retry_opt_in"))throw Error("Writer columns not found.");
 for(const table of ["user_recap_groq_connections","campaign_recap_groq_writer_parts"])
  if(!query("SELECT name FROM sqlite_master WHERE type='table' AND name='"+table+"'").length)
   throw Error("Writer table missing: "+table);
-console.log("Groq writer migrations 0053–0056 applied and verified.");
+console.log("Groq writer migrations 0053–0057 applied and verified.");

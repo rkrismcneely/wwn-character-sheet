@@ -184,7 +184,7 @@ export function SessionRecapStagedWriter({campaignId,recapId,provider,model,deta
     {plan&&<div className="session-recap-reading">
       <p className="campaign-empty-copy">{plan.completed.length} of {plan.parts}
         scene sections saved · Model: {model} · Detail: {detail}</p>
-      <progress max={Math.max(1,plan.parts)} value={plan.completed.length}
+      <progress style={{width:"100%"}} max={Math.max(1,plan.parts)} value={plan.completed.length}
         aria-label="Saved recap scene sections"/>
       {plan.final&&<p className="session-recap-import-notice">Final recap saved and ready for review.</p>}
     </div>}
@@ -219,7 +219,7 @@ export function SessionRecapStagedWriter({campaignId,recapId,provider,model,deta
         onClick={()=>{stop.current=true;}}>Stop after current section</button>}
     </div>
     {progress&&<p role="status">{progress}</p>}
-    {busy&&<progress aria-label="Current recap writing request in progress"/>}
+    {busy&&<progress style={{width:"100%"}} aria-label="Current recap writing request in progress"/>}
     {generated&&<div className="session-recap-reading">
       <h5>Saved generated recap</h5>
       <textarea rows={13} readOnly value={generated} aria-label="Generated recap Markdown"/>

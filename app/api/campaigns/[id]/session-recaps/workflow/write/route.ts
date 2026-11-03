@@ -154,7 +154,7 @@ async function remoteWrite(provider:RecapWriter,model:string,key:string,prompt:s
   }
   if(!response.ok){
     if(response.status===429)throw new CampaignServiceError(
-      "Provider quota or rate limit reached. Completed event notes are saved; retry manually after the limit resets.",429);
+      "Provider quota or rate limit reached. Completed event notes are saved; retry manually after the limit resets.",503);
     if(response.status===401||response.status===403)
       throw new CampaignServiceError("The selected provider rejected this personal key or model.",403);
     throw new CampaignServiceError("The provider returned HTTP "+response.status+

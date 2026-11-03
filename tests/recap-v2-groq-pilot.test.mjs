@@ -82,6 +82,12 @@ test("V2 pilot UI is opt-in, makes readiness GET before inference POST, and requ
   assert.match(ui,/approvedShare:true,approvedQuota:true/u);
   assert.match(ui,/!share\|\|!quota/u);
   assert.match(ui,/window\.confirm\(/u);
+  assert.match(ui,/planM4aPilotExcerpt\(/u);
+  assert.match(ui,/validatePilotM4aPlan\(/u);
+  assert.match(pilot,/validatePilotM4aPlan\(body\.m4aPlan/u);
+  assert.match(source,/p\.status='submitting'/u);
+  assert.doesNotMatch(source,/planM4aPilotExcerpt/u);
+
   assert.match(ui,/if\(!response\.ok\|\|!data\.success\)/u);
   assert.doesNotMatch(ui,/generativelanguage\\.googleapis/u);
 });

@@ -244,6 +244,25 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       if(file.size!==currentSource.bytes)throw Error("Locally saved original is missing or changed.");
       return new File([file],currentSource.name,{type:currentSource.mimeType});
     }
+    // Cache the verified original under this private recap + Drive asset ID.
+    // Retrying preparation must not download an hours-long recording again.
+    const cacheable=currentSource.bytes<=300*1024*1024;
+    const originalKey=cacheable?await browserRecapKey(campaignId,recapId,
+      currentSource.id,"drive-original",String(currentSource.bytes)):null;
+    if(originalKey){
+      try{
+        const cached=await browserRecapFile(originalKey);
+        if(cached.size===currentSource.bytes){
+          if(signal?.aborted)throw Error("Audio preparation stopped.");
+          setProgress("Using the previously downloaded recording from this browser…");
+          setMeter({done:cached.size,total:cached.size,unit:"bytes"});
+          return new File([cached],currentSource.name,{type:currentSource.mimeType});
+        }
+      }catch{
+        if(signal?.aborted)throw Error("Audio preparation stopped.");
+        // Missing browser storage must never cause another Drive upload.
+      }
+    }
     const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio/"+
       encodeURIComponent(currentSource.id)+"/stream";
     setProgress("Downloading original recording privately from Google Drive…");
@@ -258,7 +277,22 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         setMeter({done,total,unit:"bytes"});
       }
     });
-    return new File([blob],currentSource.name,{type:currentSource.mimeType});
+    const original=new File([blob],currentSource.name,{type:currentSource.mimeType});
+    if(originalKey&&!signal?.aborted){
+      try{
+        setProgress("Caching original recording in this browser for faster retries…");
+        setMeter({done:0,total:original.size,unit:"bytes"});
+        await saveBrowserRecapFile(originalKey,original,(done,total)=>{
+          setMeter({done,total,unit:"bytes"});
+        },signal);
+      }catch{
+        // Disk quota or private-storage restrictions should not prevent use
+        // of an otherwise valid Drive download. Later retries may download again.
+        if(signal?.aborted)throw Error("Audio preparation stopped.");
+      }
+    }
+    if(signal?.aborted)throw Error("Audio preparation stopped.");
+    return original;
   }
   async function prepare(){
     if((!currentSource&&provider!=="import")||busy)return;

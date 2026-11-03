@@ -54,3 +54,14 @@ test("privacy, cost, optional AI use, version safety and publishing controls rem
   assert.match(progress,/showTransfer&&!analysisFailure/u);
   assert.doesNotMatch(progress,/recap-ai-progress__steps/u);
 });
+
+test("Gemini diagnosis is scoped to a specific failed attempt, not just a recap job ID",async()=>{
+  const status=await read("app/campaigns/session-recap-auto-status.tsx");
+  assert.match(status,/function failureAttemptKey\(/u);
+  assert.match(status,/job\.id,job\.updatedAt,job\.errorCode\?\?"",job\.singleAudioRetryCount\?\?0/u);
+  assert.match(status,/diagnosis\?\.attemptKey===failureAttemptKey\(newest\)/u);
+  assert.match(status,/diagnosedJob\.current===failureAttemptKey\(newest\)/u);
+  assert.match(status,/setDiagnosis\(\{jobId:job\.id,attemptKey:failureAttemptKey\(job\)/u);
+  assert.match(status,/Audio analysis model:/u);
+  assert.match(status,/Automatic fallback attempted:/u);
+});

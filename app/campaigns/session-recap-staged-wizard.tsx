@@ -54,6 +54,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const [sourceChoice,setSourceChoice]=useState("");
   const [browserFile,setBrowserFile]=useState<File|null>(null);
   const [provider,setProvider]=useState<RecapTranscriber>("groq");
+  const [providerTouched,setProviderTouched]=useState(false);
   const [method,setMethod]=useState<"original"|"ffmpeg"|"import">("ffmpeg");
   const [prepared,setPrepared]=useState<PreparedPart[]>([]);
   const [preparedProvider,setPreparedProvider]=useState<RecapTranscriber|null>(null);
@@ -97,7 +98,9 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           const ready=value.assets.filter(asset=>asset.status==="ready"&&typeof asset.byteSize==="number");
           if(ready.length===1)setSourceChoice(ready[0].id);
         }
-        const stage=w.approvedDraftId?4:w.transcriptApprovedAt?4:
+        const transcriptCurrent=Boolean(w.transcriptApprovedRevision&&
+          w.transcriptApprovedRevision===value.transcript.updatedAt&&value.transcript.count>0);
+        const stage=transcriptCurrent?4:
           w.preparation?(value.transcript.count>0?3:2):w.sourceApprovedAt?1:0;
         setStep(stage);
       }).catch(e=>{if(mounted)setError(e instanceof Error?e.message:"Recap steps unavailable.");})
@@ -127,14 +130,25 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   const recommendedTranscriber:RecapTranscriber=currentSource?.kind==="browser"&&
     !connections.gemini&&!connections.groq?"local-whisper":
     connections.groq?"groq":connections.gemini?"gemini":"local-whisper";
+  useEffect(()=>{
+    if(!data||currentPreparation||providerTouched||provider===recommendedTranscriber)return;
+    setProvider(recommendedTranscriber);
+    if(currentSource)setMethod(recommendedRecapPreparation(recommendedTranscriber,{
+      name:currentSource.name,bytes:currentSource.bytes,
+      durationMs:assets.find(a=>a.id===currentSource.id)?.durationMs??null,
+    }));
+  },[data,currentPreparation,providerTouched,provider,recommendedTranscriber,currentSource,assets]);
   const recommendedMethod=currentSource?recommendedRecapPreparation(provider,{
     name:currentSource.name,bytes:currentSource.bytes,
     durationMs:assets.find(x=>x.id===currentSource.id)?.durationMs??null,
   }):"ffmpeg";
   const chosenWriter=writerOptions.find(x=>x.id===writerProvider)!;
+  const transcriptCurrent=Boolean(data?.transcript.count&&workflow?.transcriptApprovedRevision&&
+    workflow.transcriptApprovedRevision===data?.transcript.updatedAt);
   const stageValid=[Boolean(currentSource&&workflow?.sourceApprovedAt)||currentPreparation?.provider==="import",
     Boolean(currentPreparation),Boolean(currentPreparation&&data?.transcript.count),
-    Boolean(workflow?.transcriptApprovedRevision),Boolean(workflow?.approvedDraftId)];
+    transcriptCurrent,Boolean(workflow?.approvedDraftId&&transcriptCurrent)];
+  const oversizedForBrowser=Boolean(currentSource&&currentSource.bytes>300*1024*1024);
   const canVisit=(target:number)=>target===0||target===1&&(stageValid[0]||provider==="import")||
     target>=2&&Boolean(stageValid[target-1]);
 
@@ -333,6 +347,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         Use your connected Google Drive, or save it locally in this browser without another account.</p>
       <SessionRecapAudioUploader campaignId={campaignId} recapId={recapId}
         onBusyChange={onUploadBusy}/>
+      {(selectedAsset?.byteSize??browserFile?.size??0)>300*1024*1024&&
+        <p className="session-recap-import-notice" role="status">Large recording: the original can stay in Google Drive, but browser audio conversion is limited to 300 MiB. A prepared transcript or smaller source may be needed.</p>}
       {eligible.length===0&&<p className="campaign-error">No verified Drive recording is available yet. After uploading, wait for confirmation or click Refresh saved progress above. You can also choose a local file below.</p>}
       <div className="session-recap-form-fields">
         <label>Saved Google Drive recording
@@ -351,7 +367,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         Clearing website data may erase them; keep your own backup. Players cannot stream local-only recordings.</p>
       {currentSource&&<p className="session-recap-import-notice">Approved source:
         {" "}{currentSource.name} ({currentSource.kind==="drive"?"Google Drive":"this browser"})</p>}
-      <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>{setProvider("import");setMethod("import");setStep(1);}}>
+      <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>{setProviderTouched(true);setProvider("import");setMethod("import");setStep(1);}}>
         I already have a transcript — skip recording
       </button>
       <button type="button" className="campaign-primary" disabled={busy||(!browserFile&&!selectedAsset)}
@@ -367,7 +383,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           {transcriptionOptions.map(option=><label key={option.id} style={{display:"block"}}>
             <input type="radio" name="recap-stage-transcriber" value={option.id}
               checked={provider===option.id} disabled={busy}
-              onChange={()=>{setProvider(option.id);
+              onChange={()=>{setProviderTouched(true);setProvider(option.id);
                 setMethod(recommendedRecapPreparation(option.id,{
                   name:currentSource?.name??"",bytes:currentSource?.bytes??0,
                   durationMs:assets.find(x=>x.id===currentSource?.id)?.durationMs??null,
@@ -397,8 +413,13 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             "Import an existing SRT or WebVTT transcript in Step 3."}
           {" "}FFmpeg processing speed depends on this device; already saved sections can be reused.
         </p>
+        {oversizedForBrowser&&method==="ffmpeg"&&<p className="campaign-error" role="alert">
+          This recording is larger than 300 MiB, which this browser cannot safely convert.
+          Your original stays in Drive. Prepare smaller clips outside TWE or import a transcript instead.
+        </p>}
         <div className="session-recap-form-actions">
           <button type="button" className="campaign-primary" disabled={busy||
+            (oversizedForBrowser&&method==="ffmpeg")||
             (method==="import"&&provider!=="import")||
             (provider==="import"&&method!=="import")}
             onClick={()=>void prepare()}>{busy?"Preparing…":"Prepare and validate audio"}</button>
@@ -447,7 +468,10 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         <summary>Import or replace a transcript from Craig captions</summary>
         <SessionRecapFullTranscriptManager campaignId={campaignId} recapId={recapId}/>
       </details>
-      {workflow?.transcriptApprovedAt&&<p className="session-recap-import-notice">
+      {workflow?.transcriptApprovedAt&&!transcriptCurrent&&<p className="campaign-error" role="status">
+        The transcript changed since its previous approval. Review the updated version and approve it again before writing.
+      </p>}
+      {transcriptCurrent&&workflow?.transcriptApprovedAt&&<p className="session-recap-import-notice">
         Transcript approved at {new Date(workflow.transcriptApprovedAt).toLocaleString()}.
       </p>}
       <label style={{display:"block",marginBlock:"0.75rem"}}>
@@ -466,8 +490,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     </>}
     {step===4&&<>
       <h4>5. Choose a writing model and generate a recap</h4>
-      {!workflow?.transcriptApprovedRevision?
-        <p className="campaign-error">Approve the saved transcript in Step 4 first.</p>:<>
+      {!transcriptCurrent?
+        <p className="campaign-error">Review and approve the current saved transcript in Step 4 first.</p>:<>
         <fieldset className="session-recap-speaker-list">
           <legend>Recap writer (all supported choices)</legend>
           {writerOptions.map(option=><label key={option.id} style={{display:"block"}}>

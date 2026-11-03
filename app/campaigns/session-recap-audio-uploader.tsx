@@ -221,7 +221,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
           {file.name} · {formatAudioUploadSize(file.size)}
         </p>}
         {busy && !awaitingVerification && <div role="status" aria-live="polite">
-          <progress max={100} value={progress} aria-label="Recording upload progress"/>
+          <progress style={{width:"100%"}} max={100} value={progress} aria-label="Recording upload progress"/>
           <span> {progress}% uploaded to your Drive</span>
         </div>}
         {busy && awaitingVerification && <p role="status">Verifying the saved recording…</p>}

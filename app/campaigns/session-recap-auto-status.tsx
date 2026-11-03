@@ -19,7 +19,12 @@ type Job={
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null;providerCode?:string|null;diagnosticFingerprint?:string};
-type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null;stage?:string};
+type DiagnosisState={jobId:string;attemptKey:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null;stage?:string};
+function failureAttemptKey(job:Pick<Job,"id"|"updatedAt"|"errorCode"|"singleAudioRetryCount">):string{
+  // A single recap job can own multiple provider interactions. The same job
+  // ID is NOT a safe cache key across a recovered failure.
+  return [job.id,job.updatedAt,job.errorCode??"",job.singleAudioRetryCount??0].join("|");
+}
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTitle,published=false}:{
   campaignId:string;recapId:string;published?:boolean;
   onDraft:(content:string,updatedAt:string,overwrite:boolean,suggestedTitle:string|null)=>boolean;
@@ -186,7 +191,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       };
       if(!response.ok||!data.diagnosis)
         throw Error(data.error||"Gemini did not provide a failure diagnosis.");
-      setDiagnosis({jobId:job.id,value:data.diagnosis,
+      setDiagnosis({jobId:job.id,attemptKey:failureAttemptKey(job),value:data.diagnosis,
         section:data.section??null,sectionCount:data.sectionCount??null,stage:data.stage});
     }catch(e){setError(e instanceof Error?e.message:"Could not check Gemini failure details.");}
     finally{setDiagnosing(false);}
@@ -270,15 +275,15 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
   const available=playable.filter(a=>!jobs.some(j=>j.audioAssetId===a.id&&activeStatuses.has(j.status)));
   const completeVersions=jobs.filter(job=>job.status==="ready"&&job.generatedMarkdown);
   const newest=jobs[0];
-  const currentDiagnosis=diagnosis?.jobId===newest?.id?diagnosis:null;
-  // One read-only lookup per failed job when this page is opened. Unlike a
-  // model interaction POST, this checks Google's stored failure without
-  // uploading audio or generating another result. Free results expire quickly.
+  const currentDiagnosis=newest&&diagnosis?.attemptKey===failureAttemptKey(newest)?diagnosis:null;
+  // One read-only lookup per FAILED ATTEMPT. Retrying the same recap job
+  // changes its updatedAt; don't reuse the first interaction's diagnosis.
+  // These GETs cannot consume model inference quota.
   useEffect(()=>{
     if(newest?.status!=="needs_attention"||
       !["segment_interaction_failed","interaction_failed"].includes(newest.errorCode??"")||
-      diagnosedJob.current===newest.id)return;
-    diagnosedJob.current=newest.id;
+      diagnosedJob.current===failureAttemptKey(newest))return;
+    diagnosedJob.current=failureAttemptKey(newest);
     void diagnoseFailure(newest);
   },[newest,diagnoseFailure]);
   const duration=confirmAsset?(durations[confirmAsset.id]??confirmAsset.durationMs):null;
@@ -434,6 +439,8 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
             "\\nError: "+(newest.errorCode||"unknown")+
             "\\nPreparation: "+(newest.stageErrorCode||"not available")+
             "\\nUpdated: "+newest.updatedAt+
+            "\nAudio analysis model: "+(newest.audioAnalysisModel??"unknown")+
+            "\nAutomatic fallback attempted: "+(newest.singleAudioRetryCount===1?"yes":"no")+
             (currentDiagnosis?"\\nGemini diagnosis: "+currentDiagnosis.value.title+
               "\\nDiagnosis category: "+currentDiagnosis.value.kind+
               "\\nExplanation: "+currentDiagnosis.value.explanation+

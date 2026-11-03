@@ -96,7 +96,7 @@ export async function saveUnchangedAudio(file:File,options:{
     startMs:0,durationMs,localKey:key}];
 }
 type FFmpegRunner={
-  load:(options:{coreURL:string;wasmURL:string})=>Promise<unknown>;
+  load:(options:{coreURL:string;wasmURL:string;classWorkerURL?:string})=>Promise<unknown>;
   writeFile:(name:string,data:Uint8Array)=>Promise<unknown>;
   exec:(args:string[])=>Promise<number>;
   readFile:(name:string)=>Promise<Uint8Array|string>;
@@ -118,7 +118,8 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   };
   const js=await blobURL("ffmpeg-core.js","text/javascript");
   const wasm=await blobURL("ffmpeg-core.wasm","application/wasm");
-  try{await ffmpeg.load({coreURL:js,wasmURL:wasm});converter=ffmpeg;return ffmpeg;}
+  try{await ffmpeg.load({coreURL:js,wasmURL:wasm,
+      classWorkerURL:window.location.origin+"/api/recap-ffmpeg/worker.js"});converter=ffmpeg;return ffmpeg;}
   finally{URL.revokeObjectURL(js);URL.revokeObjectURL(wasm);}
 }
 export async function prepareRecapWithFFmpeg(file:File,options:{
@@ -142,7 +143,6 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
       key:prefix+"_"+i,name:"session-part-"+String(i+1).padStart(3,"0")+"."+ext};
   });
   for(const part of plans){
-    if(await availableBrowserRecapFile(part.key,0))void 0;
     try{
       const saved=await browserRecapFile(part.key);
       if(saved.size>=128&&saved.size<=

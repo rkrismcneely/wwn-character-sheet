@@ -20,7 +20,7 @@ async function scope(request:Request,context:Context,recapId:unknown){
     throw new CampaignServiceError("Only GMs can save local transcript segments.",403);
   requireActiveCampaign(access.campaign);
   const recap=await getCampaignSessionRecap(db,actor,id,recapId);
-  return {db,key:recapTranscriptObjectKey(access.campaign.id,recap.id),campaignId:access.campaign.id};
+  return {db,key:recapTranscriptObjectKey(access.campaign.publicId,recap.id),campaignId:access.campaign.id};
 }
 async function snapshot(key:string){
   const object=await env.BUCKET.get(key);

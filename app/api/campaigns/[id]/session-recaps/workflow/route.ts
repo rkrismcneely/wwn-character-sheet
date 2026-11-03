@@ -23,7 +23,7 @@ async function scope(request:Request,context:Context,recapId:unknown){
     throw new CampaignServiceError("Only campaign GMs can manage recap stages.",403);
   requireActiveCampaign(access.campaign);
   const recap=await getCampaignSessionRecap(db,actor,id,recapId);
-  return {db,actor,campaignId:access.campaign.id,recapId:recap.id};
+  return {db,actor,campaignId:access.campaign.publicId,recapId:recap.id};
 }
 async function readState(key:string){
   const object=await env.BUCKET.get(key);

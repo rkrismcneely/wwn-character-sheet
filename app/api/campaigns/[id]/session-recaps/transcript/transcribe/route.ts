@@ -102,7 +102,7 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     const audioHash=hex(await crypto.subtle.digest("SHA-256",fileBytes));
     const receipt=hex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(
       [audioHash,input.startMs,input.durationMs,input.model,speakerId].join(":"))));
-    const key=recapTranscriptObjectKey(access.campaign.id,recap.id);
+    const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
     const before=await previousTranscript(key);
     if(before.transcript?.processedClips?.includes(receipt))
       return Response.json({saved:true,duplicate:true,added:0,

@@ -30,7 +30,7 @@ export async function PATCH(request:Request,context:Context){
       replaceFrom?:unknown;replaceTo?:unknown;
     };
     const recap=await getCampaignSessionRecap(db,actor,id,body.recapId);
-    const key=recapTranscriptObjectKey(access.campaign.id,recap.id);
+    const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
     const object=await env.BUCKET.get(key);
     if(!object)throw new CampaignServiceError("No saved transcript exists.",404);
     const transcript=await object.json<RecordedRecapTranscript>();

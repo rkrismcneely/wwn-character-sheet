@@ -5,6 +5,7 @@ import { campaignErrorResponse } from "@/lib/campaigns/http";
 import { getCampaignSessionRecap } from "@/lib/campaigns/session-recaps";
 import { CampaignServiceError,getCampaignD1,loadCampaignAccess,requireActiveCampaign } from "@/lib/campaigns/service";
 import { recapTranscriptObjectKey } from "@/lib/campaigns/recap-full-transcript";
+import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import { mergeGroqAudioTranscript,type RecordedRecapTranscript,type TranscriptionAttribution } from "@/lib/campaigns/recap-groq-audio";
 import { GEMINI_TRANSCRIBE_MODEL,MAX_GEMINI_CHUNK_BYTES,normalizeGeminiWords,supportedGeminiAudio } from "@/lib/campaigns/recap-gemini-transcribe";
 import { decryptGeminiUserKey,type RecapAIEncryptionSettings } from "@/lib/account/recap-gemini-key";
@@ -16,10 +17,6 @@ const int=(x:FormDataEntryValue|null)=>{
   if(typeof x!=="string"||!/^\d{1,9}$/u.test(x))return NaN;
   return Number(x);
 };
-async function digest(value:BufferSource):Promise<string> {
-  const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",value));
-  return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
-}
 async function uploadGeminiFile(apiKey:string,file:File,mime:string):Promise<string> {
   const base="https://generativelanguage.googleapis.com";
   const start=await fetch(base+"/upload/v1beta/files",{
@@ -127,9 +124,9 @@ export async function POST(request:Request,context:Context):Promise<Response> {
       if(!row)return errorResponse("Selected speaker is not in the campaign.",409);
       speaker={rawSpeaker:row.discordName,speakerName:row.displayName,role:row.role,characterName:row.characterName};
     }
-    const hash=await digest(await audio.arrayBuffer());
-    const receipt=await digest(new TextEncoder().encode(
-      ["gemini",hash,startMs,durationMs,speakerId,GEMINI_TRANSCRIBE_MODEL].join(":")));
+    const receipt=await recapCloudClipReceipt(await audio.arrayBuffer(),"gemini",{
+      startMs,durationMs,speakerId,model:GEMINI_TRANSCRIBE_MODEL,
+    });
     const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
     async function saved(){
       const object=await env.BUCKET.get(key);

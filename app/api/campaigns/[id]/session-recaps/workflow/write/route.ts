@@ -44,7 +44,8 @@ async function scope(request:Request,context:Context,recapId:unknown){
   const writer=workflow.writer;
   if(!allowedModels[writer.provider].includes(writer.model))
     throw new CampaignServiceError("Choose a supported writing model.",422);
-  const parts=planTranscriptRecap(record.cues);
+  const parts=planTranscriptRecap(record.cues,
+    writer.provider==="local"?4500:undefined,writer.provider==="local"?160:undefined);
   return {db,userId:actor.userId,campaignId:access.campaign.id,recapId:recap.id,
     writer,workflow,parts};
 }
@@ -240,8 +241,11 @@ export async function POST(request:Request,ctx:Context){
       const ledgers=notes.map(n=>n!.content);
       if(ledgers.some(n=>n.length>3500))
         return issue("One event section is too long for a reliable final recap. Shorten and save it before continuing.",409);
-      const prompt=finalPrompt(ledgers,await context(info),info.writer.detail);
-      if(prompt.length>120_000)return issue("Event ledgers exceed the final writer's safe input size.",413);
+      // Local browser generation uses its own hierarchical context reduction.
+      // Never reject a locally generated draft just because the *unsubmitted*
+      // complete cloud prompt would exceed a small on-device model's context.
+      const prompt=local?"":finalPrompt(ledgers,await context(info),info.writer.detail);
+      if(!local&&prompt.length>120_000)return issue("Event ledgers exceed the final writer's safe input size.",413);
       const text=local?body.content:await remoteWrite(info.writer.provider,info.writer.model,
         await providerKey(info,body.apiKey),prompt,4200);
       if(typeof text!=="string"||text.trim().length<10||text.length>30_000)

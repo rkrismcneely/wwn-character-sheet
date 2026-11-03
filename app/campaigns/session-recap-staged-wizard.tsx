@@ -91,7 +91,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         setData(value);
         const w=value.workflow;
         if(w.writer){setWriterProvider(w.writer.provider);setWriterModel(w.writer.model);setDetail(w.writer.detail);}
-        else if(w.preparation){setProvider(w.preparation.provider);setMethod(w.preparation.method);}
+        if(w.preparation){setProvider(w.preparation.provider);setMethod(w.preparation.method);}
         if(w.source?.kind==="drive")setSourceChoice(w.source.id);
         else {
           const ready=value.assets.filter(asset=>asset.status==="ready"&&typeof asset.byteSize==="number");

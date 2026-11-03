@@ -324,7 +324,10 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         onClick={()=>{setStep(i);setError("");setNotice("");}}>
         {stageValid[i]?"✓ ":""}{i+1}. {name}</button>)}
     </div>
-    {step===0&&<>
+    {step===0&&!data&&<p className="campaign-error" role="alert">
+      Saved recap progress could not be loaded. Refresh it above before uploading another recording.
+    </p>}
+    {step===0&&data&&<>
       <h4>1. Upload and approve the original recording</h4>
       <p className="campaign-empty-copy">Keep the original high-quality recording for players.
         Use your connected Google Drive, or save it locally in this browser without another account.</p>

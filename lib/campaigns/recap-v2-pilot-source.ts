@@ -10,7 +10,7 @@ import {getGmDriveAccessToken} from "@/lib/campaigns/recap-drive-token";
 import {planM4aPilotExcerpt,M4A_PILOT_MAX_BYTES} from "@/lib/campaigns/recap-m4a-remux";
 import {verifyPilotCapability} from "@/lib/campaigns/recap-v2-pilot-capability";
 import type {RecapAIEncryptionSettings} from "@/lib/account/recap-groq-key";
-import {validateAudioRangeHeader} from "@/lib/campaigns/recap-drive-playback-range";
+import {excerptRequestedRange} from "@/lib/campaigns/recap-v2-pilot-range";
 type Context={params:Promise<{assetId:string}>};
 type Source={
   campaignId:string;recapId:string;ownerId:string;remoteFileId:string;
@@ -25,15 +25,6 @@ const headers=()=>new Headers({
   "accept-ranges":"bytes","content-type":"audio/mp4",
 });
 function notFound():Response{return new Response(null,{status:404,headers:headers()});}
-export function excerptRequestedRange(value:string|null,size:number):{start:number;end:number;status:200|206}{
-  const normal=validateAudioRangeHeader(value,size);
-  if(!normal)return {start:0,end:size-1,status:200};
-  const suffix=/^bytes=-(\d+)$/u.exec(normal);
-  if(suffix){const count=Number(suffix[1]);return {start:Math.max(0,size-count),end:size-1,status:206};}
-  const parts=/^bytes=(\d+)-(\d*)$/u.exec(normal);
-  if(!parts)throw RangeError("Unsupported byte range.");
-  return {start:Number(parts[1]),end:parts[2]?Number(parts[2]):size-1,status:206};
-}
 export async function handlePilotExcerpt(request:Request,context:Context):Promise<Response>{
   const config=env as unknown as RecapAIEncryptionSettings & DriveSettings & {
     TWE_RECAP_V2_PILOT_ENABLED?:string;

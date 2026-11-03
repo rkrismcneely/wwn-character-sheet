@@ -30,7 +30,16 @@ async function gm(request:Request,ctx:Context,recapId:unknown){
 export async function GET(request:Request,ctx:Context){
   try{
     const info=await gm(request,ctx,new URL(request.url).searchParams.get("recapId"));
+    const jobColumns=await info.db.prepare("PRAGMA table_info(campaign_recap_audio_summary_jobs)")
+      .all<{name:string}>();
+    const singleRecoverySchema=["audio_analysis_model","single_audio_retry_count",
+      "audio_retry_not_before"].every(name=>jobColumns.results.some(column=>column.name===name));
     const rows=await info.db.prepare("SELECT id,audio_asset_id AS audioAssetId,status,detail,model,generated_markdown AS generatedMarkdown,"+
+      (singleRecoverySchema?
+        "audio_analysis_model AS audioAnalysisModel,single_audio_retry_count AS singleAudioRetryCount,"+
+        "audio_retry_not_before AS audioRetryNotBefore,":
+        "'gemini-3.8-flash' AS audioAnalysisModel,0 AS singleAudioRetryCount,"+
+        "NULL AS audioRetryNotBefore,")+
       "error_code AS errorCode,stage_error_code AS stageErrorCode,"+
       "stage_offset AS stageBytes,"+
       "(SELECT byte_size FROM campaign_recap_audio_assets a WHERE a.id=audio_asset_id) AS totalBytes,"+
@@ -41,7 +50,8 @@ export async function GET(request:Request,ctx:Context){
       .bind(info.campaign.id,info.recap.id,info.actor.userId).all<{
         id:string;audioAssetId:string;status:string;detail:string;model:string;generatedMarkdown:string|null;
         errorCode:string|null;stageErrorCode:string|null;stageBytes:number;totalBytes:number|null;
-        createdAt:string;updatedAt:string;
+        createdAt:string;updatedAt:string;audioAnalysisModel:string;
+        singleAudioRetryCount:number;audioRetryNotBefore:string|null;
         fileUri:string|null;fileName:string|null;interactionId:string|null;
       }>();
     // Segment progress is private to the originating GM and returned only as

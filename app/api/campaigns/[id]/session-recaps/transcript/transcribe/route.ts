@@ -1,3 +1,4 @@
+import {decryptGroqUserKey,type RecapAIEncryptionSettings} from "@/lib/account/recap-groq-key";
 import { env } from "cloudflare:workers";
 import { getSessionActor } from "@/lib/auth-session";
 import { canManageCampaignContent } from "@/lib/campaigns/authorization";
@@ -66,7 +67,19 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     if(requiredString(form,"approvedShare")!=="true" ||
       requiredString(form,"approvedBilling")!=="true")
       return reply("Confirm external audio sharing and your own provider charges.",422);
-    const apiKey=requiredString(form,"apiKey");
+    const supplied=form.get("apiKey");
+    let apiKey=typeof supplied==="string"?supplied.trim():"";
+    if(!apiKey){
+      const row=await db.prepare("SELECT id,status,key_ciphertext AS ciphertext,"+
+        "key_nonce AS nonce,key_version AS version FROM user_recap_groq_connections WHERE user_id=?")
+        .bind(actor.userId).first<{id:string;status:string;ciphertext:string|null;nonce:string|null;version:number|null}>();
+      if(!row||row.status!=="connected"||!row.ciphertext||!row.nonce||row.version!==1)
+        return reply("Connect your personal Groq key in Account, or enter it for this run.",409);
+      try{
+        apiKey=await decryptGroqUserKey(env as unknown as RecapAIEncryptionSettings,
+          actor.userId,row.id,{ciphertext:row.ciphertext,nonce:row.nonce,version:1});
+      }catch{return reply("Saved Groq key is unavailable. Reconnect it in Account.",409);}
+    }
     if(!/^gsk_[A-Za-z0-9_-]{16,180}$/u.test(apiKey))
       return reply("Enter a valid personal Groq API key.",422);
     const speakerId=requiredString(form,"speakerId");

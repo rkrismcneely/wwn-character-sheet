@@ -34,9 +34,9 @@ function validateIdentity(v:PilotCapabilityIdentity):boolean{
   typeof v.ownerId==="string"&&v.ownerId.length>=1&&v.ownerId.length<=256&&
   !/[\x00-\x1f]/u.test(v.ownerId);
 }
-function message(value:PilotCapabilityIdentity&{expires:number;nonce:string}):Uint8Array{
- return new TextEncoder().encode([SIGNING_CONTEXT,value.campaignId,value.recapId,
-  value.assetId,value.ownerId,String(value.expires),value.nonce].join("\n"));
+function message(value:PilotCapabilityIdentity&{expires:number;nonce:string}):Uint8Array<ArrayBuffer>{
+ return new Uint8Array(new TextEncoder().encode([SIGNING_CONTEXT,value.campaignId,value.recapId,
+  value.assetId,value.ownerId,String(value.expires),value.nonce].join("\n")));
 }
 async function hmacKey(settings:RecapAIEncryptionSettings):Promise<CryptoKey>{
  const key=settings.RECAP_STORAGE_ENCRYPTION_KEY??"";

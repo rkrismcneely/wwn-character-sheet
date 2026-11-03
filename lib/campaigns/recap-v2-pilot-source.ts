@@ -16,7 +16,7 @@ type Context={params:Promise<{assetId:string}>};
 type Source={
   campaignId:string;recapId:string;ownerId:string;remoteFileId:string;
   connectionId:string;byteSize:number;durationMs:number|null;mimeType:string;
-  sourceByteSize:number;sourceStart:number;sourceEnd:number;
+  sourceByteSize:number;sourceStart:number;sourceEnd:number;excerptEndMs:number;
   prefixBase64:string;
 };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -51,7 +51,8 @@ export async function handlePilotExcerpt(request:Request,context:Context):Promis
       "a.remote_file_id AS remoteFileId,a.connection_id AS connectionId,"+
       "a.byte_size AS byteSize,a.duration_ms AS durationMs,a.mime_type AS mimeType,"+
       "p.source_byte_size AS sourceByteSize,p.source_start AS sourceStart,"+
-      "p.source_end AS sourceEnd,p.prefix_base64 AS prefixBase64 "+
+      "p.source_end AS sourceEnd,p.prefix_base64 AS prefixBase64,"+
+      "p.excerpt_end_ms AS excerptEndMs "+
       "FROM campaign_recap_audio_assets a "+
       "JOIN user_recap_storage_connections s ON s.id=a.connection_id "+
       "AND s.user_id=a.storage_owner_user_id "+
@@ -76,10 +77,10 @@ export async function handlePilotExcerpt(request:Request,context:Context):Promis
     // browser and checkpointed BEFORE Groq was contacted. Source GET/HEAD
     // does not reparse the multi-hour M4A on Workers Free.
     const clip=validatePilotM4aPlan({
-      index:0,startMs:0,endMs:120000,
+      index:0,startMs:0,endMs:source.excerptEndMs,
       sourceStart:source.sourceStart,sourceEnd:source.sourceEnd,
       prefixBase64:source.prefixBase64,mimeType:"audio/mp4",
-    },source.byteSize,null).clip;
+    },source.byteSize,source.durationMs).clip;
     const prefix=Buffer.from(clip.prefixBase64,"base64");
     const payloadSize=clip.sourceEnd-clip.sourceStart;
     const size=prefix.length+payloadSize;

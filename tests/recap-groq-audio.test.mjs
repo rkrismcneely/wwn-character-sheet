@@ -64,12 +64,16 @@ test("route requires a campaign GM, own key, full timestamp validation and condi
   for(const required of [
     "getSessionActor(request)","loadCampaignAccess(db,actor,id)","canManageCampaignContent",
     "getCampaignSessionRecap(db,actor,id,recapId)","campaign_recap_speakers WHERE campaign_id=? AND id=?",
-    'approvedShare','approvedBilling','request.formData()','crypto.subtle.digest("SHA-256",fileBytes)',
+    'approvedShare','approvedBilling','request.formData()','recapCloudClipReceipt(fileBytes,"groq"',
     'api.groq.com/openai/v1/audio/transcriptions','timestamp_granularities[]','verbose_json',
     "normalizeGroqAudioSegments","mergeGroqAudioTranscript","previousTranscript(key)",
     "responseData.segments.length===0",
     "onlyIf",'"If-None-Match"','etagMatches',
   ])assert.ok(route.includes(required),"Missing safety invariant: "+required);
+  // Hashing moved to the shared helper so client and server agree on saved receipts.
+  const helper=await readFile(new URL("../lib/campaigns/recap-cloud-clip-receipt.ts",import.meta.url),"utf8");
+  assert.match(helper,/crypto\\.subtle\\.digest\\("SHA-256",data\\)/u);
+  assert.match(route,/recapCloudClipReceipt\\(fileBytes,"groq"/u);
   assert.doesNotMatch(route,/RECAP_FREE_AI_QUOTA_VERIFIED|CLOUDFLARE_AI_KEY|process\.env\.GROQ_API_KEY/u);
   assert.doesNotMatch(route,/console\.log\(|BUCKET\.put\(.*apiKey/u);
 });

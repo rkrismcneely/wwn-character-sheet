@@ -176,6 +176,8 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
   }):"ffmpeg";
   const chosenWriter=writerOptions.find(x=>x.id===writerProvider)!;
   const savedWriter=workflow?.writer;
+  const writerChoiceSaved=Boolean(savedWriter&&savedWriter.provider===writerProvider&&
+    savedWriter.model===writerModel&&savedWriter.detail===detail);
   const savedDrafts=workflow?.drafts??[];
   const transcriptCurrent=Boolean(data?.transcript.count&&workflow?.transcriptApprovedRevision&&
     workflow.transcriptApprovedRevision===data?.transcript.updatedAt);
@@ -634,10 +636,14 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             <option value="detailed">Detailed</option>
           </select>
         </label>
-        <button type="button" className="campaign-secondary" disabled={busy}
-          onClick={()=>void selectWriter()}>Save writer choice (no AI request)</button>
-        {savedWriter&&<div className="session-recap-reading">
-          <p>Selected: <strong>{savedWriter.provider} — {savedWriter.model}</strong>
+        {!writerChoiceSaved&&<p className="session-recap-import-notice" role="status">
+          Writer choice has changed but is not saved. Save the selected provider, model
+          and detail level before generating. Your existing drafts and checkpoints are preserved.
+        </p>}
+        <button type="button" className="campaign-secondary" disabled={busy||writerChoiceSaved}
+          onClick={()=>void selectWriter()}>{writerChoiceSaved?"Writer choice saved":"Save writer choice (no AI request)"}</button>
+        {savedWriter&&writerChoiceSaved&&<div className="session-recap-reading">
+          <p>Active writer: <strong>{savedWriter.provider} — {savedWriter.model}</strong>
             {" · "}{savedWriter.detail}.</p>
           <SessionRecapStagedWriter key={savedWriter.provider+savedWriter.model+
             savedWriter.detail+workflow?.transcriptApprovedRevision}

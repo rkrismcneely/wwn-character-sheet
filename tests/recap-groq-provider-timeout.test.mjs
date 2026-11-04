@@ -24,7 +24,8 @@ test("an uncertain Groq result is never auto-retried or mistaken for provider qu
   assert.match(route,/previousTranscript\(key\)/u);
   assert.match(route,/processedClips\?\.includes\(receipt\)/u);
   const request=route.slice(route.indexOf('provider=await fetch("https://api.groq.com/openai/v1/audio/transcriptions"'),route.indexOf('if(!provider.ok)'));
-  assert.doesNotMatch(request,/retry|setTimeout|while\(/u);
+  assert.equal(request.split('provider=await fetch("https://api.groq.com/openai/v1/audio/transcriptions"').length-1,1);
+  assert.doesNotMatch(request,/setTimeout\(|while\s*\(/u);
 });
 
 test("Step 3 distinguishes transfer completion from provider verification",async()=>{

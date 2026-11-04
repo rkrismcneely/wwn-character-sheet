@@ -36,6 +36,8 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [loading,setLoading]=useState(true);
+  const [campaignSpeakers,setCampaignSpeakers]=useState<{id:string;displayName:string}[]>([]);
+  const [speakerChoices,setSpeakerChoices]=useState<Record<string,string>>({});
   useEffect(()=>{
     const controller=new AbortController();
     void fetch(base+"/transcript?recapId="+encodeURIComponent(recapId),
@@ -50,7 +52,19 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
   },[base,recapId]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch("/api/campaigns/"+encodeURIComponent(campaignId)+"/recap-imports",
+      {cache:"no-store",signal:controller.signal}).then(async response=>{
+        if(!response.ok)throw Error("Unable to load campaign speaker choices.");
+        return await response.json() as {speakers?:{id:string;displayName:string}[]};
+      }).then(value=>{if(!controller.signal.aborted)setCampaignSpeakers(value.speakers??[]);})
+      .catch(()=>{});
+    return()=>controller.abort();
+  },[campaignId]);
   const cues=document?.cues??[];
+  const detectedLabels=useMemo(()=>[...new Set(cues.map(c=>c.rawSpeaker))]
+    .filter(label=>/^Speaker [1-9][0-9]*(?: · section [1-9][0-9]*)?$/u.test(label)),[cues]);
   const filtered=useMemo(()=>cues.map((cue,index)=>({cue,index}))
     .filter(({cue})=>(cue.text+" "+cue.speakerName+" "+(cue.characterName||"")).toLowerCase()
       .includes(search.toLowerCase().trim())),[cues,search]);
@@ -60,6 +74,29 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
     const cue=cues[index];
     setEditing(index);setText(cue.text);setStart(time(cue.startMs));setEnd(time(cue.endMs));
     setError("");setNotice("");
+  }
+  async function assignDetectedSpeaker(label:string){
+    const speakerId=speakerChoices[label];
+    if(!speakerId||!document?.updatedAt||busy)return;
+    const displayName=campaignSpeakers.find(s=>s.id===speakerId)?.displayName;
+    if(!window.confirm("Assign all dialogue from "+label+" to "+(displayName??"this speaker")+
+      "? Confirm the voice is correct before continuing."))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const response=await fetch(base+"/workflow/transcript-edit",{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({recapId,updatedAt:document.updatedAt,speakerLabel:label,speakerId}),
+      });
+      const result=await response.json() as {saved?:boolean;updatedAt?:string;replacements?:number;error?:string};
+      if(!response.ok||!result.saved)throw Error(result.error||"Could not assign voice.");
+      const fresh=await fetch(base+"/transcript?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
+      const updated=await fresh.json() as Document;
+      if(!fresh.ok)throw Error(updated.error||"Voice saved; reload to see it.");
+      setDocument(updated);
+      setNotice("Assigned "+(result.replacements??0)+" dialogue cues to "+displayName+".");
+      onChanged();
+    }catch(e){setError(e instanceof Error?e.message:"Could not assign voice.");}
+    finally{setBusy(false);}
   }
   async function replaceNames(){
     if(busy||!document?.updatedAt||!replaceFrom.trim()||!replaceTo.trim())return;
@@ -107,6 +144,23 @@ export function SessionRecapStagedTranscriptReview({campaignId,recapId,onChanged
       <p className="campaign-empty-copy">{cues.length} speech cues · First cue {time(cues[0].startMs)}
         {" · "}Last cue {time(Math.max(...cues.map(c=>c.endMs)))}.
         Confirm the opening and ending events are represented before approving.</p>
+      {detectedLabels.length>0&&<div className="session-recap-reading">
+        <h5>Identify detected voices</h5>
+        <p className="campaign-empty-copy">Speaker numbers are not player identities. Listen to the audio and confirm each voice before assigning it to a campaign participant. Each assignment updates the transcript without changing its words or timestamps.</p>
+        {detectedLabels.map(label=><div className="session-recap-form-actions" key={label}>
+          <label>{label}
+            <select value={speakerChoices[label]??""} disabled={busy}
+              onChange={e=>setSpeakerChoices(old=>({...old,[label]:e.target.value}))}>
+              <option value="">Choose confirmed player / GM</option>
+              {campaignSpeakers.map(person=><option key={person.id} value={person.id}>{person.displayName}</option>)}
+            </select>
+          </label>
+          <button type="button" className="campaign-secondary"
+            disabled={busy||!speakerChoices[label]} onClick={()=>void assignDetectedSpeaker(label)}>
+            Apply identity
+          </button>
+        </div>)}
+      </div>}
       <label>Search dialogue, names or characters
         <input type="search" value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}}
           placeholder="Find a name or phrase"/>

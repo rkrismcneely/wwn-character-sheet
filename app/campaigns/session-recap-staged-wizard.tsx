@@ -6,6 +6,7 @@ import {readRecapAudioWithProgress} from "@/lib/campaigns/recap-audio-download-p
 import {SessionRecapStagedTranscriber} from "./session-recap-staged-transcriber";
 import {SessionRecapFullTranscriptManager} from "./session-recap-full-transcript-manager";
 import {SessionRecapStagedTranscriptReview} from "./session-recap-staged-transcript-review";
+import {SessionRecapSherpaReview} from "./session-recap-sherpa-review";
 import {SessionRecapStagedWriter} from "./session-recap-staged-writer";
 import {audioFileDuration,browserRecapFile,browserRecapKey,
   saveBrowserRecapFile,prepareRecapWithFFmpeg,saveUnchangedAudio,
@@ -22,7 +23,7 @@ const NO_ASSETS:Asset[]=[];
 const transcriptionOptions:{id:RecapTranscriber;name:string;description:string}[]=[
   {id:"groq",name:"Groq Whisper",description:"Cloud · Personal Groq key · Accurate timestamps · Quotas apply"},
   {id:"gemini",name:"Google Gemini",description:"Cloud · Personal Gemini key · Audio processing may be less reliable"},
-  {id:"local-whisper",name:"Local Whisper",description:"Free on this device · No AI account · Slower and experimental"},
+  {id:"local-whisper",name:"Local Whisper",description:"Free on this device · Optional Sherpa speaker detection during review · Experimental"},
   {id:"import",name:"Import SRT / WebVTT",description:"Free · Use an existing Craig or other timestamped transcript"},
 ];
 const writerOptions:{id:RecapWriter;name:string;description:string;models:{id:string;name:string}[]}[]=[
@@ -584,6 +585,9 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       <SessionRecapStagedTranscriptReview key={data?.transcript.updatedAt||"none"}
         campaignId={campaignId} recapId={recapId}
         onChanged={()=>{setTranscriptReviewed(false);setCheckedEnding(false);void refresh();}}/>
+      {currentPreparation?.provider==="local-whisper"&&<SessionRecapSherpaReview
+        campaignId={campaignId} recapId={recapId} preparation={currentPreparation}
+        onChanged={()=>{setTranscriptReviewed(false);setCheckedEnding(false);void refresh();}}/>}
       <details className="session-recap-reading">
         <summary>Import or replace a transcript from Craig captions</summary>
         <SessionRecapFullTranscriptManager campaignId={campaignId} recapId={recapId}/>

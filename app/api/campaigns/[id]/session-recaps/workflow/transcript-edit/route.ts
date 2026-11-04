@@ -27,7 +27,7 @@ export async function PATCH(request:Request,context:Context){
     const body=await readBoundedJson(request,7000) as {
       recapId?:unknown;updatedAt?:unknown;cueIndex?:unknown;
       text?:unknown;startMs?:unknown;endMs?:unknown;
-      replaceFrom?:unknown;replaceTo?:unknown;
+      replaceFrom?:unknown;replaceTo?:unknown; speakerLabel?:unknown; speakerId?:unknown;
     };
     const recap=await getCampaignSessionRecap(db,actor,id,body.recapId);
     const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
@@ -42,7 +42,24 @@ export async function PATCH(request:Request,context:Context){
       "Unpublish the transcript before correcting its public text.",409);
     let cues:StoredCaptionCue[];
     let replacements=0;
-    if(typeof body.replaceFrom==="string"&&typeof body.replaceTo==="string"){
+    if(typeof body.speakerLabel==="string"){
+      const label=body.speakerLabel.trim();
+      if(!label||label.length>80||/[\u0000-\u001f\u007f]/u.test(label))
+        throw new CampaignServiceError("Choose a valid detected voice.",422);
+      if(typeof body.speakerId!=="string"||
+        !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(body.speakerId))
+        throw new CampaignServiceError("Choose a saved campaign speaker.",422);
+      const row=await db.prepare(
+        "SELECT discord_name AS discordName,display_name AS displayName,role,character_name AS characterName "+
+        "FROM campaign_recap_speakers WHERE campaign_id=? AND id=?")
+        .bind(access.campaign.publicId,body.speakerId)
+        .first<{discordName:string;displayName:string;role:"gm"|"player"|"guest";characterName:string|null}>();
+      if(!row)throw new CampaignServiceError("That campaign speaker is no longer available.",409);
+      cues=transcript.cues.map(cue=>cue.rawSpeaker===label?
+        {...cue,speakerName:row.displayName,role:row.role,characterName:row.characterName}:cue);
+      replacements=cues.filter((cue,index)=>cue!==transcript.cues[index]).length;
+      if(!replacements)throw new CampaignServiceError("Detected voice was not found in this transcript.",422);
+    }else if(typeof body.replaceFrom==="string"&&typeof body.replaceTo==="string"){
       const from=body.replaceFrom.trim(),to=body.replaceTo.trim();
       if(from.length<2||from.length>80||to.length<1||to.length>80||
         /[\u0000-\u001f\u007f]/u.test(from+to))

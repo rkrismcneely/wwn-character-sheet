@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ChangeEvent } from "react";
 import { parseFullCraigCaptions } from "@/lib/campaigns/recap-full-caption-import";
-import { parseDiscapTranscript } from "@/lib/campaigns/recap-discap-import";
+import { parseDiscapTranscriptDocument, type DiscapTranscriptDocument } from "@/lib/campaigns/recap-discap-import";
 import type { CaptionCue, StoredCaptionCue } from "@/lib/campaigns/recap-full-transcript";
 import type { RecapSpeakerAssociation } from "@/lib/campaigns/recap-imports";
 
@@ -13,6 +13,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
   const [stored,setStored]=useState<Remote>({exists:false});
   const [pending,setPending]=useState<CaptionCue[]>([]);
   const [filename,setFilename]=useState("");
+  const [discapMetadata,setDiscapMetadata]=useState<Omit<DiscapTranscriptDocument,"cues">|null>(null);
   const [assignments,setAssignments]=useState<Record<string,string>>({});
   const [reviewed,setReviewed]=useState(false);
   const [previewQuery,setPreviewQuery]=useState("");
@@ -49,12 +50,17 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
     const file=event.currentTarget.files?.[0];
     event.currentTarget.value="";
     if(!file)return;
-    setError("");setNotice("");setReviewed(false);setPreviewPage(0);setPreviewQuery("");
+    setError("");setNotice("");setReviewed(false);setPreviewPage(0);setPreviewQuery("");setDiscapMetadata(null);
     try {
       if(file.size>2_000_000)throw new Error("Choose a caption file smaller than 2 MB.");
-      const cues=/\.txt$/iu.test(file.name)?
-        parseDiscapTranscript(await file.text(),file.name):
-        parseFullCraigCaptions(await file.text(),file.name);
+      const isDiscap=/\.txt$/iu.test(file.name);
+      const source=await file.text();
+      const document=isDiscap?parseDiscapTranscriptDocument(source,file.name):null;
+      const cues=document?.cues??parseFullCraigCaptions(source,file.name);
+      if(document){
+        const {cues:_cues,...metadata}=document;
+        setDiscapMetadata(metadata);
+      }
       setPending(cues);setFilename(file.name);setAssignments({});
       setNotice("Parsed "+cues.length+" dialogue entries. Confirm every detected speaker before saving. Existing transcript will be replaced only after explicit approval.");
     }catch(cause){setPending([]);setError(cause instanceof Error?cause.message:"Unable to read caption file.");}
@@ -103,7 +109,18 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
         onChange={event=>void chooseFile(event)}/>
     </label>
     {pending.length>0 && <div className="session-recap-reading">
-      <p><strong>{filename}</strong> · {pending.length.toLocaleString()} captions · {labels.length} voices</p>
+      <p><strong>{filename}</strong> · {pending.length.toLocaleString()} captions · {labels.length} speaker labels</p>
+      {discapMetadata&&<p className="campaign-empty-copy">
+        {discapMetadata.title&&<><strong>{discapMetadata.title}</strong> · </>}
+        {discapMetadata.durationMs!==null&&<>{Math.floor(discapMetadata.durationMs/60000)} min {Math.floor(discapMetadata.durationMs/1000)%60} sec · </>}
+        {discapMetadata.startedAt&&<>Recorded {new Date(discapMetadata.startedAt).toLocaleString()} · </>}
+        {discapMetadata.participants&&<>Discord participants: {discapMetadata.participants}</>}
+      </p>}
+      {discapMetadata&&labels.length===1&&<p className="campaign-empty-copy">
+        Only one Discord speaker label was detected. Discap identifies the Discord audio source,
+        not separate people whose voices are played through the same microphone. Confirm the
+        source account below; TWE cannot infer the original speakers from this TXT file.
+      </p>}
       <h5>Confirm each speaker before saving</h5>
       {labels.map(label=><label key={label} style={{display:"block",marginBlock:"0.5rem"}}>
         <span>{label}</span>{" "}

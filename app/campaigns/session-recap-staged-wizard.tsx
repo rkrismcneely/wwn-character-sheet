@@ -6,6 +6,7 @@ import {readRecapAudioWithProgress} from "@/lib/campaigns/recap-audio-download-p
 import {SessionRecapStagedTranscriber} from "./session-recap-staged-transcriber";
 import {SessionRecapFullTranscriptManager} from "./session-recap-full-transcript-manager";
 import {SessionRecapStagedTranscriptReview} from "./session-recap-staged-transcript-review";
+import {SessionRecapSherpaReview} from "./session-recap-sherpa-review";
 import {SessionRecapStagedWriter} from "./session-recap-staged-writer";
 import {audioFileDuration,browserRecapFile,browserRecapKey,
   saveBrowserRecapFile,prepareRecapWithFFmpeg,saveUnchangedAudio,
@@ -584,6 +585,9 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       <SessionRecapStagedTranscriptReview key={data?.transcript.updatedAt||"none"}
         campaignId={campaignId} recapId={recapId}
         onChanged={()=>{setTranscriptReviewed(false);setCheckedEnding(false);void refresh();}}/>
+      {currentPreparation?.provider==="local-whisper"&&<SessionRecapSherpaReview
+        campaignId={campaignId} recapId={recapId} preparation={currentPreparation}
+        onChanged={()=>{setTranscriptReviewed(false);setCheckedEnding(false);void refresh();}}/>}
       <details className="session-recap-reading">
         <summary>Import or replace a transcript from Craig captions</summary>
         <SessionRecapFullTranscriptManager campaignId={campaignId} recapId={recapId}/>

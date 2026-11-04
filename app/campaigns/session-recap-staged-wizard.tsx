@@ -9,7 +9,7 @@ import {SessionRecapStagedTranscriptReview} from "./session-recap-staged-transcr
 import {SessionRecapStagedWriter} from "./session-recap-staged-writer";
 import {audioFileDuration,browserRecapFile,browserRecapKey,
   saveBrowserRecapFile,prepareRecapWithFFmpeg,saveUnchangedAudio,
-  recommendedRecapPreparation,stopRecapFFmpeg} from "@/lib/campaigns/recap-browser-preparation";
+  recommendedRecapPreparation,stopRecapFFmpeg,verifyRecapFFmpegWorker} from "@/lib/campaigns/recap-browser-preparation";
 import type {RecapSource,RecapTranscriber,RecapWriter,RecapWorkflow,PreparedPart,
   RecapWorkflowAction} from "@/lib/campaigns/recap-stage-workflow";
 
@@ -244,6 +244,25 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       if(file.size!==currentSource.bytes)throw Error("Locally saved original is missing or changed.");
       return new File([file],currentSource.name,{type:currentSource.mimeType});
     }
+    // Cache the verified original under this private recap + Drive asset ID.
+    // Retrying preparation must not download an hours-long recording again.
+    const cacheable=method==="ffmpeg"&&currentSource.bytes<=300*1024*1024;
+    const originalKey=cacheable?await browserRecapKey(campaignId,recapId,
+      currentSource.id,"drive-original",String(currentSource.bytes)):null;
+    if(originalKey){
+      try{
+        const cached=await browserRecapFile(originalKey);
+        if(cached.size===currentSource.bytes){
+          if(signal?.aborted)throw Error("Audio preparation stopped.");
+          setProgress("Using the previously downloaded recording from this browser…");
+          setMeter({done:cached.size,total:cached.size,unit:"bytes"});
+          return new File([cached],currentSource.name,{type:currentSource.mimeType});
+        }
+      }catch{
+        if(signal?.aborted)throw Error("Audio preparation stopped.");
+        // Missing browser storage must never cause another Drive upload.
+      }
+    }
     const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio/"+
       encodeURIComponent(currentSource.id)+"/stream";
     setProgress("Downloading original recording privately from Google Drive…");
@@ -258,7 +277,28 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         setMeter({done,total,unit:"bytes"});
       }
     });
-    return new File([blob],currentSource.name,{type:currentSource.mimeType});
+    const original=new File([blob],currentSource.name,{type:currentSource.mimeType});
+    if(originalKey&&!signal?.aborted){
+      try{
+        // Preserve enough browser quota for the converted audio sections.
+        const storage=await navigator.storage?.estimate?.();
+        if(storage&&typeof storage.quota==="number"&&typeof storage.usage==="number"&&
+          storage.quota-storage.usage<original.size*3){
+          return original; // Download succeeded; caching is optional.
+        }
+        setProgress("Caching original recording in this browser for faster retries…");
+        setMeter({done:0,total:original.size,unit:"bytes"});
+        await saveBrowserRecapFile(originalKey,original,(done,total)=>{
+          setMeter({done,total,unit:"bytes"});
+        },signal);
+      }catch{
+        // Disk quota or private-storage restrictions should not prevent use
+        // of an otherwise valid Drive download. Later retries may download again.
+        if(signal?.aborted)throw Error("Audio preparation stopped.");
+      }
+    }
+    if(signal?.aborted)throw Error("Audio preparation stopped.");
+    return original;
   }
   async function prepare(){
     if((!currentSource&&provider!=="import")||busy)return;
@@ -276,6 +316,13 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
           localKey:null}];
       }else{
         if(!currentSource)throw Error("Approve a recording before audio preparation.");
+        if(method==="ffmpeg"){
+          // Fail fast if the converter worker is broken rather than first
+          // transferring a multi-hour Drive recording to discover HTTP 503.
+          setProgress("Checking audio converter availability before downloading the recording…");
+          setMeter(null);
+          await verifyRecapFFmpegWorker(abort.signal);
+        }
         const source=await sourceFile(abort.signal);
         if(abort.signal.aborted)throw Error("Audio preparation stopped.");
         parts=method==="original"?

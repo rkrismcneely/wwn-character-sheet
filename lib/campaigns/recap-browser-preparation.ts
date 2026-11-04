@@ -18,16 +18,18 @@ export async function browserRecapFile(key:string):Promise<File>{
   const handle=await (await directory()).getFileHandle(key);
   return handle.getFile();
 }
-export async function saveBrowserRecapFile(key:string,file:File,onBytes?:(done:number,total:number)=>void){
+export async function saveBrowserRecapFile(key:string,file:File,onBytes?:(done:number,total:number)=>void,signal?:AbortSignal){
   assertKey(key);
   const handle=await (await directory()).getFileHandle(key,{create:true});
   const writable=await handle.createWritable();
   try {
     for(let at=0;at<file.size;at+=4*1024*1024){
+      if(signal?.aborted)throw Error("Audio preparation stopped.");
       const slice=file.slice(at,Math.min(at+4*1024*1024,file.size));
       await writable.write(new Uint8Array(await slice.arrayBuffer()));
       onBytes?.(Math.min(at+slice.size,file.size),file.size);
     }
+    if(signal?.aborted)throw Error("Audio preparation stopped.");
     await writable.close();
     const saved=await handle.getFile();
     if(saved.size!==file.size)throw Error("Prepared recording could not be verified after saving.");
@@ -100,7 +102,7 @@ type FFmpegRunner={
   load:(options:{coreURL:string;wasmURL:string;classWorkerURL?:string},
     controls?:{signal?:AbortSignal})=>Promise<unknown>;
   writeFile:(name:string,data:Uint8Array)=>Promise<unknown>;
-  exec:(args:string[])=>Promise<number>;
+  exec:(args:string[],timeoutMs?:number)=>Promise<number>;
   readFile:(name:string)=>Promise<Uint8Array|string>;
   deleteFile:(name:string)=>Promise<unknown>;
   terminate:()=>void;
@@ -110,6 +112,19 @@ let converter:FFmpegRunner|null=null;
 let loadingConverter:FFmpegRunner|null=null;
 let loadingAbort:AbortController|null=null;
 const FFMPEG_START_TIMEOUT_MS=90_000;
+// Do not leave the tab busy indefinitely if a particular transcode stalls.
+const FFMPEG_PART_TIMEOUT_MS=20*60_000;
+const FFMPEG_WORKER_PATH="/api/recap-ffmpeg/worker.js?version=selfhosted-1";
+/** Small, private-data-free preflight before downloading any Drive recording. */
+export async function verifyRecapFFmpegWorker(signal?:AbortSignal):Promise<void>{
+  const worker=window.location.origin+FFMPEG_WORKER_PATH;
+  const workerCheck=await fetch(worker,{signal,cache:"no-store"});
+  if(!workerCheck.ok||!workerCheck.headers.get("content-type")?.includes("javascript"))
+    throw Error("Audio converter worker is unavailable (HTTP "+workerCheck.status+").");
+  const text=await workerCheck.text();
+  if(!text.includes("self.onmessage")||!text.includes('case "LOAD"'))
+    throw Error("Audio converter worker returned incomplete JavaScript. Retry after deployment.");
+}
 async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   if(converter)return converter;
   if(loadingAbort)throw Error("The audio converter is already starting. Stop the current attempt before retrying.");
@@ -121,34 +136,56 @@ async function loadBrowserFFmpeg():Promise<FFmpegRunner>{
   const load=(async()=>{
     let ffmpeg:FFmpegRunner|null=null;
     try{
-      const wrapper:string="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js";
-      const mod=await import(/* @vite-ignore */ wrapper) as FFmpegModule;
+      await verifyRecapFFmpegWorker(abort.signal);
+      // Pinned dual-CDN fallback. Neither request transfers or uploads any GM audio.
+      // Hosting the 32 MiB WASM file as a Cloudflare static asset is not possible
+      // with the 25 MiB per-asset limit; keep it browser-direct and cacheable.
+      const cdns=["https://cdn.jsdelivr.net/npm","https://unpkg.com"];
+      let mod:FFmpegModule|null=null;
+      for(const cdn of cdns){
+        if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+        try{
+          const wrapper=cdn+"/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js";
+          const imported=await import(/* @vite-ignore */ wrapper) as FFmpegModule;
+          if(typeof imported.FFmpeg!=="function")throw Error("Invalid FFmpeg wrapper module.");
+          mod=imported;
+          break;
+        }catch{/* Try a second pinned source if the primary CDN is blocked. */}
+      }
+      if(!mod)throw Error("Both audio converter JavaScript sources are unavailable.");
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
       ffmpeg=new mod.FFmpeg();
       loadingConverter=ffmpeg;
-      // A module worker cannot use importScripts(). It must import the ESM core,
-      // not the UMD build, which has no default export and can hang ffmpeg.load().
-      const base="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+      // The class worker is an ES module: the core must also be the ESM build.
       const blobURL=async(path:string,type:string)=>{
-        const response=await fetch(base+"/"+path,{signal:abort.signal,cache:"force-cache"});
-        if(!response.ok)throw Error("Audio converter engine download failed ("+response.status+").");
-        const bytes=await response.arrayBuffer();
-        if(!bytes.byteLength)throw Error("Audio converter engine download was empty.");
-        const url=URL.createObjectURL(new Blob([bytes],{type}));
-        urls.push(url);
-        return url;
+        let lastError="unavailable";
+        for(const cdn of cdns){
+          if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+          try{
+            const requestSignal=AbortSignal.any([abort.signal,AbortSignal.timeout(40_000)]);
+            const source=cdn+"/@ffmpeg/core@0.12.10/dist/esm/"+path;
+            const response=await fetch(source,{signal:requestSignal,cache:"force-cache"});
+            if(!response.ok)throw Error("HTTP "+response.status);
+            const bytes=await response.arrayBuffer();
+            if(!bytes.byteLength)throw Error("Empty audio converter engine file.");
+            const url=URL.createObjectURL(new Blob([bytes],{type}));
+            urls.push(url);
+            return url;
+          }catch(error){
+            if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
+            lastError=error instanceof Error?error.message:String(error);
+          }
+        }
+        throw Error("Both pinned sources failed to load "+path+" ("+lastError+").");
       };
       const [js,wasm]=await Promise.all([
         blobURL("ffmpeg-core.js","text/javascript"),
         blobURL("ffmpeg-core.wasm","application/wasm"),
       ]);
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
-      const worker=window.location.origin+"/api/recap-ffmpeg/worker.js?version=selfhosted-1";
-      // Do not assume the same-origin worker proxy is healthy; a 404/502 or
-      // returned HTML causes an uncaught worker error with no LOAD response.
-      const workerCheck=await fetch(worker,{signal:abort.signal,cache:"no-store"});
-      if(!workerCheck.ok||!workerCheck.headers.get("content-type")?.includes("javascript"))
-        throw Error("Audio converter worker is unavailable (HTTP "+workerCheck.status+").");
+      const worker=window.location.origin+FFMPEG_WORKER_PATH;
+      // Preflight above already verified this self-hosted worker before any
+      // remote core/WebAssembly download or FFmpeg initialization.
       await ffmpeg.load({coreURL:js,wasmURL:wasm,classWorkerURL:worker},
         {signal:abort.signal});
       if(abort.signal.aborted)throw Error("Audio converter startup was cancelled.");
@@ -240,8 +277,9 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
         ext==="wav"?"pcm_s16le":"aac"];
       if(ext==="m4a")args.push("-b:a","32k");
       args.push(output);
-      const status=await ffmpeg.exec(args);
-      if(status!==0)throw Error("FFmpeg could not prepare audio part "+(index+1)+".");
+      const status=await ffmpeg.exec(args,FFMPEG_PART_TIMEOUT_MS);
+      if(status!==0)throw Error("FFmpeg stopped preparing section "+(index+1)+
+        " (codec error or time limit). Saved sections are available for retry.");
       const result=await ffmpeg.readFile(output);
       if(typeof result==="string"||result.byteLength<128)
         throw Error("FFmpeg generated an empty or unreadable audio section.");
@@ -259,7 +297,12 @@ export async function prepareRecapWithFFmpeg(file:File,options:{
       await ffmpeg.deleteFile(output);
       options.onProgress?.(ready.filter(Boolean).length,count);
     }
-  }finally{await ffmpeg.deleteFile(input).catch(()=>{});}
+  }finally{
+    await ffmpeg.deleteFile(input).catch(()=>{});
+    // FFmpeg keeps the complete multi-hour input in its own virtual filesystem.
+    // Releasing the worker after every run avoids retaining that large allocation.
+    stopRecapFFmpeg();
+  }
   return ready;
 }
 export function stopRecapFFmpeg(){

@@ -102,7 +102,7 @@ export function SessionRecapSherpaReview({campaignId,recapId,preparation,onChang
       section at a time. Its speaker numbers are only consistent within that section.
       After each section, confirm voices above before processing the next one.
       Your recording is not uploaded to Sherpa, but model files are downloaded from
-      Hugging Face. The tab must remain open while processing.
+      <a href="https://huggingface.co/Transcripta/sherpa-onnx-speaker-diarization-wasm" target="_blank" rel="noopener noreferrer">Hugging Face (model and licenses)</a>. The tab must remain open while processing.
     </p>
     <label>Prepared section
       <select disabled={busy} value={partIndex} onChange={e=>setPartIndex(Number(e.target.value))}>

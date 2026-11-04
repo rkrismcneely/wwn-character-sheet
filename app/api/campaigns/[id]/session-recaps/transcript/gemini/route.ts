@@ -155,7 +155,7 @@ export async function handleGeminiRequest(request:Request,context:Context,
     // If provider output is valid but unexpected, the same already-paid result
     // can be processed on the next attempt without another Gemini API call.
     // Scoped by verified clip receipt + campaign and recap after GM auth.
-    const rawKey=key.replace(/\\.json$/u,"")+"/gemini-raw/"+receipt+".json";
+    const rawKey=key.replace(/\.json$/u,"")+"/gemini-raw/"+receipt+".json";
     const cached=await env.BUCKET.get(rawKey);
     let transcription:unknown;
     if(cached){

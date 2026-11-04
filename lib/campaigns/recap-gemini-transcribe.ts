@@ -57,6 +57,18 @@ export function normalizeGeminiWords(raw:unknown,offsetMs:number,durationMs:numb
     if(completeText.trim())return sectionTextCues(completeText,offsetMs,durationMs);
     throw new Error("Gemini did not return timestamped words or full transcript text. The provider response is saved for recovery.");
   }
+  // Some responses omit output_text even though the word annotations contain
+  // the recognized speech. Recover that text before rejecting bad timestamps.
+  // Only reconstruct when *every* annotation has safe, nonempty speech.
+  const annotatedText=words.every(word=>typeof word.text==="string"&&
+    Boolean(word.text.trim())&&word.text.length<=1400&&
+    !/[\u0000-\u001f\u007f]/u.test(word.text))
+    ?words.map(word=>(word.text as string).trim()).join(" "):"";
+  const recoverText=completeText.trim()||annotatedText;
+  const recover=():CaptionCue[]=>{
+    if(recoverText)return sectionTextCues(recoverText,offsetMs,durationMs);
+    throw new Error("Gemini returned out-of-range timestamps and incomplete transcript text. The provider response is saved for recovery.");
+  };
   const cues:CaptionCue[]=[];
   let start=-1,end=0,phrase="";
   function flush(){
@@ -65,32 +77,39 @@ export function normalizeGeminiWords(raw:unknown,offsetMs:number,durationMs:numb
       rawSpeaker:"",text:phrase.trim()});
     start=-1;end=0;phrase="";
   }
-  for(const word of words){
-    let first:number,last:number;
-    try {
-      first=geminiWordTime(word.start_offset);
-      last=geminiWordTime(word.end_offset);
-    } catch {
-      if(completeText.trim())return sectionTextCues(completeText,offsetMs,durationMs);
-      throw new Error("Gemini returned a word without usable timestamps. The provider response is saved for recovery.");
-    }
-    const text=typeof word.text==="string"?word.text.trim():"";
-    if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||
-      first<0||first>=durationMs||last<first||last>durationMs+2000||
-      !text||text.length>1400||/[\u0000-\u001f\u007f]/u.test(text)){
-      if(completeText.trim())return sectionTextCues(completeText,offsetMs,durationMs);
-      throw new Error("Gemini returned unsupported word timings or text. The provider response is saved for recovery.");
-    }
-    // Sub-millisecond words can round to equal boundaries. Preserve them as
-    // a 1 ms cue without inventing timing outside the submitted clip.
-    last=Math.min(durationMs,Math.max(last,first+1));
-    if(phrase && (first-end>1000 || last-start>15_000 || phrase.length+text.length>1100))flush();
+  // Gemini offsets are normally clip-relative. A few results use recording-
+  // absolute offsets, so detect that only if the complete set fits this
+  // exact section's global timeline. Never shift unrelated/broken offsets.
+  const parsed=words.map(word=>{
+    try{return {first:geminiWordTime(word.start_offset),
+      last:geminiWordTime(word.end_offset),
+      text:typeof word.text==="string"?word.text.trim():""};}
+    catch{return null;}
+  });
+  if(parsed.some(word=>word===null))return recover();
+  const timings=parsed as {first:number;last:number;text:string}[];
+  const allRelative=timings.every(w=>Number.isSafeInteger(w.first)&&Number.isSafeInteger(w.last)&&
+    w.first>=0&&w.first<durationMs&&w.last>=w.first&&w.last<=durationMs+2000);
+  const allAbsolute=offsetMs>0&&timings.every(w=>Number.isSafeInteger(w.first)&&
+    Number.isSafeInteger(w.last)&&w.first>=offsetMs&&w.first<offsetMs+durationMs&&
+    w.last>=w.first&&w.last<=offsetMs+durationMs+2000);
+  if(!allRelative&&!allAbsolute)return recover();
+  const shift=allRelative?0:offsetMs;
+  for(const word of timings){
+    const first=word.first-shift;
+    // Gemini can end the last word a fraction past the clip boundary; clamp
+    // only within the allowed 2-second tolerance, never invent time beyond it.
+    let last=Math.min(durationMs,word.last-shift);
+    const text=word.text;
+    if(!text||text.length>1400||/[\u0000-\u001f\u007f]/u.test(text))
+      return recover();
+    last=Math.max(first+1,last);
+    if(last>durationMs)return recover();
+    if(phrase && (first<end-2000||first-end>1000||
+      last-start>15_000||phrase.length+text.length>1100))flush();
     if(start<0)start=first;
     end=last;
-    if(end<=start){
-      if(completeText.trim())return sectionTextCues(completeText,offsetMs,durationMs);
-      throw new Error("Gemini returned out-of-range timestamps. The provider response is saved for recovery.");
-    }
+    if(end<=start)return recover();
     phrase+=(phrase?" ":"")+text;
   }
   flush();

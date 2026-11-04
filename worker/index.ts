@@ -9,7 +9,7 @@ import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler"
 import {POST as postGeminiTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
 import {POST as postGroqTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
 import {matchDirectRecapTranscription} from "../lib/campaigns/recap-direct-transcription";
-import {handleStagedRecapAudio} from "../lib/campaigns/recap-staged-audio";
+import {handleStagedRecapAudio,cleanupExpiredStagedRecapAudio} from "../lib/campaigns/recap-staged-audio";
 import { runRecapOnlyScheduledTick } from "../lib/campaigns/recap-only-runner";
 import { runVerifiedGeminiRecapRecoveryTick } from "../lib/campaigns/recap-gemini-auto-recovery";
 import { runVerifiedSingleAudioRecoveryTick } from "../lib/campaigns/recap-gemini-single-recovery";
@@ -142,6 +142,11 @@ const worker = {
   async scheduled(_controller: ScheduledController, env: CloudflareEnv,
     ctx: ExecutionContext): Promise<void> {
     // No external AI usage unless a verified, explicit rollout flag is enabled.
+    // Remove abandoned staging bytes without affecting GM Google Drive audio,
+    // transcripts, or saved recap sections.
+    ctx.waitUntil(cleanupExpiredStagedRecapAudio(env.BUCKET).catch(()=>{
+      console.error({event:"twe_recap_audio_staging_cleanup_failed"});
+    }));
     // Errors never disclose OAuth/API credentials or raw transcription content.
     ctx.waitUntil(runGeminiScheduledTick(env as unknown as Parameters<typeof runGeminiScheduledTick>[0])
       .catch(() => {

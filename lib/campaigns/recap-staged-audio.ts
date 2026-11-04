@@ -10,6 +10,7 @@ import {getCampaignSessionRecap} from "@/lib/campaigns/session-recaps";
 import {getCampaignD1,loadCampaignAccess,requireActiveCampaign,
   CampaignServiceError} from "@/lib/campaigns/service";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
+import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
 import {readBoundedJson} from "@/lib/http-json";
 import {handleGeminiRequest} from "@/app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
 import {handleGroqRequest} from "@/app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
@@ -126,7 +127,7 @@ export async function handleStagedRecapAudio(request:Request,
     if(totalBytes!==body.byteSize)return reply("Uploaded section size does not match the prepared original.",409);
     const file=new File(fileParts.map(p=>new Uint8Array(p)),body.filename,
       {type:body.mimeType});
-    const model=provider==="gemini"?"gemini-3.5-transcribe":
+    const model=provider==="gemini"?GEMINI_TRANSCRIBE_MODEL:
       typeof body.model==="string"?body.model:"";
     const fileBytes=await file.arrayBuffer();
     const computed=await recapCloudClipReceipt(fileBytes,provider,{

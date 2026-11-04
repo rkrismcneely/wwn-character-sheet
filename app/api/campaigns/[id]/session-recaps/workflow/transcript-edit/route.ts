@@ -52,7 +52,7 @@ export async function PATCH(request:Request,context:Context){
       const row=await db.prepare(
         "SELECT discord_name AS discordName,display_name AS displayName,role,character_name AS characterName "+
         "FROM campaign_recap_speakers WHERE campaign_id=? AND id=?")
-        .bind(access.campaign.publicId,body.speakerId)
+        .bind(access.campaign.id,body.speakerId)
         .first<{discordName:string;displayName:string;role:"gm"|"player"|"guest";characterName:string|null}>();
       if(!row)throw new CampaignServiceError("That campaign speaker is no longer available.",409);
       cues=transcript.cues.map(cue=>cue.rawSpeaker===label?

@@ -17,7 +17,7 @@ test("Groq Whisper is given a bounded, realistic long-section response window",a
 
 test("an uncertain Groq result is never auto-retried or mistaken for provider quota",async()=>{
   const route=await read("app/api/campaigns/[id]/session-recaps/transcript/transcribe/route.ts");
-  assert.match(route,/check your Groq usage and saved transcript before explicitly retrying/u);
+  assert.match(route,/check your Groq usage and saved transcript before explicitly retrying/iu);
   assert.match(route,/Groq reported a timeout/u);
   assert.match(route,/temporarily unavailable \(provider error/u);
   assert.match(route,/provider\.status===429/u);

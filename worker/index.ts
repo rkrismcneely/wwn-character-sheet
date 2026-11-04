@@ -9,6 +9,7 @@ import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler"
 import {POST as postGeminiTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
 import {POST as postGroqTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
 import {matchDirectRecapTranscription} from "../lib/campaigns/recap-direct-transcription";
+import {handleStagedRecapAudio} from "../lib/campaigns/recap-staged-audio";
 import { runRecapOnlyScheduledTick } from "../lib/campaigns/recap-only-runner";
 import { runVerifiedGeminiRecapRecoveryTick } from "../lib/campaigns/recap-gemini-auto-recovery";
 import { runVerifiedSingleAudioRecoveryTick } from "../lib/campaigns/recap-gemini-single-recovery";
@@ -215,6 +216,16 @@ const worker = {
       // the route handler is invoked. Cloudflare's ingress body limit remains
       // in force; the app handlers still validate size, GM permissions, CSRF,
       // speaker attribution and explicit provider consent.
+      // Prepared audio crosses the ingress boundary in <=512 KiB pieces.
+      // Only the exact authenticated GM staging endpoint is handled here.
+      const stagedClip=url.pathname.match(
+        /^\/api\/campaigns\/(cmp_[A-Za-z0-9_-]{22})\/session-recaps\/transcript\/staged\/(gemini|groq)$/u);
+      if(request.method==="POST"&&stagedClip){
+        const response=await handleStagedRecapAudio(request,stagedClip[1],
+          stagedClip[2] as "gemini"|"groq",env.BUCKET);
+        if(response.status>=500)logServerResponse(request,response.status,"recap-staging-response");
+        return response;
+      }
       const transcribeClip=matchDirectRecapTranscription(url.pathname,request.method);
       if(transcribeClip){
         const routeContext={params:Promise.resolve({id:transcribeClip.campaignId})};

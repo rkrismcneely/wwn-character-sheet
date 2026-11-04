@@ -39,7 +39,7 @@ test("staging is restricted to authenticated active-campaign GMs and same-origin
 
 test("only exact transcription staging routes bypass generic Worker parser",async()=>{
   const worker=await read("worker/index.ts");
-  assert.match(worker,/session-recaps\\\/transcript\\\/staged\\\//u);
+  assert.ok(worker.includes(String.raw`session-recaps\\/transcript\\/staged\\/`));
   assert.match(worker,/request\.method==="POST"&&stagedClip/u);
   assert.match(worker,/handleStagedRecapAudio\(request,stagedClip\[1\]/u);
   assert.ok(worker.indexOf("handleStagedRecapAudio(request")<worker.indexOf("await handler.fetch(request, env, ctx)"));

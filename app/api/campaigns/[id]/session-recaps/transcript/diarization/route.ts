@@ -56,6 +56,7 @@ export async function PATCH(request:Request,context:Context){
       throw new CampaignServiceError("Unpublish the transcript before applying speaker labels.",409);
     const targets=transcript.cues.filter(cue=>
       cue.startMs>=Number(body.startMs)&&cue.endMs<=Number(body.endMs)&&
+      (cue.speakerName===cue.rawSpeaker||cue.rawSpeaker==="Local Whisper")&&
       (cue.rawSpeaker==="Local Whisper"||cue.rawSpeaker==="Guest"||
         cue.rawSpeaker==="Unidentified speaker"||/^Speaker [0-9]+(?: · section [0-9]+)?$/u.test(cue.rawSpeaker)));
     if(!targets.length)throw new CampaignServiceError(

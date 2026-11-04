@@ -25,11 +25,22 @@ function parseEntry(line:string):Entry|null{
   if(!rawSpeaker||!text||/^[0-9:.,]+$/u.test(rawSpeaker))return null;
   return {startMs,rawSpeaker,text};
 }
-export function parseDiscapTranscript(source:string,filename:string):CaptionCue[]{
+export type DiscapTranscriptDocument = {
+  title:string|null;
+  startedAt:string|null;
+  durationMs:number|null;
+  participants:string|null;
+  cues:CaptionCue[];
+};
+export function parseDiscapTranscriptDocument(source:string,filename:string):DiscapTranscriptDocument{
   if(!/\.txt$/iu.test(filename))throw Error("Choose the Discap .txt transcript attachment.");
   if(source.length>2_000_000)throw Error("Transcript exceeds the 2 MB import limit.");
   const lines=source.replace(/^\uFEFF/u,"").replace(/\r\n?/gu,"\n").split("\n");
   const entries:Entry[]=[];
+  let title:string|null=null;
+  let startedAt:string|null=null;
+  let durationMs:number|null=null;
+  let participants:string|null=null;
   let sawSpeech=false;
   let nonSpeechHeader=0;
   for(let i=0;i<lines.length;i++){
@@ -49,6 +60,22 @@ export function parseDiscapTranscript(source:string,filename:string):CaptionCue[
     if(looksTimed)throw Error("Unsupported timestamp or speaker layout on line "+(i+1)+
       ". No dialogue was imported. Please share a redacted example of the Discap output.");
     if(!sawSpeech){
+      const started=/^Started:\s*(.+)$/iu.exec(line);
+      const duration=/^Duration:\s*(\S+)$/iu.exec(line);
+      const people=/^Participants:\s*(.+)$/iu.exec(line);
+      if(started){
+        const value=started[1].trim();
+        if(!Number.isFinite(Date.parse(value))||!/^\d{4}-\d{2}-\d{2}T/u.test(value))
+          throw Error("Invalid Discap recording start time at line "+(i+1)+".");
+        startedAt=value;
+      }else if(duration){
+        durationMs=timeMs(duration[1]);
+        if(durationMs===null)throw Error("Invalid Discap recording duration at line "+(i+1)+".");
+      }else if(people){
+        participants=people[1].trim();
+      }else if(!title&&!/^(?:[-–—]{3,}|(?:recording|transcript)\s*:)/iu.test(line)){
+        title=line.slice(0,200);
+      }
       if(++nonSpeechHeader>12)throw Error("Could not locate speaker-labeled timestamped dialogue.");
       continue;
     }
@@ -59,12 +86,19 @@ export function parseDiscapTranscript(source:string,filename:string):CaptionCue[
     if(previous.text.length>1500)throw Error("A dialogue entry is too long near line "+(i+1)+".");
   }
   if(!entries.length)throw Error("No speaker-labeled timed dialogue found in this Discap file.");
-  return validateRecapCaptionCues(entries.map((entry,index)=>{
+  if(durationMs!==null && entries.some(entry=>entry.startMs>=durationMs))
+    throw Error("A transcript timestamp is at or after the recording duration.");
+  const cues=validateRecapCaptionCues(entries.map((entry,index)=>{
     const next=entries[index+1]?.startMs;
     // Discap documents start timestamps but not per-utterance end positions.
     // When there is no end timestamp, bound navigation to the next start or 5 seconds.
     const endMs=Math.min(8*60*60*1000,
+      durationMs??8*60*60*1000,
       next!==undefined&&next>entry.startMs?next:entry.startMs+5000);
     return {...entry,endMs};
   }));
+  return {title,startedAt,durationMs,participants,cues};
+}
+export function parseDiscapTranscript(source:string,filename:string):CaptionCue[]{
+  return parseDiscapTranscriptDocument(source,filename).cues;
 }

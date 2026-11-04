@@ -98,7 +98,7 @@ export function SessionRecapSherpaReview({campaignId,recapId,preparation,onChang
   return <section className="session-recap-reading" aria-label="Optional Sherpa speaker detection">
     <h4>Identify voices with Sherpa (experimental)</h4>
     <p className="campaign-empty-copy">
-      Keep Whisper's words and timestamps. Sherpa analyzes the saved WAV locally, one prepared
+      Keep Whisper&apos;s words and timestamps. Sherpa analyzes the saved WAV locally, one prepared
       section at a time. Its speaker numbers are only consistent within that section.
       After each section, confirm voices above before processing the next one.
       Your recording is not uploaded to Sherpa, but model files are downloaded from

@@ -7,11 +7,14 @@ import type {SherpaTurn} from "@/lib/campaigns/recap-sherpa-alignment";
 
 type WorkerReply={type:"ready"|"result"|"error";message?:string;turns?:SherpaTurn[]};
 function runSherpa(worker:Worker,message:{type:"init"}|{type:"process";samples:Float32Array},
-  timeoutMs:number):Promise<WorkerReply>{
+  timeoutMs:number,signal?:AbortSignal):Promise<WorkerReply>{
   return new Promise((resolve,reject)=>{
     const timeout=setTimeout(()=>{cleanup();reject(Error("Sherpa timed out. Your saved transcript was not changed."));},timeoutMs);
-    const cleanup=()=>{clearTimeout(timeout);worker.removeEventListener("message",receive);
+    const cleanup=()=>{clearTimeout(timeout);signal?.removeEventListener("abort",cancel);worker.removeEventListener("message",receive);
       worker.removeEventListener("error",fail);};
+    const cancel=()=>{cleanup();reject(Error("Speaker detection stopped. No transcript text was changed."));};
+    if(signal?.aborted){cancel();return;}
+    signal?.addEventListener("abort",cancel,{once:true});
     const receive=(event:MessageEvent<WorkerReply>)=>{
       const result=event.data;
       if(!result||!["ready","result","error"].includes(result.type))return;
@@ -35,11 +38,13 @@ export function SessionRecapSherpaReview({campaignId,recapId,preparation,onChang
   const [error,setError]=useState("");
   const [consent,setConsent]=useState(false);
   const worker=useRef<Worker|null>(null);
+  const abort=useRef<AbortController|null>(null);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps";
   async function process(){
     if(busy||!consent)return;
     const part=preparation.parts[partIndex];
     if(!part?.localKey){setError("Reopen the original prepared audio in Step 2 first.");return;}
+    const controller=new AbortController();abort.current=controller;
     setBusy(true);setError("");setStatus("Checking saved transcript and prepared section…");
     try{
       const current=await fetch(base+"/transcript?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
@@ -68,9 +73,9 @@ export function SessionRecapSherpaReview({campaignId,recapId,preparation,onChang
       const instance=new Worker("/recap-sherpa-worker.js");
       worker.current=instance;
       try{
-        await runSherpa(instance,{type:"init"},180_000);
+        await runSherpa(instance,{type:"init"},180_000,controller.signal);
         setStatus("Detecting voices locally. This can take several minutes…");
-        const result=await runSherpa(instance,{type:"process",samples},30*60_000);
+        const result=await runSherpa(instance,{type:"process",samples},30*60_000,controller.signal);
         if(!Array.isArray(result.turns)||!result.turns.length)
           throw Error("Sherpa found no speaker turns. Your Whisper transcript was preserved.");
         const body={recapId,updatedAt:saved.updatedAt,partIndex,startMs:part.startMs,
@@ -87,7 +92,7 @@ export function SessionRecapSherpaReview({campaignId,recapId,preparation,onChang
         onChanged();
       }finally{instance.terminate();if(worker.current===instance)worker.current=null;}
     }catch(e){setError(e instanceof Error?e.message:"Speaker detection failed. Your transcript is still saved.");}
-    finally{setBusy(false);}
+    finally{setBusy(false);abort.current=null;}
   }
   if(preparation.provider!=="local-whisper")return null;
   return <section className="session-recap-reading" aria-label="Optional Sherpa speaker detection">
@@ -114,7 +119,8 @@ export function SessionRecapSherpaReview({campaignId,recapId,preparation,onChang
       <button type="button" className="campaign-primary" disabled={busy||!consent}
         onClick={()=>void process()}>{busy?"Detecting speakers…":"Detect speakers in this section"}</button>
       {busy&&<button type="button" className="campaign-secondary" onClick={()=>{
-        worker.current?.terminate();worker.current=null;setStatus("Stopped. Saved transcript remains intact.");
+        abort.current?.abort();worker.current?.terminate();worker.current=null;
+        setStatus("Stopped. Saved transcript remains intact.");
       }}>Stop model</button>}
     </div>
     {status&&<p role="status">{status}</p>}

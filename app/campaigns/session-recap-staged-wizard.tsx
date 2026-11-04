@@ -23,7 +23,7 @@ const transcriptionOptions:{id:RecapTranscriber;name:string;description:string}[
   {id:"groq",name:"Groq Whisper",description:"Cloud · Personal Groq key · Accurate timestamps · Quotas apply"},
   {id:"gemini",name:"Google Gemini",description:"Cloud · Personal Gemini key · Audio processing may be less reliable"},
   {id:"local-whisper",name:"Local Whisper",description:"Free on this device · No AI account · Slower and experimental"},
-  {id:"import",name:"Import SRT / WebVTT",description:"Free · Use an existing Craig or other timestamped transcript"},
+  {id:"import",name:"Import Discap / Craig transcript",description:"Free · Experimental Discap TXT, Craig SRT/WebVTT · Confirm speakers"},
 ];
 const writerOptions:{id:RecapWriter;name:string;description:string;models:{id:string;name:string}[]}[]=[
   {id:"gemini",name:"Gemini Flash",description:"Cloud · Text-only · GM-owned API quota",models:[
@@ -530,7 +530,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
             "Local Whisper currently needs a PCM WAV input. FFmpeg will create manageable WAV sections; keep this page open during conversion.":
             provider==="groq"?"Groq parts will be kept at most 16 MiB and 30 minutes each.":
             provider==="gemini"?"Gemini prepared parts will be at most 11 MiB and 30 minutes each.":
-            "Import an existing SRT or WebVTT transcript in Step 3."}
+            "Import a Discap TXT transcript or Craig SRT/WebVTT captions in Step 3."}
           {" "}FFmpeg processing speed depends on this device; already saved sections can be reused.
         </p>
         {oversizedForBrowser&&method==="ffmpeg"&&<p className="campaign-error" role="alert">
@@ -585,7 +585,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
         campaignId={campaignId} recapId={recapId}
         onChanged={()=>{setTranscriptReviewed(false);setCheckedEnding(false);void refresh();}}/>
       <details className="session-recap-reading">
-        <summary>Import or replace a transcript from Craig captions</summary>
+        <summary>Import or replace a Discap / Craig transcript</summary>
         <SessionRecapFullTranscriptManager campaignId={campaignId} recapId={recapId}/>
       </details>
       {workflow?.transcriptApprovedAt&&!transcriptCurrent&&<p className="campaign-error" role="status">

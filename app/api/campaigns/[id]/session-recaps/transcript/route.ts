@@ -47,10 +47,21 @@ export async function GET(request:Request,context:Context) {
 }
 export async function PUT(request:Request,context:Context) {
   try{
-    const body=await readBoundedJson(request,2_500_000) as {recapId?:unknown;cues?:unknown;assignments?:unknown};
+    const body=await readBoundedJson(request,2_500_000) as {recapId?:unknown;cues?:unknown;assignments?:unknown;expectedUpdatedAt?:unknown};
     const {db,campaign,gm,key}=await scope(request,context,body?.recapId);
     if(!gm)throw new CampaignServiceError("Only GMs can import transcripts.",403);
     requireActiveCampaign(campaign);
+    // Import is a complete replacement: require an optimistic revision lease.
+    // A concurrently finished Whisper job or another GM tab cannot be overwritten.
+    if(body.expectedUpdatedAt!==null &&
+      (typeof body.expectedUpdatedAt!=="string"||body.expectedUpdatedAt.length>100))
+      throw new CampaignServiceError("Reload the current transcript before importing.",422);
+    if(body.expectedUpdatedAt===undefined)
+      throw new CampaignServiceError("Reload the importer to confirm current saved progress.",422);
+    const previousObject=await env.BUCKET.get(key);
+    const previous=previousObject?await previousObject.json<SavedRecapTranscript>():null;
+    if((previous?.updatedAt??null)!==body.expectedUpdatedAt)
+      throw new CampaignServiceError("Transcript changed in another tab. Reload before replacing it.",409);
     const cues=validateRecapCaptionCues(body?.cues);
     const labels=[...new Set(cues.map(cue=>cue.rawSpeaker))];
     const selections=normalizeCaptionAssignments(body?.assignments,labels);
@@ -72,7 +83,12 @@ export async function PUT(request:Request,context:Context) {
     const serialized=JSON.stringify(record);
     if(new TextEncoder().encode(serialized).byteLength>2_000_000)
       throw new CampaignServiceError("Transcript exceeds the private storage object limit (2 MB).",422);
-    await env.BUCKET.put(key,serialized,{httpMetadata:{contentType:"application/json"}});
+    const written=await env.BUCKET.put(key,serialized,{
+      onlyIf:previousObject?{etagMatches:previousObject.etag}:new Headers({"If-None-Match":"*"}),
+      httpMetadata:{contentType:"application/json"},
+    });
+    if(!written)throw new CampaignServiceError(
+      "Transcript changed while saving. Reload before replacing it.",409);
     return Response.json({saved:true,published:false,count:cues.length,updatedAt:now},{headers:privateHeaders});
   }catch(error){return respond(error);}
 }

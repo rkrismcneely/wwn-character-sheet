@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {parseDiscapTranscript} from "../lib/campaigns/recap-discap-import.ts";
+import {parseDiscapTranscript,parseDiscapTranscriptDocument} from "../lib/campaigns/recap-discap-import.ts";
 
 test("Discap timestamp-first TXT preserves different Discord speaker labels",()=>{
  const text="[00:00:01] Game Master: You enter the tomb.\n"+
@@ -38,4 +38,50 @@ test("Discap preserves every utterance in long recordings and bounded end cues",
  assert.equal(cues.length,100);
  assert.equal(cues[99].text,"Line 99");
  assert.ok(cues.every(c=>c.endMs>c.startMs));
+});
+
+test("real Discap TXT layout: title, ISO start, duration, participants, separator, minute timestamps",()=>{
+ // Structure reproduced from a real user-provided Discap export; dialogue and identities are fictional.
+ const input=[
+  "Leaving Town for the Old Road",
+  "",
+  "Started: 2026-11-04T21:36:51.854Z",
+  "Duration: 05:46",
+  "Participants: GM (DM/Two Characters)",
+  "",
+  "----",
+  "",
+  "[00:00] GM (DM/Two Characters): The party gathers by the northern gate.",
+  "[01:03] GM (DM/Two Characters): A cartographer gives you a map.",
+  "[02:37] GM (DM/Two Characters): Should we head out? Yes, let's go.",
+  "[03:57] GM (DM/Two Characters): We have several healing potions.",
+  "[05:42] GM (DM/Two Characters): You leave the city.",
+ ].join("\n");
+ const result=parseDiscapTranscriptDocument(input,"2026-11-04-2136-leaving-town.txt");
+ assert.equal(result.title,"Leaving Town for the Old Road");
+ assert.equal(result.startedAt,"2026-11-04T21:36:51.854Z");
+ assert.equal(result.durationMs,346000);
+ assert.equal(result.participants,"GM (DM/Two Characters)");
+ assert.equal(result.cues.length,5);
+ assert.equal(result.cues[0].startMs,0);
+ assert.equal(result.cues[4].startMs,342000);
+ assert.equal(result.cues[4].endMs,346000);
+ assert.deepEqual([...new Set(result.cues.map(c=>c.rawSpeaker))],["GM (DM/Two Characters)"]);
+});
+test("Discap retains multiple Discord source labels, not individual voices inside one source",()=>{
+ const source=[
+  "Game night","Started: 2026-11-04T21:36:51.854Z","Duration: 01:00",
+  "Participants: DM, Player","----",
+  "[00:01] DM: Where do you go?",
+  "[00:04] Player: Into the tavern.",
+  "[00:07] DM: The barkeep greets you.",
+ ].join("\n");
+ const result=parseDiscapTranscriptDocument(source,"session.txt");
+ assert.deepEqual(result.cues.map(c=>c.rawSpeaker),["DM","Player","DM"]);
+ assert.equal(result.cues[2].endMs,12000);
+});
+test("Discap rejects timestamps beyond declared recording duration",()=>{
+ assert.throws(()=>parseDiscapTranscriptDocument(
+  "Session\nDuration: 00:30\n[00:31] GM: After the recording ended.","session.txt"),
+  /at or after the recording duration/);
 });

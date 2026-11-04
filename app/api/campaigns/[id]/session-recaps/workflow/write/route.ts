@@ -139,7 +139,7 @@ async function remoteWrite(provider:RecapWriter,model:string,key:string,prompt:s
   let response:Response;
   if(provider==="groq"){
     response=await fetch("https://api.groq.com/openai/v1/chat/completions",{
-      method:"POST",redirect:"error",signal:AbortSignal.timeout(50_000),
+      method:"POST",redirect:"manual",signal:AbortSignal.timeout(50_000),
       headers:{Authorization:"Bearer "+key,"content-type":"application/json"},
       body:JSON.stringify({model,temperature:0.25,max_completion_tokens:maxTokens,
         reasoning_effort:"low",include_reasoning:false,
@@ -149,12 +149,17 @@ async function remoteWrite(provider:RecapWriter,model:string,key:string,prompt:s
   }else{
     response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+
       encodeURIComponent(model)+":generateContent",{
-      method:"POST",redirect:"error",signal:AbortSignal.timeout(50_000),
+      method:"POST",redirect:"manual",signal:AbortSignal.timeout(50_000),
       headers:{"x-goog-api-key":key,"content-type":"application/json"},
       body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],
         generationConfig:{temperature:0.3,maxOutputTokens:maxTokens}}),
     });
   }
+  // Cloudflare Workers does not implement redirect rejection mode. Manual
+  // prevents provider credentials and private campaign prompts from following
+  // a redirect, and 3xx responses are rejected before parsing their body.
+  if(response.status>=300&&response.status<400)
+    throw new CampaignServiceError("The selected recap-writing provider returned a redirect. No redirect was followed and no recap was saved; verify the provider endpoint before retrying.",502);
   if(!response.ok){
     if(response.status===429)throw new CampaignServiceError(
       "Provider quota or rate limit reached. Completed event notes are saved; retry manually after the limit resets.",503);

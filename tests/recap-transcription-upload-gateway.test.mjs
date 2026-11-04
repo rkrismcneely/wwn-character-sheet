@@ -72,6 +72,15 @@ test("HTML or empty upstream response is summarized by status, never echoed",asy
     /response was incomplete/u);
 });
 
+test("production upload smoke detects a premature 413 before auth without invoking AI",async()=>{
+  const health=await read(".github/workflows/verify-production-health.yml");
+  assert.match(health,/head -c 6291456 \/dev\/zero/u);
+  assert.match(health,/transcript\/gemini/u);
+  assert.match(health,/probe_status" != 401/u);
+  assert.match(health,/Sign in required/u);
+  assert.match(health,/without AI invocation/u);
+});
+
 test("client proactively validates provider section size before a paid-capable request",async()=>{
   const code=await read("app/campaigns/session-recap-staged-transcriber.tsx");
   assert.match(code,/readRecapClipSubmitResponse\(response,i\+1\)/u);

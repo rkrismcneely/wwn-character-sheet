@@ -66,7 +66,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
     try {
       const mapped=Object.fromEntries(labels.map(label=>[label,assignments[label]==="__guest__"?null:assignments[label]]));
       const response=await fetch(api,{method:"PUT",headers:{"content-type":"application/json"},
-        body:JSON.stringify({recapId,cues:pending,assignments:mapped})});
+        body:JSON.stringify({recapId,cues:pending,assignments:mapped,expectedUpdatedAt:stored.updatedAt??null})});
       const result=await response.json() as {error?:string;updatedAt?:string;count?:number};
       if(!response.ok||!result.updatedAt)throw new Error(result.error||"Transcript could not be saved.");
       const fresh=await fetch(url,{cache:"no-store"});

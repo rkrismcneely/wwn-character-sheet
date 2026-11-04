@@ -94,7 +94,7 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
   }
   return <section className="session-recap-reading" aria-label="Full session transcript">
     <h4>Full session transcript</h4>
-    <p className="campaign-empty-copy">Import Discap timestamped TXT transcripts or Craig WebVTT/SRT captions for multi-hour sessions.
+    <p className="campaign-empty-copy">Import experimental Discap timestamped TXT transcripts or Craig WebVTT/SRT captions for multi-hour sessions. Discap has not published a fixed TXT layout; unsupported files are rejected without replacing saved transcripts.
       These are stored separately from recap Markdown, with no 30,000-character recap limit.
       Files are parsed locally and all speakers must be confirmed. Discap exports may provide
       only speech start times, so inferred cue endings are approximate rather than word-accurate.</p>

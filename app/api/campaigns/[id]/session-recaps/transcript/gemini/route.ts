@@ -20,13 +20,14 @@ const int=(x:FormDataEntryValue|null)=>{
 async function uploadGeminiFile(apiKey:string,file:File,mime:string):Promise<string> {
   const base="https://generativelanguage.googleapis.com";
   const start=await fetch(base+"/upload/v1beta/files",{
-    method:"POST",redirect:"error",signal:AbortSignal.timeout(15000),
+    method:"POST",redirect:"manual",signal:AbortSignal.timeout(15000),
     headers:{"x-goog-api-key":apiKey,"x-goog-upload-protocol":"resumable",
       "x-goog-upload-command":"start",
       "x-goog-upload-header-content-length":String(file.size),
       "x-goog-upload-header-content-type":mime,"content-type":"application/json"},
     body:JSON.stringify({file:{display_name:"TWE session audio clip"}}),
   });
+  if(start.status>=300&&start.status<400)throw new Error("upload-redirect");
   if(!start.ok)throw new Error(start.status===429?"quota":"upload-start");
   const uploadUrl=start.headers.get("x-goog-upload-url");
   if(!uploadUrl)throw new Error("upload-url");
@@ -36,11 +37,12 @@ async function uploadGeminiFile(apiKey:string,file:File,mime:string):Promise<str
     !parsed.pathname.startsWith("/upload/"))
     throw new Error("upload-host");
   const response=await fetch(uploadUrl,{
-    method:"POST",redirect:"error",signal:AbortSignal.timeout(45000),
+    method:"POST",redirect:"manual",signal:AbortSignal.timeout(45000),
     headers:{"content-length":String(file.size),"x-goog-upload-offset":"0",
       "x-goog-upload-command":"upload, finalize"},
     body:file,
   });
+  if(response.status>=300&&response.status<400)throw new Error("upload-redirect");
   if(!response.ok)throw new Error(response.status===429?"quota":"upload-finish");
   const data=await response.json() as {file?:{uri?:unknown}};
   if(typeof data.file?.uri!=="string"||!/^https:\/\//u.test(data.file.uri))
@@ -49,7 +51,7 @@ async function uploadGeminiFile(apiKey:string,file:File,mime:string):Promise<str
 }
 async function runGemini(apiKey:string,uri:string,mime:string):Promise<unknown> {
   const response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
-    method:"POST",redirect:"error",signal:AbortSignal.timeout(45000),
+    method:"POST",redirect:"manual",signal:AbortSignal.timeout(45000),
     headers:{"x-goog-api-key":apiKey,"content-type":"application/json"},
     body:JSON.stringify({
       model:GEMINI_TRANSCRIBE_MODEL,
@@ -58,6 +60,7 @@ async function runGemini(apiKey:string,uri:string,mime:string):Promise<unknown> 
         timestamp_granularities:["word"]}}},
     }),
   });
+  if(response.status>=300&&response.status<400)throw new Error("interaction-redirect");
   if(!response.ok)throw new Error(response.status===429?"quota":"interaction");
   const data=await response.text();
   if(data.length>600_000)throw new Error("oversize-result");

@@ -58,7 +58,8 @@ test("GM import, independent full transcript and paginated player are connected"
     read("../app/campaigns/session-recap-audio-player.tsx"),
   ]);
   assert.match(editor,/SessionRecapFullTranscriptManager/u);
-  assert.match(manager,/parseFullCraigCaptions\(await file\.text\(\),file\.name\)/u);
+  assert.match(manager,/parseFullCraigCaptions\(source,file\.name\)/u);
+  assert.match(manager,/parseDiscapTranscriptDocument\(source,file\.name\)/u);
   assert.match(manager,/Confirm each speaker before saving/u);
   assert.match(manager,/Save private transcript draft/u);
   assert.match(manager,/I have reviewed the speaker assignments/u);

@@ -84,7 +84,7 @@ export async function PUT(request:Request,context:Context) {
     if(new TextEncoder().encode(serialized).byteLength>2_000_000)
       throw new CampaignServiceError("Transcript exceeds the private storage object limit (2 MB).",422);
     const written=await env.BUCKET.put(key,serialized,{
-      onlyIf:previousObject?{etagMatches:previousObject.etag}:{etagDoesNotMatch:"*"},
+      onlyIf:previousObject?{etagMatches:previousObject.etag}:new Headers({"If-None-Match":"*"}),
       httpMetadata:{contentType:"application/json"},
     });
     if(!written)throw new CampaignServiceError(

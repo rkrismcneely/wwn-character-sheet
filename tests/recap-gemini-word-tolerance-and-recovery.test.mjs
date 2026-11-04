@@ -50,10 +50,42 @@ test("long section output is split into <=1500-character caption cues without in
   assert.ok(cues.every(c=>c.text.length<=1500&&c.startMs===3000&&c.endMs===33000));
   assert.ok(cues.map(c=>c.text.replace(/^\[Section-level timing only; word timestamps unavailable\] /u,"")).join(" ").includes("Dramatic events"));
 });
-test("unusable annotations without full output do not silently discard recognized text",()=>{
+test("unusable timestamps preserve complete annotated speech when output_text is missing",()=>{
+  const cues=normalizeGeminiWords(response([
+    {start_offset:"bad",end_offset:"0.2s",text:"hello"},
+    {start_offset:"0.3s",end_offset:"0.5s",text:"world"},
+  ],""),0,2000);
+  assert.equal(cues.length,1);
+  assert.equal(cues[0].text,"[Section-level timing only; word timestamps unavailable] hello world");
+});
+test("incomplete speech text remains cached instead of silently losing dialogue",()=>{
   assert.throws(()=>normalizeGeminiWords(response([
     {start_offset:"bad",end_offset:"0.2s",text:"hello"},
+    {start_offset:"bad",end_offset:"0.4s",text:""},
   ],""),0,2000),/response is saved for recovery/u);
+});
+test("absolute word timestamps in a later clip map back to the recording timeline",()=>{
+  const cues=normalizeGeminiWords(response([
+    {start_offset:"120.1s",end_offset:"120.4s",text:"hello"},
+    {start_offset:"120.5s",end_offset:"120.8s",text:"world"},
+  ],""),120000,5000);
+  assert.deepEqual(cues,[{startMs:120100,endMs:120800,rawSpeaker:"",text:"hello world"}]);
+});
+test("word ending fractionally beyond clip boundary is safely clamped",()=>{
+  const cues=normalizeGeminiWords(response([
+    {start_offset:"4.95s",end_offset:"5.02s",text:"ending"},
+  ],""),10000,5000);
+  assert.deepEqual(cues,[{startMs:14950,endMs:15000,rawSpeaker:"",text:"ending"}]);
+});
+test("out-of-order or out-of-range word times return complete speech with honest coarse timing",()=>{
+  const cues=normalizeGeminiWords(response([
+    {start_offset:"1s",end_offset:"2s",text:"first"},
+    {start_offset:"9999s",end_offset:"10000s",text:"second"},
+  ],""),20000,5000);
+  assert.equal(cues.length,1);
+  assert.match(cues[0].text,/first second/u);
+  assert.match(cues[0].text,/Section-level timing only/u);
+  assert.equal(cues[0].endMs,25000);
 });
 test("completed provider response is saved before parsing and reused without another Gemini request",async()=>{
   const code=await read("app/api/campaigns/[id]/session-recaps/transcript/gemini/route.ts");

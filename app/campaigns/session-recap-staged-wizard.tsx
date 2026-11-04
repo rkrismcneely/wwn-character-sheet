@@ -23,7 +23,7 @@ const NO_ASSETS:Asset[]=[];
 const transcriptionOptions:{id:RecapTranscriber;name:string;description:string}[]=[
   {id:"groq",name:"Groq Whisper",description:"Cloud · Personal Groq key · Accurate timestamps · Quotas apply"},
   {id:"gemini",name:"Google Gemini",description:"Cloud · Personal Gemini key · Audio processing may be less reliable"},
-  {id:"local-whisper",name:"Local Whisper",description:"Free on this device · No AI account · Slower and experimental"},
+  {id:"local-whisper",name:"Local Whisper",description:"Free on this device · Optional Sherpa speaker detection during review · Experimental"},
   {id:"import",name:"Import SRT / WebVTT",description:"Free · Use an existing Craig or other timestamped transcript"},
 ];
 const writerOptions:{id:RecapWriter;name:string;description:string;models:{id:string;name:string}[]}[]=[

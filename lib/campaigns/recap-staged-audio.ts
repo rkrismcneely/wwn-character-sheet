@@ -174,3 +174,18 @@ export async function handleStagedRecapAudio(request:Request,
     return reply("Unable to stage this private audio section safely.",422);
   }
 }
+
+/** Reclaim browser-abandoned temporary clips without touching published audio.
+ * Free-plan-friendly: at most 50 old staging chunks per scheduled tick. */
+export async function cleanupExpiredStagedRecapAudio(bucket:R2Bucket):Promise<number>{
+  const threshold=Date.now()-24*60*60*1000;
+  const page=await bucket.list({prefix:"recap-staged-audio/",limit:200});
+  let removed=0;
+  for(const item of page.objects){
+    if(removed>=50)break;
+    if(item.uploaded.getTime()>threshold)continue;
+    await bucket.delete(item.key);
+    removed++;
+  }
+  return removed;
+}

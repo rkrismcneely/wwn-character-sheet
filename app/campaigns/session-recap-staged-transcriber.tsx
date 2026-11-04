@@ -247,7 +247,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   }
   if(provider==="import")return <div className="session-recap-reading">
     <h4>Import your timestamped transcript</h4>
-    <p className="campaign-empty-copy">Import Craig SRT or WebVTT captions. No AI account required.</p>
+    <p className="campaign-empty-copy">Import Discap TXT or Craig SRT/WebVTT captions. No AI account required.</p>
     <SessionRecapFullTranscriptManager campaignId={campaignId} recapId={recapId}/>
     <button className="campaign-secondary" type="button" onClick={onTranscriptSaved}>
       Refresh saved transcript

@@ -3,7 +3,6 @@
 import {useEffect,useRef,useState} from "react";
 import {browserRecapFile} from "@/lib/campaigns/recap-browser-preparation";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
-import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
 import {GEMINI_TRANSCRIPTION_MODELS,DEFAULT_GEMINI_TRANSCRIPTION_MODEL,type GeminiTranscriptionModel} from "@/lib/campaigns/recap-gemini-models";
 import {submitStagedCloudClip} from "@/lib/campaigns/recap-staged-upload-client";
 import {inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload} from "@/lib/campaigns/recap-wav-chunks";

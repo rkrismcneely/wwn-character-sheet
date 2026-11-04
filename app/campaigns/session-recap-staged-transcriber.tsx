@@ -214,8 +214,12 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       else throw Error("Import a transcript using the editor below.");
       setNotice(stop.current?"Paused after the current section. Completed sections remain saved.":
         "Transcription finished. Review the saved transcript before approving it.");
-    }catch(e){setError((e instanceof Error?e.message:"Transcription failed.")+
-      " Finished sections remain saved; check provider quota before retrying.");}
+    }catch(e){
+      const message=e instanceof Error?e.message:"Transcription failed.";
+      setError(message+(/HTTP 413|Payload Too Large/u.test(message)
+        ?" Previously prepared sections are saved. Don't reupload the original recording."
+        :" Finished sections remain saved; check saved progress and your provider account before retrying."));
+    }
     finally{setBusy(false);}
   }
   if(provider==="import")return <div className="session-recap-reading">

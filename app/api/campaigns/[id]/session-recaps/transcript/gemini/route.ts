@@ -9,6 +9,7 @@ import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import { mergeGroqAudioTranscript,type RecordedRecapTranscript,type TranscriptionAttribution } from "@/lib/campaigns/recap-groq-audio";
 import { GEMINI_TRANSCRIBE_MODEL,MAX_GEMINI_CHUNK_BYTES,normalizeGeminiWords,supportedGeminiAudio } from "@/lib/campaigns/recap-gemini-transcribe";
 import { decryptGeminiUserKey,type RecapAIEncryptionSettings } from "@/lib/account/recap-gemini-key";
+import { parseGeminiTranscriptionModel,type GeminiTranscriptionModel } from "@/lib/campaigns/recap-gemini-models";
 
 type Context={params:Promise<{id:string}>};
 const headers={"cache-control":"private, no-store"};
@@ -49,15 +50,21 @@ async function uploadGeminiFile(apiKey:string,file:File,mime:string):Promise<str
     throw new Error("upload-response");
   return data.file.uri;
 }
-async function runGemini(apiKey:string,uri:string,mime:string):Promise<unknown> {
+async function runGemini(apiKey:string,uri:string,mime:string,model:GeminiTranscriptionModel):Promise<unknown> {
   const response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
     method:"POST",redirect:"manual",signal:AbortSignal.timeout(45000),
     headers:{"x-goog-api-key":apiKey,"content-type":"application/json"},
     body:JSON.stringify({
-      model:GEMINI_TRANSCRIBE_MODEL,
-      input:[{type:"audio",uri,mime_type:mime}],
-      generation_config:{transcription_config:{mode:{type:"verbatim",
-        timestamp_granularities:["word"]}}},
+      model,
+      input:[
+        ...(model===GEMINI_TRANSCRIBE_MODEL?[]:[{type:"text",text:
+          "Transcribe every audible spoken word in this tabletop roleplaying recording in chronological order. "+
+          "Do not summarize, omit conversations, guess speaker identities, invent events or insert commentary. "+
+          "Return ONLY the full transcript as plain text. Distinguish speakers when clear."}]),
+        {type:"audio",uri,mime_type:mime}],
+      ...(model===GEMINI_TRANSCRIBE_MODEL?
+        {generation_config:{transcription_config:{mode:{type:"verbatim",
+          timestamp_granularities:["word"]}}}}:{}),
     }),
   });
   if(response.status>=300&&response.status<400)throw new Error("interaction-redirect");
@@ -98,6 +105,7 @@ export async function handleGeminiRequest(request:Request,context:Context,
     if(!(audio instanceof File)||audio.size<128||audio.size>MAX_GEMINI_CHUNK_BYTES)
       return errorResponse("Choose a prepared audio clip under 12 MB.",413);
     const mime=supportedGeminiAudio(audio.name);
+    const model=parseGeminiTranscriptionModel(form.get("model")??GEMINI_TRANSCRIBE_MODEL);
     const startMs=int(form.get("startMs")),durationMs=int(form.get("durationMs"));
     if(!Number.isSafeInteger(startMs)||!Number.isSafeInteger(durationMs)||durationMs<1000||
       durationMs>30*60*1000||startMs+durationMs>8*60*60*1000)
@@ -140,7 +148,7 @@ export async function handleGeminiRequest(request:Request,context:Context,
       speaker={rawSpeaker:row.discordName,speakerName:row.displayName,role:row.role,characterName:row.characterName};
     }
     const receipt=await recapCloudClipReceipt(await audio.arrayBuffer(),"gemini",{
-      startMs,durationMs,speakerId,model:GEMINI_TRANSCRIBE_MODEL,
+      startMs,durationMs,speakerId,model,
     });
     const key=recapTranscriptObjectKey(access.campaign.publicId,recap.id);
     async function saved(){
@@ -163,12 +171,12 @@ export async function handleGeminiRequest(request:Request,context:Context,
     }else{
       try{
         const uri=await uploadGeminiFile(apiKey,audio,mime);
-        transcription=await runGemini(apiKey,uri,mime);
+        transcription=await runGemini(apiKey,uri,mime,model);
       }catch(cause){
         const message=cause instanceof Error&&cause.message==="quota"?
           "Google rate limit or quota reached. Processing paused; do not automatically retry paid-capable requests.":
           "Gemini could not finish this clip. Check your project access and quota before manually retrying.";
-        return errorResponse(message,503);
+        return errorResponse(message,cause instanceof Error&&cause.message==="quota"?429:503);
       }
       const raw=JSON.stringify(transcription);
       if(raw.length>600_000)return errorResponse("Gemini response is too large to recover safely.",413);

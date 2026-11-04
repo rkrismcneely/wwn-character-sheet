@@ -34,9 +34,13 @@ test("Gemini word offsets become verified session-relative caption cues",()=>{
   assert.deepEqual(segments.map(cue=>cue.startMs),[91_100,96_000]);
   assert.throws(()=>normalizeGeminiWords({...data,status:"in_progress"},0,30_000));
   assert.throws(()=>normalizeGeminiWords({status:"completed",steps:[]},0,30_000));
-  assert.throws(()=>normalizeGeminiWords({status:"completed",steps:[
+  const recovered=normalizeGeminiWords({status:"completed",steps:[
     {type:"model_output",content:[{type:"text",annotations:[
-      {type:"word_info",text:"bad",start_offset:"31.00s",end_offset:"32.00s"}]}]}]},0,30_000));
+      {type:"word_info",text:"bad",start_offset:"31.00s",end_offset:"32.00s"}]}]}]},0,30_000);
+  assert.equal(recovered.length,1);
+  assert.equal(recovered[0].startMs,0);
+  assert.equal(recovered[0].endMs,30_000);
+  assert.match(recovered[0].text,/Section-level timing only.*bad/u);
 });
 test("Gemini only uses declared audio MIME types",()=>{
   assert.equal(supportedGeminiAudio("player.FLAC"),"audio/flac");

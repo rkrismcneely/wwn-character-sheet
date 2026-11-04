@@ -14,6 +14,9 @@ import {
 
 type Context={params:Promise<{id:string}>};
 const headers={"cache-control":"private, no-store"};
+// A 20-minute Whisper clip may take longer than a short interactive request.
+// This bounds the provider wait without retrying an uncertain, possibly billed call.
+export const GROQ_TRANSCRIPTION_TIMEOUT_MS=180_000;
 const reply=(message:string,status:number)=>Response.json({error:message},{status,headers});
 function requiredString(form:FormData,key:string):string {
   const value=form.get(key);
@@ -119,16 +122,23 @@ export async function handleGroqRequest(request:Request,context:Context,
     const language=form.get("language");
     if(language==="en")upload.set("language","en");
     let provider:Response;
+    const deadline=AbortSignal.timeout(GROQ_TRANSCRIPTION_TIMEOUT_MS);
     try {
       provider=await fetch("https://api.groq.com/openai/v1/audio/transcriptions",{
         method:"POST",headers:{"authorization":"Bearer "+apiKey},
-        body:upload,redirect:"error",signal:AbortSignal.timeout(45000),
+        body:upload,redirect:"error",signal:deadline,
       });
     }catch{
-      return reply("Groq timed out or could not be reached. Check your account before manually retrying; the request may have consumed quota.",503);
+      if(deadline.aborted)
+        return reply("Groq did not return a transcription within 3 minutes. The audio may have been processed or counted toward your quota. Check your Groq usage and saved transcript before explicitly retrying this section.",504);
+      return reply("Groq could not be reached or the connection ended before a result arrived. The outcome is uncertain; check your account and saved transcript before manually retrying.",503);
     }
     if(!provider.ok){
       if(provider.status===429)return reply("Your Groq transcription quota or rate limit was reached. Processing paused.",429);
+      if(provider.status===408||provider.status===504)
+        return reply("Groq reported a timeout. The transcription result is uncertain; check your Groq account and saved transcript before retrying.",503);
+      if(provider.status>=500)
+        return reply("Groq is temporarily unavailable (provider error "+provider.status+"). Check saved progress and your Groq account before retrying.",503);
       if(provider.status===401||provider.status===403)
         return reply("Your personal Groq key was rejected or lacks transcription access.",403);
       return reply("Groq rejected this clip. Check its audio format, length and your account.",502);

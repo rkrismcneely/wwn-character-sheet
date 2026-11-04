@@ -111,7 +111,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
           setNotice(stage==="transfer"
             ?"Transferring section "+(i+1)+" of "+preparation.parts.length+
               " in small pieces ("+Math.round(done/total*100)+"%)…"
-            :"Section "+(i+1)+" transferred and verified. Waiting for "+
+            :"Section "+(i+1)+" transferred. TWE is verifying audio and awaiting "+
               (provider==="gemini"?"Gemini":"Groq")+" transcription…");
         },
       });
@@ -224,7 +224,9 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       const message=e instanceof Error?e.message:"Transcription failed.";
       setError(message+(/HTTP 413|Payload Too Large/u.test(message)
         ?" Previously prepared sections are saved. Don't reupload the original recording."
-        :" Finished sections remain saved; check saved progress and your provider account before retrying."));
+        :/timed out|timeout|connection ended|uncertain|temporarily unavailable|could not be reached/iu.test(message)
+          ?" Your prepared audio is saved. No automatic retry was made; verify saved progress and provider usage before explicitly resubmitting."
+          :" Finished sections remain saved; check saved progress and your provider account before retrying."));
     }
     finally{setBusy(false);setTransfer(null);}
   }

@@ -151,15 +151,28 @@ export async function handleGeminiRequest(request:Request,context:Context,
     const prior=await saved();
     if(prior.item?.processedClips?.includes(receipt))
       return Response.json({saved:true,duplicate:true,added:0,total:prior.item.cues.length},{headers});
+    // Preserve a completed Gemini interaction BEFORE parsing its annotations.
+    // If provider output is valid but unexpected, the same already-paid result
+    // can be processed on the next attempt without another Gemini API call.
+    // Scoped by verified clip receipt + campaign and recap after GM auth.
+    const rawKey=key.replace(/\.json$/u,"")+"/gemini-raw/"+receipt+".json";
+    const cached=await env.BUCKET.get(rawKey);
     let transcription:unknown;
-    try{
-      const uri=await uploadGeminiFile(apiKey,audio,mime);
-      transcription=await runGemini(apiKey,uri,mime);
-    }catch(cause){
-      const message=cause instanceof Error&&cause.message==="quota"?
-        "Google rate limit or quota reached. Processing paused; do not automatically retry paid-capable requests.":
-        "Gemini could not finish this clip. Check your project access and quota before manually retrying.";
-      return errorResponse(message,503);
+    if(cached){
+      transcription=await cached.json<unknown>();
+    }else{
+      try{
+        const uri=await uploadGeminiFile(apiKey,audio,mime);
+        transcription=await runGemini(apiKey,uri,mime);
+      }catch(cause){
+        const message=cause instanceof Error&&cause.message==="quota"?
+          "Google rate limit or quota reached. Processing paused; do not automatically retry paid-capable requests.":
+          "Gemini could not finish this clip. Check your project access and quota before manually retrying.";
+        return errorResponse(message,503);
+      }
+      const raw=JSON.stringify(transcription);
+      if(raw.length>600_000)return errorResponse("Gemini response is too large to recover safely.",413);
+      await env.BUCKET.put(rawKey,raw,{httpMetadata:{contentType:"application/json"}});
     }
     const segments=normalizeGeminiWords(transcription,startMs,durationMs);
     const latest=await saved();
@@ -171,6 +184,8 @@ export async function handleGeminiRequest(request:Request,context:Context,
     const onlyIf=latest.etag?{etagMatches:latest.etag}:new Headers({"If-None-Match":"*"});
     const updated=await env.BUCKET.put(key,serialized,{onlyIf,httpMetadata:{contentType:"application/json"}});
     if(!updated)return errorResponse("Another tab changed the transcript. Verify before retrying.",409);
+    // The completed transcript now holds the content and receipt.
+    await env.BUCKET.delete(rawKey).catch(()=>{});
     return Response.json({saved:true,duplicate:false,added:segments.length,
       total:appended.transcript.cues.length,published:false},{headers});
   }catch(cause){

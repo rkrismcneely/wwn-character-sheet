@@ -58,7 +58,7 @@ test("unusable annotations without full output do not silently discard recognize
 test("completed provider response is saved before parsing and reused without another Gemini request",async()=>{
   const code=await read("app/api/campaigns/[id]/session-recaps/transcript/gemini/route.ts");
   const cache=code.indexOf("const cached=await env.BUCKET.get(rawKey)");
-  const call=code.indexOf("transcription=await runGemini(apiKey,uri,mime)");
+  const call=code.indexOf("transcription=await runGemini(apiKey,uri,mime,model)");
   const put=code.indexOf("await env.BUCKET.put(rawKey,raw");
   const parse=code.indexOf("normalizeGeminiWords(transcription,startMs,durationMs)");
   assert.ok(cache>0&&cache<call&&call<put&&put<parse);

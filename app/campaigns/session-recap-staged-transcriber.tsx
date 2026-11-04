@@ -4,6 +4,7 @@ import {useEffect,useRef,useState} from "react";
 import {browserRecapFile} from "@/lib/campaigns/recap-browser-preparation";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
+import {GEMINI_TRANSCRIPTION_MODELS,DEFAULT_GEMINI_TRANSCRIPTION_MODEL,type GeminiTranscriptionModel} from "@/lib/campaigns/recap-gemini-models";
 import {submitStagedCloudClip} from "@/lib/campaigns/recap-staged-upload-client";
 import {inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload} from "@/lib/campaigns/recap-wav-chunks";
 import type {RecapPreparation} from "@/lib/campaigns/recap-stage-workflow";
@@ -28,6 +29,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const [speakers,setSpeakers]=useState<Speaker[]>([]);
   const [speakerId,setSpeakerId]=useState("guest");
   const [model,setModel]=useState("whisper-large-v3");
+  const [geminiModel,setGeminiModel]=useState<GeminiTranscriptionModel>(DEFAULT_GEMINI_TRANSCRIPTION_MODEL);
   const [apiKey,setApiKey]=useState("");
   const [connectedGroq,setConnectedGroq]=useState(false);
   const [existingCues,setExistingCues]=useState(0);
@@ -82,7 +84,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
     if(!historyLoaded)throw Error("Check saved transcription progress before retrying provider requests.");
     if(!share||!billing)throw Error("Approve provider sharing and quota before submitting.");
     if(provider==="groq"&&!apiKey.trim()&&!connectedGroq)throw Error("Connect your Groq key in Account or enter it here.");
-    for(let i=completed;i<preparation.parts.length;i++){
+    for(let i=0;i<preparation.parts.length;i++){
       if(stop.current)break;
       const part=preparation.parts[i];
       if(!part.localKey)throw Error("Prepared part is not available locally. Return to Prepare Audio.");
@@ -90,21 +92,30 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       if(file.size!==part.bytes)throw Error("Prepared part has changed. Return to Prepare Audio.");
       const maxSize=provider==="gemini"?11*1024*1024:16*1024*1024;
       if(file.size>maxSize)throw Error("Section "+(i+1)+" exceeds the selected provider clip limit. Return to Prepare Audio.");
-      const receipt=await recapCloudClipReceipt(await file.arrayBuffer(),provider,{
-        startMs:part.startMs,durationMs:part.durationMs,speakerId,
-        model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
+      const bytes=await file.arrayBuffer();
+      const selectedModel=provider==="groq"?model:geminiModel;
+      const receipt=await recapCloudClipReceipt(bytes,provider,{
+        startMs:part.startMs,durationMs:part.durationMs,speakerId,model:selectedModel,
       });
-      if(savedReceipts.includes(receipt)){
-        setCompleted(i+1);
-        continue;
+      // Any Gemini model can finish *remaining* sections. Recognize prior
+      // receipts from either model rather than resubmitting already saved audio.
+      let alreadySaved=savedReceipts.includes(receipt);
+      if(provider==="gemini"&&!alreadySaved){
+        for(const alternative of GEMINI_TRANSCRIPTION_MODELS){
+          const earlier=await recapCloudClipReceipt(bytes,"gemini",{
+            startMs:part.startMs,durationMs:part.durationMs,speakerId,model:alternative.id,
+          });
+          if(savedReceipts.includes(earlier)){alreadySaved=true;break;}
+        }
       }
+      if(alreadySaved){setCompleted(i+1);continue;}
       const endpoint=base+"/staged/"+provider;
       setTransfer({done:0,total:file.size});
       const result=await submitStagedCloudClip({
         endpoint,recapId,receipt,file,
         filename:part.name,mimeType:part.mimeType,
         startMs:part.startMs,durationMs:part.durationMs,speakerId,
-        model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
+        model:selectedModel,
         apiKey,provider,
         onProgress:(done,total,stage)=>{
           setTransfer(stage==="transfer"?{done,total}:null);
@@ -198,18 +209,23 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
         try{
           const file=await browserRecapFile(part.localKey);
           if(file.size!==part.bytes)break;
-          const receipt=await recapCloudClipReceipt(await file.arrayBuffer(),provider,{
-            startMs:part.startMs,durationMs:part.durationMs,speakerId,
-            model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
-          });
-          if(!receipts.has(receipt))break;
+          const bytes=await file.arrayBuffer();
+          const candidates=provider==="groq"?[model]:GEMINI_TRANSCRIPTION_MODELS.map(m=>m.id);
+          let found=false;
+          for(const candidate of candidates){
+            const receipt=await recapCloudClipReceipt(bytes,provider,{
+              startMs:part.startMs,durationMs:part.durationMs,speakerId,model:candidate,
+            });
+            if(receipts.has(receipt)){found=true;break;}
+          }
+          if(!found)break;
           verified++;
         }catch{break;}
       }
       if(active)setCompleted(verified);
     })();
     return ()=>{active=false;};
-  },[cloud,historyLoaded,busy,savedReceipts,preparation.parts,provider,speakerId,model]);
+  },[cloud,historyLoaded,busy,savedReceipts,preparation.parts,provider,speakerId,model,geminiModel]);
   async function run(){
     if(busy||!preparation.parts.length||!speakerId)return;
     if(cloud&&!share||cloud&&!billing)return;
@@ -250,6 +266,22 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
         {speakers.map(s=><option key={s.id} value={s.id}>{s.displayName}</option>)}
       </select>
     </label>
+    {provider==="gemini"&&<label>Gemini transcription model
+      <select value={geminiModel} disabled={busy} onChange={e=>{
+        setGeminiModel(e.target.value as GeminiTranscriptionModel);
+      }}>
+        {GEMINI_TRANSCRIPTION_MODELS.map(option=><option key={option.id} value={option.id}>
+          {option.name}{option.recommended?" — recommended":""}
+        </option>)}
+      </select>
+      <p className="campaign-empty-copy">{GEMINI_TRANSCRIPTION_MODELS.find(option=>option.id===geminiModel)?.description}
+        {" "}{GEMINI_TRANSCRIPTION_MODELS.find(option=>option.id===geminiModel)?.note}
+        {" "}Models have separate project quotas, but remaining allowance cannot be verified by TWE.
+        Switching only affects unfinished sections. General-purpose Flash may give section-level
+        timing rather than precise clickable word timestamps. No automatic paid fallback occurs.
+        Check <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">Google AI Studio</a> for limits.
+      </p>
+    </label>}
     {provider==="groq"&&<>
       <label>Whisper model
         <select disabled={busy||existingCues>0} value={model} onChange={e=>{setModel(e.target.value);setCompleted(0);}}>

@@ -76,6 +76,12 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     if(!canManageCampaignContent(actor,access.campaign,access.membership))
       return errorResponse("Only campaign GMs can transcribe.",403);
     requireActiveCampaign(access.campaign);
+    // Bound the multipart envelope before buffering it in the Worker.
+    // Audio is already limited to 11 MiB by the saved preparation; multipart
+    // overhead must not allow an unbounded formData allocation.
+    const length=request.headers.get("content-length");
+    if(length&&(!/^\\d+$/u.test(length)||Number(length)>MAX_GEMINI_CHUNK_BYTES+131_072))
+      return errorResponse("Gemini audio section exceeds the 12 MiB upload limit.",413);
     const form=await request.formData();
     const recapId=form.get("recapId");
     const recap=await getCampaignSessionRecap(db,actor,id,recapId);

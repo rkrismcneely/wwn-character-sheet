@@ -4,6 +4,7 @@ import {useEffect,useRef,useState} from "react";
 import {browserRecapFile} from "@/lib/campaigns/recap-browser-preparation";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
+import {readRecapClipSubmitResponse} from "@/lib/campaigns/recap-transcript-response";
 import {inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload} from "@/lib/campaigns/recap-wav-chunks";
 import type {RecapPreparation} from "@/lib/campaigns/recap-stage-workflow";
 import {loadLocalWhisper,localCaptionCues} from "./session-recap-local-whisper";
@@ -86,6 +87,8 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       if(!part.localKey)throw Error("Prepared part is not available locally. Return to Prepare Audio.");
       const file=await browserRecapFile(part.localKey);
       if(file.size!==part.bytes)throw Error("Prepared part has changed. Return to Prepare Audio.");
+      const maxSize=provider==="gemini"?11*1024*1024:16*1024*1024;
+      if(file.size>maxSize)throw Error("Section "+(i+1)+" exceeds the selected provider clip limit. Return to Prepare Audio.");
       const receipt=await recapCloudClipReceipt(await file.arrayBuffer(),provider,{
         startMs:part.startMs,durationMs:part.durationMs,speakerId,
         model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
@@ -106,8 +109,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       if(provider==="groq"){form.set("model",model);form.set("language","en");}
       const endpoint=provider==="groq"?base+"/transcribe":base+"/gemini";
       const response=await fetch(endpoint,{method:"POST",body:form});
-      const result=await response.json() as Result;
-      if(!response.ok||!result.saved)throw Error(result.error||"Transcription stopped on section "+(i+1)+".");
+      const result=await readRecapClipSubmitResponse(response,i+1);
       setCompleted(i+1);
       setSavedReceipts(previous=>previous.includes(receipt)?previous:[...previous,receipt]);
       if(!result.duplicate){setExistingCues(x=>x+1);onTranscriptSaved();}
@@ -212,8 +214,12 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
       else throw Error("Import a transcript using the editor below.");
       setNotice(stop.current?"Paused after the current section. Completed sections remain saved.":
         "Transcription finished. Review the saved transcript before approving it.");
-    }catch(e){setError((e instanceof Error?e.message:"Transcription failed.")+
-      " Finished sections remain saved; check provider quota before retrying.");}
+    }catch(e){
+      const message=e instanceof Error?e.message:"Transcription failed.";
+      setError(message+(/HTTP 413|Payload Too Large/u.test(message)
+        ?" Previously prepared sections are saved. Don't reupload the original recording."
+        :" Finished sections remain saved; check saved progress and your provider account before retrying."));
+    }
     finally{setBusy(false);}
   }
   if(provider==="import")return <div className="session-recap-reading">

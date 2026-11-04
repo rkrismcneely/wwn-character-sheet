@@ -6,6 +6,9 @@ import { getSessionActor } from "../lib/auth-session";
 import { authorizeLiveSessionConnection } from "../lib/campaigns/live-session-service";
 import { CampaignServiceError } from "../lib/campaigns/service";
 import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler";
+import {POST as postGeminiTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
+import {POST as postGroqTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
+import {matchDirectRecapTranscription} from "../lib/campaigns/recap-direct-transcription";
 import { runRecapOnlyScheduledTick } from "../lib/campaigns/recap-only-runner";
 import { runVerifiedGeminiRecapRecoveryTick } from "../lib/campaigns/recap-gemini-auto-recovery";
 import { runVerifiedSingleAudioRecoveryTick } from "../lib/campaigns/recap-gemini-single-recovery";
@@ -205,6 +208,22 @@ const worker = {
         }
       }
 
+      // Recap cloud-audio uploads can be 5–11 MiB per prepared section.
+      // Route these two exact POST endpoints directly to their already
+      // authenticated app handlers, bypassing the framework request-body
+      // parser which can respond with plain-text "Payload Too Large" before
+      // the route handler is invoked. Cloudflare's ingress body limit remains
+      // in force; the app handlers still validate size, GM permissions, CSRF,
+      // speaker attribution and explicit provider consent.
+      const transcribeClip=matchDirectRecapTranscription(url.pathname,request.method);
+      if(transcribeClip){
+        const routeContext={params:Promise.resolve({id:transcribeClip.campaignId})};
+        const response=transcribeClip.provider==="gemini"
+          ?await postGeminiTranscription(request,routeContext)
+          :await postGroqTranscription(request,routeContext);
+        if(response.status>=500)logServerResponse(request,response.status,"recap-transcription-response");
+        return response;
+      }
       const response = await handler.fetch(request, env, ctx);
       if (response.status >= 500) logServerResponse(request, response.status);
       return response;

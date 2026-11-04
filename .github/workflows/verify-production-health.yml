@@ -52,6 +52,22 @@ jobs:
               grep -q 'self.onmessage' /tmp/twe-ffmpeg-worker
               grep -q 'case "LOAD"' /tmp/twe-ffmpeg-worker
               echo "Verified FFmpeg worker endpoint and message protocol."
+              # Prove an audio-sized POST can reach the AUTH gate before any
+              # framework payload parser rejects it. Synthetic bytes only:
+              # no user content, Gemini key, or paid-capable AI request.
+              head -c 6291456 /dev/zero > /tmp/twe-recap-gateway-probe
+              probe_status=$(curl --silent --show-error --connect-timeout 10 \
+                --max-time 25 --output /tmp/twe-recap-gateway-result \
+                --write-out '%{http_code}' --request POST \
+                --header 'Origin: https://taleswithoutend.com' \
+                --header 'Content-Type: application/octet-stream' \
+                --data-binary @/tmp/twe-recap-gateway-probe \
+                'https://taleswithoutend.com/api/campaigns/cmp_AAAAAAAAAAAAAAAAAAAAAA/session-recaps/transcript/gemini' || true)
+              if [ "$probe_status" != 401 ] || ! grep -q '"Sign in required."' /tmp/twe-recap-gateway-result; then
+                echo "Large transcription request failed to reach GM authorization (HTTP $probe_status)." >&2
+                exit 1
+              fi
+              echo "Verified 6 MiB recap upload reaches authentication (without AI invocation)."
               exit 0
             fi
             echo "Waiting for Cloudflare to deploy $EXPECTED_SHA (observed ${actual:-none})."

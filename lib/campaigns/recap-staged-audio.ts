@@ -80,7 +80,7 @@ export async function handleStagedRecapAudio(request:Request,
           const result=await reader.read();
           if(result.done)break;
           received+=result.value.byteLength;
-          if(received>MAX_CHUNK)throw new CampaignServiceError("Audio chunk too large.",413);
+          if(received>MAX_CHUNK){await reader.cancel();return reply("Audio chunk too large.",413);}
           pieces.push(result.value);
         }
       }finally{reader.releaseLock();}

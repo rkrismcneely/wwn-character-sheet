@@ -11,8 +11,8 @@ import {getCampaignD1,loadCampaignAccess,requireActiveCampaign,
   CampaignServiceError} from "@/lib/campaigns/service";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import {readBoundedJson} from "@/lib/http-json";
-import {POST as gemini} from "@/app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
-import {POST as groq} from "@/app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
+import {handleGeminiRequest} from "@/app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
+import {handleGroqRequest} from "@/app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
 
 const MAX_CHUNK=512*1024;
 const MAX_CHUNKS=40;
@@ -157,12 +157,12 @@ export async function handleStagedRecapAudio(request:Request,
       provider==="gemini"?"/gemini":"/transcribe");
     endpoint.search="";
     const internal=new Request(endpoint.toString(),{
-      method:"POST",headers,body:form,
+      method:"POST",headers,
     });
     try{
       return provider==="gemini"
-        ?await gemini(internal,{params:Promise.resolve({id:campaignId})})
-        :await groq(internal,{params:Promise.resolve({id:campaignId})});
+        ?await handleGeminiRequest(internal,{params:Promise.resolve({id:campaignId})},form)
+        :await handleGroqRequest(internal,{params:Promise.resolve({id:campaignId})},form);
     }finally{
       // Explicitly discard temporary owner-hosted copies after a provider
       // submission. Failed retries upload only the already-prepared clips.

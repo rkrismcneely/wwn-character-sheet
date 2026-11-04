@@ -53,8 +53,9 @@ export function normalizeGeminiWords(raw:unknown,offsetMs:number,durationMs:numb
   if(words.length>20_000)throw new Error("Gemini returned too many words for one clip.");
   const completeText=typeof response.output_text==="string"?response.output_text:"";
   if(words.length===0) {
-    if(completeText==="")return [];
-    return sectionTextCues(completeText,offsetMs,durationMs);
+    if(response.output_text==="")return []; // Explicitly confirmed silence.
+    if(completeText.trim())return sectionTextCues(completeText,offsetMs,durationMs);
+    throw new Error("Gemini did not return timestamped words or full transcript text. The provider response is saved for recovery.");
   }
   const cues:CaptionCue[]=[];
   let start=-1,end=0,phrase="";

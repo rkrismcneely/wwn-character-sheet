@@ -23,7 +23,7 @@ const transcriptionOptions:{id:RecapTranscriber;name:string;description:string}[
   {id:"groq",name:"Groq Whisper",description:"Cloud · Personal Groq key · Accurate timestamps · Quotas apply"},
   {id:"gemini",name:"Google Gemini",description:"Cloud · Personal Gemini key · Audio processing may be less reliable"},
   {id:"local-whisper",name:"Local Whisper",description:"Free on this device · No AI account · Slower and experimental"},
-  {id:"import",name:"Import Discap / Craig transcript",description:"Free · Discap TXT, Craig SRT/WebVTT · Speaker labels retained"},
+  {id:"import",name:"Import Discap / Craig transcript",description:"Free · Experimental Discap TXT, Craig SRT/WebVTT · Confirm speakers"},
 ];
 const writerOptions:{id:RecapWriter;name:string;description:string;models:{id:string;name:string}[]}[]=[
   {id:"gemini",name:"Gemini Flash",description:"Cloud · Text-only · GM-owned API quota",models:[

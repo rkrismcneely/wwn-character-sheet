@@ -49,8 +49,8 @@ test("wizard restores cloud section progress without retransferring previously s
   const code=await read("app/campaigns/session-recap-staged-transcriber.tsx");
   assert.match(code,/setSavedReceipts\(value\.processedClips\?\?\[\]\)/u);
   assert.match(code,/if\(!historyLoaded\)throw Error/u);
-  assert.match(code,/if\(savedReceipts\.includes\(receipt\)\)/u);
-  assert.match(code,/if\(!receipts\.has\(receipt\)\)break/u);
+  assert.match(code,/if\(alreadySaved\)\{setCompleted\(i\+1\);continue;\}/u);
+  assert.match(code,/if\(!found\)break/u);
   assert.match(code,/if\(!result\.duplicate\)/u);
   assert.match(code,/setModel\(candidate\)/u);
 });

@@ -23,7 +23,8 @@ test("GM editor uses full-caption importer instead of the old 30k Markdown path"
  ]);
  assert.match(editor,/SessionRecapFullTranscriptManager/u);
  assert.doesNotMatch(editor,/onClick=\{\(\)=>captionsFileRef/u);
- assert.match(manager,/parseFullCraigCaptions\(await file\.text\(\),file\.name\)/u);
+ assert.match(manager,/parseFullCraigCaptions\(source,file\.name\)/u);
+  assert.match(manager,/parseDiscapTranscriptDocument\(source,file\.name\)/u);
  assert.match(manager,/Save private transcript draft/u);
  assert.match(manager,/Publish transcript/u);
 });

@@ -56,7 +56,7 @@ export async function PATCH(request:Request,context:Context){
         .first<{discordName:string;displayName:string;role:"gm"|"player"|"guest";characterName:string|null}>();
       if(!row)throw new CampaignServiceError("That campaign speaker is no longer available.",409);
       cues=transcript.cues.map(cue=>cue.rawSpeaker===label?
-        {...cue,speakerName:row.displayName,role:row.role,characterName:row.characterName}:cue);
+        {...cue,rawSpeaker:row.discordName,speakerName:row.displayName,role:row.role,characterName:row.characterName}:cue);
       replacements=cues.filter((cue,index)=>cue!==transcript.cues[index]).length;
       if(!replacements)throw new CampaignServiceError("Detected voice was not found in this transcript.",422);
     }else if(typeof body.replaceFrom==="string"&&typeof body.replaceTo==="string"){

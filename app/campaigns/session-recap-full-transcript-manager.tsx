@@ -58,8 +58,10 @@ export function SessionRecapFullTranscriptManager({campaignId,recapId}:{campaign
       const document=isDiscap?parseDiscapTranscriptDocument(source,file.name):null;
       const cues=document?.cues??parseFullCraigCaptions(source,file.name);
       if(document){
-        const {cues:_cues,...metadata}=document;
-        setDiscapMetadata(metadata);
+        setDiscapMetadata({
+          title:document.title,startedAt:document.startedAt,
+          durationMs:document.durationMs,participants:document.participants,
+        });
       }
       setPending(cues);setFilename(file.name);setAssignments({});
       setNotice("Parsed "+cues.length+" dialogue entries. Confirm every detected speaker before saving. Existing transcript will be replaced only after explicit approval.");

@@ -83,7 +83,9 @@ test("production upload smoke detects a premature 413 before auth without invoki
 
 test("client proactively validates provider section size before a paid-capable request",async()=>{
   const code=await read("app/campaigns/session-recap-staged-transcriber.tsx");
-  assert.match(code,/readRecapClipSubmitResponse\(response,i\+1\)/u);
+  assert.match(code,/submitStagedCloudClip\(/u);
+  const staged=await read("lib/campaigns/recap-staged-upload-client.ts");
+  assert.match(staged,/readRecapClipSubmitResponse\(response,1\)/u);
   assert.match(code,/const maxSize=provider==="gemini"\?11\*1024\*1024:16\*1024\*1024/u);
   assert.match(code,/file\.size>maxSize/u);
   assert.match(code,/Previously prepared sections are saved/u);

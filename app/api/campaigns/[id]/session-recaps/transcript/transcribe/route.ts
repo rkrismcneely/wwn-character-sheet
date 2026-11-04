@@ -33,7 +33,13 @@ async function previousTranscript(key:string) {
   return {transcript,etag:object.etag};
 }
 
-export async function POST(request:Request,context:Context):Promise<Response> {
+export async function POST(request:Request,context:Context):Promise<Response>{
+  return handleGroqRequest(request,context,null);
+}
+/** Internal-only staged form entry: uses the exact same auth and provider logic,
+ * but does not parse another large multipart body inside the Worker. */
+export async function handleGroqRequest(request:Request,context:Context,
+  stagedForm:FormData|null):Promise<Response> {
   try {
     const origin=request.headers.get("origin");
     if(!origin||origin!==new URL(request.url).origin ||
@@ -51,7 +57,7 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     if(!canManageCampaignContent(actor,access.campaign,access.membership))
       return reply("Only campaign GMs can run transcription.",403);
     requireActiveCampaign(access.campaign);
-    const form=await request.formData();
+    const form=stagedForm??await request.formData();
     const recapId=requiredString(form,"recapId");
     const recap=await getCampaignSessionRecap(db,actor,id,recapId);
     const file=form.get("file");

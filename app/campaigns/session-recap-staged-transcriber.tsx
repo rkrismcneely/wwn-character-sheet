@@ -4,7 +4,7 @@ import {useEffect,useRef,useState} from "react";
 import {browserRecapFile} from "@/lib/campaigns/recap-browser-preparation";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
 import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
-import {readRecapClipSubmitResponse} from "@/lib/campaigns/recap-transcript-response";
+import {submitStagedCloudClip} from "@/lib/campaigns/recap-staged-upload-client";
 import {inspectPcmWavUpload,planPcmWavUploadChunks,buildPcmWavUpload} from "@/lib/campaigns/recap-wav-chunks";
 import type {RecapPreparation} from "@/lib/campaigns/recap-stage-workflow";
 import {loadLocalWhisper,localCaptionCues} from "./session-recap-local-whisper";
@@ -38,6 +38,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
   const [busy,setBusy]=useState(false);
   const [completed,setCompleted]=useState(0);
   const [notice,setNotice]=useState("");
+  const [transfer,setTransfer]=useState<{done:number;total:number}|null>(null);
   const [error,setError]=useState("");
   const stop=useRef(false);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/transcript";
@@ -97,19 +98,24 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
         setCompleted(i+1);
         continue;
       }
-      const form=new FormData();
-      form.set("recapId",recapId);
-      form.set("file",new File([file],part.name,{type:part.mimeType}));
-      form.set("startMs",String(part.startMs));
-      form.set("durationMs",String(part.durationMs));
-      form.set("speakerId",speakerId);
-      form.set("approvedShare","true");
-      form.set("approvedBilling","true");
-      if(apiKey.trim())form.set("apiKey",apiKey.trim());
-      if(provider==="groq"){form.set("model",model);form.set("language","en");}
-      const endpoint=provider==="groq"?base+"/transcribe":base+"/gemini";
-      const response=await fetch(endpoint,{method:"POST",body:form});
-      const result=await readRecapClipSubmitResponse(response,i+1);
+      const endpoint=base+"/staged/"+provider;
+      setTransfer({done:0,total:file.size});
+      const result=await submitStagedCloudClip({
+        endpoint,recapId,receipt,file,
+        filename:part.name,mimeType:part.mimeType,
+        startMs:part.startMs,durationMs:part.durationMs,speakerId,
+        model:provider==="groq"?model:GEMINI_TRANSCRIBE_MODEL,
+        apiKey,provider,
+        onProgress:(done,total,stage)=>{
+          setTransfer(stage==="transfer"?{done,total}:null);
+          setNotice(stage==="transfer"
+            ?"Transferring section "+(i+1)+" of "+preparation.parts.length+
+              " in small pieces ("+Math.round(done/total*100)+"%)…"
+            :"Section "+(i+1)+" transferred and verified. Waiting for "+
+              (provider==="gemini"?"Gemini":"Groq")+" transcription…");
+        },
+      });
+      setTransfer(null);
       setCompleted(i+1);
       setSavedReceipts(previous=>previous.includes(receipt)?previous:[...previous,receipt]);
       if(!result.duplicate){setExistingCues(x=>x+1);onTranscriptSaved();}
@@ -220,7 +226,7 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
         ?" Previously prepared sections are saved. Don't reupload the original recording."
         :" Finished sections remain saved; check saved progress and your provider account before retrying."));
     }
-    finally{setBusy(false);}
+    finally{setBusy(false);setTransfer(null);}
   }
   if(provider==="import")return <div className="session-recap-reading">
     <h4>Import your timestamped transcript</h4>
@@ -274,6 +280,12 @@ export function SessionRecapStagedTranscriber({campaignId,recapId,preparation,on
         Stop after current section
       </button>}
     </div>
+    {transfer&&<div role="status">
+      <p>Transferring prepared section to TWE: {Math.round(transfer.done/transfer.total*100)}%
+        ({(transfer.done/1024/1024).toFixed(1)} of {(transfer.total/1024/1024).toFixed(1)} MiB)</p>
+      <progress style={{width:"100%"}} max={transfer.total} value={transfer.done}
+        aria-label="Prepared audio transfer progress"/>
+    </div>}
     <progress style={{width:"100%"}} max={Math.max(1,preparation.parts.length)} value={completed} aria-label="Transcription sections complete"/>
     {busy&&<div role="status">
       <span>Transcribing section {Math.min(completed+1,preparation.parts.length)} of {preparation.parts.length}…</span>

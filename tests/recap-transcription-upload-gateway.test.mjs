@@ -80,5 +80,5 @@ test("client proactively validates provider section size before a paid-capable r
   assert.match(code,/Previously prepared sections are saved/u);
   const gemini=await read("app/api/campaigns/[id]/session-recaps/transcript/gemini/route.ts");
   assert.match(gemini,/MAX_GEMINI_CHUNK_BYTES\+131_072/u);
-  assert.match(gemini,/length&&\(!\/\^\\d\+\$\/u);
+  assert.ok(gemini.includes("Number(length)>MAX_GEMINI_CHUNK_BYTES+131_072"));
 });

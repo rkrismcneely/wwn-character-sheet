@@ -63,13 +63,13 @@ export async function PATCH(request:Request,context:Context){
       "No eligible Whisper captions overlap this section. Existing confirmed speakers were preserved.",422);
     const aligned=alignSherpaTurns(targets,turns,Number(body.startMs));
     const replacements=new Map(targets.map((cue,i)=>[
-      cue.startMs+":"+cue.endMs+":"+cue.text,
+      cue,
       aligned.cues[i].rawSpeaker==="Unidentified speaker"?
         "Unidentified speaker":aligned.cues[i].rawSpeaker+" · section "+(Number(body.partIndex)+1),
     ]));
     let changed=0;
     const cues:StoredCaptionCue[]=transcript.cues.map(cue=>{
-      const label=replacements.get(cue.startMs+":"+cue.endMs+":"+cue.text);
+      const label=replacements.get(cue);
       if(label===undefined)return cue;
       changed++;
       return {...cue,rawSpeaker:label,speakerName:label,

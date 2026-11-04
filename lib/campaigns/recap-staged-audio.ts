@@ -10,7 +10,7 @@ import {getCampaignSessionRecap} from "@/lib/campaigns/session-recaps";
 import {getCampaignD1,loadCampaignAccess,requireActiveCampaign,
   CampaignServiceError} from "@/lib/campaigns/service";
 import {recapCloudClipReceipt} from "@/lib/campaigns/recap-cloud-clip-receipt";
-import {GEMINI_TRANSCRIBE_MODEL} from "@/lib/campaigns/recap-gemini-transcribe";
+import {parseGeminiTranscriptionModel} from "@/lib/campaigns/recap-gemini-models";
 import {readBoundedJson} from "@/lib/http-json";
 import {handleGeminiRequest} from "@/app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
 import {handleGroqRequest} from "@/app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
@@ -127,7 +127,9 @@ export async function handleStagedRecapAudio(request:Request,
     if(totalBytes!==body.byteSize)return reply("Uploaded section size does not match the prepared original.",409);
     const file=new File(fileParts.map(p=>new Uint8Array(p)),body.filename,
       {type:body.mimeType});
-    const model=provider==="gemini"?GEMINI_TRANSCRIBE_MODEL:
+    // Validate the selected model BEFORE confirming its clip receipt or
+    // sending a GM-owned key/audio to Google.
+    const model=provider==="gemini"?parseGeminiTranscriptionModel(body.model):
       typeof body.model==="string"?body.model:"";
     const fileBytes=await file.arrayBuffer();
     const computed=await recapCloudClipReceipt(fileBytes,provider,{
@@ -144,10 +146,8 @@ export async function handleStagedRecapAudio(request:Request,
     form.set("approvedShare","true");
     form.set("approvedBilling","true");
     if(typeof body.apiKey==="string"&&body.apiKey)form.set("apiKey",body.apiKey);
-    if(provider==="groq"){
-      form.set("model",model);
-      form.set("language","en");
-    }
+    form.set("model",model);
+    if(provider==="groq")form.set("language","en");
     // Invoke the existing, independently authenticated provider handler inside
     // the Worker. No large client request passes through Vinext or Cloudflare.
     const headers=new Headers(request.headers);

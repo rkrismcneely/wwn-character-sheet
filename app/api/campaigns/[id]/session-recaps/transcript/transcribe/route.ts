@@ -126,13 +126,17 @@ export async function handleGroqRequest(request:Request,context:Context,
     try {
       provider=await fetch("https://api.groq.com/openai/v1/audio/transcriptions",{
         method:"POST",headers:{"authorization":"Bearer "+apiKey},
-        body:upload,redirect:"error",signal:deadline,
+        body:upload,redirect:"manual",signal:deadline,
       });
     }catch{
       if(deadline.aborted)
         return reply("Groq did not return a transcription within 3 minutes. The audio may have been processed or counted toward your quota. Check your Groq usage and saved transcript before explicitly retrying this section.",504);
       return reply("Groq could not be reached or the connection ended before a result arrived. The outcome is uncertain; check your account and saved transcript before manually retrying.",503);
     }
+    // Cloudflare Workers does not implement automatic redirect rejection. Manual prevents
+    // forwarding the personal Groq authorization header to any redirected host.
+    if(provider.status>=300&&provider.status<400)
+      return reply("Groq returned a redirect rather than a transcription. No redirect was followed. Verify the Groq endpoint before retrying.",502);
     if(!provider.ok){
       if(provider.status===429)return reply("Your Groq transcription quota or rate limit was reached. Processing paused.",429);
       if(provider.status===408||provider.status===504)

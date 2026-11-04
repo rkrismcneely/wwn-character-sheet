@@ -8,6 +8,7 @@ import { CampaignServiceError } from "../lib/campaigns/service";
 import { runGeminiScheduledTick } from "../lib/campaigns/recap-gemini-scheduler";
 import {POST as postGeminiTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/gemini/route";
 import {POST as postGroqTranscription} from "../app/api/campaigns/[id]/session-recaps/transcript/transcribe/route";
+import {matchDirectRecapTranscription} from "../lib/campaigns/recap-direct-transcription";
 import { runRecapOnlyScheduledTick } from "../lib/campaigns/recap-only-runner";
 import { runVerifiedGeminiRecapRecoveryTick } from "../lib/campaigns/recap-gemini-auto-recovery";
 import { runVerifiedSingleAudioRecoveryTick } from "../lib/campaigns/recap-gemini-single-recovery";
@@ -214,11 +215,10 @@ const worker = {
       // the route handler is invoked. Cloudflare's ingress body limit remains
       // in force; the app handlers still validate size, GM permissions, CSRF,
       // speaker attribution and explicit provider consent.
-      const transcribeClip=url.pathname.match(
-        /^\/api\/campaigns\/(cmp_[A-Za-z0-9_-]{22})\/session-recaps\/transcript\/(gemini|transcribe)$/u);
-      if(request.method==="POST"&&transcribeClip){
-        const routeContext={params:Promise.resolve({id:transcribeClip[1]})};
-        const response=transcribeClip[2]==="gemini"
+      const transcribeClip=matchDirectRecapTranscription(url.pathname,request.method);
+      if(transcribeClip){
+        const routeContext={params:Promise.resolve({id:transcribeClip.campaignId})};
+        const response=transcribeClip.provider==="gemini"
           ?await postGeminiTranscription(request,routeContext)
           :await postGroqTranscription(request,routeContext);
         if(response.status>=500)logServerResponse(request,response.status,"recap-transcription-response");

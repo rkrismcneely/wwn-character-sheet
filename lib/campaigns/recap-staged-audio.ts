@@ -154,7 +154,7 @@ export async function handleStagedRecapAudio(request:Request,
     headers.delete("content-length");
     headers.delete("content-type");
     const endpoint=new URL(request.url);
-    endpoint.pathname=endpoint.pathname.replace(/\/staged$/u,
+    endpoint.pathname=endpoint.pathname.replace(/\/staged\/(?:gemini|groq)$/u,
       provider==="gemini"?"/gemini":"/transcribe");
     endpoint.search="";
     const internal=new Request(endpoint.toString(),{

@@ -63,7 +63,13 @@ async function runGemini(apiKey:string,uri:string,mime:string):Promise<unknown> 
   if(data.length>600_000)throw new Error("oversize-result");
   return JSON.parse(data) as unknown;
 }
-export async function POST(request:Request,context:Context):Promise<Response> {
+export async function POST(request:Request,context:Context):Promise<Response>{
+  return handleGeminiRequest(request,context,null);
+}
+/** Internal-only staged form entry: uses the exact same auth and provider logic,
+ * but does not parse another large multipart body inside the Worker. */
+export async function handleGeminiRequest(request:Request,context:Context,
+  stagedForm:FormData|null):Promise<Response> {
   try{
     const origin=request.headers.get("origin");
     if(!origin||origin!==new URL(request.url).origin||request.headers.get("sec-fetch-site")==="cross-site")
@@ -82,7 +88,7 @@ export async function POST(request:Request,context:Context):Promise<Response> {
     const length=request.headers.get("content-length");
     if(length&&(!/^\\d+$/u.test(length)||Number(length)>MAX_GEMINI_CHUNK_BYTES+131_072))
       return errorResponse("Gemini audio section exceeds the 12 MiB upload limit.",413);
-    const form=await request.formData();
+    const form=stagedForm??await request.formData();
     const recapId=form.get("recapId");
     const recap=await getCampaignSessionRecap(db,actor,id,recapId);
     const audio=form.get("file");

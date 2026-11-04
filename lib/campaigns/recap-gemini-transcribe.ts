@@ -20,7 +20,7 @@ export function geminiWordTime(raw:unknown):number {
  * contain unusable offsets. Section-range labels do not claim word precision.
  */
 function sectionTextCues(raw:string,offsetMs:number,durationMs:number):CaptionCue[]{
-  const text=raw.trim().replace(/[\\u0000-\\u001f\\u007f]/gu," ");
+  const text=raw.trim().replace(/[\u0000-\u001f\u007f]/gu," ");
   if(!text||text.length>120_000)throw new Error("Gemini returned invalid transcript text.");
   const result:CaptionCue[]=[];
   const label="[Section-level timing only; word timestamps unavailable] ";
@@ -76,7 +76,7 @@ export function normalizeGeminiWords(raw:unknown,offsetMs:number,durationMs:numb
     const text=typeof word.text==="string"?word.text.trim():"";
     if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||
       first<0||first>=durationMs||last<first||last>durationMs+2000||
-      !text||text.length>1400||/[\\u0000-\\u001f\\u007f]/u.test(text)){
+      !text||text.length>1400||/[\u0000-\u001f\u007f]/u.test(text)){
       if(completeText.trim())return sectionTextCues(completeText,offsetMs,durationMs);
       throw new Error("Gemini returned unsupported word timings or text. The provider response is saved for recovery.");
     }

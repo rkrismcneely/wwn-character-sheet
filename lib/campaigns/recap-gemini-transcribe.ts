@@ -62,7 +62,7 @@ export function normalizeGeminiWords(raw:unknown,offsetMs:number,durationMs:numb
   // Only reconstruct when *every* annotation has safe, nonempty speech.
   const annotatedText=words.every(word=>typeof word.text==="string"&&
     Boolean(word.text.trim())&&word.text.length<=1400&&
-    !/[\\u0000-\\u001f\\u007f]/u.test(word.text))
+    !/[\u0000-\u001f\u007f]/u.test(word.text))
     ?words.map(word=>(word.text as string).trim()).join(" "):"";
   const recoverText=completeText.trim()||annotatedText;
   const recover=():CaptionCue[]=>{
@@ -101,7 +101,7 @@ export function normalizeGeminiWords(raw:unknown,offsetMs:number,durationMs:numb
     // only within the allowed 2-second tolerance, never invent time beyond it.
     let last=Math.min(durationMs,word.last-shift);
     const text=word.text;
-    if(!text||text.length>1400||/[\\u0000-\\u001f\\u007f]/u.test(text))
+    if(!text||text.length>1400||/[\u0000-\u001f\u007f]/u.test(text))
       return recover();
     last=Math.max(first+1,last);
     if(last>durationMs)return recover();

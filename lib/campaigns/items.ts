@@ -156,14 +156,20 @@ function magicalProperties(value: unknown): CampaignMagicalProperties {
   };
 }
 
-function properties(value: unknown, itemKind: InventoryItemKind): CampaignItemProperties {
+/** Normalize the nested payload emitted by the item editor.
+ * Older callers may have submitted flat fields; accept those only when
+ * there is no nested object for the selected kind.
+ */
+export function normalizeCampaignItemProperties(value: unknown, itemKind: InventoryItemKind): CampaignItemProperties {
   if (itemKind === "mundane") return {};
-  if (itemKind === "weapon") return { weapon: weaponProperties(value) };
-  if (itemKind === "armor") return { armor: armorProperties(value) };
-  // Keep the original magical-item payload valid. Its free-form description
-  // remains the complete definition when no structured fields were supplied.
+  const candidate = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
+  if (itemKind === "weapon") return { weapon: weaponProperties(candidate?.weapon ?? value) };
+  if (itemKind === "armor") return { armor: armorProperties(candidate?.armor ?? value) };
+  // An older magical item may have no structured fields at all, with the
+  // complete item definition in its free-form description.
   if (value === undefined || value === null) return {};
-  return { magical: magicalProperties(value) };
+  return { magical: magicalProperties(candidate?.magical ?? value) };
 }
 
 function storedProperties(value: string): CampaignItemProperties {
@@ -239,7 +245,7 @@ function normalizedDraft(draft: CampaignItemDraft) {
     name: text(draft.name, "Item name", 80),
     kind: itemKind,
     description: text(draft.description, "Item description", 2000, false, true),
-    properties: properties(draft.properties, itemKind),
+    properties: normalizeCampaignItemProperties(draft.properties, itemKind),
     visibility: itemVisibility,
     characterIds: targetIds(draft.characterIds, itemVisibility),
   };

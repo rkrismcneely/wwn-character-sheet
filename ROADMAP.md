@@ -54,17 +54,18 @@ Treat the remaining expansion bullets as product choices rather than mandatory s
 
 ---
 
-## Future feature: 3D Maps and 3D Miniatures
+## Future feature: 2.5D Tabletop Maps and Hero Forge Miniatures
 
-**Status: research and feasibility only.** Build on TWE's existing Maps, tokens, fog, scenes, and campaign permissions. Do not replace the 2D VTT or commit to full 3D rendering until viable source formats and performance are demonstrated.
+**Direction chosen 2026-11-09: preserve 2D battle maps and add optional 3D miniatures.** This is future Maps scope, not a request to build 3D dungeons.
 
-- **Dungeon Alchemist 3D environment import (requested).** The desired result is a navigable tabletop-scale 3D scene that retains usable floors, walls, doors, elevations, obstacles, lighting, map scale/grid alignment, and GM/player visibility controls where available. **Current dependency:** Dungeon Alchemist does not officially export full 3D scenes and says it has no plans to offer such exports. Treat this as blocked on a supported, appropriately licensed export or integration route; do not promise a direct import, reverse-engineer proprietary scene assets, or extract proprietary geometry. Monitor official capabilities for changes.
-- **Practical Dungeon Alchemist interoperability meanwhile.** Evaluate its existing exported 2D images and Universal VTT (.dd2vtt) data (walls/doors/lighting) for import to existing TWE maps. If exploring a 2.5D presentation, represent walls/height with original or appropriately licensed TWE geometry rather than claiming the exported image contains the actual Dungeon Alchemist 3D scene.
-- **Hero Forge 3D tokens (requested).** Investigate importing users' legitimately obtained **3D Tabletop Download** assets (not assuming the 3D-print STL is a suitable textured VTT token). Support miniature preview, scale/base size, rotation, placement, movement, selected-token visibility, and storage/ownership controls on supported 3D scenes. Test Hero Forge's free sample asset before implementing a paid-download flow; confirm file format and licensing/redistribution restrictions before handling user uploads or distributing assets to players.
-- **General-purpose model interchange.** Prefer glTF/GLB where user-supplied files and rights permit; evaluate a constrained importer/converter for other formats only if real download samples require it. Budget polygon/texture limits, compression, loading and caching, mobile/browser fallback, accessibility, camera controls, and multiplayer synchronization.
-- **Milestone order:** (1) verify source formats/rights and a sample map/mini; (2) optional 2D Dungeon Alchemist import improvements; (3) sandboxed 3D viewer and Hero Forge miniature prototype; (4) scene/object alignment and token controls; (5) multiplayer/map integration after performance and permissions testing. Keep standard 2D Maps as the default.
+- **Existing 2D map remains authoritative.** Keep the existing map image (including Dungeon Alchemist 2D exports), grids, token coordinates, fog, annotations, movement, AoE measurement, encounters, permissions, and shared state. Models stand on the flat map like miniatures on a physical tabletop.
+- **Hero Forge 3D tokens.** Investigate importing player-owned, legitimately obtained **3D Tabletop Download** assets (not assuming printable STLs are suited to textured tabletop play). Support token placement, selection, scale and grid footprint, rotation, movement, previews, and a normal 2D token fallback.
+- **Optional tabletop camera.** Switch between familiar top-down and angled/isometric perspectives, with zoom. Retain accurate 2D grid interactions and measurements, including picking, dragging, and fog.
+- **Format, rights, and performance feasibility.** Verify actual Hero Forge tabletop sample format and model-license/redistribution constraints before coding an importer. Prefer glTF/GLB when supported; evaluate safe conversion only if needed. Limit model/texture size, cache securely, and provide mobile/performance fallbacks.
+- **Phased prototype:** (1) verify a licensed sample model and export format; (2) draw it on an existing flat map; (3) bind its position to an ordinary TWE token; (4) verify fog, ownership, multiuser sync, measurements and controls; (5) add GM/player uploads and optional camera mode.
+- **Explicitly out of scope:** importing fully navigable Dungeon Alchemist 3D scenes, 3D walls/floors/dungeon editing, physics, or a separate 3D VTT. Reconsider only if requested later.
 
-References: [Dungeon Alchemist export FAQ](https://steamcommunity.com/app/1588530/discussions/0/4631482382562711649/) · [Dungeon Alchemist Universal VTT import guide](https://www.dungeonalchemist.com/import-to-abovevtt) · [Hero Forge digital model support](https://heroforge.com/content/support-docs/digital-models/).
+References: [Hero Forge digital model support](https://heroforge.com/content/support-docs/digital-models/) · [Dungeon Alchemist Universal VTT import guide](https://www.dungeonalchemist.com/import-to-abovevtt).
 
 ---
 

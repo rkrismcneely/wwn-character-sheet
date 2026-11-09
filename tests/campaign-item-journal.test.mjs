@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
+import {journalDocumentContent} from "../lib/campaigns/journal-layout.ts";
 import {
  journalItemMarker,journalItemIcon,newItemJournalContent,
  itemJournalManagedSection,updatedItemJournalContent,
@@ -46,6 +47,32 @@ test("Editing the campaign item only updates the managed Journal block",()=>{
  assert.match(itemJournalManagedSection({...item,kind:"magical",properties:{
   magical:{bonuses:"+1",abilities:"Moonlight",charges:0,uses:"Dawn",rulesText:"Custom"}}}),
   /\*\*Charges:\*\* 0/u);
+});
+test("Journal reading view hides sync comments but preserves their stored identity",()=>{
+ const source=newItemJournalContent(item)+"\n## GM notes\nThis remains editable.";
+ const display=journalDocumentContent(source);
+ assert.doesNotMatch(display,/<!-- twe-item(?::|-managed:)/u);
+ assert.match(display,/Forged from lunar silver/u);
+ assert.match(display,/Inventory availability:/u);
+ assert.match(source,/<!-- twe-item-managed:start -->/u);
+ assert.match(source,/<!-- twe-item:citem_/u);
+ // Code examples remain literal, rather than silently changing user content.
+ const code=journalDocumentContent("~~~\n<!-- twe-item-managed:start -->\n~~~");
+ assert.match(code,/<!-- twe-item-managed:start -->/u);
+});
+test("magical item copies all populated fields and describes empty structured rules honestly",()=>{
+ const magical={...item,kind:"magical",description:"Burn incense to create smoke.",
+  properties:{magical:{bonuses:"+2",abilities:"Can shape dreams.",charges:0,
+   uses:"Once per dawn",rulesText:"The smoke is visible."}}};
+ const text=journalDocumentContent(newItemJournalContent(magical));
+ for(const expected of ["Burn incense","Bonuses:","Abilities:","Charges:","0",
+   "Use guidance:","Rules:","selected character"]){
+  assert.ok(text.includes(expected),expected);
+ }
+ const blank=journalDocumentContent(newItemJournalContent({...magical,
+  properties:{magical:{bonuses:"",abilities:"",charges:null,uses:"",rulesText:""}}}));
+ assert.match(blank,/No separate magical properties recorded/u);
+ assert.doesNotMatch(blank,/## Magical Properties/u);
 });
 test("Item library sends the existing item to a GM-only Journal Items page",async()=>{
  const ui=await read("app/campaigns/campaign-item-library.tsx");

@@ -19,9 +19,10 @@ export function journalItemIcon(item:Pick<CampaignItem,"kind">):string {
 
 export function itemJournalManagedSection(item:CampaignItem):string {
  const lines:string[]=[journalItemManagedStart,
-   "**Item:** "+item.name,"",
    "**Category:** "+(item.kind==="armor"?"Armour":item.kind==="weapon"?"Weapon":
-     item.kind==="magical"?"Magical Item":"Mundane Item"),""];
+     item.kind==="magical"?"Magical Item":"Mundane Item"),"",
+   "**Inventory availability:** "+(item.visibility==="all"?"All linked characters":
+     item.characterIds.length+" selected character"+(item.characterIds.length===1?"":"s")),""];
  if(item.description.trim())lines.push(item.description.trim(),"");
  if(item.kind==="weapon"&&item.properties.weapon){
   const p=item.properties.weapon;
@@ -42,14 +43,16 @@ export function itemJournalManagedSection(item:CampaignItem):string {
   if(p.restrictions)lines.push("**Restrictions:** "+p.restrictions,"");
   if(p.properties)lines.push("**Additional properties:** "+p.properties,"");
  }
- if(item.kind==="magical"&&item.properties.magical){
+ if(item.kind==="magical"){
   const p=item.properties.magical;
-  lines.push("## Magical Properties","");
-  if(p.bonuses)lines.push("**Bonuses:** "+p.bonuses,"");
-  if(p.abilities)lines.push("**Abilities:** "+p.abilities,"");
-  if(p.charges!==null&&p.charges!==undefined)lines.push("**Charges:** "+p.charges,"");
-  if(p.uses)lines.push("**Use guidance:** "+p.uses,"");
-  if(p.rulesText)lines.push("**Rules:** "+p.rulesText,"");
+  const details:string[]=[];
+  if(p?.bonuses)details.push("**Bonuses:** "+p.bonuses,"");
+  if(p?.abilities)details.push("**Abilities:** "+p.abilities,"");
+  if(p?.charges!==null&&p?.charges!==undefined)details.push("**Charges:** "+p.charges,"");
+  if(p?.uses)details.push("**Use guidance:** "+p.uses,"");
+  if(p?.rulesText)details.push("**Rules:** "+p.rulesText,"");
+  if(details.length)lines.push("## Magical Properties","",...details);
+  else lines.push("*No separate magical properties recorded; see the item description.*","");
  }
  lines.push(journalItemManagedEnd);
  return lines.join("\n");

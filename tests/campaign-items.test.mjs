@@ -97,6 +97,26 @@ test("campaign item persistence and APIs keep visibility server-authoritative", 
   assert.match(deployWorkflow, /migrate-campaign-items/u);
 });
 
+test("item persistence reads structured properties from their editor category instead of blanking values",async()=>{
+  const [service,editor]=await Promise.all([
+    readFile(new URL("../lib/campaigns/items.ts",import.meta.url),"utf8"),
+    readFile(new URL("../app/campaigns/campaign-item-library.tsx",import.meta.url),"utf8"),
+  ]);
+  // The editor always stores a keyed property object. Before this fix, the
+  // server passed the outer object directly into every field validator,
+  // silently turning magical text and charges into empty values on save.
+  assert.match(editor,/\[current\.kind\]:\s*\{/u);
+  assert.match(service,/candidate\?\.magical \?\? value/u);
+  assert.match(service,/candidate\?\.weapon \?\? value/u);
+  assert.match(service,/candidate\?\.armor \?\? value/u);
+  assert.match(service,/properties: normalizeCampaignItemProperties\(draft\.properties, itemKind\)/u);
+  assert.match(service,/JSON\.stringify\(value\.properties\)/u);
+  assert.match(service,/properties: storedProperties\(row\.propertiesJson\)/u);
+  for(const field of ["bonuses","abilities","charges","uses","rulesText"]){
+    assert.match(service,new RegExp("candidate\\."+field+"\\b","u"));
+  }
+});
+
 test("character inventory supports unlimited Stored Items and campaign-item pickers without replacing legacy string arrays", async () => {
   const [sheet, storedItems, css] = await Promise.all([
     readFile(new URL("../app/character-sheet.tsx", import.meta.url), "utf8"),

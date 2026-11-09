@@ -125,6 +125,17 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
     return true;
   }
 
+  async function refreshItemJournal(item:CampaignItem){
+    setBusy(true);setError("");setJournalNotice("");
+    try{
+      const updated=await syncItemJournal(item);
+      setJournalNotice(updated?
+        `Refreshed the Journal article for "${item.name}".`:
+        `The Journal article for "${item.name}" is already up to date.`);
+    }catch(cause){
+      setError(cause instanceof Error?cause.message:"Could not refresh the linked Journal article.");
+    }finally{setBusy(false);}
+  }
   async function addItemToJournal(item:CampaignItem){
     if(busy)return;
     setBusy(true);setError("");setJournalNotice("");
@@ -318,7 +329,9 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
         <small>Visible to: {visibilitySummary(item, characters)}</small>
       </div>
       <div className="gm-npc-actions">
-        <button type="button" className="campaign-secondary" disabled={busy || linkedItemIds.includes(item.id)} onClick={()=>void addItemToJournal(item)}>{linkedItemIds.includes(item.id)?"Added to Journal":"Add to Journal"}</button>
+        {linkedItemIds.includes(item.id)
+          ? <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>void refreshItemJournal(item)}>Refresh Journal</button>
+          : <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>void addItemToJournal(item)}>Add to Journal</button>}
         <button type="button" className="campaign-quiet" onClick={() => openEdit(item)}>Edit</button>
         {deleteId === item.id
           ? <span className="gm-npc-delete-confirm"><button type="button" className="campaign-danger" disabled={busy} onClick={() => void remove(item.id)}>Confirm Delete</button><button type="button" className="campaign-quiet" onClick={() => setDeleteId(null)}>Cancel</button></span>

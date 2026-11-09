@@ -54,6 +54,20 @@ Treat the remaining expansion bullets as product choices rather than mandatory s
 
 ---
 
+## Future feature: 3D Maps and 3D Miniatures
+
+**Status: research and feasibility only.** Build on TWE's existing Maps, tokens, fog, scenes, and campaign permissions. Do not replace the 2D VTT or commit to full 3D rendering until viable source formats and performance are demonstrated.
+
+- **Dungeon Alchemist 3D environment import (requested).** The desired result is a navigable tabletop-scale 3D scene that retains usable floors, walls, doors, elevations, obstacles, lighting, map scale/grid alignment, and GM/player visibility controls where available. **Current dependency:** Dungeon Alchemist does not officially export full 3D scenes and says it has no plans to offer such exports. Treat this as blocked on a supported, appropriately licensed export or integration route; do not promise a direct import, reverse-engineer proprietary scene assets, or extract proprietary geometry. Monitor official capabilities for changes.
+- **Practical Dungeon Alchemist interoperability meanwhile.** Evaluate its existing exported 2D images and Universal VTT (.dd2vtt) data (walls/doors/lighting) for import to existing TWE maps. If exploring a 2.5D presentation, represent walls/height with original or appropriately licensed TWE geometry rather than claiming the exported image contains the actual Dungeon Alchemist 3D scene.
+- **Hero Forge 3D tokens (requested).** Investigate importing users' legitimately obtained **3D Tabletop Download** assets (not assuming the 3D-print STL is a suitable textured VTT token). Support miniature preview, scale/base size, rotation, placement, movement, selected-token visibility, and storage/ownership controls on supported 3D scenes. Test Hero Forge's free sample asset before implementing a paid-download flow; confirm file format and licensing/redistribution restrictions before handling user uploads or distributing assets to players.
+- **General-purpose model interchange.** Prefer glTF/GLB where user-supplied files and rights permit; evaluate a constrained importer/converter for other formats only if real download samples require it. Budget polygon/texture limits, compression, loading and caching, mobile/browser fallback, accessibility, camera controls, and multiplayer synchronization.
+- **Milestone order:** (1) verify source formats/rights and a sample map/mini; (2) optional 2D Dungeon Alchemist import improvements; (3) sandboxed 3D viewer and Hero Forge miniature prototype; (4) scene/object alignment and token controls; (5) multiplayer/map integration after performance and permissions testing. Keep standard 2D Maps as the default.
+
+References: [Dungeon Alchemist export FAQ](https://steamcommunity.com/app/1588530/discussions/0/4631482382562711649/) · [Dungeon Alchemist Universal VTT import guide](https://www.dungeonalchemist.com/import-to-abovevtt) · [Hero Forge digital model support](https://heroforge.com/content/support-docs/digital-models/).
+
+---
+
 ## Future feature: Session Recordings + AI Recaps
 
 After the current Campaign Journal / Session Recap release is stable, add an optional GM-controlled workflow for importing Discord game-session recordings from **Craig**, transcribing the session and generating an editable recap. This is **future scope, not a blocker** for the journal release.

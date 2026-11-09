@@ -83,6 +83,8 @@ test("Item library sends the existing item to a GM-only Journal Items page",asyn
  assert.match(ui,/visibility:"gm"/u);
  assert.match(ui,/sameName&&!window.confirm/u);
  assert.match(ui,/linkedItemIds.includes\(item.id\)/u);
+ assert.match(ui,/Refresh Journal/u);
+ assert.match(ui,/refreshItemJournal\(item\)/u);
  assert.match(ui,/expectedContent:page.content,expectedUpdatedAt:page.updatedAt/u);
  assert.match(ui,/Item saved, but its Journal article could not be updated/u);
  assert.match(ui,/twe:campaign-data-changed/u);

@@ -57,8 +57,11 @@ export function journalDocumentContent(content: string): string {
    .replace(/^<!-- twe-map:map_[a-f0-9-]{36} -->[ \t]*$/gmu, "")
    .replace(/^<!-- twe-session-recap:[0-9a-f-]{36} -->[ \t]*$/gmiu, "")
    // Keep item sync markers in stored Markdown, but never render them.
-   .replace(/^<!-- twe-item:citem_[a-f0-9]{32} -->[ \t]*$/gmu, "")
-   .replace(/^<!-- twe-item-managed:(?:start|end) -->[ \t]*$/gmu, "");
+   // Previous visual-editor saves may put a sync comment beside prose on
+   // the same line. Remove the recognized marker itself rather than requiring
+   // a whole standalone line, while outsideMarkdownCode protects examples.
+   .replace(/<!--\s*twe-item:citem_[a-f0-9]{32}\s*-->/giu, "")
+   .replace(/<!--\s*twe-item-managed:(?:start|end)\s*-->/giu, "");
   if(!isStore)return visible;
   // Give existing Store-to-Journal articles the improved layout without modifying saved drafts.
   visible=visible.replace(/^## Inventory\s*\n((?:\s*- \*\*[^\n]+\n?)+)/gmu,(_match:string,items:string)=>{

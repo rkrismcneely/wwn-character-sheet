@@ -60,6 +60,33 @@ test("Journal reading view hides sync comments but preserves their stored identi
  const code=journalDocumentContent("~~~\n<!-- twe-item-managed:start -->\n~~~");
  assert.match(code,/<!-- twe-item-managed:start -->/u);
 });
+test("legacy inline item markers never leak into rendered Journal prose",()=>{
+ const oldPage=[
+  "<!-- twe-item:"+id+" -->",
+  "",
+  "<!-- twe-item-managed:start --> **Item:** Censer of Solid Dreams",
+  "",
+  "**Category:** Magical Item",
+  "",
+  "## Magical Properties",
+  "",
+  "**Abilities:** This is a test.",
+  "",
+  "**Rules:** I am testing this.",
+  "",
+  "Some notes <!-- twe-item-managed:end --> remain visible.",
+ ].join("\n");
+ const display=journalDocumentContent(oldPage);
+ assert.doesNotMatch(display,/<!--\\s*twe-item(?::|-managed:)/u);
+ for(const expected of ["Censer of Solid Dreams","**Category:** Magical Item",
+  "**Abilities:** This is a test.","**Rules:** I am testing this.",
+  "Some notes","remain visible."])assert.ok(display.includes(expected),expected);
+ // Sync metadata is retained in the saved source for subsequent item updates.
+ assert.match(oldPage,/<!-- twe-item-managed:start -->/u);
+ const example="Inline code: \`<!-- twe-item-managed:start -->\`";
+ assert.equal(journalDocumentContent(example),example);
+});
+
 test("magical item copies all populated fields and describes empty structured rules honestly",()=>{
  const magical={...item,kind:"magical",description:"Burn incense to create smoke.",
   properties:{magical:{bonuses:"+2",abilities:"Can shape dreams.",charges:0,

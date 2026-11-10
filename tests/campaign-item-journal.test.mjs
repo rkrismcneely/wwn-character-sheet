@@ -77,13 +77,13 @@ test("legacy inline item markers never leak into rendered Journal prose",()=>{
   "Some notes <!-- twe-item-managed:end --> remain visible.",
  ].join("\n");
  const display=journalDocumentContent(oldPage);
- assert.doesNotMatch(display,/<!--\\s*twe-item(?::|-managed:)/u);
+ assert.doesNotMatch(display,/<!--\s*twe-item(?::|-managed:)/u);
  for(const expected of ["Censer of Solid Dreams","**Category:** Magical Item",
   "**Abilities:** This is a test.","**Rules:** I am testing this.",
   "Some notes","remain visible."])assert.ok(display.includes(expected),expected);
  // Sync metadata is retained in the saved source for subsequent item updates.
  assert.match(oldPage,/<!-- twe-item-managed:start -->/u);
- const example="Inline code: \`<!-- twe-item-managed:start -->\`";
+ const example="Inline code: `<!-- twe-item-managed:start -->`";
  assert.equal(journalDocumentContent(example),example);
 });
 

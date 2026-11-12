@@ -151,7 +151,7 @@ test("failed section diagnosis is GM-scoped and limited to read-only original Ge
   assert.match(route,/retryFailedRecapSection/u);
   assert.match(route,/retryApproved!==true/u);
   assert.match(ui,/Retry failed section only/u);
-  assert.match(ui,/diagnosedJob\.current===newest\.id/u);
+  assert.match(ui,/diagnosedJob\.current===failureAttemptKey\(newest\)/u);
   assert.match(progress,/analysisFailure/u);
   assert.match(progress,/!analysisFailure/u);
 });

@@ -33,11 +33,11 @@ export async function POST(request:Request,ctx:Context){
       throw new CampaignServiceError("Only the campaign GM can inspect a recap.",403);
     requireActiveCampaign(access.campaign);
     const recap=await getCampaignSessionRecap(db,actor,id,body.recapId);
-    const job=await db.prepare("SELECT interaction_id AS interactionId,status,error_code AS errorCode "+
+    const job=await db.prepare("SELECT interaction_id AS interactionId,status,error_code AS errorCode,processing_mode AS processingMode "+
       "FROM campaign_recap_audio_summary_jobs WHERE id=? AND campaign_id=? AND recap_id=? "+
       "AND requested_by=? AND confirmed_at IS NOT NULL")
       .bind(body.jobId,access.campaign.id,recap.id,actor.userId)
-      .first<{interactionId:string|null;status:string;errorCode:string|null}>();
+      .first<{interactionId:string|null;status:string;errorCode:string|null;processingMode:string}>();
     if(!job||job.status!=="needs_attention"||
       !["interaction_failed","segment_interaction_failed"].includes(job.errorCode??""))
       throw new CampaignServiceError("No completed failed Gemini interaction is available for this job.",409);
@@ -47,7 +47,9 @@ export async function POST(request:Request,ctx:Context){
     // exposing its Google identifier or using another generation request.
     let interactionId=job.interactionId;
     let section:number|null=null,sections:number|null=null;
-    const stage=job.errorCode==="segment_interaction_failed"?"audio_section":"main_or_final_interaction";
+    const stage=job.errorCode==="segment_interaction_failed"?"audio_section":
+      job.processingMode==="segmented"?"final_recap_writing":
+      job.processingMode==="single"?"combined_audio_and_recap":"unknown";
     if(job.errorCode==="segment_interaction_failed"){
       const part=await db.prepare(
         "SELECT interaction_id AS interactionId,segment_index AS segmentIndex "+
@@ -111,7 +113,7 @@ export async function POST(request:Request,ctx:Context){
       return Response.json({error:"The Gemini interaction no longer reports a failed state. No new request was submitted."},
         {status:409,headers:noStore});
     return Response.json({diagnosis:summarizeRecapGeminiFailure(detail),
-      section,sectionCount:sections,stage,resubmitted:false}, {headers:noStore});
+      section,sectionCount:sections,stage,processingMode:job.processingMode,resubmitted:false}, {headers:noStore});
   }catch(e){
     if(e instanceof RequestBodyError)
       return Response.json({error:e.message},{status:e.status,headers:noStore});

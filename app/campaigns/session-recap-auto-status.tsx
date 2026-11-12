@@ -20,7 +20,7 @@ type Job={
 };
 type Asset={id:string;label:string;status:string;provider:string;durationMs?:number|null;mimeType?:string|null;byteSize?:number|null};
 type FailureDiagnosis={kind:string;title:string;explanation:string;inputTokens:number|null;providerCode?:string|null;diagnosticFingerprint?:string};
-type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null;stage?:string};
+type DiagnosisState={jobId:string;value:FailureDiagnosis;section:number|null;sectionCount:number|null;stage?:string;processingMode?:string};
 export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTitle,published=false}:{
   campaignId:string;recapId:string;published?:boolean;
   onDraft:(content:string,updatedAt:string,overwrite:boolean,suggestedTitle:string|null)=>boolean;
@@ -188,7 +188,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
       if(!response.ok||!data.diagnosis)
         throw Error(data.error||"Gemini did not provide a failure diagnosis.");
       setDiagnosis({jobId:job.id,value:data.diagnosis,
-        section:data.section??null,sectionCount:data.sectionCount??null,stage:data.stage});
+        section:data.section??null,sectionCount:data.sectionCount??null,stage:data.stage,processingMode:data.processingMode});
     }catch(e){setError(e instanceof Error?e.message:"Could not check Gemini failure details.");}
     finally{setDiagnosing(false);}
   },[endpoint,recapId]);
@@ -439,6 +439,7 @@ export function SessionRecapAutoStatus({campaignId,recapId,onDraft,onSuggestedTi
               "\\nDiagnosis category: "+currentDiagnosis.value.kind+
               "\\nExplanation: "+currentDiagnosis.value.explanation+
               "\\nProcessing stage: "+(currentDiagnosis.stage??"unknown")+
+              "\\nProcessing mode: "+(currentDiagnosis.processingMode??"unknown")+
               "\\nProvider code: "+(currentDiagnosis.value.providerCode??"not supplied")+
               "\\nDiagnostic fingerprint: "+(currentDiagnosis.value.diagnosticFingerprint??"not available")+
               (currentDiagnosis.value.inputTokens!==null?

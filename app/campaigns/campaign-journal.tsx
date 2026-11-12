@@ -222,14 +222,15 @@ useEffect(()=>{
 },[endpoint,preview,editing,saving,uploading,campaignId]);
 const current=entries.find(e=>e.id===selected);
 useEffect(()=>{
- const onPopState=(event:PopStateEvent)=>{
-  const journal=event.state?.[journalHistoryKey] as {campaignId?:string;id?:string}|undefined;
-  if(!journal||journal.campaignId!==campaignId||typeof journal.id!=="string"||(journal.id&&!entries.some(entry=>entry.id===journal.id)))return;
-  setSelected(journal.id);
-  setEditing(false);
+ const restore=()=>{
+  const url=new URL(window.location.href);
+  const id=url.searchParams.get("journalPage");
+  if(url.searchParams.get("tab")!=="journal"||!id)return;
+  if(entries.some(entry=>entry.id===id)){setSelected(id);setEditing(false);}
  };
- window.addEventListener("popstate",onPopState);
- return()=>window.removeEventListener("popstate",onPopState);
+ restore();
+ window.addEventListener("popstate",restore);
+ return()=>window.removeEventListener("popstate",restore);
 },[campaignId,entries]);
 
 function openJournalEntry(id:string){
@@ -237,8 +238,16 @@ function openJournalEntry(id:string){
  if(selected)setBackStack(stack=>[...stack.slice(-29),selected]);
  setForwardStack([]);
  const previous=window.history.state as Record<string,unknown>|null;
- if(!previous?.[journalHistoryKey])window.history.replaceState({...previous,[journalHistoryKey]:{campaignId,id:selected}}, "",window.location.href);
- window.history.pushState({...window.history.state,[journalHistoryKey]:{campaignId,id}}, "",window.location.href);
+ const url=new URL(window.location.href);
+ url.searchParams.set("tab","journal");
+ if(!previous?.[journalHistoryKey]){
+  const prior=new URL(url);
+  if(selected)prior.searchParams.set("journalPage",selected);
+  else prior.searchParams.delete("journalPage");
+  window.history.replaceState({...previous,[journalHistoryKey]:{campaignId,id:selected}}, "",prior);
+ }
+ url.searchParams.set("journalPage",id);
+ window.history.pushState({...window.history.state,[journalHistoryKey]:{campaignId,id}}, "",url);
  setSelected(id);setEditing(false);
 }
 function travelJournal(direction:"back"|"forward"){

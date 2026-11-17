@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RecapDropboxConnection } from "./recap-dropbox-connection";
 
 type StorageConnection = {
   id: string;
@@ -150,7 +151,7 @@ export function RecapStorageConnections() {
     }
   }
 
-  return <section className="account-panel account-connections-panel" aria-labelledby="storage-connections-title">
+  return <><section className="account-panel account-connections-panel" aria-labelledby="storage-connections-title">
     <div className="account-section-heading"><div>
       <p className="account-kicker">SESSION RECORDINGS</p>
       <h2 id="storage-connections-title">Google Drive Storage</h2>
@@ -198,5 +199,5 @@ export function RecapStorageConnections() {
     </>}
     {message && <p className="account-notice" role="status">{message}</p>}
     {error && <p className="account-error" role="alert">{error}</p>}
-  </section>;
+  </section><RecapDropboxConnection/></>;
 }

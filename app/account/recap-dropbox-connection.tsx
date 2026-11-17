@@ -48,9 +48,11 @@ export function RecapDropboxConnection(){
       else if(outcome==="cancelled")setMessage("Dropbox connection cancelled.");
       else if(outcome)setError(messages[reason??""]??"Dropbox connection failed.");
     },0);
-    void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:"Dropbox unavailable.");})
-      .finally(()=>{if(active)setLoading(false);});
-    return ()=>{active=false;window.clearTimeout(notification);};
+    const requestTimer=window.setTimeout(()=>{
+      void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:"Dropbox unavailable.");})
+        .finally(()=>{if(active)setLoading(false);});
+    },0);
+    return ()=>{active=false;window.clearTimeout(notification);window.clearTimeout(requestTimer);};
   },[refresh]);
   const account=connections.find(c=>c.status==="connected")??
     connections.find(c=>c.status==="reconnect_required");

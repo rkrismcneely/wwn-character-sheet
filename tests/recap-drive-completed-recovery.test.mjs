@@ -64,7 +64,7 @@ test("recovery route requires signed-in GM, same-origin request and a recap asse
   assert.match(service,/spaces:"drive"/u);
   assert.match(ui,/found\.filter\(a=>a\.canRecover\)/u);
   assert.match(ui,/Find saved recording/u);
-  assert.match(ui,/base\+"\/upload\/recover"/u);
+  assert.match(ui,/base\+\(isDropbox\?"\/upload\/dropbox\/recover":"\/upload\/recover"\)/u);
   assert.match(list,/canRecover: canManage && row\.storageOwnerUserId === actor\.userId && row\.status === "preparing"/u);
   // No user-chosen file ID, no new audio transfer, no AI invocation.
   assert.doesNotMatch(route,/remoteFileId|arrayBuffer\(|uploadRecordingToDrive|Gemini/u);

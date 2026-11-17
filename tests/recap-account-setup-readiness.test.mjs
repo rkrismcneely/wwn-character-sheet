@@ -48,7 +48,8 @@ test("recap setup endpoint is user scoped and exposes only redacted readiness",a
     read("app/account/recap-ai-connections.tsx"),
   ]);
   assert.match(api,/getSessionActor\(request\)/u);
-  assert.equal((api.match(/\.bind\(actor\.userId\)/gu)||[]).length,3);\n  assert.match(api,/dropboxConfigured\(config\)/u);
+  assert.equal((api.match(/\.bind\(actor\.userId\)/gu)||[]).length,3);
+  assert.match(api,/dropboxConfigured\(config\)/u);
   assert.match(api,/driveConfiguration\(config\)/u);
   assert.match(api,/recapAIEncryptionReady\(config\)/u);
   assert.match(api,/ready:storageConnected/u);
@@ -58,7 +59,8 @@ test("recap setup endpoint is user scoped and exposes only redacted readiness",a
   assert.match(ui,/Recap from recording/u);
   assert.doesNotMatch(ui,/recapSetup==="ready"/u);
   assert.match(account,/id="recap-setup"/u);
-  assert.match(drive,/Connect Google Drive/u);\n  assert.match(drive,/RecapDropboxConnection/u);
+  assert.match(drive,/Connect Google Drive/u);
+  assert.match(drive,/RecapDropboxConnection/u);
   assert.match(drive,/ENDPOINT \+ "\/start"/u);
   assert.doesNotMatch(drive,/console\.cloud\.google\.com|RECAP_STORAGE_ENCRYPTION_KEY/u);
   assert.match(gemini,/Get a Gemini API key from Google AI Studio/u);

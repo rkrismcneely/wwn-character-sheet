@@ -1,5 +1,5 @@
 import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
-import {storedItemVisibility,managedItemVisibility,itemVisibilityTargets,type CampaignItemVisibility} from "./item-visibility.ts";
+import {storedItemVisibility,managedItemVisibility,itemVisibilityTargets,type CampaignItemVisibility,type StoredItemVisibility} from "./item-visibility.ts";
 export type {CampaignItemVisibility} from "./item-visibility.ts";
 import type {
   CampaignArmorProperties,
@@ -64,7 +64,7 @@ interface CampaignItemRow {
   kind: InventoryItemKind;
   description: string;
   propertiesJson: string;
-  visibility: CampaignItemVisibility;
+  visibility: StoredItemVisibility;
   createdAt: string;
   updatedAt: string;
 }

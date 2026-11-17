@@ -1,4 +1,6 @@
 import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
+import {storedItemVisibility,managedItemVisibility,itemVisibilityTargets,type CampaignItemVisibility} from "./item-visibility.ts";
+export type {CampaignItemVisibility} from "./item-visibility.ts";
 import type {
   CampaignArmorProperties,
   CampaignItemProperties,
@@ -12,13 +14,6 @@ import type {
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 
-export type CampaignItemVisibility = "all" | "selected" | "gm";
-/** The D1 table only allows all/selected. GM-only uses selected with no
- * character targets, ensuring the existing character inventory SQL excludes it.
- */
-export function storedItemVisibility(mode:CampaignItemVisibility):"all"|"selected" {
-  return mode==="gm"?"selected":mode;
-}
 
 export interface CampaignItem {
   id: string;
@@ -201,7 +196,7 @@ function visibility(value: unknown): CampaignItemVisibility {
 }
 
 function targetIds(value: unknown, mode: CampaignItemVisibility): string[] {
-  if (mode === "all" || mode === "gm") return [];
+  if (mode !== "selected") return itemVisibilityTargets(mode, []);
   if (!Array.isArray(value)) throw new CampaignServiceError("Choose at least one visible character.", 422);
   const ids = [...new Set(value.filter((candidate): candidate is string => typeof candidate === "string"))];
   if (!ids.length || ids.length > 100 || ids.some(id => !isPlausiblePublicCharacterId(id))) {
@@ -278,8 +273,7 @@ function toManagedItem(row: CampaignItemRow, campaignPublicId: string, targets: 
   const characterIds = row.visibility === "selected" ? targets.get(row.id) ?? [] : [];
   // No selected characters is the intentional GM-only state. Historical
   // selected items with missing targets also fail closed instead of leaking.
-  const itemVisibility:CampaignItemVisibility =
-    row.visibility === "selected" && characterIds.length===0?"gm":row.visibility;
+  const itemVisibility=managedItemVisibility(row.visibility,characterIds.length);
   return {
     id: row.id,
     campaignId: campaignPublicId,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { storedItemVisibility, managedItemVisibility, itemVisibilityTargets } from "../lib/campaigns/item-visibility.ts";
 import {
   campaignInventoryArmor,
   campaignInventoryKindLabel,
@@ -54,6 +55,36 @@ test("campaign equipment snapshots expose weapon and armour mechanics without ch
   assert.deepEqual(campaignInventoryArmor(armorValue), { name: "Harbor Buckler", ac: 13, enc: 1, shield: "small", restrictions: "", properties: "Ignores the first Shock instance each round." });
   assert.equal(campaignInventoryKindLabel("armor"), "Armour");
   assert.match(inventoryItemDescription(armorValue), /Ignores the first Shock instance/u);
+});
+
+test("GM-only visibility round-trips without exposing item to any character",()=>{
+  assert.equal(storedItemVisibility("gm"),"selected");
+  assert.equal(managedItemVisibility("selected",0),"gm");
+  assert.equal(managedItemVisibility("selected",2),"selected");
+  assert.equal(managedItemVisibility("all",0),"all");
+  assert.deepEqual(itemVisibilityTargets("gm",["chr_a"] ),[]);
+  assert.deepEqual(itemVisibilityTargets("all",["chr_a"]),[]);
+  assert.deepEqual(itemVisibilityTargets("selected",["chr_a"]),["chr_a"]);
+});
+
+test("GM-only item save/read and character visibility rules stay consistent", async()=>{
+  const [service,ui,linkedJournal]=await Promise.all([
+    readFile(new URL("../lib/campaigns/items.ts",import.meta.url),"utf8"),
+    readFile(new URL("../app/campaigns/campaign-item-library.tsx",import.meta.url),"utf8"),
+    readFile(new URL("../lib/campaigns/journal-item-link.ts",import.meta.url),"utf8"),
+  ]);
+  assert.match(service,/if \(value === "gm"\) return "gm"/u);
+  assert.match(service,/storedItemVisibility\(value.visibility\)/u);
+  assert.match(service,/managedItemVisibility\(row.visibility,characterIds.length\)/u);
+  assert.match(service,/if \(mode !== "selected"\) return itemVisibilityTargets\(mode, \[\]\)/u);
+  // Player inventory query permits selected items only with a matching
+  // campaign_item_characters row, which GM-only items never create.
+  assert.match(service,/ci\.visibility_mode = 'all'[\s\S]*?EXISTS \([\s\S]*?campaign_item_characters cic/u);
+  assert.match(ui,/value="gm" checked=\{draft.visibility === "gm"\}/u);
+  assert.match(ui,/visibility: "gm", characterIds: \[\]/u);
+  assert.match(ui,/if \(item.visibility === "gm"\) return "GM Only"/u);
+  assert.match(ui,/draft.visibility === "selected" && draft.characterIds.length === 0/u);
+  assert.match(linkedJournal,/item.visibility==="gm"\?"GM Only"/u);
 });
 
 test("campaign item persistence and APIs keep visibility server-authoritative", async () => {

@@ -1,5 +1,7 @@
 import type { DriveSettings } from "../account/recap-google-drive-oauth.ts";
 import { getGmDriveAccessToken } from "./recap-drive-token.ts";
+import {getGmDropboxAccessToken} from "./recap-dropbox-token.ts";
+import type {DropboxSettings} from "../account/recap-dropbox-oauth.ts";
 import { getCampaignSessionRecap } from "./session-recaps.ts";
 import { CampaignServiceError, loadCampaignAccess } from "./service.ts";
 import { audioPlaybackHeaders, validateAudioRangeHeader } from "./recap-drive-playback-range.ts";
@@ -19,7 +21,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
  */
 export async function streamAuthorizedRecapAudio(
   db:D1Database, actor:CampaignActor|null, campaignId:string, assetId:string,
-  rangeHeader:string|null, settings:DriveSettings, signal?:AbortSignal,
+  rangeHeader:string|null, settings:DriveSettings&DropboxSettings, signal?:AbortSignal,
 ):Promise<Response> {
   if(!actor)throw new CampaignServiceError("Sign in required.",401);
   const {campaign}=await loadCampaignAccess(db,actor,campaignId);
@@ -35,21 +37,28 @@ export async function streamAuthorizedRecapAudio(
   if(!audio || !audio.recapId)throw new CampaignServiceError("Audio recording not found.",404);
   // The player must be permitted to view this *specific* recap.
   await getCampaignSessionRecap(db,actor,campaignId,audio.recapId);
-  if(audio.provider!=="google-drive" || audio.status!=="ready" ||
+  if(!["google-drive","dropbox"].includes(audio.provider) || audio.status!=="ready" ||
      audio.connectionStatus!=="connected" || !audio.remoteFileId ||
-     !/^[a-zA-Z0-9_-]{5,256}$/u.test(audio.remoteFileId) ||
+     !(audio.provider==="dropbox"?/^id:[A-Za-z0-9_-]{10,256}$/u:
+       /^[a-zA-Z0-9_-]{5,256}$/u).test(audio.remoteFileId) ||
      !audio.mimeType || !Number.isSafeInteger(audio.byteSize) || (audio.byteSize ?? 0) <= 0) {
     throw new CampaignServiceError("Recording unavailable. Ask the GM to reconnect storage.",409);
   }
   const range=validateAudioRangeHeader(rangeHeader,audio.byteSize!);
   // The server uses only the storage owner's sealed credential, regardless
   // of which campaign member is listening.
-  const accessToken=await getGmDriveAccessToken(db,settings,audio.ownerUserId,audio.connectionId);
-  const upstream=await fetch("https://www.googleapis.com/drive/v3/files/"+
-    encodeURIComponent(audio.remoteFileId)+"?alt=media",{
-      method:"GET",redirect:"manual",
+  const dropbox=audio.provider==="dropbox";
+  const accessToken=dropbox?
+    await getGmDropboxAccessToken(db,settings,audio.ownerUserId,audio.connectionId):
+    await getGmDriveAccessToken(db,settings,audio.ownerUserId,audio.connectionId);
+  const upstream=await fetch(dropbox
+    ?"https://content.dropboxapi.com/2/files/download"
+    :"https://www.googleapis.com/drive/v3/files/"+
+      encodeURIComponent(audio.remoteFileId)+"?alt=media",{
+      method:dropbox?"POST":"GET",redirect:"manual",
       headers:{
         authorization:"Bearer "+accessToken,
+        ...(dropbox?{"Dropbox-API-Arg":JSON.stringify({path:audio.remoteFileId})}:{}),
         ...(range?{range}:{}),
       },
       signal,
@@ -67,7 +76,7 @@ export async function streamAuthorizedRecapAudio(
   }
   if(range && upstream.status!==206){
     await upstream.body.cancel();
-    return Response.json({error:"Google Drive did not honor audio seeking."},{
+    return Response.json({error:"Storage provider did not honor audio seeking."},{
       status:502,headers:{"cache-control":"private, no-store"},
     });
   }

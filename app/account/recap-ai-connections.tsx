@@ -81,7 +81,7 @@ export function RecapAIConnections(){
       Connecting does not submit audio or start any AI request.
     </p>
     <p className="account-explanation">
-      Connect your Gemini key once, then upload a session recording to your Google Drive.
+      Connect your Gemini key once, then upload a session recording to your Google Drive or Dropbox.
       Gemini only starts when you click Auto Summarize on that recording and approve its
       individual privacy and billing confirmation. Full transcripts remain optional.
     </p>

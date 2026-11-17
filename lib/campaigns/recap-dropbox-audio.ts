@@ -9,6 +9,31 @@ import type {DropboxSettings} from "../account/recap-dropbox-oauth.ts";
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const SESSION=/^[\w:.-]{8,1024}$/u;
 export const DROPBOX_UPLOAD_CHUNK=8*1024*1024;
+/** Bound and check each authenticated upload chunk before forwarding it to
+ * Dropbox. This also prevents a forged declared chunk length from consuming
+ * unbounded Worker bandwidth or misaligning the Dropbox session.
+ */
+async function checkedDropboxChunk(body:ReadableStream<Uint8Array>,expected:number){
+  const reader=body.getReader();
+  const chunks:Uint8Array[]=[];
+  let count=0;
+  while(true){
+    const {done,value}=await reader.read();
+    if(done)break;
+    count+=value.byteLength;
+    if(count>expected||count>DROPBOX_UPLOAD_CHUNK){
+      await reader.cancel();
+      throw error("Recording chunk exceeds its declared length.",422);
+    }
+    chunks.push(value);
+  }
+  if(count!==expected)throw error("Recording chunk length mismatch.",422);
+  const bytes=new Uint8Array(expected);
+  let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  return bytes;
+}
+
 type DraftInput={recapId?:unknown;connectionId?:unknown;filename?:unknown;
   mimeType?:unknown;byteSize?:unknown;durationMs?:unknown};
 type Asset={id:string;connectionId:string;recapId:string;status:string;
@@ -136,6 +161,7 @@ export async function appendDropboxAudio(db:D1Database,actor:CampaignActor|null,
   const declared=request.headers.get("content-length");
   if(declared!==null&&Number(declared)!==length)
     throw error("Dropbox chunk body length mismatch.",422);
+  const bytes=await checkedDropboxChunk(request.body,length);
   const final=offset+length===asset.byteSize;
   const token=await getGmDropboxAccessToken(db,settings,actor!.userId,asset.connectionId);
   // Dropbox upload sessions accept bytes through append_v2. The final
@@ -146,7 +172,7 @@ export async function appendDropboxAudio(db:D1Database,actor:CampaignActor|null,
     appended=await fetch("https://content.dropboxapi.com/2/files/upload_session/append_v2",{
       method:"POST",redirect:"manual",headers:{authorization:"Bearer "+token,
         "content-type":"application/octet-stream","Dropbox-API-Arg":JSON.stringify(args)},
-      body:request.body,signal:AbortSignal.timeout(60000)});
+      body:bytes,signal:AbortSignal.timeout(60000)});
   }catch{throw error("Dropbox upload connection interrupted. Check saved progress before retrying.",503);}
   if(!appended.ok){
     if(appended.status===429||appended.status>=500)

@@ -84,7 +84,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration,c
       .then(value=>{
         if(controller.signal.aborted)return;
         setAssets(value);
-        const playable=value.filter(asset=>asset.status==="ready" && asset.provider==="google-drive");
+        const playable=value.filter(asset=>asset.status==="ready" && (asset.provider==="google-drive" || asset.provider==="dropbox"));
         const preferred=playable.find(asset=>asset.primaryAudio)??playable[0];
         setSelectedId(preferred?.id??"");
       })
@@ -93,7 +93,7 @@ export function SessionRecapAudioPlayer({campaignId,recapId,content,onDuration,c
     return ()=>controller.abort();
   },[campaignId,recapId]);
 
-  const playable=assets.filter(asset=>asset.status==="ready" && asset.provider==="google-drive");
+  const playable=assets.filter(asset=>asset.status==="ready" && (asset.provider==="google-drive" || asset.provider==="dropbox"));
   const selected=playable.find(asset=>asset.id===selectedId)??playable[0];
   const disconnected=assets.some(asset=>asset.status==="auth_required");
   useEffect(()=>{

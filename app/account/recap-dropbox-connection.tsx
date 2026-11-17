@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useCallback,useEffect,useState} from "react";
 type StorageConnection={id:string;provider:string;displayName:string;
   status:"connected"|"disconnected"|"reconnect_required"};
 type Status={available?:boolean;connections?:StorageConnection[];error?:string};
@@ -26,14 +26,14 @@ export function RecapDropboxConnection(){
   const [confirm,setConfirm]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
-  async function refresh(){
+  const refresh=useCallback(async()=>{
     const response=await fetch(ENDPOINT,{cache:"no-store"});
     const body=await response.json() as Status;
     if(!response.ok||!Array.isArray(body.connections))
       throw Error(body.error||"Dropbox status unavailable.");
     setAvailable(body.available===true);
     setConnections(body.connections);
-  }
+  },[]);
   useEffect(()=>{
     const url=new URL(window.location.href),outcome=url.searchParams.get("dropbox"),
       reason=url.searchParams.get("dropbox_error");
@@ -51,7 +51,7 @@ export function RecapDropboxConnection(){
     void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:"Dropbox unavailable.");})
       .finally(()=>{if(active)setLoading(false);});
     return ()=>{active=false;window.clearTimeout(notification);};
-  },[]);
+  },[refresh]);
   const account=connections.find(c=>c.status==="connected")??
     connections.find(c=>c.status==="reconnect_required");
   const connected=account?.status==="connected";

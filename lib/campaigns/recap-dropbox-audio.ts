@@ -46,6 +46,24 @@ async function metadata(token:string,path:string):Promise<unknown|null>{
   if(!resp.ok)throw error("Dropbox metadata verification is unavailable.",503);
   return resp.json();
 }
+async function ensureDropboxFolders(token:string){
+  for(const path of ["/Tales Without End","/Tales Without End/Session Audio"]){
+    let response:Response;
+    try{response=await fetch("https://api.dropboxapi.com/2/files/create_folder_v2",{
+      method:"POST",redirect:"manual",
+      headers:{authorization:"Bearer "+token,"content-type":"application/json"},
+      body:JSON.stringify({path,autorename:false}),signal:AbortSignal.timeout(15000)});
+    }catch{throw error("Dropbox could not create the recording folder.",503);}
+    if(response.ok)continue;
+    if(response.status===409){
+      // A pre-existing folder is fine, but a conflicting file is not.
+      const existing=await metadata(token,path);
+      if(existing&&typeof existing==="object"&&".tag" in existing&&
+        (existing as {".tag":unknown})[".tag"]==="folder")continue;
+    }
+    throw error("Dropbox could not create the Tales Without End recording folder.",409);
+  }
+}
 async function assetFor(db:D1Database,actor:CampaignActor,campaignId:string,assetId:string){
   const campaign=await requireGm(db,actor,campaignId);
   if(!UUID.test(assetId))throw error("Invalid audio upload.",422);
@@ -80,6 +98,7 @@ export async function beginDropboxAudio(db:D1Database,actor:CampaignActor|null,
     .bind(actor!.userId).first<{count:number}>();
   if(Number(outstanding?.count??0)>=10)throw error("Too many unfinished uploads. Recover or finish one first.",409);
   const token=await getGmDropboxAccessToken(db,settings,actor!.userId,input.connectionId);
+  await ensureDropboxFolders(token);
   let response:Response;
   try{
     response=await fetch("https://content.dropboxapi.com/2/files/upload_session/start",{
@@ -119,25 +138,40 @@ export async function appendDropboxAudio(db:D1Database,actor:CampaignActor|null,
     throw error("Dropbox chunk body length mismatch.",422);
   const final=offset+length===asset.byteSize;
   const token=await getGmDropboxAccessToken(db,settings,actor!.userId,asset.connectionId);
-  const args=final
-    ? {cursor:{session_id:sessionId,offset},commit:{path:filePath(asset),
-      mode:"add",autorename:false,mute:true,strict_conflict:true}}
-    : {cursor:{session_id:sessionId,offset},close:false};
-  let resp:Response;
+  // Dropbox upload sessions accept bytes through append_v2. The final
+  // append must close the session; finish then commits with an EMPTY body.
+  const args={cursor:{session_id:sessionId,offset},close:final};
+  let appended:Response;
   try{
-    resp=await fetch("https://content.dropboxapi.com/2/files/upload_session/"+
-      (final?"finish":"append_v2"),{
+    appended=await fetch("https://content.dropboxapi.com/2/files/upload_session/append_v2",{
       method:"POST",redirect:"manual",headers:{authorization:"Bearer "+token,
         "content-type":"application/octet-stream","Dropbox-API-Arg":JSON.stringify(args)},
       body:request.body,signal:AbortSignal.timeout(60000)});
-  }catch{throw error("Dropbox upload connection interrupted. Do not resend an uncertain chunk without checking status.",503);}
-  if(!resp.ok){
-    if(resp.status===429||resp.status>=500)throw error("Dropbox temporarily rejected the chunk. Check the upload status.",503);
+  }catch{throw error("Dropbox upload connection interrupted. Check saved progress before retrying.",503);}
+  if(!appended.ok){
+    if(appended.status===429||appended.status>=500)
+      throw error("Dropbox temporarily rejected the chunk. Check the upload status.",503);
     throw error("Dropbox rejected this chunk. Restart the upload if its session is no longer valid.",409);
   }
   if(!final)return {receivedBytes:offset+length,ready:false};
+  let resp:Response;
+  try{
+    resp=await fetch("https://content.dropboxapi.com/2/files/upload_session/finish",{
+      method:"POST",redirect:"manual",headers:{authorization:"Bearer "+token,
+        "content-type":"application/octet-stream",
+        "Dropbox-API-Arg":JSON.stringify({cursor:{session_id:sessionId,offset:asset.byteSize},
+          commit:{path:filePath(asset),mode:"add",autorename:false,mute:true,strict_conflict:true}})},
+      body:new Uint8Array(0),signal:AbortSignal.timeout(30000)});
+  }catch{throw error("Dropbox may have saved the file. Use Find saved recording before uploading again.",503);}
+  if(!resp.ok){
+    if(resp.status===429||resp.status>=500)
+      throw error("Dropbox could not confirm the final file. Use Find saved recording before retrying.",503);
+    throw error("Dropbox could not commit the recording. Check the destination folder.",409);
+  }
   let data:unknown;
-  try{data=await resp.json();}catch{throw error("Dropbox saved audio but returned invalid metadata. Try recovery.",503);}
+  try{data=await resp.json();}catch{
+    throw error("Dropbox saved audio but returned invalid metadata. Try recovery.",503);
+  }
   if(!validMetadata(data,asset))throw error("Dropbox file metadata did not match the original audio. Try recovery.",409);
   await markReady(db,asset,campaign.id,actor!.userId,data.id);
   return {receivedBytes:asset.byteSize,assetId,ready:true};

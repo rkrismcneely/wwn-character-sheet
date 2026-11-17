@@ -2,7 +2,7 @@ import {canManageCampaignContent} from "./authorization.ts";
 import {validateAudioUploadDraft} from "./recap-drive-upload.ts";
 import {getGmDropboxAccessToken} from "./recap-dropbox-token.ts";
 import {getCampaignSessionRecap} from "./session-recaps.ts";
-import {CampaignServiceError,loadCampaignAccess,requireActiveCampaign} from "./service.ts";
+import {CampaignServiceError,loadCampaignAccess,requireActiveCampaign,type CampaignServiceStatus} from "./service.ts";
 import type {CampaignActor} from "./types.ts";
 import type {DropboxSettings} from "../account/recap-dropbox-oauth.ts";
 
@@ -14,7 +14,7 @@ type DraftInput={recapId?:unknown;connectionId?:unknown;filename?:unknown;
 type Asset={id:string;connectionId:string;recapId:string;status:string;
   label:string;mimeType:string;byteSize:number;remoteFileId:string|null};
 type FileMeta={id?:unknown;name?:unknown;size?:unknown;path_lower?:unknown;".tag"?:unknown};
-const error=(msg:string,status=409)=>new CampaignServiceError(msg,status);
+const error=(msg:string,status:CampaignServiceStatus=409)=>new CampaignServiceError(msg,status);
 
 async function requireGm(db:D1Database,actor:CampaignActor|null,campaignId:string){
   if(!actor)throw error("Sign in required.",401);

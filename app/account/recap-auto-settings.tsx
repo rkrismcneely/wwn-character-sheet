@@ -60,13 +60,13 @@ export function RecapAutoSettings(){
       <h2 id="recap-automation-heading">AI Recap Preferences</h2>
     </div></div>
     <p className="account-explanation">
-      Uploading a recording only stores it in your Google Drive. You choose whether to
+      Uploading a recording only saves it to your connected Google Drive or Dropbox. You choose whether to
       run Gemini later using <strong>Auto Summarize</strong> on that recording. Every AI
       request requires its own confirmation; no automatic billing starts after upload.
     </p>
     {loading?<p role="status">Checking accounts…</p>:<>
       <p className="account-explanation">
-        Google Drive: <strong>{ready.storageConnected?"Connected":"Not connected"}</strong>
+        Audio storage: <strong>{ready.storageConnected?"Connected":"Not connected"}</strong>
         {" · "}Gemini: <strong>{ready.aiConnected?"Connected":"Not connected"}</strong>
       </p>
       <label htmlFor="recap-detail-level">Default recap length</label>

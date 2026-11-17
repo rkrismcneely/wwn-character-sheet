@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { uploadRecordingToDrive } from "@/lib/campaigns/recap-drive-upload-browser";
+import {uploadRecordingToDropbox} from "@/lib/campaigns/recap-dropbox-upload-browser";
 import { describeAudioUploadFile, formatAudioUploadSize, uploadPercent } from "@/lib/campaigns/recap-audio-upload-ui";
 
 type StorageConnection = {
@@ -19,6 +20,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
 }) {
   const [connections,setConnections] = useState<StorageConnection[]>([]);
   const [driveConfigured,setDriveConfigured] = useState(false);
+  const [dropboxConfigured,setDropboxConfigured] = useState(false);
   const [connectionId,setConnectionId] = useState("");
   const [assets,setAssets] = useState<AudioAsset[]>([]);
   const [file,setFile] = useState<File|null>(null);
@@ -33,17 +35,18 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
   const fileInputRef=useRef<HTMLInputElement|null>(null);
   const base="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio";
 
-  const recoverSavedRecording=useCallback(async(assetId:string,quiet=false):Promise<boolean>=>{
+  const recoverSavedRecording=useCallback(async(assetId:string,provider="google-drive",quiet=false):Promise<boolean>=>{
     if(!quiet){setRecoveringAsset(assetId);setError("");setNotice("");}
     try{
-      const response=await fetch(base+"/upload/recover",{
+      const isDropbox=provider==="dropbox";
+      const response=await fetch(base+(isDropbox?"/upload/dropbox/recover":"/upload/recover"),{
         method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({assetId,recapId}),
       });
       const data=await response.json() as {found?:boolean;ready?:boolean;error?:string};
-      if(!response.ok)throw new Error(data.error||"TWE could not check Drive for the saved recording.");
+      if(!response.ok)throw new Error(data.error||"TWE could not check your storage account for the recording.");
       if(data.found&&data.ready){
-        setNotice("Recording recovered from Drive.");
+        setNotice("Recording recovered from "+(isDropbox?"Dropbox":"Google Drive")+".");
         const list=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
         if(list.ok){
           const updated=await list.json() as {assets?:AudioAsset[]};
@@ -80,24 +83,36 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
         if(!response.ok || !Array.isArray(result.connections)) throw new Error(result.error||"Storage connections unavailable.");
         return result;
       });
+    const dropboxAccount=fetch("/api/account/storage/dropbox",{cache:"no-store"})
+      .then(async response=>{
+        const result=await response.json() as {connections?:StorageConnection[];available?:boolean;error?:string};
+        if(!response.ok||!Array.isArray(result.connections))throw new Error(result.error||"Dropbox status unavailable.");
+        return result;
+      });
     const linked=fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"})
       .then(async response=>{
         const result=await response.json() as {assets?:AudioAsset[];error?:string};
         if(!response.ok || !Array.isArray(result.assets)) throw new Error(result.error||"Recording references unavailable.");
         return result.assets;
       });
-    void Promise.all([account,linked])
-      .then(([details,found])=>{
+    void Promise.all([account,dropboxAccount,linked])
+      .then(([details,dropboxDetails,found])=>{
         if(!active)return;
         setDriveConfigured(Boolean(details.available));
-        setConnections(details.connections ?? []);
+        setDropboxConfigured(Boolean(dropboxDetails.available));
+        const combined=[...(details.connections??[]),...(dropboxDetails.connections??[])];
+        // Dropbox rows are also present in the legacy Drive status response.
+        const unique=[...new Map(combined.map(c=>[c.id,c])).values()];
+        setConnections(unique);
         setAssets(found);
-        const connected=details.connections?.find(c=>c.provider==="google-drive" && c.status==="connected");
+        const connected=unique.find(c=>c.status==="connected"&&
+          (c.provider==="google-drive"&&details.available||
+           c.provider==="dropbox"&&dropboxDetails.available));
         setConnectionId(connected?.id ?? "");
         // Recover completed uploads whose final browser confirmation was lost.
         // The server verifies ownership and appProperties; no re-upload occurs.
         for(const asset of found.filter(a=>a.canRecover).slice(0,10)){
-          void recoverSavedRecording(asset.id,true);
+          void recoverSavedRecording(asset.id,asset.provider,true);
         }
       })
       .catch(cause=>{if(active)setError(cause instanceof Error?cause.message:"Could not load recordings.");})
@@ -113,6 +128,21 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     catch(cause) {setFile(null);setError(cause instanceof Error?cause.message:"Unsupported recording file.");}
   }
 
+  async function uploadedAssetReady(assetId:string,service:string):Promise<void>{
+    setAwaitingVerification(null);
+    setFile(null);
+    if(fileInputRef.current)fileInputRef.current.value="";
+    setNotice("Saved to "+service+". Select and approve the recording in Step 1 to continue.");
+    window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId,assetId}}));
+    try{
+      const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
+      if(updated.ok){
+        const data=await updated.json() as {assets?:AudioAsset[]};
+        if(Array.isArray(data.assets))setAssets(data.assets);
+      }
+    }catch{/* Saved recording remains attached. */}
+  }
+
   async function verifyAsset(pending:AwaitingVerification):Promise<void> {
     const response=await fetch(base+"/upload/finish",{
       method:"POST",headers:{"content-type":"application/json"},
@@ -122,18 +152,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     if(!response.ok || result.ready!==true) {
       throw new Error(result.error||"Google Drive has the file, but TWE could not verify it.");
     }
-    setAwaitingVerification(null);
-    setFile(null);
-    if(fileInputRef.current)fileInputRef.current.value="";
-    setNotice("Saved to Google Drive. Select and approve the recording in Step 1 to continue.");
-    window.dispatchEvent(new CustomEvent("twe:recap-audio-attached",{detail:{recapId,assetId:pending.assetId}}));
-    try {
-      const updated=await fetch(base+"?recapId="+encodeURIComponent(recapId),{cache:"no-store"});
-      if(updated.ok){
-        const data=await updated.json() as {assets?:AudioAsset[]};
-        if(Array.isArray(data.assets))setAssets(data.assets);
-      }
-    } catch { /* The verified upload remains attached even if refreshing the list fails. */ }
+    await uploadedAssetReady(pending.assetId,"Google Drive");
   }
 
   async function retryVerification() {
@@ -151,6 +170,23 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     let uploaded:AwaitingVerification|null=null;
     try{
       const draft=describeAudioUploadFile(file);
+      const selected=connections.find(c=>c.id===connectionId);
+      if(selected?.provider==="dropbox"){
+        const response=await fetch(base+"/upload/dropbox/start",{
+          method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({...draft,recapId,connectionId}),signal:abort.signal,
+        });
+        const session=await response.json() as {
+          assetId?:string;sessionId?:string;chunkBytes?:number;error?:string;
+        };
+        if(!response.ok||!session.assetId||!session.sessionId||!session.chunkBytes)
+          throw Error(session.error||"Could not start Dropbox upload.");
+        await uploadRecordingToDropbox(file,base+"/upload/dropbox/chunk",{
+          assetId:session.assetId,sessionId:session.sessionId,chunkBytes:session.chunkBytes,
+        },(sent,total)=>setProgress(uploadPercent(sent,total)),abort.signal);
+        await uploadedAssetReady(session.assetId,"Dropbox");
+        return;
+      }
       const response=await fetch(base+"/upload/start",{
         method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({...draft,recapId,connectionId}),
@@ -173,7 +209,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
       await verifyAsset(uploaded);
     }catch(cause){
       if(abort.signal.aborted){
-        setNotice("Upload stopped. Any partial file remains in your own Drive upload session.");
+        setNotice("Upload stopped. If it completed in cloud storage, try Find saved recording. Otherwise start a new upload.");
       }else{
         setError(cause instanceof Error?cause.message:"Audio upload failed.");
         if(uploaded)setNotice("Your file reached Google Drive. Use Retry verification to link it without uploading again.");
@@ -181,14 +217,17 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
     }finally{controller.current=null;setBusy(false);}
   }
 
-  const activeConnections=connections.filter(c=>c.provider==="google-drive" && c.status==="connected");
+  const activeConnections=connections.filter(c=>c.status==="connected" &&
+    (c.provider==="google-drive"&&driveConfigured||c.provider==="dropbox"&&dropboxConfigured));
+  const selectedProvider=connections.find(c=>c.id===connectionId)?.provider;
+  const selectedService=selectedProvider==="dropbox"?"Dropbox":"Google Drive";
 
   return <section className="session-recap-form" aria-label="Audio recording for this recap">
     <div className="session-recap-editor-heading">
       <strong>Session audio</strong>
       <a href="/account">Manage storage accounts</a>
     </div>
-    <p className="session-recap-editor-help">Upload audio to your Google Drive. AI summarization starts only when you approve it.</p>
+    <p className="session-recap-editor-help">Upload session audio to your Google Drive or Dropbox. AI summarization starts only when you approve it.</p>
     {busy&&!awaitingVerification&&<p className="session-recap-editor-help" role="status">
       Keep this page open until the upload completes.
     </p>}
@@ -196,23 +235,23 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
       {assets.filter(asset=>asset.status!=="ready"||asset.canRecover).map(asset=><div className="session-recap-editor-help" key={asset.id}>
         {asset.label} — {asset.status==="ready"?"Saved in your storage account":asset.status==="auth_required"?"Reconnect storage to access":"Upload not ready"}
         {asset.canRecover&&<button type="button" className="campaign-secondary"
-          disabled={busy||recoveringAsset!==null} onClick={()=>void recoverSavedRecording(asset.id)}>
-          {recoveringAsset===asset.id?"Checking Drive…":"Find saved recording"}
+          disabled={busy||recoveringAsset!==null} onClick={()=>void recoverSavedRecording(asset.id,asset.provider)}>
+          {recoveringAsset===asset.id?"Checking storage…":"Find saved recording"}
         </button>}
       </div>)}
     </div>}
     {loading ? <p role="status">Loading recording storage…</p> : <>
-      {!driveConfigured && <p className="session-recap-editor-help">
-        TWE&apos;s Google Drive connection is not configured yet. Recording uploads are unavailable until setup is completed.
+      {!driveConfigured&&!dropboxConfigured && <p className="session-recap-editor-help">
+        Cloud audio storage needs Google Drive or Dropbox configuration from the site owner.
       </p>}
-      {driveConfigured && activeConnections.length===0 && <p className="session-recap-editor-help">
-        Connect your Google Drive from <a href="/account">Account settings</a> to attach audio.
+      {(driveConfigured||dropboxConfigured)&&activeConnections.length===0 && <p className="session-recap-editor-help">
+        Connect Google Drive or Dropbox from <a href="/account">Account settings</a> to attach audio.
       </p>}
-      {driveConfigured && activeConnections.length>0 && <>
+      {activeConnections.length>0 && <>
         <label htmlFor="recap-audio-storage-account">Your storage account</label>
         <select id="recap-audio-storage-account" value={connectionId}
           onChange={event=>setConnectionId(event.target.value)} disabled={busy}>
-          {activeConnections.map(c=><option key={c.id} value={c.id}>{c.displayName||"Google Drive"}</option>)}
+          {activeConnections.map(c=><option key={c.id} value={c.id}>{(c.provider==="dropbox"?"Dropbox — ":"Google Drive — ")+(c.displayName||"Connected account")}</option>)}
         </select>
         <label htmlFor="recap-audio-file">Audio file</label>
         <input id="recap-audio-file" ref={fileInputRef} type="file" accept={fileExtensions} disabled={busy || Boolean(awaitingVerification)}
@@ -222,7 +261,7 @@ export function SessionRecapAudioUploader({campaignId,recapId,onBusyChange}: {
         </p>}
         {busy && !awaitingVerification && <div role="status" aria-live="polite">
           <progress style={{width:"100%"}} max={100} value={progress} aria-label="Recording upload progress"/>
-          <span> {progress}% uploaded to your Drive</span>
+          <span> {progress}% uploaded to {selectedService}</span>
         </div>}
         {busy && awaitingVerification && <p role="status">Verifying the saved recording…</p>}
         <div className="session-recap-form-actions">

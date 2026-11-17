@@ -13,7 +13,7 @@ import {audioFileDuration,browserRecapFile,browserRecapKey,
 import type {RecapSource,RecapTranscriber,RecapWriter,RecapWorkflow,PreparedPart,
   RecapWorkflowAction} from "@/lib/campaigns/recap-stage-workflow";
 
-type Asset={id:string;label:string;status:string;byteSize:number|null;mimeType:string|null;
+type Asset={id:string;label:string;provider?:string;status:string;byteSize:number|null;mimeType:string|null;
   durationMs:number|null};
 type Data={workflow:RecapWorkflow;assets:Asset[];
   transcript:{count:number;updatedAt:string|null;published:boolean};error?:string};
@@ -226,7 +226,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       }else if(selectedAsset){
         source={kind:"drive",id:selectedAsset.id,name:selectedAsset.label,
           bytes:selectedAsset.byteSize!,mimeType:selectedAsset.mimeType||"audio/mp4"};
-      }else throw Error("Upload a recording to Google Drive or choose a local audio file.");
+      }else throw Error("Upload a recording to Dropbox or Google Drive, or choose a local audio file.");
       await apply({action:"approve-source",source},{localVerified});
       setPrepared([]);setPreparedProvider(null);setProgress("");setMeter(null);
       setMethod(recommendedRecapPreparation(provider,{
@@ -267,10 +267,10 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     }
     const endpoint="/api/campaigns/"+encodeURIComponent(campaignId)+"/session-recaps/audio/"+
       encodeURIComponent(currentSource.id)+"/stream";
-    setProgress("Downloading original recording privately from Google Drive…");
+    setProgress("Downloading original recording privately from cloud storage…");
     setMeter(null);
     const response=await fetch(endpoint,{cache:"no-store",signal});
-    if(!response.ok)throw Error("Could not read the original Drive recording. Reconnect Drive if required.");
+    if(!response.ok)throw Error("Could not read the saved recording. Reconnect its storage account if required.");
     let lastPercent=-1;
     const blob=await readRecapAudioWithProgress(response,currentSource.bytes,(done,total)=>{
       const percent=Math.floor(done/total*100);
@@ -463,20 +463,20 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
     {step===0&&data&&<>
       <h4>1. Upload and approve the original recording</h4>
       <p className="campaign-empty-copy">Keep the original high-quality recording for players.
-        Use your connected Google Drive, or save it locally in this browser without another account.</p>
+        Use your connected Dropbox or Google Drive, or save it locally in this browser without another account.</p>
       <SessionRecapAudioUploader campaignId={campaignId} recapId={recapId}
         onBusyChange={onUploadBusy}/>
       {(selectedAsset?.byteSize??browserFile?.size??0)>300*1024*1024&&
-        <p className="session-recap-import-notice" role="status">Large recording: the original can stay in Google Drive, but browser audio conversion is limited to 300 MiB. A prepared transcript or smaller source may be needed.</p>}
-      {eligible.length===0&&<p className="campaign-error">No verified Drive recording is available yet. After uploading, wait for confirmation or click Refresh saved progress above. You can also choose a local file below.</p>}
+        <p className="session-recap-import-notice" role="status">Large recording: the original can stay in your cloud storage, but browser audio conversion is limited to 300 MiB. A prepared transcript or smaller source may be needed.</p>}
+      {eligible.length===0&&<p className="campaign-error">No verified cloud recording is available yet. After uploading, wait for confirmation or click Refresh saved progress above. You can also choose a local file below.</p>}
       <div className="session-recap-form-fields">
-        <label>Saved Google Drive recording
+        <label>Saved cloud recording
           <select value={sourceChoice} disabled={busy} onChange={e=>{setSourceChoice(e.target.value);setBrowserFile(null);}}>
             <option value="">Choose saved recording</option>
-            {eligible.map(a=><option key={a.id} value={a.id}>{a.label} ({sizeText(a.byteSize!)})</option>)}
+            {eligible.map(a=><option key={a.id} value={a.id}>{a.label} ({a.provider==="dropbox"?"Dropbox":"Google Drive"} · {sizeText(a.byteSize!)})</option>)}
           </select>
         </label>
-        <label>Or use a local recording (free, no Drive account)
+        <label>Or use a local recording (free, no cloud account)
           <input type="file" accept=".m4a,.mp3,.mp4,.wav,.flac,.ogg,.webm,.aac"
             disabled={busy} onChange={e=>void chooseBrowserSource(e)}/>
         </label>
@@ -485,7 +485,7 @@ export function SessionRecapStagedWizard({campaignId,recapId,onDraft,onUploadBus
       <p className="campaign-empty-copy">Browser-only recordings stay in this browser&apos;s private storage.
         Clearing website data may erase them; keep your own backup. Players cannot stream local-only recordings.</p>
       {currentSource&&<p className="session-recap-import-notice">Approved source:
-        {" "}{currentSource.name} ({currentSource.kind==="drive"?"Google Drive":"this browser"})</p>}
+        {" "}{currentSource.name} ({currentSource.kind==="drive"?(assets.find(a=>a.id===currentSource.id)?.provider==="dropbox"?"Dropbox":"Google Drive"):"this browser"})</p>}
       <button type="button" className="campaign-secondary" disabled={busy} onClick={()=>{providerTouchedRef.current=true;setProvider("import");setMethod("import");setStep(1);}}>
         I already have a transcript — skip recording
       </button>

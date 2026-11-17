@@ -38,14 +38,19 @@ export function RecapDropboxConnection(){
     const url=new URL(window.location.href),outcome=url.searchParams.get("dropbox"),
       reason=url.searchParams.get("dropbox_error");
     if(outcome){
-      if(outcome==="connected")setMessage("Dropbox connected. You can choose it when uploading audio.");
-      else if(outcome==="cancelled")setMessage("Dropbox connection cancelled.");
-      else setError(messages[reason??""]??"Dropbox connection failed.");
       url.searchParams.delete("dropbox");url.searchParams.delete("dropbox_error");
       window.history.replaceState(window.history.state,"",url.pathname+url.search+url.hash);
     }
-    void refresh().catch(e=>setError(e instanceof Error?e.message:"Dropbox unavailable."))
-      .finally(()=>setLoading(false));
+    let active=true;
+    const notification=window.setTimeout(()=>{
+      if(!active)return;
+      if(outcome==="connected")setMessage("Dropbox connected. You can choose it when uploading audio.");
+      else if(outcome==="cancelled")setMessage("Dropbox connection cancelled.");
+      else if(outcome)setError(messages[reason??""]??"Dropbox connection failed.");
+    },0);
+    void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:"Dropbox unavailable.");})
+      .finally(()=>{if(active)setLoading(false);});
+    return ()=>{active=false;window.clearTimeout(notification);};
   },[]);
   const account=connections.find(c=>c.status==="connected")??
     connections.find(c=>c.status==="reconnect_required");

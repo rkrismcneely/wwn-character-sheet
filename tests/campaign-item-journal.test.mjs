@@ -116,3 +116,14 @@ test("Item library sends the existing item to a GM-only Journal Items page",asyn
  assert.match(ui,/Item saved, but its Journal article could not be updated/u);
  assert.match(ui,/twe:campaign-data-changed/u);
 });
+
+test("editing a long item list opens the form at that item's position",async()=>{
+ const ui=await read("app/campaigns/campaign-item-library.tsx");
+ assert.match(ui,/function renderItemForm\(key\?:string\)/u);
+ assert.match(ui,/\{formOpen && !editing && renderItemForm\(\)\}/u);
+ assert.match(ui,/items\.map\(item => formOpen && editing\?\.id === item\.id\s*\? renderItemForm\(item\.id\)\s*: <article key=\{item\.id\}/u);
+ assert.match(ui,/function openEdit\(item: CampaignItem\)[\s\S]*?setEditing\(item\);[\s\S]*?setDraft\(draftFor\(item\)\)/u);
+ assert.match(ui,/onClick=\{\(\) => \{ setFormOpen\(false\); setEditing\(null\); setDraft\(blankItem\(\)\); \}\}>Cancel/u);
+ assert.match(ui,/onSubmit=\{save\}/u);
+ assert.match(ui,/setItems\(current => editing[\s\S]*?current\.map\(item => item\.id === body\.item\?\.id \? body\.item : item\)/u);
+});

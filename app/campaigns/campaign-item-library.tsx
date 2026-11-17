@@ -284,18 +284,11 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
     }
   }
 
-  return <section className="gm-console-section campaign-item-library" aria-labelledby="gm-items-title">
-    <div className="campaign-section-heading">
-      <div>
-        <p className="campaign-kicker">CAMPAIGN ITEM LIBRARY</p>
-        <h2 id="gm-items-title">Items</h2>
-        <p className="campaign-empty-copy">Create mundane or magical items for all players, selected characters, or the GM only.</p>
-      </div>
-      <button type="button" className="campaign-primary" onClick={openCreate}>Create Item</button>
-    </div>
-    {error && <p className="campaign-error" role="alert">{error}</p>}
-    {journalNotice && <p className="campaign-notice" role="status">{journalNotice}</p>}
-    {formOpen && <form className="gm-npc-form campaign-item-form" onSubmit={save}>
+  // Use the same editor for creation and editing. For edits, render the form
+  // directly in the selected item's list position rather than at the top.
+  function renderItemForm(key?:string) {
+    return (
+    <form key={key} className="gm-npc-form campaign-item-form" onSubmit={save}>
       <div className="gm-npc-form-heading">
         <h3>{editing ? `Edit ${editing.name}` : "New Campaign Item"}</h3>
         <button type="button" className="campaign-quiet" onClick={() => { setFormOpen(false); setEditing(null); setDraft(blankItem()); }}>Cancel</button>
@@ -319,10 +312,28 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
         </div>}
       </fieldset>
       <button type="submit" className="campaign-primary" disabled={busy || (draft.visibility === "selected" && draft.characterIds.length === 0)}>{editing ? "Save Item" : "Create Item"}</button>
-    </form>}
+    </form>
+
+    );
+  }
+
+  return <section className="gm-console-section campaign-item-library" aria-labelledby="gm-items-title">
+    <div className="campaign-section-heading">
+      <div>
+        <p className="campaign-kicker">CAMPAIGN ITEM LIBRARY</p>
+        <h2 id="gm-items-title">Items</h2>
+        <p className="campaign-empty-copy">Create mundane or magical items for all players, selected characters, or the GM only.</p>
+      </div>
+      <button type="button" className="campaign-primary" onClick={openCreate}>Create Item</button>
+    </div>
+    {error && <p className="campaign-error" role="alert">{error}</p>}
+    {journalNotice && <p className="campaign-notice" role="status">{journalNotice}</p>}
+    {formOpen && !editing && renderItemForm()}
     {loading && <p className="campaign-empty-copy">Loading campaign items…</p>}
     {!loading && !items.length && !formOpen && <p className="campaign-empty-copy">No campaign items have been created yet.</p>}
-    <div className="gm-npc-list campaign-item-list">{items.map(item => <article key={item.id} className="gm-npc-card campaign-item-card">
+    <div className="gm-npc-list campaign-item-list">{items.map(item => formOpen && editing?.id === item.id
+      ? renderItemForm(item.id)
+      : <article key={item.id} className="gm-npc-card campaign-item-card">
       <div>
         <p className="campaign-kicker">{kindLabel(item.kind).toUpperCase()}</p>
         <h3>{item.name}</h3>

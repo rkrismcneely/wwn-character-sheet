@@ -70,6 +70,7 @@ function propertySummary(item: CampaignItem): string {
 
 function visibilitySummary(item: CampaignItem, characters: readonly CampaignItemTarget[]): string {
   if (item.visibility === "all") return "All linked players";
+  if (item.visibility === "gm") return "GM Only";
   const names = item.characterIds
     .map(id => characters.find(character => character.id === id)?.name)
     .filter((name): name is string => Boolean(name));
@@ -288,7 +289,7 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
       <div>
         <p className="campaign-kicker">CAMPAIGN ITEM LIBRARY</p>
         <h2 id="gm-items-title">Items</h2>
-        <p className="campaign-empty-copy">Create mundane or magical items that become available in the inventory picker for all linked players or only selected characters.</p>
+        <p className="campaign-empty-copy">Create mundane or magical items for all players, selected characters, or the GM only.</p>
       </div>
       <button type="button" className="campaign-primary" onClick={openCreate}>Create Item</button>
     </div>
@@ -311,6 +312,7 @@ export function CampaignItemLibrary({ campaignId }: { campaignId: string }) {
         <legend>Player visibility</legend>
         <label><input type="radio" name="item-visibility" value="all" checked={draft.visibility === "all"} onChange={() => setDraft(current => ({ ...current, visibility: "all", characterIds: [] }))} /> All linked players</label>
         <label><input type="radio" name="item-visibility" value="selected" checked={draft.visibility === "selected"} onChange={() => setDraft(current => ({ ...current, visibility: "selected" }))} /> Selected characters only</label>
+        <label><input type="radio" name="item-visibility" value="gm" checked={draft.visibility === "gm"} onChange={() => setDraft(current => ({ ...current, visibility: "gm", characterIds: [] }))} /> GM Only</label>
         {draft.visibility === "selected" && <div className="campaign-item-character-grid">
           {!characters.length && <p className="campaign-empty-copy">Link characters to the campaign before restricting an item to selected characters.</p>}
           {characters.map(character => <label key={character.id}><input type="checkbox" checked={draft.characterIds.includes(character.id)} onChange={() => toggleCharacter(character.id)} /> {character.name}</label>)}

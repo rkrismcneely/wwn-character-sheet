@@ -1,4 +1,6 @@
 import { isPlausiblePublicCharacterId } from "../characters/identifiers.ts";
+import {storedItemVisibility,managedItemVisibility,itemVisibilityTargets,type CampaignItemVisibility,type StoredItemVisibility} from "./item-visibility.ts";
+export type {CampaignItemVisibility} from "./item-visibility.ts";
 import type {
   CampaignArmorProperties,
   CampaignItemProperties,
@@ -12,7 +14,6 @@ import type {
 import { CampaignServiceError, loadCampaignAccess, requireActiveCampaign } from "./service.ts";
 import type { CampaignActor } from "./types.ts";
 
-export type CampaignItemVisibility = "all" | "selected";
 
 export interface CampaignItem {
   id: string;
@@ -63,7 +64,7 @@ interface CampaignItemRow {
   kind: InventoryItemKind;
   description: string;
   propertiesJson: string;
-  visibility: CampaignItemVisibility;
+  visibility: StoredItemVisibility;
   createdAt: string;
   updatedAt: string;
 }
@@ -190,11 +191,12 @@ function storedProperties(value: string): CampaignItemProperties {
 function visibility(value: unknown): CampaignItemVisibility {
   if (value === undefined || value === "all") return "all";
   if (value === "selected") return "selected";
+  if (value === "gm") return "gm";
   throw new CampaignServiceError("Item visibility is invalid.", 422);
 }
 
 function targetIds(value: unknown, mode: CampaignItemVisibility): string[] {
-  if (mode === "all") return [];
+  if (mode !== "selected") return itemVisibilityTargets(mode, []);
   if (!Array.isArray(value)) throw new CampaignServiceError("Choose at least one visible character.", 422);
   const ids = [...new Set(value.filter((candidate): candidate is string => typeof candidate === "string"))];
   if (!ids.length || ids.length > 100 || ids.some(id => !isPlausiblePublicCharacterId(id))) {
@@ -268,6 +270,10 @@ async function targetMap(db: D1Database, campaignId: string): Promise<Map<string
 }
 
 function toManagedItem(row: CampaignItemRow, campaignPublicId: string, targets: Map<string, string[]>): CampaignItem {
+  const characterIds = row.visibility === "selected" ? targets.get(row.id) ?? [] : [];
+  // No selected characters is the intentional GM-only state. Historical
+  // selected items with missing targets also fail closed instead of leaking.
+  const itemVisibility=managedItemVisibility(row.visibility,characterIds.length);
   return {
     id: row.id,
     campaignId: campaignPublicId,
@@ -275,8 +281,8 @@ function toManagedItem(row: CampaignItemRow, campaignPublicId: string, targets: 
     kind: row.kind,
     description: row.description,
     properties: storedProperties(row.propertiesJson),
-    visibility: row.visibility,
-    characterIds: row.visibility === "selected" ? targets.get(row.id) ?? [] : [],
+    visibility: itemVisibility,
+    characterIds,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -369,7 +375,7 @@ export async function createCampaignItem(
       `INSERT INTO campaign_items
         (id, campaign_id, name, kind, description, properties_json, visibility_mode, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, campaign.id, value.name, value.kind, value.description, JSON.stringify(value.properties), value.visibility, now, now),
+    ).bind(id, campaign.id, value.name, value.kind, value.description, JSON.stringify(value.properties), storedItemVisibility(value.visibility), now, now),
     ...targets.map(target => db.prepare(
       `INSERT INTO campaign_item_characters (campaign_item_id, character_id) VALUES (?, ?)`,
     ).bind(id, target.id)),
@@ -397,7 +403,7 @@ export async function updateCampaignItem(
       `UPDATE campaign_items
        SET name = ?, kind = ?, description = ?, properties_json = ?, visibility_mode = ?, updated_at = ?
        WHERE campaign_id = ? AND id = ?`,
-    ).bind(value.name, value.kind, value.description, JSON.stringify(value.properties), value.visibility, now, campaign.id, itemId),
+    ).bind(value.name, value.kind, value.description, JSON.stringify(value.properties), storedItemVisibility(value.visibility), now, campaign.id, itemId),
     db.prepare("DELETE FROM campaign_item_characters WHERE campaign_item_id = ?").bind(itemId),
     ...targets.map(target => db.prepare(
       `INSERT INTO campaign_item_characters (campaign_item_id, character_id) VALUES (?, ?)`,

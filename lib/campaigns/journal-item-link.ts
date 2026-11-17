@@ -22,6 +22,7 @@ export function itemJournalManagedSection(item:CampaignItem):string {
    "**Category:** "+(item.kind==="armor"?"Armour":item.kind==="weapon"?"Weapon":
      item.kind==="magical"?"Magical Item":"Mundane Item"),"",
    "**Inventory availability:** "+(item.visibility==="all"?"All linked characters":
+     item.visibility==="gm"?"GM Only":
      item.characterIds.length+" selected character"+(item.characterIds.length===1?"":"s")),""];
  if(item.description.trim())lines.push(item.description.trim(),"");
  if(item.kind==="weapon"&&item.properties.weapon){
